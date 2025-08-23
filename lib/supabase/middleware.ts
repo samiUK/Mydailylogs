@@ -43,7 +43,9 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith("/login") &&
     !request.nextUrl.pathname.startsWith("/auth") &&
     !request.nextUrl.pathname.startsWith("/masterlogin") &&
-    !request.nextUrl.pathname.startsWith("/masterdashboard")
+    !request.nextUrl.pathname.startsWith("/masterdashboard") &&
+    !request.nextUrl.pathname.match(/^\/admin\/[^/]+$/) &&
+    !request.nextUrl.pathname.match(/^\/staff\/[^/]+$/)
   ) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone()

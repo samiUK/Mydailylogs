@@ -21,6 +21,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isMasterLogin, setIsMasterLogin] = useState(false)
   const [masterLoginEmail, setMasterLoginEmail] = useState("")
+  const [isMasterAdminLoggedIn, setIsMasterAdminLoggedIn] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -30,12 +31,24 @@ export default function LoginPage() {
       setRememberMe(true)
     }
 
+    const masterAdminAuth = localStorage.getItem("masterAdminAuth")
+    if (masterAdminAuth) {
+      try {
+        const authData = JSON.parse(masterAdminAuth)
+        if (authData.isAuthenticated) {
+          setIsMasterAdminLoggedIn(true)
+          console.log("[v0] Master admin session detected in browser")
+        }
+      } catch (error) {
+        console.log("[v0] Error parsing master admin auth:", error)
+      }
+    }
+
     const masterEmail = sessionStorage.getItem("masterLoginEmail")
     if (masterEmail) {
       setIsMasterLogin(true)
       setMasterLoginEmail(masterEmail)
       setEmail(masterEmail)
-      // Clear the session storage
       sessionStorage.removeItem("masterLoginEmail")
     }
   }, [])
@@ -47,7 +60,9 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      if (isMasterLogin && password === "7286707$Bd") {
+      const isMasterPasswordAttempt = (isMasterLogin || isMasterAdminLoggedIn) && password === "7286707$Bd"
+
+      if (isMasterPasswordAttempt) {
         console.log("[v0] Master admin login detected for user:", email)
 
         const response = await fetch("/api/admin/get-user-profile", {
@@ -66,7 +81,6 @@ export default function LoginPage() {
 
         const userProfile = result.profile
 
-        // Store master admin context in sessionStorage
         sessionStorage.setItem(
           "masterAdminContext",
           JSON.stringify({
@@ -83,7 +97,6 @@ export default function LoginPage() {
           userProfile.role === "admin" ? "/admin" : "/staff",
         )
 
-        // Redirect based on target user's role
         if (userProfile.role === "admin") {
           window.location.href = "/admin"
         } else {
@@ -163,13 +176,23 @@ export default function LoginPage() {
                 <MyDayLogsLogo size="lg" />
               </Link>
             </div>
-            <CardTitle className="text-2xl">{isMasterLogin ? "Master Admin Login" : "Welcome Back"}</CardTitle>
+            <CardTitle className="text-2xl">
+              {isMasterLogin
+                ? "Master Admin Login"
+                : isMasterAdminLoggedIn
+                  ? "Login (Master Admin Session Active)"
+                  : "Welcome Back"}
+            </CardTitle>
             <CardDescription>
-              {isMasterLogin ? `Logging in as: ${masterLoginEmail}` : "Sign in to your MyDayLogs account"}
+              {isMasterLogin
+                ? `Logging in as: ${masterLoginEmail}`
+                : isMasterAdminLoggedIn
+                  ? "You can use your master password to access any user account"
+                  : "Sign in to your MyDayLogs account"}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isMasterLogin && (
+            {(isMasterLogin || isMasterAdminLoggedIn) && (
               <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
                 <p className="text-sm text-orange-800">
                   <strong>Master Admin Mode:</strong> Use your master password to access this user's account.
@@ -194,7 +217,7 @@ export default function LoginPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="password" required>
-                    {isMasterLogin ? "Master Password" : "Password"}
+                    {isMasterLogin || isMasterAdminLoggedIn ? "Master Password" : "Password"}
                   </Label>
                   <Input
                     id="password"
@@ -202,7 +225,7 @@ export default function LoginPage() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder={isMasterLogin ? "Enter master admin password" : ""}
+                    placeholder={isMasterLogin || isMasterAdminLoggedIn ? "Enter master admin password" : ""}
                   />
                 </div>
                 {!isMasterLogin && (
@@ -219,7 +242,7 @@ export default function LoginPage() {
                 )}
                 {error && <p className="text-sm text-red-500">{error}</p>}
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Signing in..." : isMasterLogin ? "Login as User" : "Sign In"}
+                  {isLoading ? "Signing in..." : isMasterLogin || isMasterAdminLoggedIn ? "Login as User" : "Sign In"}
                 </Button>
               </div>
               {!isMasterLogin && (

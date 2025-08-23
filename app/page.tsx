@@ -4,7 +4,8 @@ import { MydailylogsLogo } from "@/components/mydailylogs-logo"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, Shield, BarChart3, Users, Clock, FileText, Star } from "lucide-react"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { CheckCircle, Shield, BarChart3, Users, Clock, FileText, Star, Menu } from "lucide-react"
 import Link from "next/link"
 
 export default async function HomePage() {
@@ -42,6 +43,38 @@ export default async function HomePage() {
               <Link href="/auth/sign-up">
                 <Button className="bg-accent hover:bg-accent/90">Get Started Free</Button>
               </Link>
+            </div>
+            <div className="md:hidden">
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Menu className="h-6 w-6" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-[300px] sm:w-[400px]">
+                  <div className="flex flex-col space-y-6 mt-6">
+                    <a href="#features" className="text-lg font-medium hover:text-accent transition-colors">
+                      Features
+                    </a>
+                    <a href="#pricing" className="text-lg font-medium hover:text-accent transition-colors">
+                      Pricing
+                    </a>
+                    <a href="#testimonials" className="text-lg font-medium hover:text-accent transition-colors">
+                      Reviews
+                    </a>
+                    <div className="flex flex-col space-y-3 pt-6 border-t">
+                      <Link href="/auth/login">
+                        <Button variant="ghost" className="w-full justify-start">
+                          Sign In
+                        </Button>
+                      </Link>
+                      <Link href="/auth/sign-up">
+                        <Button className="w-full bg-accent hover:bg-accent/90">Get Started Free</Button>
+                      </Link>
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
             </div>
           </div>
         </div>

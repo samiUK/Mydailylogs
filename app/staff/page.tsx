@@ -17,27 +17,50 @@ export default function StaffDashboard() {
   const [loading, setLoading] = useState(true)
 
   const [isImpersonating, setIsImpersonating] = useState(false)
-  const [impersonatedUser, setImpersonatedUser] = useState<any>(null)
+  const [impersonationData, setImpersonationData] = useState<any>(null)
 
   useEffect(() => {
     const loadUser = async () => {
       const supabase = createClient()
 
       try {
-        const isImpersonatingMode = sessionStorage.getItem("is_impersonating") === "true"
-        const storedUser = sessionStorage.getItem("impersonated_user")
-        const storedProfile = sessionStorage.getItem("impersonated_profile")
+        const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
 
-        if (isImpersonatingMode && storedUser && storedProfile) {
-          setIsImpersonating(true)
-          const mockUser = JSON.parse(storedUser)
-          const mockProfile = JSON.parse(storedProfile)
-          setUser(mockUser)
-          setProfile(mockProfile)
-          setImpersonatedUser(mockUser)
-          return
+        // Check if this is a valid impersonation session
+        if (impersonationContext) {
+          const impersonationData = JSON.parse(impersonationContext)
+
+          // Verify this is actually a master admin impersonation by checking if we have a real Supabase user
+          const {
+            data: { user: supabaseUser },
+          } = await supabase.auth.getUser()
+
+          // If there's a real Supabase user session, this is a normal login, not impersonation
+          if (supabaseUser) {
+            // Clear the stale impersonation context
+            sessionStorage.removeItem("masterAdminImpersonation")
+            document.cookie = "masterAdminImpersonation=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+          } else {
+            // This is a valid impersonation session
+            setIsImpersonating(true)
+            setImpersonationData(impersonationData)
+
+            // Fetch the target user's profile data
+            const { data: targetProfile } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("email", impersonationData.targetUserEmail)
+              .single()
+
+            if (targetProfile) {
+              setUser({ email: impersonationData.targetUserEmail, id: targetProfile.id })
+              setProfile(targetProfile)
+              return
+            }
+          }
         }
 
+        // Normal user authentication flow
         const {
           data: { user },
           error: userError,
@@ -138,36 +161,6 @@ export default function StaffDashboard() {
   }
 
   if (!user) return null
-
-  // Add impersonation banner
-  if (isImpersonating && impersonatedUser) {
-    return (
-      <div className="bg-orange-500 text-white px-4 py-3 rounded-lg">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5" />
-            <span className="font-medium">
-              IMPERSONATING: {impersonatedUser.user_metadata?.full_name || impersonatedUser.email} - Staff Dashboard
-            </span>
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              sessionStorage.removeItem("impersonated_user")
-              sessionStorage.removeItem("impersonated_profile")
-              sessionStorage.removeItem("is_impersonating")
-              window.location.href = "/masterdashboard"
-            }}
-            className="bg-white text-orange-600 hover:bg-gray-100"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Exit Impersonation
-          </Button>
-        </div>
-      </div>
-    )
-  }
 
   const today = new Date()
   const todayString = today.toDateString()
@@ -458,6 +451,32 @@ export default function StaffDashboard() {
             </p>
           </CardContent>
         </Card>
+      )}
+
+      {isImpersonating && impersonationData && (
+        <div className="bg-orange-500 text-white px-4 py-3 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5" />
+              <span className="font-medium">
+                Impersonated by masteradmin - Viewing {impersonationData.targetUserEmail} (Staff Dashboard)
+              </span>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                sessionStorage.removeItem("masterAdminImpersonation")
+                document.cookie = "masterAdminImpersonation=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+                window.location.href = "/masterdashboard"
+              }}
+              className="bg-white text-orange-600 hover:bg-gray-100"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Exit Impersonation
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   )

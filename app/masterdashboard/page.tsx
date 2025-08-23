@@ -115,11 +115,13 @@ export default function MasterDashboardPage() {
       document.cookie = `impersonatedUserEmail=${userEmail.trim()}; path=/; max-age=3600`
       document.cookie = `impersonatedUserRole=${userRole}; path=/; max-age=3600`
 
-      if (userRole === "admin") {
-        window.location.href = `/admin`
-      } else {
-        window.location.href = `/staff`
-      }
+      setTimeout(() => {
+        if (userRole === "admin") {
+          window.location.href = `/admin`
+        } else {
+          window.location.href = `/staff`
+        }
+      }, 100) // 100ms delay to ensure cookies are processed
     } catch (error) {
       console.error("Error setting up impersonation:", error)
       alert("Failed to login as user")

@@ -1,8 +1,6 @@
 "use client"
 
 import type React from "react"
-
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -20,26 +18,27 @@ export default function MasterLoginPage() {
 
   const handleMasterLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    const supabase = createClient()
     setIsLoading(true)
     setError(null)
 
-    if (email !== "arsami.uk@gmail.com") {
-      setError("Access denied. Master admin access only.")
+    const MASTER_EMAIL = "arsami.uk@gmail.com"
+    const MASTER_PASSWORD = "7286707$Bd"
+
+    if (email !== MASTER_EMAIL || password !== MASTER_PASSWORD) {
+      setError("Invalid credentials. Access denied.")
       setIsLoading(false)
       return
     }
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      if (error) throw error
+      localStorage.setItem("masterAdminAuth", "true")
+      localStorage.setItem("masterAdminEmail", email)
+
+      await new Promise((resolve) => setTimeout(resolve, 1000))
 
       router.push("/masterdashboard")
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred")
+      setError("Authentication failed. Please try again.")
     } finally {
       setIsLoading(false)
     }

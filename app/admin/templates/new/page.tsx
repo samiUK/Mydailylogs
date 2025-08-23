@@ -9,9 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
-import { Plus, Trash2, GripVertical, Eye, EyeOff, Users } from "lucide-react"
+import { Plus, Trash2, GripVertical, Eye, EyeOff, Users, AlertTriangle, Crown } from "lucide-react"
+import { checkCanCreateTemplate, getSubscriptionLimits } from "@/lib/subscription-limits"
+import Link from "next/link"
 
 interface Task {
   id: string
@@ -44,6 +47,9 @@ export default function NewTemplatePage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
+  const [canCreateTemplate, setCanCreateTemplate] = useState(true)
+  const [limitCheckResult, setLimitCheckResult] = useState<any>(null)
+  const [subscriptionLimits, setSubscriptionLimits] = useState<any>(null)
   const router = useRouter()
 
   const commonRoles = [
@@ -60,17 +66,28 @@ export default function NewTemplatePage() {
   ]
 
   useEffect(() => {
-    async function getProfile() {
+    async function checkLimitsAndGetProfile() {
       const supabase = createClient()
       const {
         data: { user },
       } = await supabase.auth.getUser()
       if (user) {
         const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single()
-        setOrganizationId(profile?.organization_id)
+        if (profile?.organization_id) {
+          setOrganizationId(profile.organization_id)
+
+          const [limitCheck, limits] = await Promise.all([
+            checkCanCreateTemplate(profile.organization_id),
+            getSubscriptionLimits(profile.organization_id),
+          ])
+
+          setLimitCheckResult(limitCheck)
+          setSubscriptionLimits(limits)
+          setCanCreateTemplate(limitCheck.canCreate)
+        }
       }
     }
-    getProfile()
+    checkLimitsAndGetProfile()
   }, [])
 
   const addCategory = () => {
@@ -141,7 +158,13 @@ export default function NewTemplatePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!organizationId) return
+    if (!organizationId || !canCreateTemplate) return
+
+    const limitCheck = await checkCanCreateTemplate(organizationId)
+    if (!limitCheck.canCreate) {
+      setError(limitCheck.reason || "Cannot create template due to plan limits")
+      return
+    }
 
     setIsLoading(true)
     setError(null)
@@ -207,12 +230,43 @@ export default function NewTemplatePage() {
       <div>
         <h1 className="text-3xl font-bold text-foreground">Create New Template</h1>
         <p className="text-muted-foreground mt-2">Set up a new checklist template for your team</p>
+
+        {limitCheckResult && subscriptionLimits && (
+          <div className="mt-4 flex items-center gap-4">
+            <div className="text-sm text-muted-foreground">
+              Templates: {limitCheckResult.currentCount} / {limitCheckResult.maxAllowed} used
+            </div>
+            <div className="text-sm text-muted-foreground">Plan: {subscriptionLimits.planName}</div>
+            {!canCreateTemplate && (
+              <Link href="/admin/billing">
+                <Button size="sm" className="bg-accent hover:bg-accent/90">
+                  <Crown className="w-4 h-4 mr-1" />
+                  Upgrade Plan
+                </Button>
+              </Link>
+            )}
+          </div>
+        )}
       </div>
+
+      {!canCreateTemplate && limitCheckResult && (
+        <Alert className="border-destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>{limitCheckResult.reason}</span>
+            <Link href="/admin/billing">
+              <Button size="sm" variant="destructive">
+                Upgrade Now
+              </Button>
+            </Link>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">
           <form onSubmit={handleSubmit} className="space-y-8">
-            <Card>
+            <Card className={!canCreateTemplate ? "opacity-50" : ""}>
               <CardHeader>
                 <CardTitle>Template Details</CardTitle>
                 <CardDescription>Basic information about your checklist template</CardDescription>
@@ -541,7 +595,7 @@ export default function NewTemplatePage() {
                 {error && <p className="text-sm text-red-500">{error}</p>}
 
                 <div className="flex gap-4">
-                  <Button type="submit" disabled={isLoading}>
+                  <Button type="submit" disabled={isLoading || !canCreateTemplate}>
                     {isLoading ? "Creating..." : "Create Template"}
                   </Button>
                   <Button type="button" variant="outline" onClick={() => router.back()}>

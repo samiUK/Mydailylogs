@@ -1,42 +1,44 @@
 @import "tailwindcss";
-@import "tw-animate-css";
+/* Removed tw-animate-css import that may be causing deployment issues */
 
 :root {
   --brand-primary: #059669;
   --brand-secondary: #10b981;
   --background: #ffffff;
-  --foreground: #475569;
-  --card: #f1f5f9;
-  --card-foreground: #059669;
+  --foreground: #1f2937;
+  --card: #f0fdf4;
+  --card-foreground: #1f2937;
   --popover: #ffffff;
-  --popover-foreground: #475569;
+  --popover-foreground: #1f2937;
   --primary: #059669;
   --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #475569;
-  --muted: #f1f5f9;
-  --muted-foreground: #475569;
+  --secondary: #10b981;
+  --secondary-foreground: #ffffff;
+  --muted: #f7fee7;
+  --muted-foreground: #4b5563;
   --accent: #10b981;
   --accent-foreground: #ffffff;
-  --destructive: #ea580c;
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #d1d5db;
+  --border: #d1fae5;
   --input: #ffffff;
-  --ring: rgba(5, 150, 105, 0.5);
-  --chart-1: #059669;
-  --chart-2: #10b981;
-  --chart-3: #f1f5f9;
-  --chart-4: #475569;
-  --chart-5: #ea580c;
+  --ring: rgba(16, 185, 129, 0.3);
+  --chart-1: #10b981;
+  --chart-2: #059669;
+  --chart-3: #34d399;
+  --chart-4: #6ee7b7;
+  --chart-5: #a7f3d0;
   --radius: 0.5rem;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #475569;
+  --sidebar: #f0fdf4;
+  --sidebar-foreground: #1f2937;
   --sidebar-primary: #059669;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #10b981;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #d1d5db;
-  --sidebar-ring: rgba(5, 150, 105, 0.5);
+  --sidebar-accent: #d1fae5;
+  --sidebar-accent-foreground: #1f2937;
+  --sidebar-border: #d1fae5;
+  --sidebar-ring: rgba(16, 185, 129, 0.3);
+  --font-inter: "Inter", sans-serif;
+  --font-jetbrains-mono: "JetBrains Mono", monospace;
 }
 
 .dark {
@@ -59,14 +61,14 @@
   --border: oklch(0.269 0 0);
   --input: oklch(0.269 0 0);
   --ring: oklch(0.439 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
+  --chart-1: oklch(0.65 0.15 160);
+  --chart-2: oklch(0.55 0.18 160);
+  --chart-3: oklch(0.75 0.12 160);
+  --chart-4: oklch(0.85 0.08 160);
+  --chart-5: oklch(0.95 0.04 160);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary: oklch(0.65 0.15 160);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
@@ -74,8 +76,74 @@
   --sidebar-ring: oklch(0.439 0 0);
 }
 
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom branded button styles */
+.btn-brand-primary {
+  background-color: var(--brand-primary);
+  border-color: var(--brand-primary);
+}
+
+.btn-brand-primary:hover {
+  background-color: #047857;
+  border-color: #047857;
+}
+
+.text-brand-primary {
+  color: var(--brand-primary);
+}
+
+.border-brand-primary {
+  border-color: var(--brand-primary);
+}
+
+.bg-brand-primary {
+  background-color: var(--brand-primary);
+}
+
+.bg-brand-secondary {
+  background-color: var(--brand-secondary);
+}
+
+/* Navigation hover effects with brand colors */
+nav a:hover {
+  color: var(--brand-secondary) !important;
+}
+
+/* Progress bars and accents */
+.progress-brand {
+  background-color: var(--brand-secondary);
+}
+
+/* Custom focus states */
+.focus-brand:focus {
+  outline-color: var(--brand-secondary);
+  border-color: var(--brand-secondary);
+}
+
+/* Added light green gradient utilities */
+.bg-gradient-green {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.text-gradient-green {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 @theme inline {
-  /* optional: --font-sans, --font-serif, --font-mono if they are applied in the layout.tsx */
+  /* Adding modern Inter and JetBrains Mono font variables */
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -112,56 +180,4 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-}
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
-
-/* Custom branded button styles */
-.btn-brand-primary {
-  background-color: var(--brand-primary);
-  border-color: var(--brand-primary);
-}
-
-.btn-brand-primary:hover {
-  background-color: color-mix(in srgb, var(--brand-primary) 90%, black);
-  border-color: color-mix(in srgb, var(--brand-primary) 90%, black);
-}
-
-.text-brand-primary {
-  color: var(--brand-primary);
-}
-
-.border-brand-primary {
-  border-color: var(--brand-primary);
-}
-
-.bg-brand-primary {
-  background-color: var(--brand-primary);
-}
-
-.bg-brand-secondary {
-  background-color: var(--brand-secondary);
-}
-
-/* Navigation hover effects with brand colors */
-nav a:hover {
-  color: var(--brand-primary) !important;
-}
-
-/* Progress bars and accents */
-.progress-brand {
-  background-color: var(--brand-primary);
-}
-
-/* Custom focus states */
-.focus-brand:focus {
-  outline-color: var(--brand-primary);
-  border-color: var(--brand-primary);
 }

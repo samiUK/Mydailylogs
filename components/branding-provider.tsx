@@ -3,20 +3,23 @@
 import type React from "react"
 import { createContext, useContext, useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { getSubscriptionLimits } from "@/lib/subscription-limits"
 
 interface BrandingContextType {
   organizationName: string
   logoUrl: string | null
   primaryColor: string
   secondaryColor: string
+  hasCustomBranding: boolean
   isLoading: boolean
 }
 
 const BrandingContext = createContext<BrandingContextType>({
-  organizationName: "Mydailylogs",
+  organizationName: "Daily Brand Check",
   logoUrl: null,
   primaryColor: "#059669",
   secondaryColor: "#6B7280",
+  hasCustomBranding: false,
   isLoading: true,
 })
 
@@ -29,10 +32,11 @@ interface BrandingProviderProps {
 
 export function BrandingProvider({ children, initialBranding }: BrandingProviderProps) {
   const [branding, setBranding] = useState<BrandingContextType>({
-    organizationName: initialBranding?.organizationName || "Mydailylogs",
+    organizationName: initialBranding?.organizationName || "Daily Brand Check",
     logoUrl: initialBranding?.logoUrl || null,
     primaryColor: initialBranding?.primaryColor || "#059669",
     secondaryColor: initialBranding?.secondaryColor || "#6B7280",
+    hasCustomBranding: initialBranding?.hasCustomBranding || false,
     isLoading: initialBranding?.isLoading ?? true,
   })
 
@@ -57,6 +61,8 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
         return
       }
 
+      const subscriptionLimits = await getSubscriptionLimits(profile.organization_id)
+
       // Get organization branding data
       const { data: organization } = await supabase
         .from("organizations")
@@ -66,10 +72,13 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
 
       if (organization) {
         setBranding({
-          organizationName: organization.name || "Mydailylogs",
-          logoUrl: organization.logo_url || null,
+          organizationName: subscriptionLimits.hasCustomBranding
+            ? organization.name || "Your Organization"
+            : "Daily Brand Check",
+          logoUrl: subscriptionLimits.hasCustomBranding ? organization.logo_url : null,
           primaryColor: organization.primary_color || "#059669",
           secondaryColor: organization.secondary_color || "#6B7280",
+          hasCustomBranding: subscriptionLimits.hasCustomBranding,
           isLoading: false,
         })
       } else {

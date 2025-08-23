@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, UserPlus } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ArrowLeft, UserPlus, AlertTriangle, Crown } from "lucide-react"
+import { checkCanCreateTeamMember, getSubscriptionLimits } from "@/lib/subscription-limits"
 import Link from "next/link"
 
 interface Admin {
@@ -25,6 +27,10 @@ export default function AddTeamMemberPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [admins, setAdmins] = useState<Admin[]>([])
+  const [canCreateTeamMember, setCanCreateTeamMember] = useState(true)
+  const [limitCheckResult, setLimitCheckResult] = useState<any>(null)
+  const [subscriptionLimits, setSubscriptionLimits] = useState<any>(null)
+  const [organizationId, setOrganizationId] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -32,14 +38,14 @@ export default function AddTeamMemberPage() {
     password: "",
     position: "",
     role: "staff" as "admin" | "staff",
-    reportsTo: "none", // Added reports to field
+    reportsTo: "none",
   })
 
   useEffect(() => {
-    loadAdmins()
+    loadAdminsAndCheckLimits()
   }, [])
 
-  const loadAdmins = async () => {
+  const loadAdminsAndCheckLimits = async () => {
     const supabase = createClient()
     const {
       data: { user },
@@ -48,17 +54,39 @@ export default function AddTeamMemberPage() {
 
     const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single()
 
-    const { data: admins } = await supabase
-      .from("profiles")
-      .select("id, first_name, last_name, full_name, email")
-      .eq("organization_id", profile?.organization_id)
-      .eq("role", "admin")
+    if (profile?.organization_id) {
+      setOrganizationId(profile.organization_id)
 
-    setAdmins(admins || [])
+      // Load admins
+      const { data: admins } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, full_name, email")
+        .eq("organization_id", profile.organization_id)
+        .eq("role", "admin")
+
+      setAdmins(admins || [])
+
+      const [limitCheck, limits] = await Promise.all([
+        checkCanCreateTeamMember(profile.organization_id),
+        getSubscriptionLimits(profile.organization_id),
+      ])
+
+      setLimitCheckResult(limitCheck)
+      setSubscriptionLimits(limits)
+      setCanCreateTeamMember(limitCheck.canCreate)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!canCreateTeamMember || !organizationId) return
+
+    const limitCheck = await checkCanCreateTeamMember(organizationId)
+    if (!limitCheck.canCreate) {
+      alert(limitCheck.reason || "Cannot create team member due to plan limits")
+      return
+    }
+
     setIsLoading(true)
 
     try {
@@ -88,7 +116,7 @@ export default function AddTeamMemberPage() {
           position: formData.position,
           role: formData.role,
           organizationId: profile.organization_id,
-          reportsTo: formData.reportsTo === "none" ? null : formData.reportsTo, // Added reports to field
+          reportsTo: formData.reportsTo === "none" ? null : formData.reportsTo,
         }),
       })
 
@@ -116,14 +144,45 @@ export default function AddTeamMemberPage() {
             Back to Team
           </Button>
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-3xl font-bold text-foreground">Add Team Member</h1>
           <p className="text-muted-foreground mt-2">Create a new team member account with login credentials</p>
+
+          {limitCheckResult && subscriptionLimits && (
+            <div className="mt-2 flex items-center gap-4">
+              <div className="text-sm text-muted-foreground">
+                Team Members: {limitCheckResult.currentCount} / {limitCheckResult.maxAllowed} used
+              </div>
+              <div className="text-sm text-muted-foreground">Plan: {subscriptionLimits.planName}</div>
+              {!canCreateTeamMember && (
+                <Link href="/admin/billing">
+                  <Button size="sm" className="bg-accent hover:bg-accent/90">
+                    <Crown className="w-4 h-4 mr-1" />
+                    Upgrade Plan
+                  </Button>
+                </Link>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
+      {!canCreateTeamMember && limitCheckResult && (
+        <Alert className="border-destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>{limitCheckResult.reason}</span>
+            <Link href="/admin/billing">
+              <Button size="sm" variant="destructive">
+                Upgrade Now
+              </Button>
+            </Link>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Form */}
-      <Card>
+      <Card className={!canCreateTeamMember ? "opacity-50" : ""}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5" />
@@ -236,7 +295,7 @@ export default function AddTeamMemberPage() {
 
             {/* Submit Button */}
             <div className="flex gap-4 pt-4">
-              <Button type="submit" disabled={isLoading} className="flex-1">
+              <Button type="submit" disabled={isLoading || !canCreateTeamMember} className="flex-1">
                 {isLoading ? "Creating Account..." : "Create Team Member"}
               </Button>
               <Link href="/admin/team">

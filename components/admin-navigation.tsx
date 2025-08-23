@@ -72,6 +72,13 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
               >
                 Reports
               </Link>
+              <Link
+                href="/admin/billing"
+                className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
+                style={{ "--hover-color": primaryColor } as React.CSSProperties}
+              >
+                Billing
+              </Link>
             </div>
           </div>
           <div className="flex items-center">

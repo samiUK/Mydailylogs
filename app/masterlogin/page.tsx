@@ -24,7 +24,7 @@ export default function MasterLoginPage() {
     setIsLoading(true)
     setError(null)
 
-    if (email !== "coolsami_uk@yahoo.com") {
+    if (email !== "arsami.uk@gmail.com") {
       setError("Access denied. Master admin access only.")
       setIsLoading(false)
       return

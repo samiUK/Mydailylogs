@@ -76,8 +76,8 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
             ? organization.name || "Your Organization"
             : "MyDayLogs", // Updated default from "Mydailylogs" to "MyDayLogs"
           logoUrl: organization.logo_url,
-          primaryColor: organization.primary_color || "#059669",
-          secondaryColor: organization.secondary_color || "#6B7280",
+          primaryColor: subscriptionLimits.hasCustomBranding ? organization.primary_color || "#059669" : "#059669", // Default MyDayLogs green for free users
+          secondaryColor: subscriptionLimits.hasCustomBranding ? organization.secondary_color || "#6B7280" : "#6B7280", // Default gray for free users
           hasCustomBranding: subscriptionLimits.hasCustomBranding,
           isLoading: false,
         })

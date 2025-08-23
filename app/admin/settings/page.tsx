@@ -9,27 +9,25 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { getSubscriptionLimits } from "@/lib/subscription-limits"
 
 interface Organization {
   id: string
   name: string
-  slug: string
   logo_url: string | null
   primary_color: string | null
-  secondary_color: string | null
 }
 
 export default function SettingsPage() {
   const [organization, setOrganization] = useState<Organization | null>(null)
   const [name, setName] = useState("")
-  const [slug, setSlug] = useState("")
-  const [primaryColor, setPrimaryColor] = useState("#4F46E5")
-  const [secondaryColor, setSecondaryColor] = useState("#6B7280")
+  const [primaryColor, setPrimaryColor] = useState("#10b981")
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hasCustomBranding, setHasCustomBranding] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -43,6 +41,9 @@ export default function SettingsPage() {
         const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single()
 
         if (profile?.organization_id) {
+          const subscriptionLimits = await getSubscriptionLimits(profile.organization_id)
+          setHasCustomBranding(subscriptionLimits.hasCustomBranding)
+
           const { data: org } = await supabase
             .from("organizations")
             .select("*")
@@ -52,9 +53,7 @@ export default function SettingsPage() {
           if (org) {
             setOrganization(org)
             setName(org.name || "")
-            setSlug(org.slug || "")
-            setPrimaryColor(org.primary_color || "#4F46E5")
-            setSecondaryColor(org.secondary_color || "#6B7280")
+            setPrimaryColor(org.primary_color || "#10b981")
             setLogoPreview(org.logo_url)
           }
         }
@@ -87,7 +86,6 @@ export default function SettingsPage() {
       const supabase = createClient()
       let logoUrl = organization.logo_url
 
-      // Upload logo if a new file was selected
       if (logoFile) {
         const fileExt = logoFile.name.split(".").pop()
         const fileName = `${organization.id}/logo.${fileExt}`
@@ -106,37 +104,28 @@ export default function SettingsPage() {
         logoUrl = publicUrl
       }
 
-      // Update organization
       const { error: updateError } = await supabase
         .from("organizations")
         .update({
           name,
-          slug,
           logo_url: logoUrl,
           primary_color: primaryColor,
-          secondary_color: secondaryColor,
           updated_at: new Date().toISOString(),
         })
         .eq("id", organization.id)
 
       if (updateError) throw updateError
 
-      // Update local state
       setOrganization((prev) =>
         prev
           ? {
               ...prev,
               name,
-              slug,
               logo_url: logoUrl,
               primary_color: primaryColor,
-              secondary_color: secondaryColor,
             }
           : null,
       )
-
-      // Apply branding immediately
-      applyBranding(primaryColor, secondaryColor)
 
       alert("Settings saved successfully!")
     } catch (error: unknown) {
@@ -146,46 +135,34 @@ export default function SettingsPage() {
     }
   }
 
-  const applyBranding = (primary: string, secondary: string) => {
-    document.documentElement.style.setProperty("--brand-primary", primary)
-    document.documentElement.style.setProperty("--brand-secondary", secondary)
-  }
-
   if (isLoading) {
     return <div className="flex justify-center py-8">Loading...</div>
   }
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
-      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Organization Settings</h1>
-        <p className="text-gray-600 mt-2">Customize your organization&apos;s branding and settings</p>
+        <p className="text-gray-600 mt-2">Customize your organization&apos;s branding and identity</p>
       </div>
 
-      {/* Branding Settings */}
       <Card>
         <CardHeader>
-          <CardTitle>Brand Identity</CardTitle>
-          <CardDescription>Customize your organization&apos;s appearance and branding</CardDescription>
+          <CardTitle>Organization Identity</CardTitle>
+          <CardDescription>Set your organization name, logo, and brand color</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="grid gap-2">
-              <Label htmlFor="name">Organization Name</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your Company Name" />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="slug">URL Slug</Label>
-              <Input
-                id="slug"
-                value={slug}
-                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-                placeholder="your-company"
-              />
-              <p className="text-xs text-gray-500">Used in URLs: yourcompany.dailybrandcheck.com</p>
-            </div>
+          <div className="grid gap-2">
+            <Label htmlFor="name" required>
+              Organization Name
+            </Label>
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your Organization Name"
+              required
+            />
           </div>
 
           <div className="grid gap-2">
@@ -202,49 +179,46 @@ export default function SettingsPage() {
               )}
               <div>
                 <Input id="logo" type="file" accept="image/*" onChange={handleLogoChange} className="mb-2" />
-                <p className="text-xs text-gray-500">Recommended: 200x200px, PNG or JPG format</p>
+                <p className="text-xs text-gray-500">Recommended: Square format (200x200px), PNG or JPG</p>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="grid gap-2">
-              <Label htmlFor="primaryColor">Primary Brand Color</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="primaryColor"
-                  type="color"
-                  value={primaryColor}
-                  onChange={(e) => setPrimaryColor(e.target.value)}
-                  className="w-16 h-10 p-1 border rounded"
-                />
-                <Input
-                  value={primaryColor}
-                  onChange={(e) => setPrimaryColor(e.target.value)}
-                  placeholder="#4F46E5"
-                  className="flex-1"
-                />
+          <div className="grid gap-2">
+            <Label htmlFor="primaryColor">Brand Color</Label>
+            {!hasCustomBranding && (
+              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">★</span>
+                  </div>
+                  <p className="text-sm text-amber-800 font-medium">Premium Feature</p>
+                </div>
+                <p className="text-xs text-amber-700 mt-1">
+                  Upgrade to customize your brand colors. Free users use the default MyDayLogs green theme.
+                </p>
               </div>
+            )}
+            <div className="flex items-center gap-2">
+              <Input
+                id="primaryColor"
+                type="color"
+                value={primaryColor}
+                onChange={(e) => setPrimaryColor(e.target.value)}
+                className="w-16 h-10 p-1 border rounded"
+                disabled={!hasCustomBranding}
+              />
+              <Input
+                value={primaryColor}
+                onChange={(e) => setPrimaryColor(e.target.value)}
+                placeholder="#10b981"
+                className="flex-1"
+                disabled={!hasCustomBranding}
+              />
             </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="secondaryColor">Secondary Color</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="secondaryColor"
-                  type="color"
-                  value={secondaryColor}
-                  onChange={(e) => setSecondaryColor(e.target.value)}
-                  className="w-16 h-10 p-1 border rounded"
-                />
-                <Input
-                  value={secondaryColor}
-                  onChange={(e) => setSecondaryColor(e.target.value)}
-                  placeholder="#6B7280"
-                  className="flex-1"
-                />
-              </div>
-            </div>
+            <p className="text-xs text-gray-500">
+              This color will be used for buttons and accents throughout the platform
+            </p>
           </div>
 
           {error && <p className="text-sm text-red-500">{error}</p>}
@@ -255,17 +229,16 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Preview */}
       <Card>
         <CardHeader>
           <CardTitle>Brand Preview</CardTitle>
-          <CardDescription>See how your branding will appear</CardDescription>
+          <CardDescription>See how your branding will appear in the platform</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="border rounded-lg p-6 bg-gray-50">
-            <div className="flex items-center gap-4 mb-4">
+            <div className="flex items-center gap-4 mb-6">
               {logoPreview && (
-                <div className="w-12 h-12 rounded overflow-hidden bg-white flex items-center justify-center">
+                <div className="w-12 h-12 rounded overflow-hidden bg-white flex items-center justify-center shadow-sm">
                   <img
                     src={logoPreview || "/placeholder.svg"}
                     alt="Logo"
@@ -273,57 +246,25 @@ export default function SettingsPage() {
                   />
                 </div>
               )}
-              <h3 className="text-xl font-bold" style={{ color: primaryColor }}>
-                {name || "Your Organization"}
-              </h3>
+              <h3 className="text-xl font-bold text-gray-900">{name || "Your Organization"}</h3>
             </div>
-            <div className="space-y-2">
-              <div className="px-4 py-2 rounded text-white font-medium" style={{ backgroundColor: primaryColor }}>
-                Primary Button
+            <div className="space-y-3">
+              <div
+                className="px-4 py-2 rounded text-white font-medium text-sm"
+                style={{ backgroundColor: hasCustomBranding ? primaryColor : "#10b981" }}
+              >
+                Primary Action Button
               </div>
-              <div className="px-4 py-2 rounded text-white font-medium" style={{ backgroundColor: secondaryColor }}>
+              <div
+                className="px-4 py-2 rounded border font-medium text-sm"
+                style={{
+                  borderColor: hasCustomBranding ? primaryColor : "#10b981",
+                  color: hasCustomBranding ? primaryColor : "#10b981",
+                }}
+              >
                 Secondary Button
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Additional Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Platform Settings</CardTitle>
-          <CardDescription>Configure platform-specific settings</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div>
-              <h4 className="font-medium">Email Notifications</h4>
-              <p className="text-sm text-gray-600">Send email reminders for overdue checklists</p>
-            </div>
-            <Button variant="outline" size="sm">
-              Configure
-            </Button>
-          </div>
-
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div>
-              <h4 className="font-medium">Custom Domain</h4>
-              <p className="text-sm text-gray-600">Use your own domain for the platform</p>
-            </div>
-            <Button variant="outline" size="sm">
-              Setup
-            </Button>
-          </div>
-
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div>
-              <h4 className="font-medium">API Access</h4>
-              <p className="text-sm text-gray-600">Generate API keys for integrations</p>
-            </div>
-            <Button variant="outline" size="sm">
-              Manage
-            </Button>
           </div>
         </CardContent>
       </Card>

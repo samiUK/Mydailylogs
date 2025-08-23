@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { CreditCard, CheckCircle, Calendar, AlertCircle } from "lucide-react"
+import { CreditCard, CheckCircle, Calendar, AlertCircle, Crown } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 interface SubscriptionPlan {
@@ -65,18 +65,24 @@ export default function BillingPage() {
 
         if (plansData) setPlans(plansData)
 
-        // Load current subscription
-        const { data: subscriptionData } = await supabase
+        // Load current subscription (including inactive ones to show expired subscriptions)
+        const { data: subscriptionData, error } = await supabase
           .from("subscriptions")
           .select(`
             *,
             subscription_plans (*)
           `)
           .eq("organization_id", profileData.organization_id)
-          .eq("status", "active")
+          .order("created_at", { ascending: false })
+          .limit(1)
           .single()
 
-        if (subscriptionData) setSubscription(subscriptionData)
+        if (subscriptionData) {
+          console.log("[v0] Subscription data loaded:", subscriptionData)
+          setSubscription(subscriptionData)
+        } else if (error) {
+          console.log("[v0] No subscription found:", error.message)
+        }
       } catch (error) {
         console.error("Error loading billing data:", error)
       } finally {
@@ -92,6 +98,10 @@ export default function BillingPage() {
   }
 
   const currentPlan = subscription?.subscription_plans
+  const isSubscriptionActive =
+    subscription?.status === "active" &&
+    subscription?.current_period_end &&
+    new Date(subscription.current_period_end) > new Date()
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -113,9 +123,10 @@ export default function BillingPage() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-3 mb-2">
+                  {currentPlan.name !== "Free" && <Crown className="w-6 h-6 text-yellow-500" />}
                   <h3 className="text-2xl font-bold">{currentPlan.name}</h3>
-                  <Badge variant={subscription?.status === "active" ? "default" : "destructive"}>
-                    {subscription?.status}
+                  <Badge variant={isSubscriptionActive ? "default" : "destructive"}>
+                    {isSubscriptionActive ? "Active" : "Expired"}
                   </Badge>
                 </div>
                 <p className="text-muted-foreground mb-4">
@@ -123,11 +134,26 @@ export default function BillingPage() {
                   {currentPlan.max_team_members} team members
                 </p>
                 {subscription?.current_period_end && (
-                  <p className="text-sm text-muted-foreground flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    {subscription.cancel_at_period_end ? "Cancels" : "Renews"} on{" "}
-                    {new Date(subscription.current_period_end).toLocaleDateString()}
-                  </p>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      {isSubscriptionActive ? "Active until" : "Expired on"}{" "}
+                      {new Date(subscription.current_period_end).toLocaleDateString()}
+                    </p>
+                    {subscription.current_period_start && (
+                      <p className="text-sm text-muted-foreground">
+                        Started: {new Date(subscription.current_period_start).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {isSubscriptionActive && currentPlan.name !== "Free" && (
+                  <div className="mt-4 p-3 bg-accent/10 rounded-lg border border-accent/20">
+                    <p className="text-sm text-accent font-medium">✨ Premium Features Enabled</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Custom branding, unlimited templates, and priority support are now available.
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
@@ -150,7 +176,7 @@ export default function BillingPage() {
         <CardContent>
           <div className="grid md:grid-cols-3 gap-6">
             {plans.map((plan) => {
-              const isCurrent = currentPlan?.id === plan.id
+              const isCurrent = currentPlan?.id === plan.id && isSubscriptionActive
               const isFreePlan = plan.name === "Free"
 
               return (

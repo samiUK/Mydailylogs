@@ -139,58 +139,20 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="py-20 bg-muted/30">
+      <section className="w-full">
+        <img
+          src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/SS%20on%20a%20laptop-VtYtlb8qyBsDDNBhFuxxDfROzNmFTw.png"
+          alt="MyDayLogs Admin Dashboard"
+          className="w-full h-auto object-cover"
+        />
+      </section>
+
+      <section className="py-20 bg-muted/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">How It Works</h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Get started with streamlined task management and operations in three simple steps
-            </p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-accent rounded-full flex items-center justify-center mx-auto mb-6">
-                <span className="text-2xl font-bold text-accent-foreground">1</span>
-              </div>
-              <h3 className="text-xl font-semibold text-foreground mb-4">Create Task Templates</h3>
-              <p className="text-muted-foreground">
-                Set up customizable task templates and operational checklists tailored to your industry needs. Define
-                workflows, schedules, and requirements for any business process.
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-accent rounded-full flex items-center justify-center mx-auto mb-6">
-                <span className="text-2xl font-bold text-accent-foreground">2</span>
-              </div>
-              <h3 className="text-xl font-semibold text-foreground mb-4">Assign & Track</h3>
-              <p className="text-muted-foreground">
-                Assign tasks to team members with automated scheduling. Monitor progress in real-time and receive
-                notifications for missed deadlines across all your business operations.
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-accent rounded-full flex items-center justify-center mx-auto mb-6">
-                <span className="text-2xl font-bold text-accent-foreground">3</span>
-              </div>
-              <h3 className="text-xl font-semibold text-foreground mb-4">Generate Reports</h3>
-              <p className="text-muted-foreground">
-                Create professional operational and compliance reports with your branding. Export to PDF and share with
-                stakeholders, clients, or regulatory bodies.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="features" className="py-20 bg-muted/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-              Complete Task Management & Compliance Suite
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Comprehensive tools for task management, operational efficiency, and regulatory compliance across all
-              industries
+              Get started with our simple three-step process
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">

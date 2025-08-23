@@ -26,10 +26,10 @@ import {
   Key,
   CreditCard,
   RefreshCw,
-  UserX,
   Plus,
   Trash2,
-  Search,
+  AlertTriangle,
+  User,
   LogIn,
 } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -43,7 +43,7 @@ interface Organization {
   subscriptions?: { plan_name: string; status: string }[]
 }
 
-interface User {
+interface UserProfile {
   id: string
   email: string
   full_name: string | null
@@ -77,18 +77,23 @@ export default function MasterDashboardPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [organizations, setOrganizations] = useState<Organization[]>([])
-  const [allUsers, setAllUsers] = useState<User[]>([])
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([])
   const [allSubscriptions, setAllSubscriptions] = useState<Subscription[]>([])
   const [allPayments, setAllPayments] = useState<Payment[]>([])
 
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null)
   const [selectedSubscription, setSelectedSubscription] = useState<Subscription | null>(null)
   const [newPassword, setNewPassword] = useState("")
   const [refundAmount, setRefundAmount] = useState("")
   const [newSubscriptionPlan, setNewSubscriptionPlan] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [loginAsEmail, setLoginAsEmail] = useState("") // Added state for Login As feature
+  const [impersonatedUser, setImpersonatedUser] = useState<any>(null)
+  const [impersonatedUserData, setImpersonatedUserData] = useState<any>(null)
+  const [activeTab, setActiveTab] = useState("overview")
+  const [userSearchTerm, setUserSearchTerm] = useState("")
+  const [resetPasswordEmail, setResetPasswordEmail] = useState("") // Added state for reset password email
 
   const loginAsUser = async (userEmail: string) => {
     if (!userEmail.trim()) {
@@ -112,20 +117,49 @@ export default function MasterDashboardPage() {
         return
       }
 
-      // Encode email for URL safety
-      const encodedEmail = encodeURIComponent(userEmail.trim())
+      setImpersonatedUser(user)
 
-      // Redirect to user-specific dashboard path based on role
+      // Fetch user's specific data based on their role
       if (user.role === "admin") {
-        window.open(`/admin/${encodedEmail}`, "_blank")
+        // Fetch admin-specific data
+        const { data: adminData } = await supabase
+          .from("template_assignments")
+          .select(`
+            *,
+            checklist_templates(*),
+            profiles(full_name, email)
+          `)
+          .eq("organization_id", user.organization_id)
+
+        const { data: orgData } = await supabase
+          .from("organizations")
+          .select("*")
+          .eq("id", user.organization_id)
+          .single()
+
+        setImpersonatedUserData({
+          assignments: adminData || [],
+          organization: orgData,
+          role: "admin",
+        })
       } else if (user.role === "staff") {
-        window.open(`/staff/${encodedEmail}`, "_blank")
-      } else {
-        alert("Unknown user role. Cannot impersonate this user.")
+        // Fetch staff-specific data
+        const { data: staffAssignments } = await supabase
+          .from("template_assignments")
+          .select(`
+            *,
+            checklist_templates(*)
+          `)
+          .eq("assigned_to", user.id)
+
+        setImpersonatedUserData({
+          assignments: staffAssignments || [],
+          role: "staff",
+        })
       }
 
       setLoginAsEmail("")
-      alert(`Successfully opened ${user.role} dashboard for ${userEmail} in a new tab`)
+      setActiveTab("impersonation") // Switch to impersonation view
     } catch (error) {
       console.error("Error during Login As:", error)
       alert("Failed to login as user")
@@ -134,27 +168,10 @@ export default function MasterDashboardPage() {
     }
   }
 
-  const resetUserPassword = async (userId: string, newPassword: string) => {
-    setIsProcessing(true)
-    try {
-      const supabase = createClient()
-
-      // Update user password in Supabase Auth
-      const { error } = await supabase.auth.admin.updateUserById(userId, {
-        password: newPassword,
-      })
-
-      if (error) throw error
-
-      alert(`Password reset successfully for user ${selectedUser?.email}`)
-      setNewPassword("")
-      setSelectedUser(null)
-    } catch (error) {
-      console.error("Error resetting password:", error)
-      alert("Failed to reset password")
-    } finally {
-      setIsProcessing(false)
-    }
+  const exitImpersonation = () => {
+    setImpersonatedUser(null)
+    setImpersonatedUserData(null)
+    setActiveTab("overview")
   }
 
   const cancelSubscription = async (subscriptionId: string) => {
@@ -333,25 +350,114 @@ export default function MasterDashboardPage() {
     router.push("/masterlogin")
   }
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center mx-auto mb-4">
-            <Users className="w-5 h-5 text-white" />
-          </div>
-          <p className="text-gray-600">Loading master dashboard...</p>
-        </div>
-      </div>
-    )
+  const testApiRoute = async () => {
+    try {
+      console.log("[v0] Testing API route connectivity")
+      const response = await fetch("/api/test", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+
+      console.log("[v0] Test API response status:", response.status)
+      const data = await response.json()
+      console.log("[v0] Test API response data:", data)
+      alert("API test result: " + JSON.stringify(data))
+    } catch (error) {
+      console.error("[v0] Test API error:", error)
+      alert("Test API failed: " + error.message)
+    }
   }
 
-  const totalUsers = allUsers.length
-  const totalOrganizations = organizations.length
-  const activeSubscriptions = allSubscriptions.filter((sub) => sub.status === "active").length
-  const totalRevenue = allPayments
-    .filter((payment) => payment.status === "completed")
-    .reduce((sum, payment) => sum + Number.parseFloat(payment.amount), 0)
+  const resetUserPassword = async (userEmail: string) => {
+    if (!userEmail) {
+      alert("Please enter a user email")
+      return
+    }
+
+    try {
+      console.log("[v0] Starting password reset for:", userEmail)
+
+      const baseUrl = window.location.origin
+      const apiUrl = `${baseUrl}/api/admin/reset-password`
+      console.log("[v0] Making fetch request to:", apiUrl)
+
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userEmail }),
+      })
+
+      console.log("[v0] Fetch response status:", response.status)
+      console.log("[v0] Fetch response ok:", response.ok)
+
+      const responseText = await response.text()
+      console.log("[v0] Raw response text:", responseText)
+
+      if (!response.ok) {
+        console.log("[v0] Error response text:", responseText)
+        alert("Failed to reset password. Status: " + response.status)
+        return
+      }
+
+      let data
+      try {
+        data = JSON.parse(responseText)
+        console.log("[v0] Parsed response data:", data)
+      } catch (jsonError) {
+        console.error("[v0] JSON parsing error:", jsonError)
+        console.log("[v0] Response was not valid JSON:", responseText)
+        alert("Server returned invalid response format")
+        return
+      }
+
+      // Show the temporary password to master admin
+      alert(
+        `Password reset successful!\n\nUser: ${data.userEmail}\nTemporary Password: ${data.tempPassword}\n\nPlease provide this to the user and ask them to change it immediately.`,
+      )
+    } catch (error) {
+      console.error("[v0] Password reset error:", error)
+      alert("Failed to reset password: " + error.message)
+    }
+  }
+
+  const handleDeleteUser = async (userId: string, userEmail: string) => {
+    if (!confirm(`Delete user ${userEmail}? This action cannot be undone.`)) return
+
+    try {
+      const response = await fetch("/api/admin/delete-user", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        alert("Failed to delete user: " + data.error)
+        return
+      }
+
+      // Refresh data
+      await checkAuthAndLoadData()
+      alert("User deleted successfully")
+    } catch (error) {
+      console.error("Error deleting user:", error)
+      alert("Failed to delete user")
+    }
+  }
+
+  const handleMasterLogin = (userEmail: string) => {
+    // Store the target user email in sessionStorage for the login page
+    sessionStorage.setItem("masterLoginEmail", userEmail)
+    // Redirect to login page
+    window.open("/auth/login", "_blank")
+  }
 
   const filteredUsers = allUsers.filter(
     (user) =>
@@ -361,6 +467,13 @@ export default function MasterDashboardPage() {
   )
 
   const filteredOrganizations = organizations.filter((org) => org.name.toLowerCase().includes(searchTerm.toLowerCase()))
+
+  const filteredUsersNew = allUsers.filter(
+    (user) =>
+      user.email.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+      user.full_name?.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+      user.organizations?.name.toLowerCase().includes(userSearchTerm.toLowerCase()),
+  )
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -385,14 +498,14 @@ export default function MasterDashboardPage() {
       </header>
 
       <div className="p-6 space-y-6">
-        <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-7">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="organizations">Organizations</TabsTrigger>
             <TabsTrigger value="subscriptions">Subscriptions</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
-            <TabsTrigger value="loginas">Login As</TabsTrigger> {/* Added Login As tab */}
+            <TabsTrigger value="login-as">Password Reset</TabsTrigger>
             <TabsTrigger value="tools">Admin Tools</TabsTrigger>
           </TabsList>
 
@@ -404,7 +517,7 @@ export default function MasterDashboardPage() {
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{totalUsers}</div>
+                  <div className="text-2xl font-bold">{allUsers.length}</div>
                   <p className="text-xs text-muted-foreground">Across all organizations</p>
                 </CardContent>
               </Card>
@@ -415,30 +528,36 @@ export default function MasterDashboardPage() {
                   <Building2 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{totalOrganizations}</div>
+                  <div className="text-2xl font-bold">{organizations.length}</div>
                   <p className="text-xs text-muted-foreground">Active organizations</p>
                 </CardContent>
               </Card>
 
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Active Subscriptions</CardTitle>
-                  <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                <CardHeader>
+                  <CardTitle>Active Subscriptions</CardTitle>
+                  <CardDescription>Currently active</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{activeSubscriptions}</div>
-                  <p className="text-xs text-muted-foreground">Currently active</p>
+                  <div className="text-2xl font-bold">
+                    {allSubscriptions.filter((sub) => sub.status === "active").length}
+                  </div>
                 </CardContent>
               </Card>
 
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <CardHeader>
+                  <CardTitle>Total Revenue</CardTitle>
+                  <CardDescription>Completed payments</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">£{totalRevenue.toFixed(2)}</div>
-                  <p className="text-xs text-muted-foreground">Completed payments</p>
+                  <div className="text-2xl font-bold">
+                    £
+                    {allPayments
+                      .filter((payment) => payment.status === "completed")
+                      .reduce((sum, payment) => sum + Number.parseFloat(payment.amount), 0)
+                      .toFixed(2)}
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -582,101 +701,78 @@ export default function MasterDashboardPage() {
           </TabsContent>
 
           <TabsContent value="users" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>User Management</CardTitle>
-                    <CardDescription>Manage all users across the platform</CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Search className="w-4 h-4 text-gray-400" />
-                    <Input
-                      placeholder="Search users..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-64"
-                    />
-                  </div>
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold">User Management</h2>
+                  <p className="text-gray-600">Manage all users across organizations</p>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {filteredUsers.map((user) => (
-                    <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        {user.avatar_url ? (
-                          <img
-                            src={user.avatar_url || "/placeholder.svg"}
-                            alt={user.full_name || user.email}
-                            className="w-10 h-10 rounded-full"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                            <Users className="w-5 h-5 text-gray-500" />
+                <div className="flex items-center gap-4">
+                  <Input
+                    placeholder="Search users..."
+                    value={userSearchTerm}
+                    onChange={(e) => setUserSearchTerm(e.target.value)}
+                    className="w-64"
+                  />
+                </div>
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>All Users ({filteredUsersNew.length})</CardTitle>
+                  <CardDescription>Complete list of all registered users</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {filteredUsersNew.map((user) => (
+                      <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                            <User className="w-5 h-5 text-blue-600" />
                           </div>
-                        )}
-                        <div>
-                          <p className="font-medium">{user.full_name || user.email}</p>
-                          <p className="text-sm text-gray-500">
-                            {user.email} • {user.role} • {user.organizations?.name}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            Joined {new Date(user.created_at).toLocaleDateString()}
-                          </p>
+                          <div>
+                            <h3 className="font-medium">{user.full_name || user.email}</h3>
+                            <p className="text-sm text-gray-500">{user.email}</p>
+                            <p className="text-xs text-gray-400">
+                              {user.role} • {user.organizations?.name || "No Organization"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleMasterLogin(user.email)}
+                            className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                          >
+                            <LogIn className="w-4 h-4 mr-1" />
+                            Login
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => resetUserPassword(user.email)}
+                            className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                          >
+                            <Key className="w-4 h-4 mr-1" />
+                            Reset Password
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteUser(user.id, user.email)}
+                            className="text-red-600 border-red-200 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            Delete
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="outline" size="sm" onClick={() => setSelectedUser(user)}>
-                              <Key className="w-4 h-4 mr-1" />
-                              Reset Password
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Reset Password</DialogTitle>
-                              <DialogDescription>Reset password for {selectedUser?.email}</DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                              <div>
-                                <Label htmlFor="newPassword">New Password</Label>
-                                <Input
-                                  id="newPassword"
-                                  type="password"
-                                  value={newPassword}
-                                  onChange={(e) => setNewPassword(e.target.value)}
-                                  placeholder="Enter new password"
-                                />
-                              </div>
-                            </div>
-                            <DialogFooter>
-                              <Button
-                                onClick={() => selectedUser && resetUserPassword(selectedUser.id, newPassword)}
-                                disabled={!newPassword || isProcessing}
-                              >
-                                {isProcessing ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : null}
-                                Reset Password
-                              </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => deleteUser(user.id)}
-                          disabled={isProcessing}
-                        >
-                          <UserX className="w-4 h-4 mr-1" />
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="organizations" className="space-y-6">
@@ -876,98 +972,38 @@ export default function MasterDashboardPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="loginas" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Login As User</CardTitle>
-                <CardDescription>
-                  Impersonate any user for customer support purposes. Enter their email to access their dashboard view.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="max-w-md space-y-4">
-                  <div>
-                    <Label htmlFor="loginAsEmail">User Email Address</Label>
+          <TabsContent value="login-as" className="space-y-6">
+            <div className="space-y-6">
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <AlertTriangle className="w-6 h-6 text-orange-600" />
+                  <h2 className="text-xl font-semibold text-orange-800">Password Reset Tool</h2>
+                </div>
+                <p className="text-orange-700 mb-4">
+                  For security and data protection compliance, we've replaced the "Login As" feature with a secure
+                  password reset tool. This approach maintains GDPR/CCPA compliance while allowing you to help users
+                  access their accounts.
+                </p>
+
+                <div className="space-y-4">
+                  <div className="flex gap-2">
                     <Input
-                      id="loginAsEmail"
                       type="email"
-                      value={loginAsEmail}
-                      onChange={(e) => setLoginAsEmail(e.target.value)}
-                      placeholder="Enter user email to impersonate"
-                      className="bg-white"
+                      placeholder="Enter user email to reset password"
+                      value={resetPasswordEmail}
+                      onChange={(e) => setResetPasswordEmail(e.target.value)}
+                      className="flex-1"
                     />
+                    <Button onClick={() => resetUserPassword(resetPasswordEmail)} variant="destructive">
+                      Reset Password
+                    </Button>
                   </div>
-                  <Button
-                    onClick={() => loginAsUser(loginAsEmail)}
-                    disabled={!loginAsEmail.trim() || isProcessing}
-                    className="w-full"
-                  >
-                    {isProcessing ? (
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <LogIn className="w-4 h-4 mr-2" />
-                    )}
-                    Login As User
+                  <Button onClick={testApiRoute} variant="outline" className="w-full bg-transparent">
+                    Test API Connection
                   </Button>
                 </div>
-
-                <div className="border-t pt-6">
-                  <h3 className="font-medium mb-4">Quick Access - Recent Users</h3>
-                  <div className="space-y-2">
-                    {allUsers.slice(0, 10).map((user) => (
-                      <div key={user.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          {user.avatar_url ? (
-                            <img
-                              src={user.avatar_url || "/placeholder.svg"}
-                              alt={user.full_name || user.email}
-                              className="w-8 h-8 rounded-full"
-                            />
-                          ) : (
-                            <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                              <Users className="w-4 h-4 text-gray-500" />
-                            </div>
-                          )}
-                          <div>
-                            <p className="font-medium text-sm">{user.full_name || user.email}</p>
-                            <p className="text-xs text-gray-500">
-                              {user.email} • {user.role} • {user.organizations?.name}
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => loginAsUser(user.email)}
-                          disabled={isProcessing}
-                        >
-                          <LogIn className="w-4 h-4 mr-1" />
-                          Login As
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <div className="flex items-start gap-2">
-                    <div className="w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-xs font-bold text-white">!</span>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-yellow-800">Customer Support Guidelines</h4>
-                      <ul className="text-sm text-yellow-700 mt-2 space-y-1">
-                        <li>• Only use this feature for legitimate customer support purposes</li>
-                        <li>• The user's dashboard will open in a new tab</li>
-                        <li>• You'll see exactly what the user sees in their interface</li>
-                        <li>• Always inform users when accessing their account for support</li>
-                        <li>• Log out of the impersonated session when support is complete</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="tools" className="space-y-6">

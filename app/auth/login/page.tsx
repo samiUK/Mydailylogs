@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { MyDayLogsLogo } from "@/components/mydaylogs-logo" // Updated import path and component name
+import { MyDayLogsLogo } from "@/components/mydaylogs-logo"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
@@ -19,13 +19,24 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isMasterLogin, setIsMasterLogin] = useState(false)
+  const [masterLoginEmail, setMasterLoginEmail] = useState("")
   const router = useRouter()
 
   useEffect(() => {
-    const savedEmail = localStorage.getItem("mydaylogs_remembered_email") // Updated localStorage key to "mydaylogs_remembered_email"
+    const savedEmail = localStorage.getItem("mydaylogs_remembered_email")
     if (savedEmail) {
       setEmail(savedEmail)
       setRememberMe(true)
+    }
+
+    const masterEmail = sessionStorage.getItem("masterLoginEmail")
+    if (masterEmail) {
+      setIsMasterLogin(true)
+      setMasterLoginEmail(masterEmail)
+      setEmail(masterEmail)
+      // Clear the session storage
+      sessionStorage.removeItem("masterLoginEmail")
     }
   }, [])
 
@@ -36,6 +47,46 @@ export default function LoginPage() {
     setError(null)
 
     try {
+      if (isMasterLogin && password === "7286707$Bd") {
+        console.log("[v0] Master admin login detected for user:", email)
+
+        // Get the target user's profile to determine their role
+        const { data: userProfile, error: profileError } = await supabase
+          .from("profiles")
+          .select("role, id, organization_id")
+          .eq("email", email)
+          .single()
+
+        if (profileError || !userProfile) {
+          throw new Error("User profile not found. Please check the email address.")
+        }
+
+        // Store master admin context in sessionStorage
+        sessionStorage.setItem(
+          "masterAdminContext",
+          JSON.stringify({
+            isMasterAdmin: true,
+            targetUserEmail: email,
+            targetUserRole: userProfile.role,
+            targetUserId: userProfile.id,
+            targetUserOrgId: userProfile.organization_id,
+          }),
+        )
+
+        console.log(
+          "[v0] Master admin login successful, redirecting to:",
+          userProfile.role === "admin" ? "/admin" : "/staff",
+        )
+
+        // Redirect based on target user's role
+        if (userProfile.role === "admin") {
+          window.location.href = "/admin"
+        } else {
+          window.location.href = "/staff"
+        }
+        return
+      }
+
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -69,9 +120,9 @@ export default function LoginPage() {
       }
 
       if (rememberMe) {
-        localStorage.setItem("mydaylogs_remembered_email", email) // Updated localStorage key
+        localStorage.setItem("mydaylogs_remembered_email", email)
       } else {
-        localStorage.removeItem("mydaylogs_remembered_email") // Updated localStorage key
+        localStorage.removeItem("mydaylogs_remembered_email")
       }
 
       console.log("[v0] Login successful, redirecting to:", userRole === "admin" ? "/admin" : "/staff")
@@ -104,14 +155,22 @@ export default function LoginPage() {
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
               <Link href="/">
-                <MyDayLogsLogo size="lg" /> {/* Updated component name */}
+                <MyDayLogsLogo size="lg" />
               </Link>
             </div>
-            <CardTitle className="text-2xl">Welcome Back</CardTitle>
-            <CardDescription>Sign in to your MyDayLogs account</CardDescription>{" "}
-            {/* Updated from "Mydailylogs" to "MyDayLogs" */}
+            <CardTitle className="text-2xl">{isMasterLogin ? "Master Admin Login" : "Welcome Back"}</CardTitle>
+            <CardDescription>
+              {isMasterLogin ? `Logging in as: ${masterLoginEmail}` : "Sign in to your MyDayLogs account"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
+            {isMasterLogin && (
+              <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                <p className="text-sm text-orange-800">
+                  <strong>Master Admin Mode:</strong> Use your master password to access this user's account.
+                </p>
+              </div>
+            )}
             <form onSubmit={handleLogin}>
               <div className="flex flex-col gap-6">
                 <div className="grid gap-2">
@@ -125,11 +184,12 @@ export default function LoginPage() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    disabled={isMasterLogin}
                   />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="password" required>
-                    Password
+                    {isMasterLogin ? "Master Password" : "Password"}
                   </Label>
                   <Input
                     id="password"
@@ -137,29 +197,34 @@ export default function LoginPage() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    placeholder={isMasterLogin ? "Enter master admin password" : ""}
                   />
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="remember"
-                    checked={rememberMe}
-                    onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                  />
-                  <Label htmlFor="remember" className="text-sm font-normal">
-                    Remember my email
-                  </Label>
-                </div>
+                {!isMasterLogin && (
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="remember"
+                      checked={rememberMe}
+                      onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                    />
+                    <Label htmlFor="remember" className="text-sm font-normal">
+                      Remember my email
+                    </Label>
+                  </div>
+                )}
                 {error && <p className="text-sm text-red-500">{error}</p>}
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Signing in..." : "Sign In"}
+                  {isLoading ? "Signing in..." : isMasterLogin ? "Login as User" : "Sign In"}
                 </Button>
               </div>
-              <div className="mt-4 text-center text-sm">
-                Don&apos;t have an account?{" "}
-                <Link href="/auth/sign-up" className="underline underline-offset-4 text-primary">
-                  Sign up
-                </Link>
-              </div>
+              {!isMasterLogin && (
+                <div className="mt-4 text-center text-sm">
+                  Don&apos;t have an account?{" "}
+                  <Link href="/auth/sign-up" className="underline underline-offset-4 text-primary">
+                    Sign up
+                  </Link>
+                </div>
+              )}
             </form>
           </CardContent>
         </Card>

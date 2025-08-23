@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createAdminClient } from "@/lib/supabase/admin"
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@supabase/supabase-js"
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -10,39 +9,25 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 })
     }
 
-    // Verify the requesting user is an admin
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
 
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
-
-    if (!profile || profile.role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 })
-    }
-
-    // Delete the user using admin client
-    const adminSupabase = createAdminClient()
-
-    // First delete the profile (this will cascade due to foreign key constraints)
-    const { error: profileError } = await adminSupabase.from("profiles").delete().eq("id", userId)
+    const { error: profileError } = await supabase.from("profiles").delete().eq("id", userId)
 
     if (profileError) {
       console.error("Error deleting profile:", profileError)
-      throw new Error("Failed to delete user profile")
+      return NextResponse.json({ error: "Failed to delete user profile" }, { status: 500 })
     }
 
-    // Then delete the auth user
-    const { error: authError } = await adminSupabase.auth.admin.deleteUser(userId)
+    const { error: authError } = await supabase.auth.admin.deleteUser(userId)
 
     if (authError) {
       console.error("Error deleting auth user:", authError)
-      throw new Error("Failed to delete user authentication")
+      return NextResponse.json({ error: "Failed to delete user authentication" }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })

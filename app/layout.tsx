@@ -17,7 +17,7 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Daily Brand Check",
+  title: "Mydailylogs",
   description: "Professional compliance checklist platform for businesses",
   generator: "v0.app",
 }

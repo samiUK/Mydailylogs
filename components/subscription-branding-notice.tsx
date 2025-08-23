@@ -67,7 +67,7 @@ export function SubscriptionBrandingNotice({ organizationId }: SubscriptionBrand
           <Badge variant="secondary">{subscriptionLimits.planName}</Badge>
         </div>
         <CardDescription className="text-amber-700">
-          Reports currently show "Daily Brand Check" branding. Upgrade to display your organization's logo and name.
+          Reports currently show "Mydailylogs" branding. Upgrade to display your organization's logo and name.
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -253,9 +253,9 @@ export default async function HomePage() {
                     <Star key={i} className="w-5 h-5 fill-accent text-accent" />
                   ))}
                 </div>
-                <p className="text-muted-foreground mb-4">
-                  "Daily Brand Check has transformed how we handle compliance. The automated reporting saves us hours
-                  every week."
+                <p className="text-gray-600 mb-4">
+                  "Mydailylogs has transformed how we handle compliance. The automated reporting saves us hours every
+                  week."
                 </p>
                 <div className="font-semibold">Sarah Johnson</div>
                 <div className="text-sm text-muted-foreground">Operations Manager, TechCorp</div>
@@ -365,7 +365,7 @@ export default async function HomePage() {
             </div>
           </div>
           <div className="border-t border-sidebar-border mt-8 pt-8 text-center text-sidebar-foreground/70">
-            <p>&copy; 2024 Daily Brand Check. All rights reserved.</p>
+            <p>&copy; 2025 Mydailylogs. All rights reserved.</p>
           </div>
         </div>
       </footer>

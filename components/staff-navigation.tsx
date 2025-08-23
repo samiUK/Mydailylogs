@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-
+import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useBranding } from "@/components/branding-provider"
@@ -13,7 +13,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ChevronDownIcon, UserIcon, LogOutIcon } from "lucide-react"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { ChevronDownIcon, UserIcon, LogOutIcon, MenuIcon } from "lucide-react"
 
 interface StaffNavigationProps {
   user: any
@@ -22,6 +23,7 @@ interface StaffNavigationProps {
 
 export function StaffNavigation({ user, onSignOut }: StaffNavigationProps) {
   const { organizationName, logoUrl, primaryColor } = useBranding()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
     <nav className="bg-white shadow-sm border-b">
@@ -60,10 +62,39 @@ export function StaffNavigation({ user, onSignOut }: StaffNavigationProps) {
               </Link>
             </div>
           </div>
-          <div className="flex items-center">
+          <div className="flex items-center gap-2">
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="sm" className="md:hidden">
+                  <MenuIcon className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-80">
+                <SheetHeader>
+                  <SheetTitle className="text-left">Navigation</SheetTitle>
+                </SheetHeader>
+                <div className="flex flex-col space-y-4 mt-6">
+                  <Link
+                    href="/staff"
+                    className="text-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    My Tasks
+                  </Link>
+                  <Link
+                    href="/staff/history"
+                    className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    History
+                  </Link>
+                </div>
+              </SheetContent>
+            </Sheet>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 h-auto py-2">
+                <Button variant="ghost" className="flex items-center gap-2 h-auto py-2 px-2 sm:px-3">
                   <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
                     {user?.avatar_url ? (
                       <img
@@ -75,7 +106,7 @@ export function StaffNavigation({ user, onSignOut }: StaffNavigationProps) {
                       <UserIcon className="w-4 h-4 text-muted-foreground" />
                     )}
                   </div>
-                  <span className="text-sm font-medium text-foreground">
+                  <span className="text-sm font-medium text-foreground hidden sm:inline">
                     {user?.first_name || user?.full_name?.split(" ")[0] || "User"}
                   </span>
                   <ChevronDownIcon className="w-4 h-4 text-muted-foreground" />

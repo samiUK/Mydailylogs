@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-
+import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useBranding } from "@/components/branding-provider"
@@ -13,7 +13,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ChevronDownIcon, UserIcon, SettingsIcon, LogOutIcon } from "lucide-react"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { ChevronDownIcon, UserIcon, SettingsIcon, LogOutIcon, MenuIcon } from "lucide-react"
 
 interface AdminNavigationProps {
   user: any
@@ -22,6 +23,7 @@ interface AdminNavigationProps {
 
 export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
   const { organizationName, logoUrl, primaryColor } = useBranding()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
     <nav className="bg-white shadow-sm border-b">
@@ -72,19 +74,55 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
               >
                 Reports
               </Link>
-              <Link
-                href="/admin/billing"
-                className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
-                style={{ "--hover-color": primaryColor } as React.CSSProperties}
-              >
-                Billing
-              </Link>
             </div>
           </div>
-          <div className="flex items-center">
+          <div className="flex items-center gap-2">
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="sm" className="md:hidden">
+                  <MenuIcon className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-80">
+                <SheetHeader>
+                  <SheetTitle className="text-left">Navigation</SheetTitle>
+                </SheetHeader>
+                <div className="flex flex-col space-y-4 mt-6">
+                  <Link
+                    href="/admin"
+                    className="text-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Dashboard
+                  </Link>
+                  <Link
+                    href="/admin/templates"
+                    className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Templates
+                  </Link>
+                  <Link
+                    href="/admin/team"
+                    className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Team
+                  </Link>
+                  <Link
+                    href="/admin/reports"
+                    className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Reports
+                  </Link>
+                </div>
+              </SheetContent>
+            </Sheet>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 h-auto py-2">
+                <Button variant="ghost" className="flex items-center gap-2 h-auto py-2 px-2 sm:px-3">
                   <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
                     {user?.avatar_url ? (
                       <img
@@ -96,7 +134,7 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                       <UserIcon className="w-4 h-4 text-muted-foreground" />
                     )}
                   </div>
-                  <span className="text-sm font-medium text-foreground">
+                  <span className="text-sm font-medium text-foreground hidden sm:inline">
                     {user?.first_name || user?.full_name?.split(" ")[0] || "User"}
                   </span>
                   <ChevronDownIcon className="w-4 h-4 text-muted-foreground" />
@@ -111,9 +149,9 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/profile" className="flex items-center">
+                  <Link href="/admin/profile" className="flex items-center">
                     <UserIcon className="mr-2 h-4 w-4" />
-                    <span>Profile</span>
+                    <span>Profile & Billing</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>

@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { stripePromise } from "@/lib/stripe-client"
 import { CheckCircle, CreditCard, Download, Calendar, AlertCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
 
@@ -16,7 +15,6 @@ interface SubscriptionPlan {
   max_templates: number
   max_team_members: number
   features: any
-  stripe_price_id: string
 }
 
 interface Subscription {
@@ -35,7 +33,6 @@ interface BillingHistory {
   currency: string
   status: string
   invoice_date: string
-  stripe_invoice_id: string
 }
 
 export default function BillingPage() {
@@ -43,7 +40,6 @@ export default function BillingPage() {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([])
   const [billingHistory, setBillingHistory] = useState<BillingHistory[]>([])
   const [loading, setLoading] = useState(true)
-  const [upgrading, setUpgrading] = useState(false)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
   const router = useRouter()
 
@@ -108,47 +104,6 @@ export default function BillingPage() {
     loadBillingData()
   }, [router])
 
-  const handleUpgrade = async (priceId: string) => {
-    if (!organizationId) return
-
-    setUpgrading(true)
-    try {
-      const response = await fetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId, organizationId }),
-      })
-
-      const { sessionId } = await response.json()
-      const stripe = await stripePromise
-
-      if (stripe) {
-        await stripe.redirectToCheckout({ sessionId })
-      }
-    } catch (error) {
-      console.error("Error creating checkout session:", error)
-    } finally {
-      setUpgrading(false)
-    }
-  }
-
-  const handleManageBilling = async () => {
-    if (!organizationId) return
-
-    try {
-      const response = await fetch("/api/stripe/portal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ organizationId }),
-      })
-
-      const { url } = await response.json()
-      window.location.href = url
-    } catch (error) {
-      console.error("Error opening billing portal:", error)
-    }
-  }
-
   if (loading) {
     return <div className="flex justify-center py-8">Loading billing information...</div>
   }
@@ -193,11 +148,6 @@ export default function BillingPage() {
                   </p>
                 )}
               </div>
-              {!isFreePlan && (
-                <Button onClick={handleManageBilling} variant="outline">
-                  Manage Billing
-                </Button>
-              )}
             </div>
           ) : (
             <div className="text-center py-8">
@@ -213,7 +163,7 @@ export default function BillingPage() {
       <Card>
         <CardHeader>
           <CardTitle>Available Plans</CardTitle>
-          <CardDescription>Upgrade or change your subscription plan</CardDescription>
+          <CardDescription>View subscription plan options (Payment integration coming soon)</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-3 gap-6">
@@ -266,8 +216,8 @@ export default function BillingPage() {
                   </ul>
 
                   {!isCurrent && !isFreePlan && (
-                    <Button onClick={() => handleUpgrade(plan.stripe_price_id)} disabled={upgrading} className="w-full">
-                      {upgrading ? "Processing..." : "Upgrade"}
+                    <Button variant="outline" className="w-full bg-transparent" disabled>
+                      Coming Soon
                     </Button>
                   )}
 
@@ -307,17 +257,6 @@ export default function BillingPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <Badge variant={invoice.status === "paid" ? "default" : "destructive"}>{invoice.status}</Badge>
-                    {invoice.stripe_invoice_id && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          window.open(`https://invoice.stripe.com/i/${invoice.stripe_invoice_id}`, "_blank")
-                        }
-                      >
-                        View Invoice
-                      </Button>
-                    )}
                   </div>
                 </div>
               ))}

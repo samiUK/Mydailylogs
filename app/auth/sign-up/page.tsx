@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { createClient } from "@/lib/supabase/client"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -37,28 +38,83 @@ export default function SignUpPage() {
 
     try {
       const fullName = `${firstName} ${lastName}`.trim()
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+
+      const adminSupabase = createAdminClient()
+
+      const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
         email,
         password,
-        options: {
-          data: {
-            full_name: fullName,
-            first_name: firstName,
-            last_name: lastName,
-            display_name: firstName,
-            organization_name: organizationName,
-            organization_slug: organizationName
-              .toLowerCase()
-              .replace(/\s+/g, "-")
-              .replace(/[^a-z0-9-]/g, ""),
-          },
+        email_confirm: true, // Skip email confirmation for admin-created accounts
+        user_metadata: {
+          full_name: fullName,
+          first_name: firstName,
+          last_name: lastName,
+          display_name: firstName,
+          organization_name: organizationName,
+          organization_slug: organizationName
+            .toLowerCase()
+            .replace(/\s+/g, "-")
+            .replace(/[^a-z0-9-]/g, ""),
         },
       })
 
       if (authError) throw authError
 
       if (authData.user) {
-        console.log("[v0] Admin account created successfully")
+        console.log("[v0] User created successfully:", authData.user.id)
+
+        const { data: orgData, error: orgError } = await adminSupabase
+          .from("organizations")
+          .insert({
+            name: organizationName,
+            slug: organizationName
+              .toLowerCase()
+              .replace(/\s+/g, "-")
+              .replace(/[^a-z0-9-]/g, ""),
+          })
+          .select()
+          .single()
+
+        if (orgError) {
+          console.error("[v0] Organization creation error:", orgError)
+          // Clean up the user if organization creation fails
+          await adminSupabase.auth.admin.deleteUser(authData.user.id)
+          throw new Error(`Organization creation failed: ${orgError.message}`)
+        }
+
+        console.log("[v0] Organization created successfully:", orgData.id)
+
+        const { error: profileError } = await adminSupabase.from("profiles").insert({
+          id: authData.user.id,
+          organization_id: orgData.id,
+          first_name: firstName,
+          last_name: lastName,
+          full_name: fullName,
+          email: email,
+          role: "admin", // All signups are admin since only admins can create accounts
+        })
+
+        if (profileError) {
+          console.error("[v0] Profile creation error:", profileError)
+          // Clean up the user and organization if profile creation fails
+          await adminSupabase.auth.admin.deleteUser(authData.user.id)
+          await adminSupabase.from("organizations").delete().eq("id", orgData.id)
+          throw new Error(`Profile creation failed: ${profileError.message}`)
+        }
+
+        console.log("[v0] Profile created successfully")
+
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+
+        if (signInError) {
+          console.error("[v0] Sign in error:", signInError)
+          throw new Error(`Sign in failed: ${signInError.message}`)
+        }
+
+        console.log("[v0] Admin account setup completed successfully")
         router.push("/admin")
       }
     } catch (error: unknown) {

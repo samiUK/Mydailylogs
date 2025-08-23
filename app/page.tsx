@@ -52,25 +52,63 @@ export default async function HomePage() {
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="right" className="w-[300px] sm:w-[400px]">
-                  <div className="flex flex-col space-y-6 mt-6">
-                    <a href="#features" className="text-lg font-medium hover:text-accent transition-colors">
-                      Features
-                    </a>
-                    <a href="#pricing" className="text-lg font-medium hover:text-accent transition-colors">
-                      Pricing
-                    </a>
-                    <a href="#testimonials" className="text-lg font-medium hover:text-accent transition-colors">
-                      Reviews
-                    </a>
-                    <div className="flex flex-col space-y-3 pt-6 border-t">
-                      <Link href="/auth/login">
-                        <Button variant="ghost" className="w-full justify-start">
-                          Sign In
-                        </Button>
-                      </Link>
-                      <Link href="/auth/sign-up">
-                        <Button className="w-full bg-accent hover:bg-accent/90">Get Started Free</Button>
-                      </Link>
+                  <div className="flex flex-col h-full">
+                    <div className="flex items-center mb-8 mt-6">
+                      <MydailylogsLogo size="sm" />
+                    </div>
+
+                    {/* Navigation Links */}
+                    <div className="flex flex-col space-y-6 mb-8">
+                      <a
+                        href="#features"
+                        className="text-lg font-medium hover:text-accent transition-colors flex items-center"
+                      >
+                        <Shield className="w-5 h-5 mr-3 text-accent" />
+                        Features
+                      </a>
+                      <a
+                        href="#pricing"
+                        className="text-lg font-medium hover:text-accent transition-colors flex items-center"
+                      >
+                        <BarChart3 className="w-5 h-5 mr-3 text-accent" />
+                        Pricing
+                      </a>
+                      <a
+                        href="#testimonials"
+                        className="text-lg font-medium hover:text-accent transition-colors flex items-center"
+                      >
+                        <Star className="w-5 h-5 mr-3 text-accent" />
+                        Reviews
+                      </a>
+                    </div>
+
+                    {/* CTA Buttons - More prominent */}
+                    <div className="mt-auto mb-6">
+                      <div className="bg-muted/30 rounded-lg p-6 space-y-4">
+                        <div className="text-center mb-4">
+                          <h3 className="font-semibold text-foreground mb-2">Ready to get started?</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Join thousands of businesses streamlining compliance
+                          </p>
+                        </div>
+
+                        <Link href="/auth/sign-up" className="block">
+                          <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground h-12 text-base font-semibold">
+                            <CheckCircle className="w-5 h-5 mr-2" />
+                            Get Started Free
+                          </Button>
+                        </Link>
+
+                        <Link href="/auth/login" className="block">
+                          <Button
+                            variant="outline"
+                            className="w-full h-11 text-base border-2 hover:bg-muted bg-transparent"
+                          >
+                            <Users className="w-4 h-4 mr-2" />
+                            Sign In
+                          </Button>
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 </SheetContent>

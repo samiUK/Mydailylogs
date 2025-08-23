@@ -1,58 +1,173 @@
-import { createClient } from "@/lib/supabase/server"
+"use client"
+
+import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Clock, Bell } from "lucide-react"
+import { Clock, Bell, AlertTriangle, ArrowLeft } from "lucide-react"
+import { useState, useEffect } from "react"
 
-export default async function StaffDashboard() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+export default function StaffDashboard() {
+  const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<any>(null)
+  const [assignedTemplates, setAssignedTemplates] = useState<any[]>([])
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const [isImpersonating, setIsImpersonating] = useState(false)
+  const [impersonatedUser, setImpersonatedUser] = useState<any>(null)
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const supabase = createClient()
+
+      try {
+        const isImpersonatingMode = sessionStorage.getItem("is_impersonating") === "true"
+        const storedUser = sessionStorage.getItem("impersonated_user")
+        const storedProfile = sessionStorage.getItem("impersonated_profile")
+
+        if (isImpersonatingMode && storedUser && storedProfile) {
+          setIsImpersonating(true)
+          const mockUser = JSON.parse(storedUser)
+          const mockProfile = JSON.parse(storedProfile)
+          setUser(mockUser)
+          setProfile(mockProfile)
+          setImpersonatedUser(mockUser)
+          return
+        }
+
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser()
+
+        if (userError || !user) {
+          console.error("Error getting user:", userError)
+          return
+        }
+
+        setUser(user)
+
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single()
+
+        if (profileError) {
+          console.error("Error getting profile:", profileError)
+          return
+        }
+
+        setProfile(profile)
+      } catch (error) {
+        console.error("Error loading user data:", error)
+      }
+    }
+
+    loadUser()
+  }, [])
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (!user || !profile) return
+
+      try {
+        const supabase = createClient()
+
+        const { data: assignedTemplates } = await supabase
+          .from("template_assignments")
+          .select(`
+            *,
+            checklist_templates:template_id(
+              id,
+              name,
+              description,
+              frequency,
+              schedule_type,
+              deadline_date,
+              specific_date,
+              schedule_time
+            )
+          `)
+          .eq("assigned_to", user.id)
+          .eq("is_active", true)
+          .order("assigned_at", { ascending: false })
+
+        const { data: notifications } = await supabase
+          .from("notifications")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("is_read", false)
+          .eq("type", "missed_task")
+          .order("created_at", { ascending: false })
+
+        setAssignedTemplates(assignedTemplates || [])
+        setNotifications(notifications || [])
+
+        console.log(
+          "[v0] All assigned templates:",
+          assignedTemplates?.map((a) => ({
+            name: a.checklist_templates?.name,
+            status: a.status,
+            completed_at: a.completed_at,
+            assigned_at: a.assigned_at,
+          })),
+        )
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadData()
+  }, [user, profile])
+
+  if (loading) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">My Assigned Tasks</h1>
+          <p className="text-muted-foreground mt-2">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (!user) return null
 
-  // Get user profile
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
-
-  const { data: assignedTemplates } = await supabase
-    .from("template_assignments")
-    .select(`
-      *,
-      checklist_templates:template_id(
-        id,
-        name,
-        description,
-        frequency,
-        schedule_type,
-        deadline_date,
-        specific_date,
-        schedule_time
-      )
-    `)
-    .eq("assigned_to", user.id)
-    .eq("is_active", true)
-    .order("assigned_at", { ascending: false })
-
-  const { data: notifications } = await supabase
-    .from("notifications")
-    .select("*")
-    .eq("user_id", user.id)
-    .eq("is_read", false)
-    .eq("type", "missed_task")
-    .order("created_at", { ascending: false })
-
-  console.log(
-    "[v0] All assigned templates:",
-    assignedTemplates?.map((a) => ({
-      name: a.checklist_templates?.name,
-      status: a.status,
-      completed_at: a.completed_at,
-      assigned_at: a.assigned_at,
-    })),
-  )
+  // Add impersonation banner
+  if (isImpersonating && impersonatedUser) {
+    return (
+      <div className="bg-orange-500 text-white px-4 py-3 rounded-lg">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5" />
+            <span className="font-medium">
+              IMPERSONATING: {impersonatedUser.user_metadata?.full_name || impersonatedUser.email} - Staff Dashboard
+            </span>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              sessionStorage.removeItem("impersonated_user")
+              sessionStorage.removeItem("impersonated_profile")
+              sessionStorage.removeItem("is_impersonating")
+              window.location.href = "/masterdashboard"
+            }}
+            className="bg-white text-orange-600 hover:bg-gray-100"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Exit Impersonation
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   const today = new Date()
   const todayString = today.toDateString()

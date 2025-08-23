@@ -24,7 +24,17 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ChevronDown, Users, UserCheck, Bell, CheckCircle, Plus, UserPlus, AlertTriangle } from "lucide-react"
+import {
+  ChevronDown,
+  Users,
+  UserCheck,
+  Bell,
+  CheckCircle,
+  Plus,
+  UserPlus,
+  AlertTriangle,
+  ArrowLeft,
+} from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import Link from "next/link"
@@ -57,6 +67,9 @@ export default function AdminDashboard() {
   })
 
   const [allNotifications, setAllNotifications] = useState<any[]>([])
+
+  const [isImpersonating, setIsImpersonating] = useState(false)
+  const [impersonatedUser, setImpersonatedUser] = useState<any>(null)
 
   const checkMissedTasks = async () => {
     if (!profile?.organization_id) return
@@ -282,6 +295,20 @@ export default function AdminDashboard() {
       const supabase = createClient()
 
       try {
+        const isImpersonatingMode = sessionStorage.getItem("is_impersonating") === "true"
+        const storedUser = sessionStorage.getItem("impersonated_user")
+        const storedProfile = sessionStorage.getItem("impersonated_profile")
+
+        if (isImpersonatingMode && storedUser && storedProfile) {
+          setIsImpersonating(true)
+          const mockUser = JSON.parse(storedUser)
+          const mockProfile = JSON.parse(storedProfile)
+          setUser(mockUser)
+          setProfile(mockProfile)
+          setImpersonatedUser(mockUser)
+          return
+        }
+
         const {
           data: { user },
           error: userError,
@@ -444,6 +471,33 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8">
+      {isImpersonating && impersonatedUser && (
+        <div className="bg-orange-500 text-white px-4 py-3 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5" />
+              <span className="font-medium">
+                IMPERSONATING: {impersonatedUser.user_metadata?.full_name || impersonatedUser.email} - Admin Dashboard
+              </span>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                sessionStorage.removeItem("impersonated_user")
+                sessionStorage.removeItem("impersonated_profile")
+                sessionStorage.removeItem("is_impersonating")
+                window.location.href = "/masterdashboard"
+              }}
+              className="bg-white text-orange-600 hover:bg-gray-100"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Exit Impersonation
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div>
         <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
         <p className="text-muted-foreground mt-2">

@@ -24,8 +24,9 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ChevronDown, Users, UserCheck, Bell, CheckCircle, Plus, UserPlus } from "lucide-react"
+import { ChevronDown, Users, UserCheck, Bell, CheckCircle, Plus, UserPlus, AlertTriangle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import Link from "next/link"
 
 export default function AdminDashboard() {
@@ -36,6 +37,7 @@ export default function AdminDashboard() {
   const [teamMembers, setTeamMembers] = useState<any[]>([])
   const [todayChecklists, setTodayChecklists] = useState<any[]>([])
   const [notifications, setNotifications] = useState<any[]>([])
+  const [missedTasks, setMissedTasks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [assigningTemplate, setAssigningTemplate] = useState<string | null>(null)
   const [selectedMembers, setSelectedMembers] = useState<{ [key: string]: string[] }>({})
@@ -53,6 +55,92 @@ export default function AdminDashboard() {
     role: "staff" as "admin" | "staff",
     reportsTo: "none",
   })
+
+  const checkMissedTasks = async () => {
+    if (!profile?.organization_id) return
+
+    const supabase = createClient()
+    const today = new Date()
+
+    const { data: assignments } = await supabase
+      .from("template_assignments")
+      .select(`
+        *,
+        checklist_templates:template_id(
+          id,
+          name,
+          description,
+          deadline_date,
+          specific_date,
+          schedule_type
+        ),
+        assigned_to_profile:profiles!template_assignments_assigned_to_fkey(
+          id,
+          first_name,
+          last_name,
+          full_name
+        )
+      `)
+      .eq("organization_id", profile.organization_id)
+      .neq("status", "completed")
+      .eq("is_active", true)
+
+    const missedTasksList: any[] = []
+
+    assignments?.forEach((assignment) => {
+      const template = assignment.checklist_templates
+      if (!template) return
+
+      let dueDate: Date | null = null
+
+      if (template.deadline_date) {
+        dueDate = new Date(template.deadline_date)
+      } else if (template.specific_date) {
+        dueDate = new Date(template.specific_date)
+      } else if (template.schedule_type === "daily") {
+        dueDate = new Date(today)
+        dueDate.setHours(23, 59, 59, 999)
+      } else if (template.schedule_type === "weekly") {
+        dueDate = new Date(today)
+        dueDate.setDate(today.getDate() + (7 - today.getDay()))
+        dueDate.setHours(23, 59, 59, 999)
+      } else if (template.schedule_type === "monthly") {
+        dueDate = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+        dueDate.setHours(23, 59, 59, 999)
+      }
+
+      if (dueDate && today > dueDate) {
+        missedTasksList.push({
+          ...assignment,
+          dueDate,
+          template,
+          staffMember: assignment.assigned_to_profile,
+        })
+      }
+    })
+
+    setMissedTasks(missedTasksList)
+
+    for (const missedTask of missedTasksList) {
+      const existingNotification = await supabase
+        .from("notifications")
+        .select("id")
+        .eq("user_id", missedTask.assigned_to)
+        .eq("template_id", missedTask.template_id)
+        .eq("type", "missed_task")
+        .single()
+
+      if (!existingNotification.data) {
+        await supabase.from("notifications").insert({
+          user_id: missedTask.assigned_to,
+          template_id: missedTask.template_id,
+          type: "missed_task",
+          message: `You have missed the deadline for "${missedTask.template.name}". Please complete it as soon as possible.`,
+          is_read: false,
+        })
+      }
+    }
+  }
 
   const loadAdmins = async () => {
     const supabase = createClient()
@@ -292,6 +380,8 @@ export default function AdminDashboard() {
         setActiveTemplates(activeTemplatesRes.data || [])
         setTeamMembers(teamMembersRes.data || [])
         setTodayChecklists(assignmentsRes.data || [])
+
+        await checkMissedTasks()
       } catch (error) {
         console.error("Error fetching dashboard data:", error)
       } finally {
@@ -340,6 +430,34 @@ export default function AdminDashboard() {
           Manage your organization&apos;s compliance checklists and team members
         </p>
       </div>
+
+      {missedTasks.length > 0 && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Staff Missed Tasks ({missedTasks.length})</AlertTitle>
+          <AlertDescription>
+            {missedTasks.length} task{missedTasks.length > 1 ? "s have" : " has"} been missed by staff members. Please
+            follow up with the team.
+            <div className="mt-3 space-y-2">
+              {missedTasks.slice(0, 5).map((task) => (
+                <div key={task.id} className="text-sm bg-red-50 p-2 rounded border border-red-200">
+                  <div className="font-medium">
+                    {task.staffMember?.full_name ||
+                      `${task.staffMember?.first_name} ${task.staffMember?.last_name}` ||
+                      "Staff Member"}
+                  </div>
+                  <div className="text-red-700">
+                    Missed: {task.template.name} (Due: {task.dueDate.toLocaleDateString()})
+                  </div>
+                </div>
+              ))}
+              {missedTasks.length > 5 && (
+                <div className="text-sm text-red-700">And {missedTasks.length - 5} more missed tasks...</div>
+              )}
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>

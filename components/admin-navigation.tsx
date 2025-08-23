@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { ChevronDownIcon, UserIcon, SettingsIcon, LogOutIcon, MenuIcon, Check } from "lucide-react"
+import { ChevronDownIcon, UserIcon, SettingsIcon, LogOutIcon, MenuIcon, Check, CreditCard } from "lucide-react"
 
 interface AdminNavigationProps {
   user: any
@@ -143,7 +143,13 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                 <DropdownMenuItem asChild>
                   <Link href="/admin/profile" className="flex items-center">
                     <UserIcon className="mr-2 h-4 w-4" />
-                    <span>Profile & Billing</span>
+                    <span>Profile</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/admin/billing" className="flex items-center">
+                    <CreditCard className="mr-2 h-4 w-4" />
+                    <span>Billing & Subscription</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>

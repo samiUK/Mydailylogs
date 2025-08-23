@@ -156,9 +156,40 @@ export default function NewTemplatePage() {
     return { categorizedTasks, uncategorizedTasks }
   }
 
+  const validateDates = () => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    if (scheduleType === "specific_date" && specificDate) {
+      const selectedDate = new Date(specificDate)
+      selectedDate.setHours(0, 0, 0, 0)
+
+      if (selectedDate < today) {
+        setError("Specific date cannot be in the past")
+        return false
+      }
+    }
+
+    if (scheduleType === "deadline" && deadlineDate) {
+      const selectedDeadline = new Date(deadlineDate)
+      selectedDeadline.setHours(0, 0, 0, 0)
+
+      if (selectedDeadline < today) {
+        setError("Deadline date cannot be in the past")
+        return false
+      }
+    }
+
+    return true
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!organizationId || !canCreateTemplate) return
+
+    if (!validateDates()) {
+      return
+    }
 
     const limitCheck = await checkCanCreateTemplate(organizationId)
     if (!limitCheck.canCreate) {
@@ -177,18 +208,39 @@ export default function NewTemplatePage() {
 
       if (!user) throw new Error("Not authenticated")
 
+      let processedSpecificDate = null
+      let processedDeadlineDate = null
+
+      if (scheduleType === "specific_date" && specificDate) {
+        processedSpecificDate = specificDate
+      }
+
+      if (scheduleType === "deadline" && deadlineDate) {
+        processedDeadlineDate = deadlineDate
+      }
+
+      let mappedFrequency: string
+      if (scheduleType === "recurring") {
+        mappedFrequency = frequency
+      } else {
+        // For specific_date and deadline, use 'custom' as the frequency
+        mappedFrequency = "custom"
+      }
+
       const templateData = {
         name,
         description,
-        frequency: scheduleType === "recurring" ? frequency : scheduleType,
+        frequency: mappedFrequency,
         schedule_type: scheduleType,
-        specific_date: scheduleType === "specific_date" ? specificDate : null,
-        deadline_date: scheduleType === "deadline" ? deadlineDate : null,
+        specific_date: processedSpecificDate,
+        deadline_date: processedDeadlineDate,
         schedule_time: scheduleTime || null,
         organization_id: organizationId,
         created_by: user.id,
         is_active: true,
       }
+
+      console.log("[v0] Creating template with data:", templateData)
 
       const { data: templateResult, error: templateError } = await supabase
         .from("checklist_templates")
@@ -196,7 +248,12 @@ export default function NewTemplatePage() {
         .select()
         .single()
 
-      if (templateError) throw templateError
+      if (templateError) {
+        console.log("[v0] Template creation error:", templateError)
+        throw templateError
+      }
+
+      console.log("[v0] Template created successfully:", templateResult)
 
       if (tasks.length > 0) {
         const tasksToInsert = tasks.map((task) => ({
@@ -210,13 +267,21 @@ export default function NewTemplatePage() {
           is_required: task.validation?.required || false,
         }))
 
+        console.log("[v0] Inserting tasks:", tasksToInsert)
+
         const { error: tasksError } = await supabase.from("checklist_items").insert(tasksToInsert)
 
-        if (tasksError) throw tasksError
+        if (tasksError) {
+          console.log("[v0] Tasks insertion error:", tasksError)
+          throw tasksError
+        }
+
+        console.log("[v0] Tasks inserted successfully")
       }
 
       router.push(`/admin/templates`)
     } catch (error: unknown) {
+      console.log("[v0] Error in template creation:", error)
       setError(error instanceof Error ? error.message : "An error occurred")
     } finally {
       setIsLoading(false)
@@ -273,13 +338,16 @@ export default function NewTemplatePage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid gap-2">
-                  <Label htmlFor="name">Template Name</Label>
+                  <Label htmlFor="name" required>
+                    Template Name
+                  </Label>
                   <Input
                     id="name"
                     placeholder="Daily Safety Checklist"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
+                    className="bg-white border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200"
                   />
                 </div>
 
@@ -291,13 +359,16 @@ export default function NewTemplatePage() {
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     rows={3}
+                    className="bg-white border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200"
                   />
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor="scheduleType">Schedule Type</Label>
+                  <Label htmlFor="scheduleType" required>
+                    Schedule Type
+                  </Label>
                   <Select value={scheduleType} onValueChange={setScheduleType} required>
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-white border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200">
                       <SelectValue placeholder="How should this be scheduled?" />
                     </SelectTrigger>
                     <SelectContent>
@@ -310,9 +381,11 @@ export default function NewTemplatePage() {
 
                 {scheduleType === "recurring" && (
                   <div className="grid gap-2">
-                    <Label htmlFor="frequency">Frequency</Label>
+                    <Label htmlFor="frequency" required>
+                      Frequency
+                    </Label>
                     <Select value={frequency} onValueChange={setFrequency} required>
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-white border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200">
                         <SelectValue placeholder="How often should this be completed?" />
                       </SelectTrigger>
                       <SelectContent>
@@ -327,29 +400,49 @@ export default function NewTemplatePage() {
 
                 {scheduleType === "specific_date" && (
                   <div className="grid gap-2">
-                    <Label htmlFor="specificDate">Specific Date</Label>
+                    <Label htmlFor="specificDate" required>
+                      Specific Date
+                    </Label>
                     <Input
                       id="specificDate"
                       type="date"
                       value={specificDate}
-                      onChange={(e) => setSpecificDate(e.target.value)}
+                      onChange={(e) => {
+                        setSpecificDate(e.target.value)
+                        if (error && error.includes("Specific date")) {
+                          setError(null)
+                        }
+                      }}
                       required
                       min={new Date().toISOString().split("T")[0]}
+                      className="bg-white border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                     />
+                    <p className="text-xs text-muted-foreground">Select the date when this task should be completed</p>
                   </div>
                 )}
 
                 {scheduleType === "deadline" && (
                   <div className="grid gap-2">
-                    <Label htmlFor="deadlineDate">Deadline Date</Label>
+                    <Label htmlFor="deadlineDate" required>
+                      Deadline Date
+                    </Label>
                     <Input
                       id="deadlineDate"
                       type="date"
                       value={deadlineDate}
-                      onChange={(e) => setDeadlineDate(e.target.value)}
+                      onChange={(e) => {
+                        setDeadlineDate(e.target.value)
+                        if (error && error.includes("Deadline date")) {
+                          setError(null)
+                        }
+                      }}
                       required
                       min={new Date().toISOString().split("T")[0]}
+                      className="bg-white border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Select the deadline by which this task must be completed
+                    </p>
                   </div>
                 )}
 
@@ -361,6 +454,7 @@ export default function NewTemplatePage() {
                       type="time"
                       value={scheduleTime}
                       onChange={(e) => setScheduleTime(e.target.value)}
+                      className="bg-white border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                     />
                   </div>
                 )}
@@ -377,20 +471,29 @@ export default function NewTemplatePage() {
                         value={newCategory}
                         onChange={(e) => setNewCategory(e.target.value)}
                         onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addCategory())}
+                        className="bg-white border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                       />
-                      <Button type="button" onClick={addCategory} variant="outline">
+                      <Button
+                        type="button"
+                        onClick={addCategory}
+                        variant="outline"
+                        className="bg-emerald-50 border-2 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400 text-emerald-700 font-semibold"
+                      >
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {categories.map((category) => (
-                        <div key={category} className="flex items-center gap-1 bg-muted px-3 py-1 rounded-full text-sm">
+                        <div
+                          key={category}
+                          className="flex items-center gap-1 bg-emerald-100 border border-emerald-300 px-3 py-1 rounded-full text-sm font-medium text-emerald-800"
+                        >
                           {category}
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                            className="h-4 w-4 p-0 hover:bg-red-500 hover:text-white rounded-full"
                             onClick={() => removeCategory(category)}
                           >
                             ×
@@ -408,10 +511,15 @@ export default function NewTemplatePage() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {tasks.map((task, index) => (
-                      <div key={task.id} className="border rounded-lg p-4 space-y-4">
+                      <div
+                        key={task.id}
+                        className="border-2 border-gray-300 rounded-lg p-4 space-y-4 bg-white shadow-sm hover:shadow-md transition-shadow"
+                      >
                         <div className="flex items-center gap-2">
                           <GripVertical className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm font-medium text-muted-foreground">Task {index + 1}</span>
+                          <span className="text-sm font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded">
+                            Task {index + 1}
+                          </span>
                           <div className="ml-auto flex gap-2">
                             <Button
                               type="button"
@@ -419,6 +527,7 @@ export default function NewTemplatePage() {
                               size="sm"
                               onClick={() => moveTask(task.id, "up")}
                               disabled={index === 0}
+                              className="hover:bg-blue-100 hover:text-blue-700 border border-gray-300"
                             >
                               ↑
                             </Button>
@@ -428,10 +537,17 @@ export default function NewTemplatePage() {
                               size="sm"
                               onClick={() => moveTask(task.id, "down")}
                               disabled={index === tasks.length - 1}
+                              className="hover:bg-blue-100 hover:text-blue-700 border border-gray-300"
                             >
                               ↓
                             </Button>
-                            <Button type="button" variant="ghost" size="sm" onClick={() => removeTask(task.id)}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeTask(task.id)}
+                              className="hover:bg-red-100 hover:text-red-700 border border-gray-300"
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -439,22 +555,23 @@ export default function NewTemplatePage() {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label>Task Name</Label>
+                            <Label required>Task Name</Label>
                             <Input
                               placeholder="e.g., Check fire extinguisher"
                               value={task.name}
                               onChange={(e) => updateTask(task.id, { name: e.target.value })}
                               required
+                              className="bg-white border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                             />
                           </div>
 
                           <div className="space-y-2">
-                            <Label>Type</Label>
+                            <Label required>Type</Label>
                             <Select
                               value={task.type}
                               onValueChange={(value: Task["type"]) => updateTask(task.id, { type: value })}
                             >
-                              <SelectTrigger>
+                              <SelectTrigger className="bg-white border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -474,7 +591,7 @@ export default function NewTemplatePage() {
                               value={task.category || "No Category"}
                               onValueChange={(value) => updateTask(task.id, { category: value || undefined })}
                             >
-                              <SelectTrigger>
+                              <SelectTrigger className="bg-white border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200">
                                 <SelectValue placeholder="Select category" />
                               </SelectTrigger>
                               <SelectContent>
@@ -494,7 +611,7 @@ export default function NewTemplatePage() {
                               value={task.assigned_role || "Any Role"}
                               onValueChange={(value) => updateTask(task.id, { assigned_role: value || undefined })}
                             >
-                              <SelectTrigger>
+                              <SelectTrigger className="bg-white border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200">
                                 <SelectValue placeholder="Any role" />
                               </SelectTrigger>
                               <SelectContent>
@@ -525,6 +642,7 @@ export default function NewTemplatePage() {
                                     },
                                   })
                                 }
+                                className="bg-white border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                               />
                             </div>
                             <div className="space-y-2">
@@ -541,6 +659,7 @@ export default function NewTemplatePage() {
                                     },
                                   })
                                 }
+                                className="bg-white border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                               />
                             </div>
                           </div>
@@ -562,6 +681,7 @@ export default function NewTemplatePage() {
                                     },
                                   })
                                 }
+                                className="bg-white border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                               />
                             </div>
                             <div className="space-y-2">
@@ -578,6 +698,7 @@ export default function NewTemplatePage() {
                                     },
                                   })
                                 }
+                                className="bg-white border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                               />
                             </div>
                           </div>
@@ -585,7 +706,12 @@ export default function NewTemplatePage() {
                       </div>
                     ))}
 
-                    <Button type="button" variant="outline" onClick={addTask} className="w-full bg-transparent">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={addTask}
+                      className="w-full bg-white border-2 border-emerald-300 text-emerald-700 font-semibold py-2 text-sm shadow-sm transition-all duration-200 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-800"
+                    >
                       <Plus className="h-4 w-4 mr-2" />
                       Add Task
                     </Button>
@@ -595,10 +721,19 @@ export default function NewTemplatePage() {
                 {error && <p className="text-sm text-red-500">{error}</p>}
 
                 <div className="flex gap-4">
-                  <Button type="submit" disabled={isLoading || !canCreateTemplate}>
+                  <Button
+                    type="submit"
+                    disabled={isLoading || !canCreateTemplate}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-3 text-base shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
                     {isLoading ? "Creating..." : "Create Template"}
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => router.back()}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => router.back()}
+                    className="border-2 border-gray-300 hover:bg-gray-100 font-semibold px-6 py-3 text-base"
+                  >
                     Cancel
                   </Button>
                 </div>

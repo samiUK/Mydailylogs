@@ -86,7 +86,9 @@ export default function SignUpPage() {
             <form onSubmit={handleSignUp}>
               <div className="flex flex-col gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="organizationName">Organization Name</Label>
+                  <Label htmlFor="organizationName" required>
+                    Organization Name
+                  </Label>
                   <Input
                     id="organizationName"
                     type="text"
@@ -98,7 +100,9 @@ export default function SignUpPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="grid gap-2">
-                    <Label htmlFor="firstName">First Name</Label>
+                    <Label htmlFor="firstName" required>
+                      First Name
+                    </Label>
                     <Input
                       id="firstName"
                       type="text"
@@ -109,7 +113,9 @@ export default function SignUpPage() {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="lastName">Last Name</Label>
+                    <Label htmlFor="lastName" required>
+                      Last Name
+                    </Label>
                     <Input
                       id="lastName"
                       type="text"
@@ -121,7 +127,9 @@ export default function SignUpPage() {
                   </div>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email" required>
+                    Email
+                  </Label>
                   <Input
                     id="email"
                     type="email"
@@ -132,7 +140,9 @@ export default function SignUpPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password" required>
+                    Password
+                  </Label>
                   <Input
                     id="password"
                     type="password"
@@ -142,7 +152,9 @@ export default function SignUpPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <Label htmlFor="confirmPassword" required>
+                    Confirm Password
+                  </Label>
                   <Input
                     id="confirmPassword"
                     type="password"

@@ -99,6 +99,42 @@ export default function StaffTemplatesPage() {
         return
       }
 
+      const { data: template } = await supabase
+        .from("checklist_templates")
+        .select("schedule_type, specific_date, deadline_date, frequency")
+        .eq("id", templateId)
+        .single()
+
+      let dueDate = new Date()
+
+      if (template) {
+        if (template.schedule_type === "specific_date" && template.specific_date) {
+          dueDate = new Date(template.specific_date)
+        } else if (template.schedule_type === "deadline" && template.deadline_date) {
+          dueDate = new Date(template.deadline_date)
+        } else if (template.schedule_type === "recurring") {
+          // For recurring tasks, set due date based on frequency
+          switch (template.frequency) {
+            case "daily":
+              dueDate = new Date(Date.now() + 24 * 60 * 60 * 1000) // Tomorrow
+              break
+            case "weekly":
+              dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // Next week
+              break
+            case "monthly":
+              dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Next month
+              break
+            default:
+              dueDate = new Date(Date.now() + 24 * 60 * 60 * 1000) // Default to tomorrow
+          }
+        } else {
+          // Default fallback
+          dueDate = new Date(Date.now() + 24 * 60 * 60 * 1000)
+        }
+      }
+
+      console.log("[v0] Assigning template with due date:", dueDate.toISOString())
+
       // Create new assignment
       const { error } = await supabase.from("template_assignments").insert({
         template_id: templateId,
@@ -107,11 +143,15 @@ export default function StaffTemplatesPage() {
         organization_id: profile.organization_id,
         status: "pending",
         assigned_at: new Date().toISOString(),
-        due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Due tomorrow
+        due_date: dueDate.toISOString(),
       })
 
-      if (error) throw error
+      if (error) {
+        console.log("[v0] Assignment error:", error)
+        throw error
+      }
 
+      console.log("[v0] Template assigned successfully")
       toast.success("Template assigned successfully! Check your dashboard to complete it.")
     } catch (error) {
       console.error("Error assigning template:", error)

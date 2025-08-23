@@ -3,6 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Clock, Bell } from "lucide-react"
 
 export default async function StaffDashboard() {
   const supabase = await createClient()
@@ -23,12 +25,24 @@ export default async function StaffDashboard() {
         id,
         name,
         description,
-        frequency
+        frequency,
+        schedule_type,
+        deadline_date,
+        specific_date,
+        schedule_time
       )
     `)
     .eq("assigned_to", user.id)
     .eq("is_active", true)
     .order("assigned_at", { ascending: false })
+
+  const { data: notifications } = await supabase
+    .from("notifications")
+    .select("*")
+    .eq("user_id", user.id)
+    .eq("is_read", false)
+    .eq("type", "missed_task")
+    .order("created_at", { ascending: false })
 
   console.log(
     "[v0] All assigned templates:",
@@ -40,33 +54,65 @@ export default async function StaffDashboard() {
     })),
   )
 
-  const today = new Date().toDateString()
-  console.log("[v0] Today's date string:", today)
+  const today = new Date()
+  const todayString = today.toDateString()
+  console.log("[v0] Today's date string:", todayString)
 
-  const availableTemplates = assignedTemplates?.filter((assignment) => {
-    // If template was completed today, hide it until tomorrow
+  const upcomingTasks: any[] = []
+  const availableTemplates: any[] = []
+
+  assignedTemplates?.forEach((assignment) => {
+    const template = assignment.checklist_templates
+    if (!template) return
+
+    // Calculate due date based on template scheduling
+    let dueDate: Date | null = null
+
+    if (template.deadline_date) {
+      dueDate = new Date(template.deadline_date)
+    } else if (template.specific_date) {
+      dueDate = new Date(template.specific_date)
+    } else if (template.schedule_type === "daily") {
+      // For daily tasks, due date is today
+      dueDate = new Date(today)
+      dueDate.setHours(23, 59, 59, 999) // End of day
+    } else if (template.schedule_type === "weekly") {
+      // For weekly tasks, due date is end of week
+      dueDate = new Date(today)
+      dueDate.setDate(today.getDate() + (7 - today.getDay()))
+      dueDate.setHours(23, 59, 59, 999)
+    } else if (template.schedule_type === "monthly") {
+      // For monthly tasks, due date is end of month
+      dueDate = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+      dueDate.setHours(23, 59, 59, 999)
+    }
+
+    // Check if task is upcoming (within 3 days)
+    if (dueDate && assignment.status !== "completed") {
+      const isOverdue = today > dueDate
+      const isUpcoming = !isOverdue && dueDate.getTime() - today.getTime() <= 3 * 24 * 60 * 60 * 1000 // Within 3 days
+
+      if (isUpcoming) {
+        upcomingTasks.push({ ...assignment, dueDate, template })
+      }
+    }
+
+    // Filter available templates (existing logic)
     if (assignment.completed_at) {
       const completedDate = new Date(assignment.completed_at).toDateString()
-      console.log("[v0] Template completed date:", completedDate, "vs today:", today)
-      if (completedDate === today) {
-        console.log("[v0] Hiding template completed today:", assignment.checklist_templates?.name)
+      if (completedDate === todayString) {
         return false // Hide completed templates for today
       }
     }
-    return true // Show active templates and templates completed on previous days
+    availableTemplates.push(assignment)
   })
-
-  console.log(
-    "[v0] Available templates after filtering:",
-    availableTemplates?.map((a) => a.checklist_templates?.name),
-  )
 
   const totalAssigned = assignedTemplates?.length || 0
   const completedTemplates = assignedTemplates?.filter((a) => a.status === "completed").length || 0
   const activeTemplates =
     availableTemplates?.filter((a) => {
       // Don't count templates completed today as active
-      if (a.completed_at && new Date(a.completed_at).toDateString() === today) {
+      if (a.completed_at && new Date(a.completed_at).toDateString() === todayString) {
         return false
       }
       return a.status === "active" || !a.status
@@ -75,7 +121,7 @@ export default async function StaffDashboard() {
   const completedToday =
     assignedTemplates?.filter((a) => {
       if (!a.completed_at) return false
-      return new Date(a.completed_at).toDateString() === today
+      return new Date(a.completed_at).toDateString() === todayString
     }).length || 0
 
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
@@ -90,6 +136,7 @@ export default async function StaffDashboard() {
     completedTemplates,
     activeTemplates,
     completedToday,
+    upcomingTasks: upcomingTasks.length,
   })
 
   return (
@@ -99,6 +146,57 @@ export default async function StaffDashboard() {
         <h1 className="text-3xl font-bold text-foreground">My Assigned Tasks</h1>
         <p className="text-muted-foreground mt-2">Complete your assigned compliance checklists</p>
       </div>
+
+      {notifications?.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+            <Bell className="w-5 h-5" />
+            Notifications
+          </h2>
+
+          {notifications?.map((notification) => (
+            <Alert key={notification.id}>
+              <Bell className="h-4 w-4" />
+              <AlertTitle>Task Reminder</AlertTitle>
+              <AlertDescription>{notification.message}</AlertDescription>
+            </Alert>
+          ))}
+        </div>
+      )}
+
+      {upcomingTasks.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Upcoming Tasks ({upcomingTasks.length})
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {upcomingTasks.map((task) => (
+              <Card key={task.id} className="border-yellow-200 bg-yellow-50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">{task.template.name}</CardTitle>
+                  <CardDescription className="text-sm">{task.template.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm">
+                      <p className="text-yellow-700 font-medium">Due: {task.dueDate.toLocaleDateString()}</p>
+                      <p className="text-muted-foreground">
+                        {Math.ceil((task.dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))} days left
+                      </p>
+                    </div>
+                    <Link href={`/staff/checklist/${task.template.id}`}>
+                      <Button size="sm" variant="outline">
+                        Start
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -152,9 +250,16 @@ export default async function StaffDashboard() {
               const status =
                 assignment.status === "completed" &&
                 assignment.completed_at &&
-                new Date(assignment.completed_at).toDateString() !== today
+                new Date(assignment.completed_at).toDateString() !== todayString
                   ? "active" // Reset to active for templates completed on previous days
                   : assignment.status || "active"
+
+              let dueDate: Date | null = null
+              if (template?.deadline_date) {
+                dueDate = new Date(template.deadline_date)
+              } else if (template?.specific_date) {
+                dueDate = new Date(template.specific_date)
+              }
 
               return (
                 <Card key={assignment.id} className="hover:shadow-md transition-shadow">
@@ -170,11 +275,15 @@ export default async function StaffDashboard() {
                           <span className="text-xs text-muted-foreground">
                             Assigned: {new Date(assignment.assigned_at).toLocaleDateString()}
                           </span>
-                          {assignment.completed_at && new Date(assignment.completed_at).toDateString() !== today && (
-                            <span className="text-xs text-green-600">
-                              Last completed: {new Date(assignment.completed_at).toLocaleDateString()}
-                            </span>
+                          {dueDate && (
+                            <span className="text-xs text-orange-600">Due: {dueDate.toLocaleDateString()}</span>
                           )}
+                          {assignment.completed_at &&
+                            new Date(assignment.completed_at).toDateString() !== todayString && (
+                              <span className="text-xs text-green-600">
+                                Last completed: {new Date(assignment.completed_at).toLocaleDateString()}
+                              </span>
+                            )}
                         </div>
                       </div>
                       <Badge

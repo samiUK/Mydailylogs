@@ -94,17 +94,36 @@ export default function MasterDashboardPage() {
   const [userSearchTerm, setUserSearchTerm] = useState("")
   const [resetPasswordEmail, setResetPasswordEmail] = useState("") // Added state for reset password email
 
-  const loginAsUser = async (userEmail: string) => {
+  const loginAsUser = async (userEmail: string, userRole: string) => {
     if (!userEmail.trim()) {
       alert("Please enter a valid email address")
       return
     }
 
-    // Store the target user email in sessionStorage for the auth page
-    sessionStorage.setItem("masterAdminTarget", userEmail.trim())
+    try {
+      const impersonationData = {
+        masterAdminEmail: "arsami.uk@gmail.com",
+        targetUserEmail: userEmail.trim(),
+        targetUserRole: userRole,
+        impersonatedAt: new Date().toISOString(),
+      }
 
-    // Redirect to auth/login page
-    window.location.href = `/auth/login?email=${encodeURIComponent(userEmail.trim())}`
+      sessionStorage.setItem("masterAdminImpersonation", JSON.stringify(impersonationData))
+
+      // Set cookie for middleware to detect impersonation
+      document.cookie = `masterAdminImpersonation=true; path=/; max-age=3600` // 1 hour expiry
+      document.cookie = `impersonatedUserEmail=${userEmail.trim()}; path=/; max-age=3600`
+      document.cookie = `impersonatedUserRole=${userRole}; path=/; max-age=3600`
+
+      if (userRole === "admin") {
+        window.location.href = `/admin`
+      } else {
+        window.location.href = `/staff`
+      }
+    } catch (error) {
+      console.error("Error setting up impersonation:", error)
+      alert("Failed to login as user")
+    }
   }
 
   const exitImpersonation = () => {
@@ -674,7 +693,7 @@ export default function MasterDashboardPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => loginAsUser(user.email)}
+                            onClick={() => loginAsUser(user.email, user.role)}
                             className="text-blue-600 border-blue-200 hover:bg-blue-50"
                           >
                             <LogIn className="w-4 h-4 mr-1" />

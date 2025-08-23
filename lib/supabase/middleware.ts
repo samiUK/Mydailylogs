@@ -6,6 +6,8 @@ export async function updateSession(request: NextRequest) {
     request,
   })
 
+  const isMasterAdminImpersonating = request.cookies.get("masterAdminImpersonation")?.value === "true"
+
   // With Fluid compute, don't put this client in a global environment
   // variable. Always create a new one on each request.
   const supabase = createServerClient(
@@ -40,6 +42,7 @@ export async function updateSession(request: NextRequest) {
   if (
     request.nextUrl.pathname !== "/" &&
     !user &&
+    !isMasterAdminImpersonating && // Allow access when master admin is impersonating
     !request.nextUrl.pathname.startsWith("/login") &&
     !request.nextUrl.pathname.startsWith("/auth") &&
     !request.nextUrl.pathname.startsWith("/masterlogin") &&

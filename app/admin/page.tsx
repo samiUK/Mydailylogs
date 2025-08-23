@@ -69,7 +69,7 @@ export default function AdminDashboard() {
   const [allNotifications, setAllNotifications] = useState<any[]>([])
 
   const [isImpersonating, setIsImpersonating] = useState(false)
-  const [impersonatedUser, setImpersonatedUser] = useState<any>(null)
+  const [impersonationData, setImpersonationData] = useState<any>(null)
 
   const checkMissedTasks = async () => {
     if (!profile?.organization_id) return
@@ -295,18 +295,25 @@ export default function AdminDashboard() {
       const supabase = createClient()
 
       try {
-        const isImpersonatingMode = sessionStorage.getItem("is_impersonating") === "true"
-        const storedUser = sessionStorage.getItem("impersonated_user")
-        const storedProfile = sessionStorage.getItem("impersonated_profile")
+        const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
 
-        if (isImpersonatingMode && storedUser && storedProfile) {
+        if (impersonationContext) {
+          const impersonationData = JSON.parse(impersonationContext)
           setIsImpersonating(true)
-          const mockUser = JSON.parse(storedUser)
-          const mockProfile = JSON.parse(storedProfile)
-          setUser(mockUser)
-          setProfile(mockProfile)
-          setImpersonatedUser(mockUser)
-          return
+          setImpersonationData(impersonationData)
+
+          // Fetch the target user's profile data
+          const { data: targetProfile } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("email", impersonationData.targetUserEmail)
+            .single()
+
+          if (targetProfile) {
+            setUser({ email: impersonationData.targetUserEmail })
+            setProfile(targetProfile)
+            return
+          }
         }
 
         const {
@@ -471,22 +478,20 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8">
-      {isImpersonating && impersonatedUser && (
+      {isImpersonating && impersonationData && (
         <div className="bg-orange-500 text-white px-4 py-3 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <AlertTriangle className="w-5 h-5" />
               <span className="font-medium">
-                IMPERSONATING: {impersonatedUser.user_metadata?.full_name || impersonatedUser.email} - Admin Dashboard
+                Impersonated by masteradmin - Viewing {impersonationData.targetUserEmail} (Admin Dashboard)
               </span>
             </div>
             <Button
               variant="secondary"
               size="sm"
               onClick={() => {
-                sessionStorage.removeItem("impersonated_user")
-                sessionStorage.removeItem("impersonated_profile")
-                sessionStorage.removeItem("is_impersonating")
+                sessionStorage.removeItem("masterAdminImpersonation")
                 window.location.href = "/masterdashboard"
               }}
               className="bg-white text-orange-600 hover:bg-gray-100"

@@ -10,6 +10,7 @@ import { MydailylogsLogo } from "@/components/mydailylogs-logo"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { ArrowLeft } from "lucide-react"
 
 export default function SignUpPage() {
   const [email, setEmail] = useState("")
@@ -62,10 +63,21 @@ export default function SignUpPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-secondary to-accent/20 flex items-center justify-center p-6">
       <div className="w-full max-w-sm">
+        <div className="mb-4">
+          <Link
+            href="/"
+            className="inline-flex items-center text-sm text-muted-foreground hover:text-primary transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4 mr-1" />
+            Back to Home
+          </Link>
+        </div>
         <Card>
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
-              <MydailylogsLogo size="lg" />
+              <Link href="/">
+                <MydailylogsLogo size="lg" />
+              </Link>
             </div>
             <CardTitle className="text-2xl">Create Account</CardTitle>
             <CardDescription>Set up your Mydailylogs organization</CardDescription>

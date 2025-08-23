@@ -5,6 +5,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useBranding } from "@/components/branding-provider"
+import { MydailylogsLogo } from "@/components/mydailylogs-logo"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { ChevronDownIcon, UserIcon, SettingsIcon, LogOutIcon, MenuIcon } from "lucide-react"
+import { ChevronDownIcon, UserIcon, SettingsIcon, LogOutIcon, MenuIcon, Check } from "lucide-react"
 
 interface AdminNavigationProps {
   user: any
@@ -39,10 +40,15 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                     className="max-w-full max-h-full object-contain"
                   />
                 </div>
+              ) : organizationName === "Mydailylogs" ? (
+                <MydailylogsLogo size="sm" />
               ) : (
-                <span className="text-xl font-bold" style={{ color: primaryColor }}>
-                  {organizationName}
-                </span>
+                <div className="flex items-center gap-1">
+                  <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
+                    <Check className="w-4 h-4 text-white" />
+                  </div>
+                  <span className="text-xl font-bold text-emerald-600">{organizationName}</span>
+                </div>
               )}
             </Link>
             <div className="hidden md:ml-10 md:flex md:space-x-8">

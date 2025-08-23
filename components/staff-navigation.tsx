@@ -5,6 +5,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useBranding } from "@/components/branding-provider"
+import { MydailylogsLogo } from "@/components/mydailylogs-logo"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +40,8 @@ export function StaffNavigation({ user, onSignOut }: StaffNavigationProps) {
                     className="max-w-full max-h-full object-contain"
                   />
                 </div>
+              ) : organizationName === "Mydailylogs" ? (
+                <MydailylogsLogo size="sm" />
               ) : (
                 <span className="text-xl font-bold" style={{ color: primaryColor }}>
                   {organizationName}

@@ -112,17 +112,14 @@ export default function MasterDashboardPage() {
         return
       }
 
-      // Store impersonation data in localStorage
-      localStorage.setItem("masterAdminImpersonation", "true")
-      localStorage.setItem("impersonatedUserEmail", userEmail.trim())
-      localStorage.setItem("impersonatedUserRole", user.role)
-      localStorage.setItem("impersonatedOrganizationId", user.organizations?.id || "")
+      // Encode email for URL safety
+      const encodedEmail = encodeURIComponent(userEmail.trim())
 
-      // Redirect to appropriate dashboard based on user role
+      // Redirect to user-specific dashboard path based on role
       if (user.role === "admin") {
-        window.open("/admin", "_blank")
+        window.open(`/admin/${encodedEmail}`, "_blank")
       } else if (user.role === "staff") {
-        window.open("/staff", "_blank")
+        window.open(`/staff/${encodedEmail}`, "_blank")
       } else {
         alert("Unknown user role. Cannot impersonate this user.")
       }

@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { ChevronDownIcon, UserIcon, LogOutIcon, MenuIcon } from "lucide-react"
+import { ChevronDownIcon, UserIcon, LogOutIcon, MenuIcon, Check } from "lucide-react"
 
 interface StaffNavigationProps {
   user: any
@@ -36,16 +36,33 @@ export function StaffNavigation({ user, onSignOut }: StaffNavigationProps) {
                 <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
                   <img
                     src={logoUrl || "/placeholder.svg"}
-                    alt={organizationName}
+                    alt={`${organizationName} logo`}
                     className="max-w-full max-h-full object-contain"
+                    onError={(e) => {
+                      // Fallback if logo fails to load
+                      e.currentTarget.style.display = "none"
+                      e.currentTarget.parentElement!.innerHTML = `
+                        <div class="flex items-center gap-2">
+                          <div class="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                          </div>
+                          <span class="text-xl font-bold text-emerald-600">${organizationName}</span>
+                        </div>
+                      `
+                    }}
                   />
                 </div>
               ) : organizationName === "Mydailylogs" ? (
                 <MydailylogsLogo size="sm" />
               ) : (
-                <span className="text-xl font-bold" style={{ color: primaryColor }}>
-                  {organizationName}
-                </span>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
+                    <Check className="w-4 h-4 text-white" />
+                  </div>
+                  <span className="text-xl font-bold text-emerald-600">{organizationName}</span>
+                </div>
               )}
             </Link>
             <div className="hidden md:ml-10 md:flex md:space-x-8">
@@ -54,14 +71,28 @@ export function StaffNavigation({ user, onSignOut }: StaffNavigationProps) {
                 className="text-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
                 style={{ "--hover-color": primaryColor } as React.CSSProperties}
               >
-                My Tasks
+                Staff Dashboard
+              </Link>
+              <Link
+                href="/staff/templates"
+                className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
+                style={{ "--hover-color": primaryColor } as React.CSSProperties}
+              >
+                New Task
               </Link>
               <Link
                 href="/staff/history"
                 className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
                 style={{ "--hover-color": primaryColor } as React.CSSProperties}
               >
-                History
+                Report History
+              </Link>
+              <Link
+                href="/staff/team"
+                className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
+                style={{ "--hover-color": primaryColor } as React.CSSProperties}
+              >
+                Team
               </Link>
             </div>
           </div>
@@ -82,14 +113,28 @@ export function StaffNavigation({ user, onSignOut }: StaffNavigationProps) {
                     className="text-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    My Tasks
+                    Staff Dashboard
+                  </Link>
+                  <Link
+                    href="/staff/templates"
+                    className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    New Task
                   </Link>
                   <Link
                     href="/staff/history"
                     className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    History
+                    Report History
+                  </Link>
+                  <Link
+                    href="/staff/team"
+                    className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Team
                   </Link>
                 </div>
               </SheetContent>
@@ -124,7 +169,7 @@ export function StaffNavigation({ user, onSignOut }: StaffNavigationProps) {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/profile" className="flex items-center">
+                  <Link href="/staff/profile" className="flex items-center">
                     <UserIcon className="mr-2 h-4 w-4" />
                     <span>Profile</span>
                   </Link>

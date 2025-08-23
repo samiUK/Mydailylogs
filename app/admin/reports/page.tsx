@@ -4,6 +4,8 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -14,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Eye, Download } from "lucide-react"
+import { Eye, Download, Search, Calendar } from "lucide-react"
 import { getSubscriptionLimits } from "@/lib/subscription-limits"
 
 export default function ReportsPage() {
@@ -32,7 +34,12 @@ export default function ReportsPage() {
   })
   const [teamStats, setTeamStats] = useState<Record<string, { name: string; total: number; completed: number }>>({})
   const [recentSubmissions, setRecentSubmissions] = useState<any[]>([])
+  const [filteredSubmissions, setFilteredSubmissions] = useState<any[]>([])
   const [detailedResponses, setDetailedResponses] = useState<any[]>([])
+
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest")
+  const [dateFilter, setDateFilter] = useState("")
+  const [searchTerm, setSearchTerm] = useState("")
 
   useEffect(() => {
     const loadData = async () => {
@@ -112,12 +119,12 @@ export default function ReportsPage() {
         .eq("organization_id", userProfile.organization_id)
         .eq("status", "completed")
         .order("completed_at", { ascending: false })
-        .limit(5)
 
       console.log("[v0] Recent submissions query result:", { data: submissions })
       console.log("[v0] Recent submissions data:", submissions)
 
       setRecentSubmissions(submissions || [])
+      setFilteredSubmissions(submissions || [])
 
       const submissionIds = submissions?.map((s) => s.template_id) || []
       if (submissionIds.length > 0) {
@@ -178,6 +185,37 @@ export default function ReportsPage() {
 
     loadData()
   }, [])
+
+  useEffect(() => {
+    let filtered = [...recentSubmissions]
+
+    // Apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (submission) =>
+          submission.checklist_templates?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          submission.profiles?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
+    }
+
+    // Apply date filter
+    if (dateFilter) {
+      const filterDate = new Date(dateFilter)
+      filtered = filtered.filter((submission) => {
+        const submissionDate = new Date(submission.completed_at)
+        return submissionDate.toDateString() === filterDate.toDateString()
+      })
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.completed_at).getTime()
+      const dateB = new Date(b.completed_at).getTime()
+      return sortOrder === "newest" ? dateB - dateA : dateA - dateB
+    })
+
+    setFilteredSubmissions(filtered)
+  }, [recentSubmissions, sortOrder, dateFilter, searchTerm])
 
   const generatePDF = (submission: any, responses: any[]) => {
     const printWindow = window.open("", "_blank")
@@ -470,6 +508,89 @@ export default function ReportsPage() {
     }, 250)
   }
 
+  const exportToCSV = async (period: "monthly" | "quarterly" | "yearly") => {
+    const supabase = createClient()
+
+    const now = new Date()
+    let startDate: Date
+
+    switch (period) {
+      case "monthly":
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+        break
+      case "quarterly":
+        const quarter = Math.floor(now.getMonth() / 3)
+        startDate = new Date(now.getFullYear(), quarter * 3, 1)
+        break
+      case "yearly":
+        startDate = new Date(now.getFullYear(), 0, 1)
+        break
+    }
+
+    const { data: reportData } = await supabase
+      .from("template_assignments")
+      .select(`
+        *,
+        checklist_templates(name, description),
+        profiles!template_assignments_assigned_to_fkey(full_name, email),
+        checklist_responses(
+          response_value,
+          notes,
+          photo_url,
+          completed_at,
+          checklist_items(name, task_type, description)
+        )
+      `)
+      .eq("organization_id", profile?.organization_id)
+      .eq("status", "completed")
+      .gte("completed_at", startDate.toISOString())
+      .order("completed_at", { ascending: false })
+
+    if (!reportData || reportData.length === 0) {
+      alert(`No completed reports found for the ${period} period`)
+      return
+    }
+
+    // Prepare CSV data
+    const csvData = reportData.flatMap(
+      (assignment) =>
+        assignment.checklist_responses?.map((response) => ({
+          "Template Name": assignment.checklist_templates?.name || "",
+          "Assigned To": assignment.profiles?.full_name || "",
+          Email: assignment.profiles?.email || "",
+          "Task Name": response.checklist_items?.name || "",
+          "Task Type": response.checklist_items?.task_type || "",
+          "Task Description": response.checklist_items?.description || "",
+          Response: response.response_value || "",
+          Notes: response.notes || "",
+          "Has Photo": response.photo_url ? "Yes" : "No",
+          "Assigned Date": new Date(assignment.assigned_at).toLocaleDateString(),
+          "Completed Date": new Date(assignment.completed_at).toLocaleDateString(),
+          "Response Completed": new Date(response.completed_at).toLocaleDateString(),
+        })) || [],
+    )
+
+    // Convert to CSV
+    const headers = Object.keys(csvData[0] || {})
+    const csvContent = [
+      headers.join(","),
+      ...csvData.map((row) =>
+        headers.map((header) => `"${String(row[header as keyof typeof row]).replace(/"/g, '""')}"`).join(","),
+      ),
+    ].join("\n")
+
+    // Download CSV
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    const url = URL.createObjectURL(blob)
+    link.setAttribute("href", url)
+    link.setAttribute("download", `${period}-report-${new Date().toISOString().split("T")[0]}.csv`)
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -494,6 +615,16 @@ export default function ReportsPage() {
           <p className="text-gray-600 mt-2">Track compliance performance and generate insights</p>
         </div>
         <div className="flex gap-2">
+          <Select onValueChange={(value: "monthly" | "quarterly" | "yearly") => exportToCSV(value)}>
+            <SelectTrigger className="w-48 bg-white">
+              <SelectValue placeholder="Export CSV Reports" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="monthly">Monthly CSV Export</SelectItem>
+              <SelectItem value="quarterly">Quarterly CSV Export</SelectItem>
+              <SelectItem value="yearly">Yearly CSV Export</SelectItem>
+            </SelectContent>
+          </Select>
           <Link href="/admin/reports/detailed">
             <Button variant="outline">Detailed Reports</Button>
           </Link>
@@ -587,13 +718,47 @@ export default function ReportsPage() {
       {/* Recent Submissions */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Submissions</CardTitle>
-          <CardDescription>Latest completed checklists - click to view details</CardDescription>
+          <CardTitle>Report History</CardTitle>
+          <CardDescription>All completed checklists - click to view details</CardDescription>
         </CardHeader>
         <CardContent>
-          {recentSubmissions && recentSubmissions.length > 0 ? (
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  placeholder="Search by template name or team member..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 bg-white"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  type="date"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  className="pl-10 bg-white"
+                />
+              </div>
+              <Select value={sortOrder} onValueChange={(value: "newest" | "oldest") => setSortOrder(value)}>
+                <SelectTrigger className="w-40 bg-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">Newest First</SelectItem>
+                  <SelectItem value="oldest">Oldest First</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {filteredSubmissions && filteredSubmissions.length > 0 ? (
             <div className="space-y-4">
-              {recentSubmissions.map((submission) => {
+              {filteredSubmissions.map((submission) => {
                 const submissionResponses =
                   detailedResponses?.filter((r) => r.checklist_id === submission.template_id) || []
 
@@ -812,13 +977,16 @@ export default function ReportsPage() {
               })}
             </div>
           ) : (
-            <p className="text-gray-500">No recent submissions found</p>
+            <p className="text-gray-500 text-center py-8">
+              {searchTerm || dateFilter ? "No reports match your search criteria" : "No reports found"}
+            </p>
           )}
         </CardContent>
       </Card>
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* 
         <Card>
           <CardHeader>
             <CardTitle>Compliance Reports</CardTitle>
@@ -834,14 +1002,12 @@ export default function ReportsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Template Analytics</CardTitle>
-            <CardDescription>Analyze checklist template performance</CardDescription>
+            <CardDescription>Analyze template performance and usage</CardDescription>
           </CardHeader>
           <CardContent>
-            <Link href="/admin/reports/templates">
-              <Button className="w-full bg-transparent" variant="outline">
-                Template Reports
-              </Button>
-            </Link>
+            <Button className="w-full bg-transparent" variant="outline">
+              View Analytics
+            </Button>
           </CardContent>
         </Card>
 
@@ -851,11 +1017,46 @@ export default function ReportsPage() {
             <CardDescription>Create custom date range reports</CardDescription>
           </CardHeader>
           <CardContent>
-            <Link href="/admin/reports/custom">
-              <Button className="w-full bg-transparent" variant="outline">
-                Custom Report
-              </Button>
+            <Button className="w-full bg-transparent" variant="outline">
+              Create Custom Report
+            </Button>
+          </CardContent>
+        </Card>
+        */}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Export Data</CardTitle>
+            <CardDescription>Download your reports in CSV format</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/reports/export">
+              <Button className="w-full">Export Reports</Button>
             </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Team Performance</CardTitle>
+            <CardDescription>View team completion rates and activity</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button className="w-full bg-transparent" variant="outline" disabled>
+              View Team Stats
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Coming Soon</CardTitle>
+            <CardDescription>Advanced analytics and custom reports</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button className="w-full bg-transparent" variant="outline" disabled>
+              Premium Features
+            </Button>
           </CardContent>
         </Card>
       </div>

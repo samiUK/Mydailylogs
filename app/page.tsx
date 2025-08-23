@@ -82,9 +82,6 @@ export default async function HomePage() {
 
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto text-center">
-          <Badge variant="secondary" className="mb-4">
-            Trusted by 500+ businesses
-          </Badge>
           <h1 className="text-4xl md:text-6xl font-bold text-foreground mb-6">
             Streamline Your Business
             <span className="text-accent block">Compliance & Reporting</span>
@@ -160,6 +157,62 @@ export default async function HomePage() {
               </CardHeader>
             </Card>
           </div>
+
+          <div className="mt-16">
+            <div className="text-center mb-8">
+              <Badge variant="secondary" className="mb-4">
+                Coming Soon
+              </Badge>
+              <h3 className="text-2xl font-bold text-foreground mb-4">Premium Features</h3>
+              <p className="text-muted-foreground">Advanced capabilities launching in the coming months</p>
+            </div>
+            <div className="grid md:grid-cols-3 gap-6">
+              <Card className="relative opacity-75">
+                <div className="absolute top-4 right-4">
+                  <Badge variant="outline" className="text-xs">
+                    Coming Soon
+                  </Badge>
+                </div>
+                <CardHeader>
+                  <Shield className="w-8 h-8 text-muted-foreground mb-3" />
+                  <CardTitle className="text-lg">Compliance Analytics</CardTitle>
+                  <CardDescription className="text-sm">
+                    Advanced compliance reporting with trend analysis and risk assessment
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+              <Card className="relative opacity-75">
+                <div className="absolute top-4 right-4">
+                  <Badge variant="outline" className="text-xs">
+                    Coming Soon
+                  </Badge>
+                </div>
+                <CardHeader>
+                  <BarChart3 className="w-8 h-8 text-muted-foreground mb-3" />
+                  <CardTitle className="text-lg">Template Analytics</CardTitle>
+                  <CardDescription className="text-sm">
+                    Deep insights into template performance and completion rates
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+              <Card className="relative opacity-75">
+                <div className="absolute top-4 right-4">
+                  <Badge variant="outline" className="text-xs">
+                    Coming Soon
+                  </Badge>
+                </div>
+                <CardHeader>
+                  <FileText className="w-8 h-8 text-muted-foreground mb-3" />
+                  <CardTitle className="text-lg">Custom Reports</CardTitle>
+                  <CardDescription className="text-sm">
+                    Build custom report templates with advanced filtering and formatting
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -189,9 +242,8 @@ export default async function HomePage() {
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2" />
-                    Basic Reporting
+                    Basic reporting with no branding
                   </li>
-                  <li className="flex items-center text-muted-foreground">Reports show "Mydailylog" branding</li>
                 </ul>
                 <Link href="/auth/sign-up">
                   <Button className="w-full bg-transparent" variant="outline">

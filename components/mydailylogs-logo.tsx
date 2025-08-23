@@ -4,9 +4,15 @@ interface MydailylogsLogoProps {
   className?: string
   size?: "sm" | "md" | "lg" | "xl"
   showText?: boolean
+  text?: string // Added text prop for white-label use
 }
 
-export function MydailylogsLogo({ className = "", size = "md", showText = true }: MydailylogsLogoProps) {
+export function MydailylogsLogo({
+  className = "",
+  size = "md",
+  showText = true,
+  text = "Mydailylogs",
+}: MydailylogsLogoProps) {
   const textSizeClasses = {
     sm: "text-lg", // increased from text-base
     md: "text-xl", // increased from text-lg
@@ -27,7 +33,9 @@ export function MydailylogsLogo({ className = "", size = "md", showText = true }
         <div className={`${iconSizeClasses[size]} bg-emerald-600 rounded-full flex items-center justify-center`}>
           <Check className="text-white stroke-[3]" style={{ width: "60%", height: "60%" }} />
         </div>
-        <span className={`font-bold text-emerald-600 ${textSizeClasses[size]} leading-tight`}>Mydailylogs</span>
+        {showText && (
+          <span className={`font-bold text-emerald-600 ${textSizeClasses[size]} leading-tight`}>{text}</span>
+        )}
       </div>
     </div>
   )

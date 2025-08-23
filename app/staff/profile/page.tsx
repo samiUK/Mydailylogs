@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { User, Mail, Camera, Phone, MapPin, Briefcase } from "lucide-react"
+import { User, Mail, Camera, Phone, MapPin, Briefcase, Building } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 interface Profile {
@@ -26,10 +26,17 @@ interface Profile {
   city: string | null
   postcode: string | null
   country: string | null
+  organization_id: string | null
 }
 
-export default function ProfilePage() {
+interface Organization {
+  id: string
+  name: string
+}
+
+export default function StaffProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [organization, setOrganization] = useState<Organization | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -53,6 +60,18 @@ export default function ProfilePage() {
 
         if (error) throw error
         setProfile(profileData)
+
+        if (profileData.organization_id) {
+          const { data: orgData, error: orgError } = await supabase
+            .from("organizations")
+            .select("id, name")
+            .eq("id", profileData.organization_id)
+            .single()
+
+          if (!orgError && orgData) {
+            setOrganization(orgData)
+          }
+        }
       } catch (error) {
         console.error("Error loading profile:", error)
         setMessage("Error loading profile")
@@ -169,7 +188,7 @@ export default function ProfilePage() {
 
       setMessage("Profile updated successfully!")
       setTimeout(() => {
-        router.push("/admin")
+        router.push("/staff")
       }, 1500)
     } catch (error) {
       console.error("Error updating profile:", error)
@@ -261,6 +280,57 @@ export default function ProfilePage() {
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="organizationName" className="flex items-center gap-2">
+                  <Building className="h-4 w-4" />
+                  Organization
+                </Label>
+                <Input
+                  id="organizationName"
+                  name="organizationName"
+                  value={organization?.name || ""}
+                  disabled
+                  className="bg-gray-50 text-gray-600"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="position" className="flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" />
+                  Position
+                </Label>
+                <Input
+                  id="position"
+                  name="position"
+                  defaultValue={profile.position || ""}
+                  placeholder="e.g. Manager, Developer, Analyst"
+                  className="bg-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email" className="flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  Email Address
+                </Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  defaultValue={profile.email}
+                  required
+                  className="bg-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone" className="flex items-center gap-2">
+                  <Phone className="h-4 w-4" />
+                  Phone Number
+                </Label>
+                <Input id="phone" name="phone" type="tel" defaultValue={profile.phone || ""} className="bg-white" />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name</Label>
@@ -282,43 +352,6 @@ export default function ProfilePage() {
                     className="bg-white"
                   />
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email" className="flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  Email Address
-                </Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  defaultValue={profile.email}
-                  required
-                  className="bg-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="position" className="flex items-center gap-2">
-                  <Briefcase className="h-4 w-4" />
-                  Position
-                </Label>
-                <Input
-                  id="position"
-                  name="position"
-                  defaultValue={profile.position || ""}
-                  placeholder="e.g. Manager, Developer, Analyst"
-                  className="bg-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone" className="flex items-center gap-2">
-                  <Phone className="h-4 w-4" />
-                  Phone Number
-                </Label>
-                <Input id="phone" name="phone" type="tel" defaultValue={profile.phone || ""} className="bg-white" />
               </div>
 
               <div className="space-y-4">

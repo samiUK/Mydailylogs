@@ -75,7 +75,7 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
           organizationName: subscriptionLimits.hasCustomBranding
             ? organization.name || "Your Organization"
             : "Mydailylogs",
-          logoUrl: subscriptionLimits.hasCustomBranding ? organization.logo_url : null,
+          logoUrl: organization.logo_url,
           primaryColor: organization.primary_color || "#059669",
           secondaryColor: organization.secondary_color || "#6B7280",
           hasCustomBranding: subscriptionLimits.hasCustomBranding,

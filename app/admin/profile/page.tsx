@@ -19,6 +19,9 @@ interface Profile {
   full_name: string
   role: string
   avatar_url?: string
+  organization_name?: string
+  position?: string
+  phone?: string
 }
 
 interface SubscriptionPlan {
@@ -63,9 +66,21 @@ export default function ProfilePage() {
         }
 
         // Load profile
-        const { data: profileData } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select(`
+            *,
+            organizations!inner(name)
+          `)
+          .eq("id", user.id)
+          .single()
 
-        if (profileData) setProfile(profileData)
+        if (profileData) {
+          setProfile({
+            ...profileData,
+            organization_name: profileData.organizations?.name,
+          })
+        }
 
         // Load subscription plans
         const { data: plansData } = await supabase
@@ -111,6 +126,8 @@ export default function ProfilePage() {
           first_name: profile.first_name,
           last_name: profile.last_name,
           full_name: `${profile.first_name} ${profile.last_name}`,
+          position: profile.position,
+          phone: profile.phone,
         })
         .eq("id", profile.id)
 
@@ -157,6 +174,21 @@ export default function ProfilePage() {
               <CardDescription>Update your personal details</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="organizationName">Organization Name</Label>
+                <Input id="organizationName" value={profile?.organization_name || ""} disabled className="bg-gray-50" />
+                <p className="text-sm text-muted-foreground">Organization name cannot be changed</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="position">Position</Label>
+                <Input
+                  id="position"
+                  value={profile?.position || ""}
+                  onChange={(e) => setProfile((prev) => (prev ? { ...prev, position: e.target.value } : null))}
+                  placeholder="e.g. Manager, Director, Team Lead"
+                  className="bg-white"
+                />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name</Label>
@@ -164,6 +196,7 @@ export default function ProfilePage() {
                     id="firstName"
                     value={profile?.first_name || ""}
                     onChange={(e) => setProfile((prev) => (prev ? { ...prev, first_name: e.target.value } : null))}
+                    className="bg-white"
                   />
                 </div>
                 <div className="space-y-2">
@@ -172,17 +205,28 @@ export default function ProfilePage() {
                     id="lastName"
                     value={profile?.last_name || ""}
                     onChange={(e) => setProfile((prev) => (prev ? { ...prev, last_name: e.target.value } : null))}
+                    className="bg-white"
                   />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" value={profile?.email || ""} disabled />
+                <Input id="email" value={profile?.email || ""} disabled className="bg-gray-50" />
                 <p className="text-sm text-muted-foreground">Email cannot be changed</p>
               </div>
               <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input
+                  id="phone"
+                  value={profile?.phone || ""}
+                  onChange={(e) => setProfile((prev) => (prev ? { ...prev, phone: e.target.value } : null))}
+                  placeholder="e.g. +44 7123 456789"
+                  className="bg-white"
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="role">Role</Label>
-                <Input id="role" value={profile?.role || ""} disabled />
+                <Input id="role" value={profile?.role || ""} disabled className="bg-gray-50" />
               </div>
               <Button onClick={handleSaveProfile} disabled={saving}>
                 {saving ? "Saving..." : "Save Changes"}

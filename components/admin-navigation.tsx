@@ -73,13 +73,6 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
               >
                 Team
               </Link>
-              <Link
-                href="/admin/reports"
-                className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
-                style={{ "--hover-color": primaryColor } as React.CSSProperties}
-              >
-                Reports
-              </Link>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -114,13 +107,6 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Team
-                  </Link>
-                  <Link
-                    href="/admin/reports"
-                    className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Reports
                   </Link>
                 </div>
               </SheetContent>

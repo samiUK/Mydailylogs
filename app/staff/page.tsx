@@ -59,11 +59,16 @@ export default async function StaffDashboard() {
   console.log("[v0] Today's date string:", todayString)
 
   const upcomingTasks: any[] = []
-  const availableTemplates: any[] = []
+  const regularTasks: any[] = []
 
   assignedTemplates?.forEach((assignment) => {
     const template = assignment.checklist_templates
     if (!template) return
+
+    // Skip if completed today
+    if (assignment.completed_at && new Date(assignment.completed_at).toDateString() === todayString) {
+      return
+    }
 
     // Calculate due date based on template scheduling
     let dueDate: Date | null = null
@@ -87,36 +92,40 @@ export default async function StaffDashboard() {
       dueDate.setHours(23, 59, 59, 999)
     }
 
-    // Check if task is upcoming (within 3 days)
-    if (dueDate && assignment.status !== "completed") {
-      const isOverdue = today > dueDate
-      const isUpcoming = !isOverdue && dueDate.getTime() - today.getTime() <= 3 * 24 * 60 * 60 * 1000 // Within 3 days
-
-      if (isUpcoming) {
-        upcomingTasks.push({ ...assignment, dueDate, template })
-      }
+    // Categorize tasks based on schedule type
+    if (
+      template.schedule_type === "deadline" ||
+      template.schedule_type === "specific_date" ||
+      template.deadline_date ||
+      template.specific_date
+    ) {
+      // Custom dated or deadline jobs go to upcoming tasks
+      upcomingTasks.push({ ...assignment, dueDate, template })
+    } else {
+      // Recurring jobs go to regular tasks
+      regularTasks.push({ ...assignment, dueDate, template })
     }
+  })
 
-    // Filter available templates (existing logic)
-    if (assignment.completed_at) {
-      const completedDate = new Date(assignment.completed_at).toDateString()
-      if (completedDate === todayString) {
-        return false // Hide completed templates for today
-      }
-    }
-    availableTemplates.push(assignment)
+  // Sort upcoming tasks by due date
+  upcomingTasks.sort((a, b) => {
+    if (!a.dueDate && !b.dueDate) return 0
+    if (!a.dueDate) return 1
+    if (!b.dueDate) return -1
+    return a.dueDate.getTime() - b.dueDate.getTime()
+  })
+
+  // Sort regular tasks by frequency priority (daily, weekly, monthly)
+  const frequencyPriority = { daily: 1, weekly: 2, monthly: 3, custom: 4 }
+  regularTasks.sort((a, b) => {
+    const aPriority = frequencyPriority[a.template.frequency as keyof typeof frequencyPriority] || 5
+    const bPriority = frequencyPriority[b.template.frequency as keyof typeof frequencyPriority] || 5
+    return aPriority - bPriority
   })
 
   const totalAssigned = assignedTemplates?.length || 0
   const completedTemplates = assignedTemplates?.filter((a) => a.status === "completed").length || 0
-  const activeTemplates =
-    availableTemplates?.filter((a) => {
-      // Don't count templates completed today as active
-      if (a.completed_at && new Date(a.completed_at).toDateString() === todayString) {
-        return false
-      }
-      return a.status === "active" || !a.status
-    }).length || 0
+  const activeTemplates = upcomingTasks.length + regularTasks.length
 
   const completedToday =
     assignedTemplates?.filter((a) => {
@@ -137,6 +146,7 @@ export default async function StaffDashboard() {
     activeTemplates,
     completedToday,
     upcomingTasks: upcomingTasks.length,
+    regularTasks: regularTasks.length,
   })
 
   return (
@@ -164,49 +174,15 @@ export default async function StaffDashboard() {
         </div>
       )}
 
-      {upcomingTasks.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-            <Clock className="w-5 h-5" />
-            Upcoming Tasks ({upcomingTasks.length})
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {upcomingTasks.map((task) => (
-              <Card key={task.id} className="border-yellow-200 bg-yellow-50">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">{task.template.name}</CardTitle>
-                  <CardDescription className="text-sm">{task.template.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm">
-                      <p className="text-yellow-700 font-medium">Due: {task.dueDate.toLocaleDateString()}</p>
-                      <p className="text-muted-foreground">
-                        {Math.ceil((task.dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))} days left
-                      </p>
-                    </div>
-                    <Link href={`/staff/checklist/${task.template.id}`}>
-                      <Button size="sm" variant="outline">
-                        Start
-                      </Button>
-                    </Link>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Assigned Templates</CardTitle>
+            <CardTitle className="text-sm font-medium">Assigned Tasks</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalAssigned}</div>
-            <p className="text-xs text-muted-foreground">Active assignments</p>
+            <p className="text-xs text-muted-foreground">Total assignments</p>
           </CardContent>
         </Card>
 
@@ -241,60 +217,47 @@ export default async function StaffDashboard() {
         </Card>
       </div>
 
-      <div>
-        <h2 className="text-xl font-semibold text-foreground mb-4">My Assigned Templates</h2>
-        {availableTemplates && availableTemplates.length > 0 ? (
+      {upcomingTasks.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Upcoming Tasks ({upcomingTasks.length})
+          </h2>
           <div className="space-y-4">
-            {availableTemplates.map((assignment) => {
-              const template = assignment.checklist_templates
-              const status =
-                assignment.status === "completed" &&
-                assignment.completed_at &&
-                new Date(assignment.completed_at).toDateString() !== todayString
-                  ? "active" // Reset to active for templates completed on previous days
-                  : assignment.status || "active"
-
-              let dueDate: Date | null = null
-              if (template?.deadline_date) {
-                dueDate = new Date(template.deadline_date)
-              } else if (template?.specific_date) {
-                dueDate = new Date(template.specific_date)
-              }
+            {upcomingTasks.map((task) => {
+              const isOverdue = task.dueDate && today > task.dueDate
+              const daysLeft = task.dueDate
+                ? Math.ceil((task.dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+                : null
 
               return (
-                <Card key={assignment.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader>
+                <Card
+                  key={task.id}
+                  className={`${isOverdue ? "border-red-200 bg-red-50" : "border-yellow-200 bg-yellow-50"}`}
+                >
+                  <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
                       <div>
-                        <CardTitle className="text-lg">{template?.name}</CardTitle>
-                        <CardDescription className="mt-1">{template?.description}</CardDescription>
+                        <CardTitle className="text-lg">{task.template.name}</CardTitle>
+                        <CardDescription className="mt-1">{task.template.description}</CardDescription>
                         <div className="flex items-center gap-2 mt-2">
                           <Badge variant="outline" className="text-xs">
-                            {template?.frequency}
+                            {task.template.schedule_type === "deadline" ? "Deadline" : "Custom Date"}
                           </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            Assigned: {new Date(assignment.assigned_at).toLocaleDateString()}
-                          </span>
-                          {dueDate && (
-                            <span className="text-xs text-orange-600">Due: {dueDate.toLocaleDateString()}</span>
+                          {task.dueDate && (
+                            <span className={`text-xs font-medium ${isOverdue ? "text-red-700" : "text-yellow-700"}`}>
+                              Due: {task.dueDate.toLocaleDateString()}
+                            </span>
                           )}
-                          {assignment.completed_at &&
-                            new Date(assignment.completed_at).toDateString() !== todayString && (
-                              <span className="text-xs text-green-600">
-                                Last completed: {new Date(assignment.completed_at).toLocaleDateString()}
-                              </span>
-                            )}
+                          {daysLeft !== null && (
+                            <span className={`text-xs ${isOverdue ? "text-red-600" : "text-muted-foreground"}`}>
+                              {isOverdue ? `${Math.abs(daysLeft)} days overdue` : `${daysLeft} days left`}
+                            </span>
+                          )}
                         </div>
                       </div>
-                      <Badge
-                        variant={status === "completed" ? "default" : "secondary"}
-                        className={
-                          status === "completed"
-                            ? "bg-green-100 text-green-800 hover:bg-green-100"
-                            : "bg-yellow-100 text-yellow-800 hover:bg-yellow-100"
-                        }
-                      >
-                        {status === "completed" ? "Completed" : "Active"}
+                      <Badge variant={isOverdue ? "destructive" : "secondary"}>
+                        {isOverdue ? "Overdue" : "Pending"}
                       </Badge>
                     </div>
                   </CardHeader>
@@ -303,34 +266,84 @@ export default async function StaffDashboard() {
                       <div className="text-sm text-muted-foreground">
                         <p>Status: Ready to start</p>
                       </div>
-                      <div className="flex gap-2">
-                        <Link href={`/staff/checklist/${template.id}`}>
-                          <Button size="sm">Start Checklist</Button>
-                        </Link>
-                      </div>
+                      <Link href={`/staff/checklist/${task.template.id}`}>
+                        <Button size="sm" variant={isOverdue ? "destructive" : "default"}>
+                          {isOverdue ? "Start Now" : "Start Task"}
+                        </Button>
+                      </Link>
                     </div>
                   </CardContent>
                 </Card>
               )
             })}
           </div>
-        ) : (
-          <Card>
-            <CardContent className="text-center py-12">
-              <h3 className="text-lg font-semibold text-foreground mb-2">
-                {assignedTemplates && assignedTemplates.length > 0
-                  ? "All tasks completed for today! Great job!"
-                  : "No templates assigned"}
-              </h3>
-              <p className="text-muted-foreground">
-                {assignedTemplates && assignedTemplates.length > 0
-                  ? "Your assigned templates will reappear tomorrow for the next day's tasks."
-                  : "Contact your administrator to get assigned compliance checklists."}
-              </p>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+        </div>
+      )}
+
+      {regularTasks.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold text-foreground">Regular Tasks ({regularTasks.length})</h2>
+          <div className="space-y-4">
+            {regularTasks.map((task) => {
+              return (
+                <Card key={task.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-lg">{task.template.name}</CardTitle>
+                        <CardDescription className="mt-1">{task.template.description}</CardDescription>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge variant="outline" className="text-xs capitalize">
+                            {task.template.frequency}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            Assigned: {new Date(task.assigned_at).toLocaleDateString()}
+                          </span>
+                          {task.completed_at && (
+                            <span className="text-xs text-green-600">
+                              Last completed: {new Date(task.completed_at).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                        Active
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex justify-between items-center">
+                      <div className="text-sm text-muted-foreground">
+                        <p>Status: Ready to start</p>
+                      </div>
+                      <Link href={`/staff/checklist/${task.template.id}`}>
+                        <Button size="sm">Start Checklist</Button>
+                      </Link>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {upcomingTasks.length === 0 && regularTasks.length === 0 && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <h3 className="text-lg font-semibold text-foreground mb-2">
+              {assignedTemplates && assignedTemplates.length > 0
+                ? "All tasks completed for today! Great job!"
+                : "No tasks assigned"}
+            </h3>
+            <p className="text-muted-foreground">
+              {assignedTemplates && assignedTemplates.length > 0
+                ? "Your assigned tasks will reappear tomorrow for the next day's work."
+                : "Contact your administrator to get assigned compliance checklists."}
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

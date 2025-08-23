@@ -88,7 +88,7 @@ export default async function HomePage() {
                         <div className="text-center mb-4">
                           <h3 className="font-semibold text-foreground mb-2">Ready to get started?</h3>
                           <p className="text-sm text-muted-foreground">
-                            Join thousands of businesses streamlining compliance
+                            Join thousands of businesses streamlining compliance and operations
                           </p>
                         </div>
 
@@ -121,12 +121,13 @@ export default async function HomePage() {
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto text-center">
           <h1 className="text-4xl md:text-6xl font-bold text-foreground mb-6">
-            Streamline Your Business
-            <span className="text-accent block">Compliance & Reporting</span>
+            Streamline Task Management
+            <span className="text-accent block">& Business Operations</span>
           </h1>
           <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-            White-label compliance checklist platform designed for SMBs. Ensure regulatory compliance, track team
-            performance, and generate professional reports with ease.
+            Comprehensive task management and compliance platform for multi-industry enterprises. Streamline operations,
+            ensure regulatory compliance, track team performance, and generate professional reports across any business
+            sector.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/auth/sign-up">
@@ -143,7 +144,7 @@ export default async function HomePage() {
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">How It Works</h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Get started with compliance management in three simple steps
+              Get started with streamlined task management and operations in three simple steps
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
@@ -151,10 +152,10 @@ export default async function HomePage() {
               <div className="w-16 h-16 bg-accent rounded-full flex items-center justify-center mx-auto mb-6">
                 <span className="text-2xl font-bold text-accent-foreground">1</span>
               </div>
-              <h3 className="text-xl font-semibold text-foreground mb-4">Create Templates</h3>
+              <h3 className="text-xl font-semibold text-foreground mb-4">Create Task Templates</h3>
               <p className="text-muted-foreground">
-                Set up customizable compliance checklists and templates tailored to your business needs. Define tasks,
-                schedules, and requirements.
+                Set up customizable task templates and operational checklists tailored to your industry needs. Define
+                workflows, schedules, and requirements for any business process.
               </p>
             </div>
             <div className="text-center">
@@ -164,7 +165,7 @@ export default async function HomePage() {
               <h3 className="text-xl font-semibold text-foreground mb-4">Assign & Track</h3>
               <p className="text-muted-foreground">
                 Assign tasks to team members with automated scheduling. Monitor progress in real-time and receive
-                notifications for missed deadlines.
+                notifications for missed deadlines across all your business operations.
               </p>
             </div>
             <div className="text-center">
@@ -173,8 +174,8 @@ export default async function HomePage() {
               </div>
               <h3 className="text-xl font-semibold text-foreground mb-4">Generate Reports</h3>
               <p className="text-muted-foreground">
-                Create professional compliance reports with your branding. Export to PDF and share with stakeholders or
-                regulatory bodies.
+                Create professional operational and compliance reports with your branding. Export to PDF and share with
+                stakeholders, clients, or regulatory bodies.
               </p>
             </div>
           </div>
@@ -184,31 +185,49 @@ export default async function HomePage() {
       <section id="features" className="py-20 bg-muted/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Everything You Need for Compliance</h2>
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+              Complete Task Management & Compliance Suite
+            </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Comprehensive tools to manage compliance, track progress, and generate reports
+              Comprehensive tools for task management, operational efficiency, and regulatory compliance across all
+              industries
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             <Card>
               <CardHeader>
+                <CheckCircle className="w-10 h-10 text-accent mb-4" />
+                <CardTitle>Task Management</CardTitle>
+                <CardDescription>
+                  Create and manage operational tasks with customizable templates for any industry workflow
+                </CardDescription>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader>
                 <Shield className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>Compliance Management</CardTitle>
-                <CardDescription>Create and manage compliance checklists with customizable templates</CardDescription>
+                <CardTitle>Compliance Tracking</CardTitle>
+                <CardDescription>
+                  Ensure regulatory compliance across industries with automated tracking and reporting
+                </CardDescription>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <BarChart3 className="w-10 h-10 text-accent mb-4" />
                 <CardTitle>Advanced Reporting</CardTitle>
-                <CardDescription>Generate professional reports with your branding and export to PDF</CardDescription>
+                <CardDescription>
+                  Generate professional reports with your branding and export to PDF for any business need
+                </CardDescription>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <Users className="w-10 h-10 text-accent mb-4" />
                 <CardTitle>Team Management</CardTitle>
-                <CardDescription>Assign tasks, track progress, and manage team members efficiently</CardDescription>
+                <CardDescription>
+                  Assign tasks, track progress, and manage team members efficiently across departments
+                </CardDescription>
               </CardHeader>
             </Card>
             <Card>
@@ -216,7 +235,7 @@ export default async function HomePage() {
                 <Clock className="w-10 h-10 text-accent mb-4" />
                 <CardTitle>Automated Scheduling</CardTitle>
                 <CardDescription>
-                  Set up daily, weekly, monthly, or custom schedules for compliance tasks
+                  Set up daily, weekly, monthly, or custom schedules for operational tasks and compliance requirements
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -224,14 +243,9 @@ export default async function HomePage() {
               <CardHeader>
                 <FileText className="w-10 h-10 text-accent mb-4" />
                 <CardTitle>White-Label Solution</CardTitle>
-                <CardDescription>Customize with your branding and present as your own platform</CardDescription>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CheckCircle className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>Real-time Tracking</CardTitle>
-                <CardDescription>Monitor compliance status and get instant notifications</CardDescription>
+                <CardDescription>
+                  Customize with your branding and present as your own platform to clients and stakeholders
+                </CardDescription>
               </CardHeader>
             </Card>
           </div>
@@ -406,7 +420,7 @@ export default async function HomePage() {
       <section id="testimonials" className="py-20 bg-muted/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Trusted by Business Leaders</h2>
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Trusted Across Industries</h2>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             <Card>
@@ -417,8 +431,8 @@ export default async function HomePage() {
                   ))}
                 </div>
                 <p className="text-gray-600 mb-4">
-                  "Mydailylogs has transformed how we handle compliance. The automated reporting saves us hours every
-                  week."
+                  "Mydailylogs has transformed how we handle both operational tasks and compliance. The automated
+                  reporting saves us hours every week across all our departments."
                 </p>
                 <div className="font-semibold">Sarah Johnson</div>
                 <div className="text-sm text-muted-foreground">Operations Manager, TechCorp</div>
@@ -433,10 +447,10 @@ export default async function HomePage() {
                 </div>
                 <p className="text-muted-foreground mb-4">
                   "The white-label solution is perfect for our consulting business. Our clients love the professional
-                  reports."
+                  reports for both operational and compliance needs."
                 </p>
                 <div className="font-semibold">Michael Chen</div>
-                <div className="text-sm text-muted-foreground">CEO, Compliance Solutions Ltd</div>
+                <div className="text-sm text-muted-foreground">CEO, Business Solutions Ltd</div>
               </CardContent>
             </Card>
             <Card>
@@ -447,7 +461,8 @@ export default async function HomePage() {
                   ))}
                 </div>
                 <p className="text-muted-foreground mb-4">
-                  "Easy to use, comprehensive features, and excellent support. Exactly what our growing team needed."
+                  "Perfect for managing our quality control processes and safety compliance. Easy to use across our
+                  entire manufacturing operation."
                 </p>
                 <div className="font-semibold">Emma Williams</div>
                 <div className="text-sm text-muted-foreground">Quality Manager, Manufacturing Plus</div>
@@ -463,7 +478,7 @@ export default async function HomePage() {
             <div>
               <MydailylogsLogo size="md" />
               <p className="text-sidebar-foreground/70 mt-4">
-                Professional compliance and reporting platform for modern businesses.
+                Professional task management and compliance platform for multi-industry enterprises.
               </p>
             </div>
             <div>

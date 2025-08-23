@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { MydailylogsLogo } from "@/components/mydailylogs-logo"
+import { MyDayLogsLogo } from "@/components/mydaylogs-logo" // Updated import path and component name
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
@@ -22,7 +22,7 @@ export default function LoginPage() {
   const router = useRouter()
 
   useEffect(() => {
-    const savedEmail = localStorage.getItem("mydailylogs_remembered_email")
+    const savedEmail = localStorage.getItem("mydaylogs_remembered_email") // Updated localStorage key to "mydaylogs_remembered_email"
     if (savedEmail) {
       setEmail(savedEmail)
       setRememberMe(true)
@@ -69,9 +69,9 @@ export default function LoginPage() {
       }
 
       if (rememberMe) {
-        localStorage.setItem("mydailylogs_remembered_email", email)
+        localStorage.setItem("mydaylogs_remembered_email", email) // Updated localStorage key
       } else {
-        localStorage.removeItem("mydailylogs_remembered_email")
+        localStorage.removeItem("mydaylogs_remembered_email") // Updated localStorage key
       }
 
       console.log("[v0] Login successful, redirecting to:", userRole === "admin" ? "/admin" : "/staff")
@@ -104,11 +104,12 @@ export default function LoginPage() {
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
               <Link href="/">
-                <MydailylogsLogo size="lg" />
+                <MyDayLogsLogo size="lg" /> {/* Updated component name */}
               </Link>
             </div>
             <CardTitle className="text-2xl">Welcome Back</CardTitle>
-            <CardDescription>Sign in to your Mydailylogs account</CardDescription>
+            <CardDescription>Sign in to your MyDayLogs account</CardDescription>{" "}
+            {/* Updated from "Mydailylogs" to "MyDayLogs" */}
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin}>

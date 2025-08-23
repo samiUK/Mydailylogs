@@ -5,7 +5,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useBranding } from "@/components/branding-provider"
-import { MydailylogsLogo } from "@/components/mydailylogs-logo"
+import { MyDayLogsLogo } from "@/components/mydaylogs-logo"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,8 +54,8 @@ export function StaffNavigation({ user, onSignOut }: StaffNavigationProps) {
                     }}
                   />
                 </div>
-              ) : organizationName === "Mydailylogs" ? (
-                <MydailylogsLogo size="sm" />
+              ) : organizationName === "MyDayLogs" ? (
+                <MyDayLogsLogo size="sm" />
               ) : (
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">

@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { MydailylogsLogo } from "@/components/mydailylogs-logo"
+import { MyDayLogsLogo } from "@/components/mydaylogs-logo" // Updated import path and component name
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -29,7 +29,7 @@ export default async function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <MydailylogsLogo size="md" />
+              <MyDayLogsLogo size="md" /> {/* Updated component name */}
             </div>
             <div className="hidden md:flex items-center space-x-8">
               <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">
@@ -58,7 +58,7 @@ export default async function HomePage() {
                 <SheetContent side="right" className="w-[300px] sm:w-[400px]">
                   <div className="flex flex-col h-full">
                     <div className="flex items-center mb-8 mt-6">
-                      <MydailylogsLogo size="sm" />
+                      <MyDayLogsLogo size="sm" /> {/* Updated component name */}
                     </div>
 
                     {/* Navigation Links */}
@@ -397,7 +397,7 @@ export default async function HomePage() {
                   ))}
                 </div>
                 <p className="text-gray-600 mb-4">
-                  "Mydailylogs has transformed how we handle both operational tasks and compliance. The automated
+                  "MyDayLogs has transformed how we handle both operational tasks and compliance. The automated
                   reporting saves us hours every week across all our departments."
                 </p>
                 <div className="font-semibold">Sarah Johnson</div>
@@ -442,7 +442,7 @@ export default async function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="grid md:grid-cols-4 gap-8">
             <div>
-              <MydailylogsLogo size="md" />
+              <MyDayLogsLogo size="md" /> {/* Updated component name */}
               <p className="text-sidebar-foreground/70 mt-4">
                 Professional task management and compliance platform for multi-industry enterprises.
               </p>
@@ -509,7 +509,7 @@ export default async function HomePage() {
             </div>
           </div>
           <div className="border-t border-sidebar-border mt-8 pt-8 text-center text-sidebar-foreground/70">
-            <p>&copy; 2025 Mydailylogs. All rights reserved.</p>
+            <p>&copy; 2025 MyDayLogs. All rights reserved.</p> {/* Updated from "Mydailylogs" to "MyDayLogs" */}
           </div>
         </div>
       </footer>

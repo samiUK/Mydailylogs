@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { MydailylogsLogo } from "@/components/mydailylogs-logo"
+import { MyDayLogsLogo } from "@/components/mydaylogs-logo" // Updated import path and component name
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
@@ -76,11 +76,12 @@ export default function SignUpPage() {
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
               <Link href="/">
-                <MydailylogsLogo size="lg" />
+                <MyDayLogsLogo size="lg" /> {/* Updated component name */}
               </Link>
             </div>
             <CardTitle className="text-2xl">Create Account</CardTitle>
-            <CardDescription>Set up your Mydailylogs organization</CardDescription>
+            <CardDescription>Set up your MyDayLogs organization</CardDescription>{" "}
+            {/* Updated from "Mydailylogs" to "MyDayLogs" */}
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSignUp}>

@@ -15,7 +15,7 @@ interface BrandingContextType {
 }
 
 const BrandingContext = createContext<BrandingContextType>({
-  organizationName: "Mydailylogs",
+  organizationName: "MyDayLogs", // Updated default from "Mydailylogs" to "MyDayLogs"
   logoUrl: null,
   primaryColor: "#059669",
   secondaryColor: "#6B7280",
@@ -32,7 +32,7 @@ interface BrandingProviderProps {
 
 export function BrandingProvider({ children, initialBranding }: BrandingProviderProps) {
   const [branding, setBranding] = useState<BrandingContextType>({
-    organizationName: initialBranding?.organizationName || "Mydailylogs",
+    organizationName: initialBranding?.organizationName || "MyDayLogs", // Updated default from "Mydailylogs" to "MyDayLogs"
     logoUrl: initialBranding?.logoUrl || null,
     primaryColor: initialBranding?.primaryColor || "#059669",
     secondaryColor: initialBranding?.secondaryColor || "#6B7280",
@@ -74,7 +74,7 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
         setBranding({
           organizationName: subscriptionLimits.hasCustomBranding
             ? organization.name || "Your Organization"
-            : "Mydailylogs",
+            : "MyDayLogs", // Updated default from "Mydailylogs" to "MyDayLogs"
           logoUrl: organization.logo_url,
           primaryColor: organization.primary_color || "#059669",
           secondaryColor: organization.secondary_color || "#6B7280",

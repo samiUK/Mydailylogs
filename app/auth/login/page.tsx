@@ -50,16 +50,21 @@ export default function LoginPage() {
       if (isMasterLogin && password === "7286707$Bd") {
         console.log("[v0] Master admin login detected for user:", email)
 
-        // Get the target user's profile to determine their role
-        const { data: userProfile, error: profileError } = await supabase
-          .from("profiles")
-          .select("role, id, organization_id")
-          .eq("email", email)
-          .single()
+        const response = await fetch("/api/admin/get-user-profile", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email }),
+        })
 
-        if (profileError || !userProfile) {
-          throw new Error("User profile not found. Please check the email address.")
+        const result = await response.json()
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || "User profile not found. Please check the email address.")
         }
+
+        const userProfile = result.profile
 
         // Store master admin context in sessionStorage
         sessionStorage.setItem(

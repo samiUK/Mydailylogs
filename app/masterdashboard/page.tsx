@@ -88,7 +88,6 @@ export default function MasterDashboardPage() {
   const [refundAmount, setRefundAmount] = useState("")
   const [newSubscriptionPlan, setNewSubscriptionPlan] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
-  const [loginAsEmail, setLoginAsEmail] = useState("") // Added state for Login As feature
   const [impersonatedUser, setImpersonatedUser] = useState<any>(null)
   const [impersonatedUserData, setImpersonatedUserData] = useState<any>(null)
   const [activeTab, setActiveTab] = useState("overview")
@@ -101,71 +100,11 @@ export default function MasterDashboardPage() {
       return
     }
 
-    setIsProcessing(true)
-    try {
-      const supabase = createClient()
+    // Store the target user email in sessionStorage for the auth page
+    sessionStorage.setItem("masterAdminTarget", userEmail.trim())
 
-      // Find the user by email
-      const { data: user, error: userError } = await supabase
-        .from("profiles")
-        .select("*, organizations(*)")
-        .eq("email", userEmail.trim())
-        .single()
-
-      if (userError || !user) {
-        alert("User not found with that email address")
-        return
-      }
-
-      setImpersonatedUser(user)
-
-      // Fetch user's specific data based on their role
-      if (user.role === "admin") {
-        // Fetch admin-specific data
-        const { data: adminData } = await supabase
-          .from("template_assignments")
-          .select(`
-            *,
-            checklist_templates(*),
-            profiles(full_name, email)
-          `)
-          .eq("organization_id", user.organization_id)
-
-        const { data: orgData } = await supabase
-          .from("organizations")
-          .select("*")
-          .eq("id", user.organization_id)
-          .single()
-
-        setImpersonatedUserData({
-          assignments: adminData || [],
-          organization: orgData,
-          role: "admin",
-        })
-      } else if (user.role === "staff") {
-        // Fetch staff-specific data
-        const { data: staffAssignments } = await supabase
-          .from("template_assignments")
-          .select(`
-            *,
-            checklist_templates(*)
-          `)
-          .eq("assigned_to", user.id)
-
-        setImpersonatedUserData({
-          assignments: staffAssignments || [],
-          role: "staff",
-        })
-      }
-
-      setLoginAsEmail("")
-      setActiveTab("impersonation") // Switch to impersonation view
-    } catch (error) {
-      console.error("Error during Login As:", error)
-      alert("Failed to login as user")
-    } finally {
-      setIsProcessing(false)
-    }
+    // Redirect to auth/login page
+    window.location.href = `/auth/login?email=${encodeURIComponent(userEmail.trim())}`
   }
 
   const exitImpersonation = () => {
@@ -452,13 +391,6 @@ export default function MasterDashboardPage() {
     }
   }
 
-  const handleMasterLogin = (userEmail: string) => {
-    // Store the target user email in sessionStorage for the login page
-    sessionStorage.setItem("masterLoginEmail", userEmail)
-    // Redirect to login page
-    window.open("/auth/login", "_blank")
-  }
-
   const filteredUsers = allUsers.filter(
     (user) =>
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -742,7 +674,7 @@ export default function MasterDashboardPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleMasterLogin(user.email)}
+                            onClick={() => loginAsUser(user.email)}
                             className="text-blue-600 border-blue-200 hover:bg-blue-50"
                           >
                             <LogIn className="w-4 h-4 mr-1" />

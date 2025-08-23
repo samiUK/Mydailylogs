@@ -26,7 +26,7 @@ async function StaffLayout({ children }: { children: React.ReactNode }) {
     "use server"
     const supabase = await createClient()
     await supabase.auth.signOut()
-    redirect("/")
+    redirect("/auth/login") // Redirect directly to login page instead of home page
   }
 
   return (

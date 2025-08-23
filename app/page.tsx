@@ -96,9 +96,49 @@ export default async function HomePage() {
                 Start Free Trial
               </Button>
             </Link>
-            <Button size="lg" variant="outline">
-              Watch Demo
-            </Button>
+          </div>
+        </div>
+      </section>
+
+      <section className="py-20 bg-muted/30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">How It Works</h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Get started with compliance management in three simple steps
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-accent rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-2xl font-bold text-accent-foreground">1</span>
+              </div>
+              <h3 className="text-xl font-semibold text-foreground mb-4">Create Templates</h3>
+              <p className="text-muted-foreground">
+                Set up customizable compliance checklists and templates tailored to your business needs. Define tasks,
+                schedules, and requirements.
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-accent rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-2xl font-bold text-accent-foreground">2</span>
+              </div>
+              <h3 className="text-xl font-semibold text-foreground mb-4">Assign & Track</h3>
+              <p className="text-muted-foreground">
+                Assign tasks to team members with automated scheduling. Monitor progress in real-time and receive
+                notifications for missed deadlines.
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-accent rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-2xl font-bold text-accent-foreground">3</span>
+              </div>
+              <h3 className="text-xl font-semibold text-foreground mb-4">Generate Reports</h3>
+              <p className="text-muted-foreground">
+                Create professional compliance reports with your branding. Export to PDF and share with stakeholders or
+                regulatory bodies.
+              </p>
+            </div>
           </div>
         </div>
       </section>

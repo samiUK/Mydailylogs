@@ -56,6 +56,8 @@ export default function AdminDashboard() {
     reportsTo: "none",
   })
 
+  const [allNotifications, setAllNotifications] = useState<any[]>([])
+
   const checkMissedTasks = async () => {
     if (!profile?.organization_id) return
 
@@ -201,15 +203,11 @@ export default function AdminDashboard() {
   }
 
   const markNotificationAsRead = async (notificationId: string) => {
-    const supabase = createClient()
+    setAllNotifications((prev) => prev.filter((n) => n.id !== notificationId))
+  }
 
-    try {
-      await supabase.from("notifications").update({ is_read: true }).eq("id", notificationId)
-
-      setNotifications((prev) => prev.filter((n) => n.id !== notificationId))
-    } catch (error) {
-      console.error("Error marking notification as read:", error)
-    }
+  const markAllNotificationsAsRead = () => {
+    setAllNotifications([])
   }
 
   const commonRoles = [
@@ -279,8 +277,6 @@ export default function AdminDashboard() {
     }
   }
 
-  const [recentSubmissions, setRecentSubmissions] = useState<any[]>([])
-
   useEffect(() => {
     const loadUser = async () => {
       const supabase = createClient()
@@ -324,29 +320,6 @@ export default function AdminDashboard() {
 
       try {
         const supabase = createClient()
-
-        const { data: recentSubmissions, error: submissionsError } = await supabase
-          .from("template_assignments")
-          .select(`
-            *,
-            checklist_templates!inner(name),
-            assigned_to_profile:profiles!template_assignments_assigned_to_fkey(first_name, last_name, full_name),
-            assigned_by_profile:profiles!template_assignments_assigned_by_fkey(first_name, last_name, full_name)
-          `)
-          .eq("organization_id", profile.organization_id)
-          .eq("status", "completed")
-          .not("completed_at", "is", null)
-          .order("completed_at", { ascending: false })
-          .limit(10)
-
-        console.log("[v0] Recent submissions query result:", { error: submissionsError, data: recentSubmissions })
-
-        if (submissionsError) {
-          console.error("Error fetching recent submissions:", submissionsError)
-        } else {
-          setRecentSubmissions(recentSubmissions || [])
-          console.log("[v0] Recent submissions data:", recentSubmissions)
-        }
 
         const [templatesRes, activeTemplatesRes, teamMembersRes, assignmentsRes] = await Promise.all([
           supabase.from("checklist_templates").select("*").eq("organization_id", profile.organization_id),
@@ -397,6 +370,53 @@ export default function AdminDashboard() {
       loadAdmins()
     }
   }, [profile])
+
+  useEffect(() => {
+    const loadNotifications = async () => {
+      if (!user || !profile) return
+
+      try {
+        const supabase = createClient()
+
+        const { data: notifications, error: notificationsError } = await supabase
+          .from("template_assignments")
+          .select(`
+            *,
+            checklist_templates!inner(name),
+            assigned_to_profile:profiles!template_assignments_assigned_to_fkey(first_name, last_name, full_name),
+            assigned_by_profile:profiles!template_assignments_assigned_by_fkey(first_name, last_name, full_name)
+          `)
+          .eq("organization_id", profile.organization_id)
+          .or("status.eq.completed,status.eq.active")
+          .order("updated_at", { ascending: false })
+          .limit(15)
+
+        if (notificationsError) {
+          console.error("Error fetching notifications:", notificationsError)
+        } else {
+          const transformedNotifications =
+            notifications?.map((assignment) => ({
+              id: assignment.id,
+              type: assignment.status === "completed" ? "submission" : "assignment",
+              title:
+                assignment.status === "completed"
+                  ? `${assignment.assigned_to_profile?.full_name || `${assignment.assigned_to_profile?.first_name} ${assignment.assigned_to_profile?.last_name}`} completed a task`
+                  : `New task assigned to ${assignment.assigned_to_profile?.full_name || `${assignment.assigned_to_profile?.first_name} ${assignment.assigned_to_profile?.last_name}`}`,
+              message: assignment.checklist_templates?.name || "Checklist",
+              timestamp: assignment.status === "completed" ? assignment.completed_at : assignment.assigned_at,
+              isRead: false,
+              data: assignment,
+            })) || []
+
+          setAllNotifications(transformedNotifications)
+        }
+      } catch (error) {
+        console.error("Error loading notifications:", error)
+      }
+    }
+
+    loadNotifications()
+  }, [user, profile])
 
   if (loading) {
     return (
@@ -727,44 +747,76 @@ export default function AdminDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Bell className="w-4 h-4" />
-              Recent Submissions
-              {recentSubmissions.length > 0 && (
+              Notifications
+              {allNotifications.length > 0 && (
                 <Badge variant="secondary" className="text-xs">
-                  {recentSubmissions.length}
+                  {allNotifications.length}
                 </Badge>
               )}
             </CardTitle>
-            <CardDescription>Latest completed checklists by team members</CardDescription>
+            <CardDescription>Latest updates, submissions, and task assignments</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3 max-h-64 overflow-y-auto">
-              {recentSubmissions.length === 0 ? (
-                <div className="text-sm text-muted-foreground text-center py-4">No recent submissions</div>
+              {allNotifications.length > 0 && (
+                <div className="flex justify-between items-center pb-2 border-b">
+                  <span className="text-xs text-muted-foreground">
+                    {allNotifications.length} notification{allNotifications.length > 1 ? "s" : ""}
+                  </span>
+                  <Button variant="ghost" size="sm" onClick={markAllNotificationsAsRead} className="text-xs h-6 px-2">
+                    Clear All
+                  </Button>
+                </div>
+              )}
+
+              {allNotifications.length === 0 ? (
+                <div className="text-sm text-muted-foreground text-center py-4">No new notifications</div>
               ) : (
-                recentSubmissions.map((submission) => (
+                allNotifications.map((notification) => (
                   <div
-                    key={submission.id}
-                    className="flex items-start justify-between p-3 border rounded-lg bg-green-50 border-green-200"
+                    key={notification.id}
+                    className={`flex items-start justify-between p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
+                      notification.type === "submission" ? "bg-green-50 border-green-200" : "bg-blue-50 border-blue-200"
+                    }`}
+                    onClick={() => markNotificationAsRead(notification.id)}
                   >
                     <div className="flex items-start gap-3 flex-1">
-                      <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                      {notification.type === "submission" ? (
+                        <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                      ) : (
+                        <Bell className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                      )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">
-                          {submission.assigned_to_profile?.full_name ||
-                            `${submission.assigned_to_profile?.first_name} ${submission.assigned_to_profile?.last_name}` ||
-                            "Team Member"}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Completed: {submission.checklist_templates?.name || "Checklist"}
-                        </p>
+                        <p className="text-sm font-medium text-foreground">{notification.title}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{notification.message}</p>
                         <p className="text-xs text-blue-600 font-medium">
-                          {new Date(submission.completed_at).toLocaleString()}
+                          {new Date(notification.timestamp).toLocaleString()}
                         </p>
                       </div>
                     </div>
-                    <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
-                      Completed
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant="outline"
+                        className={
+                          notification.type === "submission"
+                            ? "bg-green-100 text-green-800 border-green-300"
+                            : "bg-blue-100 text-blue-800 border-blue-300"
+                        }
+                      >
+                        {notification.type === "submission" ? "Completed" : "Assigned"}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          markNotificationAsRead(notification.id)
+                        }}
+                        className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600"
+                      >
+                        ×
+                      </Button>
+                    </div>
                   </div>
                 ))
               )}

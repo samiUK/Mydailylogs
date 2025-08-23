@@ -21,6 +21,10 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <div className="bg-accent text-accent-foreground py-2 px-4 text-center text-sm">
+        🚀 You're using the Beta version of MyDayLogs. Things may change, and we'd love your feedback!
+      </div>
+
       <nav className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">

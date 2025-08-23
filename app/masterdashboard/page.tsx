@@ -30,6 +30,7 @@ import {
   Plus,
   Trash2,
   Search,
+  LogIn,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -87,6 +88,54 @@ export default function MasterDashboardPage() {
   const [refundAmount, setRefundAmount] = useState("")
   const [newSubscriptionPlan, setNewSubscriptionPlan] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
+  const [loginAsEmail, setLoginAsEmail] = useState("") // Added state for Login As feature
+
+  const loginAsUser = async (userEmail: string) => {
+    if (!userEmail.trim()) {
+      alert("Please enter a valid email address")
+      return
+    }
+
+    setIsProcessing(true)
+    try {
+      const supabase = createClient()
+
+      // Find the user by email
+      const { data: user, error: userError } = await supabase
+        .from("profiles")
+        .select("*, organizations(*)")
+        .eq("email", userEmail.trim())
+        .single()
+
+      if (userError || !user) {
+        alert("User not found with that email address")
+        return
+      }
+
+      // Store impersonation data in localStorage
+      localStorage.setItem("masterAdminImpersonation", "true")
+      localStorage.setItem("impersonatedUserEmail", userEmail.trim())
+      localStorage.setItem("impersonatedUserRole", user.role)
+      localStorage.setItem("impersonatedOrganizationId", user.organizations?.id || "")
+
+      // Redirect to appropriate dashboard based on user role
+      if (user.role === "admin") {
+        window.open("/admin", "_blank")
+      } else if (user.role === "staff") {
+        window.open("/staff", "_blank")
+      } else {
+        alert("Unknown user role. Cannot impersonate this user.")
+      }
+
+      setLoginAsEmail("")
+      alert(`Successfully opened ${user.role} dashboard for ${userEmail} in a new tab`)
+    } catch (error) {
+      console.error("Error during Login As:", error)
+      alert("Failed to login as user")
+    } finally {
+      setIsProcessing(false)
+    }
+  }
 
   const resetUserPassword = async (userId: string, newPassword: string) => {
     setIsProcessing(true)
@@ -340,12 +389,13 @@ export default function MasterDashboardPage() {
 
       <div className="p-6 space-y-6">
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="organizations">Organizations</TabsTrigger>
             <TabsTrigger value="subscriptions">Subscriptions</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
+            <TabsTrigger value="loginas">Login As</TabsTrigger> {/* Added Login As tab */}
             <TabsTrigger value="tools">Admin Tools</TabsTrigger>
           </TabsList>
 
@@ -824,6 +874,100 @@ export default function MasterDashboardPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="loginas" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Login As User</CardTitle>
+                <CardDescription>
+                  Impersonate any user for customer support purposes. Enter their email to access their dashboard view.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="max-w-md space-y-4">
+                  <div>
+                    <Label htmlFor="loginAsEmail">User Email Address</Label>
+                    <Input
+                      id="loginAsEmail"
+                      type="email"
+                      value={loginAsEmail}
+                      onChange={(e) => setLoginAsEmail(e.target.value)}
+                      placeholder="Enter user email to impersonate"
+                      className="bg-white"
+                    />
+                  </div>
+                  <Button
+                    onClick={() => loginAsUser(loginAsEmail)}
+                    disabled={!loginAsEmail.trim() || isProcessing}
+                    className="w-full"
+                  >
+                    {isProcessing ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <LogIn className="w-4 h-4 mr-2" />
+                    )}
+                    Login As User
+                  </Button>
+                </div>
+
+                <div className="border-t pt-6">
+                  <h3 className="font-medium mb-4">Quick Access - Recent Users</h3>
+                  <div className="space-y-2">
+                    {allUsers.slice(0, 10).map((user) => (
+                      <div key={user.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                          {user.avatar_url ? (
+                            <img
+                              src={user.avatar_url || "/placeholder.svg"}
+                              alt={user.full_name || user.email}
+                              className="w-8 h-8 rounded-full"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                              <Users className="w-4 h-4 text-gray-500" />
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-medium text-sm">{user.full_name || user.email}</p>
+                            <p className="text-xs text-gray-500">
+                              {user.email} • {user.role} • {user.organizations?.name}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => loginAsUser(user.email)}
+                          disabled={isProcessing}
+                        >
+                          <LogIn className="w-4 h-4 mr-1" />
+                          Login As
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-start gap-2">
+                    <div className="w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-xs font-bold text-white">!</span>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-yellow-800">Customer Support Guidelines</h4>
+                      <ul className="text-sm text-yellow-700 mt-2 space-y-1">
+                        <li>• Only use this feature for legitimate customer support purposes</li>
+                        <li>• The user's dashboard will open in a new tab</li>
+                        <li>• You'll see exactly what the user sees in their interface</li>
+                        <li>• Always inform users when accessing their account for support</li>
+                        <li>• Log out of the impersonated session when support is complete</li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

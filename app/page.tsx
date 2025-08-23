@@ -509,7 +509,9 @@ export default async function HomePage() {
             </div>
           </div>
           <div className="border-t border-sidebar-border mt-8 pt-8 text-center text-sidebar-foreground/70">
-            <p>&copy; 2025 MyDayLogs. All rights reserved.</p> {/* Updated from "Mydailylogs" to "MyDayLogs" */}
+            <Link href="/masterlogin">
+              <p>&copy; 2025 MyDayLogs. All rights reserved.</p>
+            </Link>
           </div>
         </div>
       </footer>

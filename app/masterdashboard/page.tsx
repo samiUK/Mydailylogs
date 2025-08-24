@@ -36,6 +36,8 @@ import {
   Activity,
   Reply,
   X,
+  Search,
+  Calendar,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -121,6 +123,13 @@ export default function MasterDashboardPage() {
   const [activeTab, setActiveTab] = useState("overview")
   const [userSearchTerm, setUserSearchTerm] = useState("")
   const [resetPasswordEmail, setResetPasswordEmail] = useState("") // Added state for reset password email
+  const [organizationSearchTerm, setOrganizationSearchTerm] = useState("")
+  const [organizationStats, setOrganizationStats] = useState({
+    total: 0,
+    active: 0,
+    withSubscriptions: 0,
+    totalUsers: 0,
+  })
 
   const loginAsUser = async (userEmail: string, userRole: string) => {
     if (!userEmail.trim()) {
@@ -555,7 +564,9 @@ export default function MasterDashboardPage() {
       user.organizations?.name.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
-  const filteredOrganizations = organizations.filter((org) => org.name.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredOrganizations = organizations.filter((org) =>
+    org.name.toLowerCase().includes(organizationSearchTerm.toLowerCase()),
+  )
 
   const filteredUsersNew = allUsers.filter(
     (user) =>
@@ -563,6 +574,16 @@ export default function MasterDashboardPage() {
       user.full_name?.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
       user.organizations?.name.toLowerCase().includes(userSearchTerm.toLowerCase()),
   )
+
+  useEffect(() => {
+    const stats = {
+      total: organizations.length,
+      active: organizations.filter((org) => org.subscriptions?.some((sub) => sub.status === "active")).length,
+      withSubscriptions: organizations.filter((org) => org.subscriptions && org.subscriptions.length > 0).length,
+      totalUsers: organizations.reduce((sum, org) => sum + (org.profiles?.[0]?.count || 0), 0),
+    }
+    setOrganizationStats(stats)
+  }, [organizations])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -893,84 +914,181 @@ export default function MasterDashboardPage() {
           </TabsContent>
 
           <TabsContent value="organizations" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Total Organizations</p>
+                      <p className="text-2xl font-bold">{organizationStats.total}</p>
+                    </div>
+                    <Building2 className="w-8 h-8 text-blue-500" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Active Subscriptions</p>
+                      <p className="text-2xl font-bold">{organizationStats.active}</p>
+                    </div>
+                    <CheckCircle className="w-8 h-8 text-green-500" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">With Subscriptions</p>
+                      <p className="text-2xl font-bold">{organizationStats.withSubscriptions}</p>
+                    </div>
+                    <CreditCard className="w-8 h-8 text-purple-500" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Total Users</p>
+                      <p className="text-2xl font-bold">{organizationStats.totalUsers}</p>
+                    </div>
+                    <Users className="w-8 h-8 text-orange-500" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
             <Card>
               <CardHeader>
-                <CardTitle>Organization Management</CardTitle>
-                <CardDescription>Manage all organizations and their subscriptions</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Organization Management</CardTitle>
+                    <CardDescription>Manage all organizations and their subscriptions</CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <Input
+                        placeholder="Search organizations..."
+                        value={organizationSearchTerm}
+                        onChange={(e) => setOrganizationSearchTerm(e.target.value)}
+                        className="pl-10 w-64"
+                      />
+                    </div>
+                    <Button variant="outline" size="sm">
+                      <Search className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {filteredOrganizations.map((org) => (
-                    <div key={org.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        {org.logo_url ? (
-                          <img
-                            src={org.logo_url || "/placeholder.svg"}
-                            alt={org.name}
-                            className="w-12 h-12 rounded-lg object-cover"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
-                            <Building2 className="w-6 h-6 text-gray-500" />
-                          </div>
-                        )}
-                        <div>
-                          <h3 className="font-medium text-lg">{org.name}</h3>
-                          <p className="text-sm text-gray-500">
-                            {org.profiles?.[0]?.count || 0} users • Created{" "}
-                            {new Date(org.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {org.subscriptions?.[0] ? (
-                          <Badge variant={org.subscriptions[0].status === "active" ? "default" : "secondary"}>
-                            {org.subscriptions[0].plan_name} - {org.subscriptions[0].status}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">Free</Badge>
-                        )}
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="outline" size="sm">
-                              <Plus className="w-4 h-4 mr-1" />
-                              Add Subscription
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Add Subscription</DialogTitle>
-                              <DialogDescription>Add a new subscription for {org.name}</DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                              <div>
-                                <Label htmlFor="planSelect">Subscription Plan</Label>
-                                <Select value={newSubscriptionPlan} onValueChange={setNewSubscriptionPlan}>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select a plan" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="Base">Base Plan</SelectItem>
-                                    <SelectItem value="Pro">Pro Plan</SelectItem>
-                                    <SelectItem value="Enterprise">Enterprise Plan</SelectItem>
-                                  </SelectContent>
-                                </Select>
+                  {filteredOrganizations.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500">No organizations found</p>
+                      {organizationSearchTerm && (
+                        <p className="text-sm text-gray-400">Try adjusting your search terms</p>
+                      )}
+                    </div>
+                  ) : (
+                    filteredOrganizations.map((org) => (
+                      <div key={org.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            {org.logo_url ? (
+                              <img
+                                src={org.logo_url || "/placeholder.svg"}
+                                alt={org.name}
+                                className="w-16 h-16 rounded-lg object-cover border"
+                              />
+                            ) : (
+                              <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center border">
+                                <Building2 className="w-8 h-8 text-blue-600" />
+                              </div>
+                            )}
+                            <div className="space-y-1">
+                              <h3 className="font-semibold text-lg">{org.name}</h3>
+                              <div className="flex items-center gap-4 text-sm text-gray-500">
+                                <span className="flex items-center gap-1">
+                                  <Users className="w-4 h-4" />
+                                  {org.profiles?.[0]?.count || 0} users
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="w-4 h-4" />
+                                  Created {new Date(org.created_at).toLocaleDateString()}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Building2 className="w-4 h-4" />
+                                  ID: {org.id.slice(0, 8)}...
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs">
+                                  Organization Level: Root
+                                </Badge>
+                                {org.subscriptions && org.subscriptions.length > 0 && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Subscribed
+                                  </Badge>
+                                )}
                               </div>
                             </div>
-                            <DialogFooter>
-                              <Button
-                                onClick={() => addSubscription(org.id, newSubscriptionPlan)}
-                                disabled={!newSubscriptionPlan || isProcessing}
-                              >
-                                {isProcessing ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : null}
-                                Add Subscription
-                              </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {org.subscriptions?.[0] ? (
+                              <Badge variant={org.subscriptions[0].status === "active" ? "default" : "secondary"}>
+                                {org.subscriptions[0].plan_name} - {org.subscriptions[0].status}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline">Free Plan</Badge>
+                            )}
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                  <Plus className="w-4 h-4 mr-1" />
+                                  Add Subscription
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>Add Subscription</DialogTitle>
+                                  <DialogDescription>Add a new subscription for {org.name}</DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label htmlFor="planSelect">Subscription Plan</Label>
+                                    <Select value={newSubscriptionPlan} onValueChange={setNewSubscriptionPlan}>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select a plan" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="Base">Base Plan</SelectItem>
+                                        <SelectItem value="Pro">Pro Plan</SelectItem>
+                                        <SelectItem value="Enterprise">Enterprise Plan</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                                <DialogFooter>
+                                  <Button
+                                    onClick={() => addSubscription(org.id, newSubscriptionPlan)}
+                                    disabled={!newSubscriptionPlan || isProcessing}
+                                  >
+                                    {isProcessing ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : null}
+                                    Add Subscription
+                                  </Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>

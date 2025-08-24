@@ -15,63 +15,94 @@ export async function createUserWithProfile(formData: {
 
     const adminSupabase = createAdminClient()
 
-    const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        full_name: fullName,
-        first_name: firstName,
-        last_name: lastName,
-        display_name: firstName,
-        organization_name: organizationName,
-        organization_slug: organizationName
-          .toLowerCase()
-          .replace(/\s+/g, "-")
-          .replace(/[^a-z0-9-]/g, ""),
-      },
-    })
+    const { data: existingUsers } = await adminSupabase.auth.admin.listUsers()
+    const existingUser = existingUsers.users.find((user) => user.email === email)
 
-    if (authError) throw authError
+    let authUserId: string
+    let isNewUser = false
 
-    if (authData.user) {
-      const { data: orgData, error: orgError } = await adminSupabase
-        .from("organizations")
-        .insert({
-          name: organizationName,
-          slug: organizationName
+    if (existingUser) {
+      const { data: existingAdminProfile } = await adminSupabase
+        .from("profiles")
+        .select("id, organization_id")
+        .eq("email", email)
+        .eq("role", "admin")
+        .single()
+
+      if (existingAdminProfile) {
+        throw new Error("You already have an admin account. Please sign in instead.")
+      }
+
+      authUserId = existingUser.id
+      console.log("[v0] Using existing auth user:", authUserId)
+    } else {
+      const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          full_name: fullName,
+          first_name: firstName,
+          last_name: lastName,
+          display_name: firstName,
+          organization_name: organizationName,
+          organization_slug: organizationName
             .toLowerCase()
             .replace(/\s+/g, "-")
             .replace(/[^a-z0-9-]/g, ""),
-        })
-        .select()
-        .single()
-
-      if (orgError) {
-        await adminSupabase.auth.admin.deleteUser(authData.user.id)
-        throw new Error(`Organization creation failed: ${orgError.message}`)
-      }
-
-      const { error: profileError } = await adminSupabase.from("profiles").insert({
-        id: authData.user.id,
-        organization_id: orgData.id,
-        first_name: firstName,
-        last_name: lastName,
-        full_name: fullName,
-        email: email,
-        role: "admin",
+        },
       })
 
-      if (profileError) {
-        await adminSupabase.auth.admin.deleteUser(authData.user.id)
-        await adminSupabase.from("organizations").delete().eq("id", orgData.id)
-        throw new Error(`Profile creation failed: ${profileError.message}`)
-      }
+      if (authError) throw authError
+      if (!authData.user) throw new Error("User creation failed")
 
-      return { success: true, message: "Account created successfully!" }
+      authUserId = authData.user.id
+      isNewUser = true
+      console.log("[v0] Created new auth user:", authUserId)
     }
 
-    throw new Error("User creation failed")
+    const { data: orgData, error: orgError } = await adminSupabase
+      .from("organizations")
+      .insert({
+        name: organizationName,
+        slug: organizationName
+          .toLowerCase()
+          .replace(/\s+/g, "-")
+          .replace(/[^a-z0-9-]/g, ""),
+      })
+      .select()
+      .single()
+
+    if (orgError) {
+      if (isNewUser) {
+        await adminSupabase.auth.admin.deleteUser(authUserId)
+      }
+      throw new Error(`Organization creation failed: ${orgError.message}`)
+    }
+
+    const { error: profileError } = await adminSupabase.from("profiles").insert({
+      id: authUserId,
+      organization_id: orgData.id,
+      first_name: firstName,
+      last_name: lastName,
+      full_name: fullName,
+      email: email,
+      role: "admin",
+    })
+
+    if (profileError) {
+      if (isNewUser) {
+        await adminSupabase.auth.admin.deleteUser(authUserId)
+      }
+      await adminSupabase.from("organizations").delete().eq("id", orgData.id)
+      throw new Error(`Profile creation failed: ${profileError.message}`)
+    }
+
+    const message = existingUser
+      ? "Admin profile created successfully! You can now sign in with your existing credentials."
+      : "Account created successfully!"
+
+    return { success: true, message }
   } catch (error) {
     console.error("Signup error:", error)
     return {

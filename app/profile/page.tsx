@@ -9,7 +9,21 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { User, Mail, Camera, Phone, MapPin, Briefcase } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  User,
+  Mail,
+  Camera,
+  Phone,
+  MapPin,
+  Briefcase,
+  Building,
+  ArrowRightLeft,
+  Lock,
+  Eye,
+  EyeOff,
+  Shield,
+} from "lucide-react"
 import { useRouter } from "next/navigation"
 
 interface Profile {
@@ -28,17 +42,36 @@ interface Profile {
   country: string | null
 }
 
+interface UserOrganization {
+  id: string
+  name: string
+  slug: string
+  role: string
+  profileId: string
+  isActive: boolean
+}
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [organizations, setOrganizations] = useState<UserOrganization[]>([])
+  const [currentOrganization, setCurrentOrganization] = useState<UserOrganization | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [switching, setSwitching] = useState(false)
   const [message, setMessage] = useState("")
   const [isImpersonated, setIsImpersonated] = useState(false)
   const [impersonatedBy, setImpersonatedBy] = useState("")
   const router = useRouter()
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [passwordChanging, setPasswordChanging] = useState(false)
+  const [passwordResetSending, setPasswordResetSending] = useState(false)
+  const [passwordMessage, setPasswordMessage] = useState("")
 
   useEffect(() => {
     const checkImpersonation = () => {
@@ -64,6 +97,18 @@ export default function ProfilePage() {
 
         if (error) throw error
         setProfile(profileData)
+
+        const response = await fetch("/api/user/organizations")
+        if (response.ok) {
+          const { organizations: userOrgs } = await response.json()
+          setOrganizations(userOrgs)
+
+          // Find current active organization
+          const activeOrg = userOrgs.find((org: UserOrganization) => org.isActive)
+          if (activeOrg) {
+            setCurrentOrganization(activeOrg)
+          }
+        }
       } catch (error) {
         console.error("Error loading profile:", error)
         setMessage("Error loading profile")
@@ -74,6 +119,42 @@ export default function ProfilePage() {
 
     loadProfile()
   }, [supabase, router])
+
+  async function handleOrganizationSwitch(organizationValue: string) {
+    const selectedOrg = organizations.find((org) => `${org.id}-${org.role}` === organizationValue)
+    if (!selectedOrg || switching) return
+
+    setSwitching(true)
+    setMessage("")
+
+    try {
+      const response = await fetch("/api/user/switch-organization", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ profileId: selectedOrg.profileId }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to switch organization")
+      }
+
+      const { profile: newProfile, redirectPath } = await response.json()
+
+      setMessage(`Switching to ${selectedOrg.name} as ${selectedOrg.role}...`)
+
+      // Redirect to the appropriate dashboard after a short delay
+      setTimeout(() => {
+        window.location.href = redirectPath
+      }, 1500)
+    } catch (error) {
+      console.error("Error switching organization:", error)
+      setMessage("Error switching organization. Please try again.")
+    } finally {
+      setSwitching(false)
+    }
+  }
 
   async function handlePhotoUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -190,6 +271,84 @@ export default function ProfilePage() {
     }
   }
 
+  async function handlePasswordChange(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (!profile) return
+
+    setPasswordChanging(true)
+    setPasswordMessage("")
+
+    try {
+      const formData = new FormData(e.currentTarget)
+      const currentPassword = formData.get("currentPassword") as string
+      const newPassword = formData.get("newPassword") as string
+      const confirmPassword = formData.get("confirmPassword") as string
+
+      if (newPassword !== confirmPassword) {
+        setPasswordMessage("New passwords do not match")
+        return
+      }
+
+      if (newPassword.length < 6) {
+        setPasswordMessage("New password must be at least 6 characters long")
+        return
+      }
+
+      const response = await fetch("/api/user/change-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to change password")
+      }
+
+      setPasswordMessage("Password changed successfully!")
+      // Reset form
+      e.currentTarget.reset()
+    } catch (error) {
+      console.error("Error changing password:", error)
+      setPasswordMessage(`Error: ${error.message}`)
+    } finally {
+      setPasswordChanging(false)
+    }
+  }
+
+  async function handlePasswordReset() {
+    if (!profile) return
+
+    setPasswordResetSending(true)
+    setPasswordMessage("")
+
+    try {
+      const response = await fetch("/api/user/reset-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: profile.email }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to send password reset email")
+      }
+
+      setPasswordMessage("Password reset email sent! Check your inbox.")
+    } catch (error) {
+      console.error("Error sending password reset email:", error)
+      setPasswordMessage(`Error: ${error.message}`)
+    } finally {
+      setPasswordResetSending(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto py-8">
@@ -260,6 +419,53 @@ export default function ProfilePage() {
           <p className="text-muted-foreground mt-2">Manage your personal information and preferences</p>
         </div>
 
+        {organizations.length > 1 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ArrowRightLeft className="h-5 w-5" />
+                Organization Access
+              </CardTitle>
+              <CardDescription>Switch between organizations you have access to</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="organizationSwitch" className="flex items-center gap-2">
+                    <Building className="h-4 w-4" />
+                    Switch Organization
+                  </Label>
+                  <Select
+                    value={currentOrganization ? `${currentOrganization.id}-${currentOrganization.role}` : ""}
+                    onValueChange={handleOrganizationSwitch}
+                    disabled={switching}
+                  >
+                    <SelectTrigger className="bg-white">
+                      <SelectValue placeholder="Select organization..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {organizations.map((org) => (
+                        <SelectItem key={`${org.id}-${org.role}`} value={`${org.id}-${org.role}`}>
+                          <div className="flex items-center justify-between w-full">
+                            <span>{org.name}</span>
+                            <span className="ml-2 text-xs bg-gray-100 px-2 py-1 rounded capitalize">{org.role}</span>
+                            {org.isActive && (
+                              <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                                Current
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {switching && <p className="text-sm text-blue-600">Switching organization...</p>}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -270,6 +476,21 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
+              {currentOrganization && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Building className="h-4 w-4" />
+                    Current Organization
+                  </Label>
+                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-md">
+                    <span className="font-medium">{currentOrganization.name}</span>
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded capitalize">
+                      {currentOrganization.role}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-4">
                 <div className="relative">
                   <Avatar className="h-20 w-20">
@@ -428,6 +649,141 @@ export default function ProfilePage() {
                 </Button>
               </div>
             </form>
+          </CardContent>
+        </Card>
+
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Security Settings
+            </CardTitle>
+            <CardDescription>Manage your password and account security</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {/* Change Password Section */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium flex items-center gap-2">
+                  <Lock className="h-4 w-4" />
+                  Change Password
+                </h3>
+                <form onSubmit={handlePasswordChange} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="currentPassword">Current Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="currentPassword"
+                        name="currentPassword"
+                        type={showCurrentPassword ? "text" : "password"}
+                        required
+                        className="bg-white pr-10"
+                        placeholder="Enter your current password"
+                      />
+                      <button
+                        type="button"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      >
+                        {showCurrentPassword ? (
+                          <EyeOff className="h-4 w-4 text-gray-400" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-gray-400" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword">New Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="newPassword"
+                        name="newPassword"
+                        type={showNewPassword ? "text" : "password"}
+                        required
+                        className="bg-white pr-10"
+                        placeholder="Enter your new password"
+                        minLength={6}
+                      />
+                      <button
+                        type="button"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                      >
+                        {showNewPassword ? (
+                          <EyeOff className="h-4 w-4 text-gray-400" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-gray-400" />
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-500">Password must be at least 6 characters long</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        required
+                        className="bg-white pr-10"
+                        placeholder="Confirm your new password"
+                        minLength={6}
+                      />
+                      <button
+                        type="button"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4 w-4 text-gray-400" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-gray-400" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <Button type="submit" disabled={passwordChanging} className="w-full">
+                    {passwordChanging ? "Changing Password..." : "Change Password"}
+                  </Button>
+                </form>
+              </div>
+
+              {/* Password Reset Section */}
+              <div className="border-t pt-4">
+                <h3 className="text-lg font-medium mb-2">Forgot Your Password?</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Send a password reset link to your email address: <strong>{profile?.email}</strong>
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handlePasswordReset}
+                  disabled={passwordResetSending}
+                  className="bg-white"
+                >
+                  {passwordResetSending ? "Sending..." : "Send Password Reset Email"}
+                </Button>
+              </div>
+
+              {passwordMessage && (
+                <div
+                  className={`p-3 rounded-md text-sm ${
+                    passwordMessage.includes("Error") ||
+                    passwordMessage.includes("do not match") ||
+                    passwordMessage.includes("must be")
+                      ? "bg-red-50 text-red-700 border border-red-200"
+                      : "bg-green-50 text-green-700 border border-green-200"
+                  }`}
+                >
+                  {passwordMessage}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>

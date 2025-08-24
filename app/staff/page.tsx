@@ -454,26 +454,24 @@ export default function StaffDashboard() {
       )}
 
       {isImpersonating && impersonationData && (
-        <div className="bg-orange-500 text-white px-4 py-3 rounded-lg">
+        <div className="bg-orange-50 border border-orange-200 text-orange-800 px-3 py-2 rounded-md text-sm">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5" />
-              <span className="font-medium">
-                Impersonated by masteradmin - Viewing {impersonationData.targetUserEmail} (Staff Dashboard)
-              </span>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              <span className="text-xs">Viewing as {impersonationData.targetUserEmail}</span>
             </div>
             <Button
-              variant="secondary"
+              variant="ghost"
               size="sm"
               onClick={() => {
                 sessionStorage.removeItem("masterAdminImpersonation")
                 document.cookie = "masterAdminImpersonation=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
                 window.location.href = "/masterdashboard"
               }}
-              className="bg-white text-orange-600 hover:bg-gray-100"
+              className="h-6 px-2 text-xs text-orange-700 hover:bg-orange-100"
             >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Exit Impersonation
+              <ArrowLeft className="w-3 h-3 mr-1" />
+              Exit
             </Button>
           </div>
         </div>

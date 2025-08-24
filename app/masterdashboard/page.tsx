@@ -31,6 +31,11 @@ import {
   AlertTriangle,
   User,
   LogIn,
+  Mail,
+  Eye,
+  Activity,
+  Reply,
+  X,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -51,6 +56,7 @@ interface UserProfile {
   role: string
   created_at: string
   organizations?: { name: string; logo_url: string | null }
+  last_sign_in_at?: string | null
 }
 
 interface Subscription {
@@ -73,6 +79,19 @@ interface Payment {
   }
 }
 
+interface Feedback {
+  id: string
+  name: string
+  email: string
+  subject: string
+  message: string
+  attachments?: any[]
+  status: string
+  created_at: string
+  updated_at?: string
+  page_url?: string // Added page_url field
+}
+
 export default function MasterDashboardPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
@@ -80,6 +99,15 @@ export default function MasterDashboardPage() {
   const [allUsers, setAllUsers] = useState<UserProfile[]>([])
   const [allSubscriptions, setAllSubscriptions] = useState<Subscription[]>([])
   const [allPayments, setAllPayments] = useState<Payment[]>([])
+  const [feedback, setFeedback] = useState<Feedback[]>([])
+  const [unreadFeedbackCount, setUnreadFeedbackCount] = useState(0)
+  const [responseModal, setResponseModal] = useState<{ isOpen: boolean; feedback: Feedback | null }>({
+    isOpen: false,
+    feedback: null,
+  })
+  const [responseSubject, setResponseSubject] = useState("")
+  const [responseMessage, setResponseMessage] = useState("")
+  const [isResponding, setIsResponding] = useState(false)
 
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null)
@@ -262,47 +290,59 @@ export default function MasterDashboardPage() {
     try {
       console.log("[v0] Fetching organizations and other data...")
 
-      const [orgsResponse, usersResponse, subscriptionsResponse, paymentsResponse] = await Promise.all([
-        supabase.from("organizations").select(`
+      const [orgsResponse, usersResponse, subscriptionsResponse, paymentsResponse, feedbackResponse] =
+        await Promise.all([
+          supabase.from("organizations").select(`
           *,
           profiles(count),
           subscriptions(*)
         `),
-        supabase
-          .from("profiles")
-          .select(`
+          supabase
+            .from("profiles")
+            .select(`
           *,
           organizations(name, logo_url)
         `)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("subscriptions")
-          .select(`
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("subscriptions")
+            .select(`
           *,
           organizations(name, logo_url)
         `)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("payments")
-          .select(`
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("payments")
+            .select(`
           *,
           subscriptions(
             plan_name,
             organizations(name)
           )
         `)
-          .order("created_at", { ascending: false }),
-      ])
+            .order("created_at", { ascending: false }),
+          supabase.from("feedback").select("*").order("created_at", { ascending: false }),
+        ])
 
       console.log("[v0] Organizations response:", orgsResponse)
       console.log("[v0] Organizations data:", orgsResponse.data)
       console.log("[v0] Organizations error:", orgsResponse.error)
       console.log("[v0] Number of organizations found:", orgsResponse.data?.length || 0)
 
+      console.log("[v0] Feedback response:", feedbackResponse)
+      console.log("[v0] Feedback data:", feedbackResponse.data)
+      console.log("[v0] Feedback error:", feedbackResponse.error)
+      console.log("[v0] Number of feedback items found:", feedbackResponse.data?.length || 0)
+      if (feedbackResponse.data && feedbackResponse.data.length > 0) {
+        console.log("[v0] Sample feedback item:", feedbackResponse.data[0])
+      }
+
       setOrganizations(orgsResponse.data || [])
       setAllUsers(usersResponse.data || [])
       setAllSubscriptions(subscriptionsResponse.data || [])
       setAllPayments(paymentsResponse.data || [])
+      setFeedback(feedbackResponse.data || [])
+      setUnreadFeedbackCount(feedbackResponse.data?.filter((f) => f.status === "unread").length || 0)
     } catch (error) {
       console.error("Error loading data:", error)
     } finally {
@@ -422,6 +462,92 @@ export default function MasterDashboardPage() {
     }
   }
 
+  const markFeedbackAsRead = async (feedbackId: string) => {
+    try {
+      const supabase = createClient()
+      const { error } = await supabase
+        .from("feedback")
+        .update({ status: "read", updated_at: new Date().toISOString() })
+        .eq("id", feedbackId)
+
+      if (error) throw error
+
+      setFeedback((prev) => prev.map((f) => (f.id === feedbackId ? { ...f, status: "read" } : f)))
+      setUnreadFeedbackCount((prev) => Math.max(0, prev - 1))
+    } catch (error) {
+      console.error("Error marking feedback as read:", error)
+    }
+  }
+
+  const deleteFeedback = async (feedbackId: string) => {
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from("feedback").delete().eq("id", feedbackId)
+
+      if (error) throw error
+
+      const deletedFeedback = feedback.find((f) => f.id === feedbackId)
+      setFeedback((prev) => prev.filter((f) => f.id !== feedbackId))
+      if (deletedFeedback?.status === "unread") {
+        setUnreadFeedbackCount((prev) => Math.max(0, prev - 1))
+      }
+    } catch (error) {
+      console.error("Error deleting feedback:", error)
+    }
+  }
+
+  const openResponseModal = (feedbackItem: Feedback) => {
+    setResponseModal({ isOpen: true, feedback: feedbackItem })
+    setResponseSubject(`Re: ${feedbackItem.subject}`)
+    setResponseMessage(`Hi ${feedbackItem.name},\n\nThank you for your feedback. `)
+  }
+
+  const closeResponseModal = () => {
+    setResponseModal({ isOpen: false, feedback: null })
+    setResponseSubject("")
+    setResponseMessage("")
+    setIsResponding(false)
+  }
+
+  const sendResponse = async () => {
+    if (!responseModal.feedback) return
+
+    setIsResponding(true)
+    try {
+      const response = await fetch("/api/send-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "response",
+          to: responseModal.feedback.email,
+          subject: responseSubject,
+          data: {
+            name: responseModal.feedback.name,
+            originalSubject: responseModal.feedback.subject,
+            originalMessage: responseModal.feedback.message,
+            responseMessage: responseMessage,
+          },
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to send response")
+      }
+
+      // Mark feedback as read after responding
+      await markFeedbackAsRead(responseModal.feedback.id)
+      closeResponseModal()
+      alert("Response sent successfully!")
+    } catch (error) {
+      console.error("Error sending response:", error)
+      alert("Failed to send response. Please try again.")
+    } finally {
+      setIsResponding(false)
+    }
+  }
+
   const filteredUsers = allUsers.filter(
     (user) =>
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -462,14 +588,21 @@ export default function MasterDashboardPage() {
 
       <div className="p-6 space-y-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="organizations">Organizations</TabsTrigger>
+            <TabsTrigger value="feedback" className="relative">
+              Feedback
+              {unreadFeedbackCount > 0 && (
+                <Badge variant="destructive" className="ml-1 h-5 w-5 p-0 text-xs">
+                  {unreadFeedbackCount}
+                </Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="subscriptions">Subscriptions</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="login-as">Password Reset</TabsTrigger>
-            <TabsTrigger value="tools">Admin Tools</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -482,6 +615,26 @@ export default function MasterDashboardPage() {
                 <CardContent>
                   <div className="text-2xl font-bold">{allUsers.length}</div>
                   <p className="text-xs text-muted-foreground">Across all organizations</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Currently Online</CardTitle>
+                  <Activity className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {
+                      allUsers.filter((user) => {
+                        const lastSeen = new Date(user.last_sign_in_at || user.created_at)
+                        const now = new Date()
+                        const diffMinutes = (now.getTime() - lastSeen.getTime()) / (1000 * 60)
+                        return diffMinutes <= 30 // Consider online if active within 30 minutes
+                      }).length
+                    }
+                  </div>
+                  <p className="text-xs text-muted-foreground">Active in last 30 min</p>
                 </CardContent>
               </Card>
 
@@ -665,17 +818,14 @@ export default function MasterDashboardPage() {
 
           <TabsContent value="users" className="space-y-6">
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold">User Management</h2>
-                  <p className="text-gray-600">Manage all users across organizations</p>
-                </div>
-                <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex-1"></div>
+                <div className="flex-shrink-0">
                   <Input
                     placeholder="Search users..."
                     value={userSearchTerm}
                     onChange={(e) => setUserSearchTerm(e.target.value)}
-                    className="w-64"
+                    className="w-full sm:w-64"
                   />
                 </div>
               </div>
@@ -688,45 +838,49 @@ export default function MasterDashboardPage() {
                 <CardContent>
                   <div className="space-y-4">
                     {filteredUsersNew.map((user) => (
-                      <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                      <div
+                        key={user.id}
+                        className="flex flex-col lg:flex-row lg:items-center lg:justify-between p-4 border rounded-lg gap-4"
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
                             <User className="w-5 h-5 text-blue-600" />
                           </div>
-                          <div>
-                            <h3 className="font-medium">{user.full_name || user.email}</h3>
-                            <p className="text-sm text-gray-500">{user.email}</p>
-                            <p className="text-xs text-gray-400">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-medium truncate">{user.full_name || user.email}</h3>
+                            <p className="text-sm text-gray-500 truncate">{user.email}</p>
+                            <p className="text-xs text-gray-400 truncate">
                               {user.role} • {user.organizations?.name || "No Organization"}
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => loginAsUser(user.email, user.role)}
-                            className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                            className="text-blue-600 border-blue-200 hover:bg-blue-50 text-xs px-2 py-1"
                           >
-                            <LogIn className="w-4 h-4 mr-1" />
+                            <LogIn className="w-3 h-3 mr-1" />
                             Login
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => resetUserPassword(user.email)}
-                            className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                            className="text-orange-600 border-orange-200 hover:bg-orange-50 text-xs px-2 py-1"
                           >
-                            <Key className="w-4 h-4 mr-1" />
-                            Reset Password
+                            <Key className="w-3 h-3 mr-1" />
+                            Reset
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleDeleteUser(user.id, user.email)}
-                            className="text-red-600 border-red-200 hover:bg-red-50"
+                            className="text-red-600 border-red-200 hover:bg-red-50 text-xs px-2 py-1"
+                            disabled={isProcessing}
                           >
-                            <Trash2 className="w-4 h-4 mr-1" />
+                            <Trash2 className="w-3 h-3 mr-1" />
                             Delete
                           </Button>
                         </div>
@@ -935,6 +1089,158 @@ export default function MasterDashboardPage() {
             </Card>
           </TabsContent>
 
+          <TabsContent value="feedback" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Mail className="w-5 h-5" />
+                  Feedback Mailbox
+                  {unreadFeedbackCount > 0 && <Badge variant="destructive">{unreadFeedbackCount} unread</Badge>}
+                </CardTitle>
+                <CardDescription>Monitor and manage user feedback and suggestions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {feedback.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <Mail className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p>No feedback received yet</p>
+                    </div>
+                  ) : (
+                    feedback.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`p-4 border rounded-lg ${
+                          item.status === "unread" ? "bg-blue-50 border-blue-200" : "bg-white"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant={item.status === "unread" ? "default" : "secondary"}>{item.status}</Badge>
+                              <span className="text-sm text-gray-500">
+                                {new Date(item.created_at).toLocaleDateString()} at{" "}
+                                {new Date(item.created_at).toLocaleTimeString()}
+                              </span>
+                            </div>
+                            <h3 className="font-medium text-lg mb-1">{item.subject}</h3>
+                            <p className="text-sm text-gray-600 mb-2">
+                              From: <strong>{item.name}</strong> ({item.email})
+                            </p>
+                            {item.page_url && (
+                              <p className="text-sm text-gray-500 mb-2">
+                                Page:{" "}
+                                <a
+                                  href={item.page_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:underline"
+                                >
+                                  {item.page_url}
+                                </a>
+                              </p>
+                            )}
+                            <p className="text-gray-800 whitespace-pre-wrap">{item.message}</p>
+                            {item.attachments && item.attachments.length > 0 && (
+                              <div className="mt-2">
+                                <p className="text-sm font-medium text-gray-600 mb-1">Attachments:</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {item.attachments.map((attachment: any, index: number) => (
+                                    <Badge key={index} variant="outline" className="text-xs">
+                                      📎 {attachment.name}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 ml-4">
+                            <Button variant="outline" size="sm" onClick={() => openResponseModal(item)}>
+                              <Reply className="w-4 h-4 mr-1" />
+                              Reply
+                            </Button>
+                            {item.status === "unread" && (
+                              <Button variant="outline" size="sm" onClick={() => markFeedbackAsRead(item.id)}>
+                                <Eye className="w-4 h-4 mr-1" />
+                                Mark Read
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => deleteFeedback(item.id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {responseModal.isOpen && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold">Reply to Feedback</h2>
+                  <Button variant="ghost" size="sm" onClick={closeResponseModal}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">To:</label>
+                    <p className="text-sm text-gray-600">{responseModal.feedback?.email}</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Subject:</label>
+                    <input
+                      type="text"
+                      value={responseSubject}
+                      onChange={(e) => setResponseSubject(e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-md"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Original Message:</label>
+                    <div className="p-3 bg-gray-50 rounded-md text-sm">
+                      <p className="font-medium">{responseModal.feedback?.subject}</p>
+                      <p className="mt-1">{responseModal.feedback?.message}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Your Response:</label>
+                    <textarea
+                      value={responseMessage}
+                      onChange={(e) => setResponseMessage(e.target.value)}
+                      rows={6}
+                      className="w-full p-2 border border-gray-300 rounded-md"
+                      placeholder="Type your response here..."
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={closeResponseModal}>
+                      Cancel
+                    </Button>
+                    <Button onClick={sendResponse} disabled={isResponding || !responseMessage.trim()}>
+                      {isResponding ? "Sending..." : "Send Response"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <TabsContent value="login-as" className="space-y-6">
             <div className="space-y-6">
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
@@ -972,7 +1278,7 @@ export default function MasterDashboardPage() {
           <TabsContent value="tools" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Administrative Tools</CardTitle>
+                <CardTitle>Tools</CardTitle>
                 <CardDescription>Additional tools for platform management</CardDescription>
               </CardHeader>
               <CardContent>

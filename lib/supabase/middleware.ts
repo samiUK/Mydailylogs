@@ -56,6 +56,8 @@ export async function updateSession(request: NextRequest) {
       !request.nextUrl.pathname.startsWith("/auth") &&
       !request.nextUrl.pathname.startsWith("/masterlogin") &&
       !request.nextUrl.pathname.startsWith("/masterdashboard") &&
+      !request.nextUrl.pathname.startsWith("/api/send-email") &&
+      !request.nextUrl.pathname.startsWith("/api/admin/") &&
       !request.nextUrl.pathname.match(/^\/admin\/[^/]+$/) &&
       !request.nextUrl.pathname.match(/^\/staff\/[^/]+$/),
   )
@@ -68,6 +70,8 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith("/auth") &&
     !request.nextUrl.pathname.startsWith("/masterlogin") &&
     !request.nextUrl.pathname.startsWith("/masterdashboard") &&
+    !request.nextUrl.pathname.startsWith("/api/send-email") &&
+    !request.nextUrl.pathname.startsWith("/api/admin/") &&
     !request.nextUrl.pathname.match(/^\/admin\/[^/]+$/) &&
     !request.nextUrl.pathname.match(/^\/staff\/[^/]+$/)
   ) {

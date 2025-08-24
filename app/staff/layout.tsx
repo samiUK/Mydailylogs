@@ -4,6 +4,9 @@ import { redirect } from "next/navigation"
 import { BrandingProvider } from "@/components/branding-provider"
 import { StaffNavigation } from "@/components/staff-navigation"
 import { cookies } from "next/headers"
+import { Footer } from "@/components/footer"
+import { FeedbackModal } from "@/components/feedback-modal"
+import { FeedbackBanner } from "@/components/feedback-banner"
 
 async function StaffLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = cookies()
@@ -72,8 +75,11 @@ async function StaffLayout({ children }: { children: React.ReactNode }) {
   return (
     <BrandingProvider>
       <div className="min-h-screen bg-gray-50">
+        <FeedbackBanner />
         <StaffNavigation user={profile} onSignOut={handleSignOut} />
         <main className="w-full max-w-4xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">{children}</main>
+        <Footer />
+        <FeedbackModal autoTrigger={true} />
       </div>
     </BrandingProvider>
   )

@@ -15,7 +15,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { ChevronDownIcon, UserIcon, LogOutIcon, MenuIcon, Check } from "lucide-react"
+import { ChevronDownIcon, UserIcon, LogOutIcon, MenuIcon, Check, MessageSquare } from "lucide-react"
+import { FeedbackModal } from "@/components/feedback-modal"
 
 interface StaffNavigationProps {
   user: any
@@ -174,6 +175,15 @@ export function StaffNavigation({ user, onSignOut }: StaffNavigationProps) {
                     <span>Profile</span>
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <FeedbackModal
+                  trigger={
+                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      <span>Give Feedback</span>
+                    </DropdownMenuItem>
+                  }
+                />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={onSignOut}>
                   <LogOutIcon className="mr-2 h-4 w-4" />

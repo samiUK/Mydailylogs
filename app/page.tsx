@@ -1,12 +1,13 @@
 import { createClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
-import { MyDayLogsLogo } from "@/components/mydaylogs-logo" // Updated import path and component name
+import { MyDayLogsLogo } from "@/components/mydaylogs-logo"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { CheckCircle, Shield, BarChart3, Users, Clock, FileText, Star, Menu } from "lucide-react"
+import { CheckCircle, Shield, BarChart3, Users, Clock, FileText, Star, Menu, MessageSquare } from "lucide-react"
 import Link from "next/link"
+import { Footer } from "@/components/footer"
+import { FeedbackModal } from "@/components/feedback-modal"
 
 export default async function HomePage() {
   const supabase = await createClient()
@@ -14,22 +15,40 @@ export default async function HomePage() {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // If user is logged in, redirect to dashboard
-  if (user) {
-    redirect("/dashboard")
-  }
+  const currentDate = new Date()
+  const showBanner = true // Always show banner during beta period
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="bg-accent text-accent-foreground py-2 px-4 text-center text-sm">
-        🚀 You're using the Beta version of MyDayLogs. Things may change, and we'd love your feedback!
-      </div>
+      {showBanner && (
+        <div className="bg-accent text-accent-foreground py-2 px-4">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm">
+              <span>
+                🚀 You're using the Beta version of MyDayLogs. Things may change, and we'd love your feedback!
+              </span>
+            </div>
+            <FeedbackModal
+              trigger={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-accent-foreground hover:bg-accent-foreground/20 h-8 px-4 text-sm font-medium border border-accent-foreground/30 hover:border-accent-foreground/50 transition-all duration-200 hover:scale-105 hover:shadow-md bg-accent-foreground/10 hover:bg-accent-foreground/20"
+                >
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Give Feedback
+                </Button>
+              }
+            />
+          </div>
+        </div>
+      )}
 
       <nav className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <MyDayLogsLogo size="md" /> {/* Updated component name */}
+              <MyDayLogsLogo size="md" />
             </div>
             <div className="hidden md:flex items-center space-x-8">
               <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">
@@ -41,12 +60,25 @@ export default async function HomePage() {
               <a href="#testimonials" className="text-muted-foreground hover:text-foreground transition-colors">
                 Reviews
               </a>
-              <Link href="/auth/login">
-                <Button variant="ghost">Sign In</Button>
-              </Link>
-              <Link href="/auth/sign-up">
-                <Button className="bg-accent hover:bg-accent/90">Get Started Free</Button>
-              </Link>
+              {user ? (
+                <>
+                  <Link href="/admin">
+                    <Button variant="ghost">Dashboard</Button>
+                  </Link>
+                  <Link href="/auth/logout">
+                    <Button variant="outline">Sign Out</Button>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link href="/auth/login">
+                    <Button variant="ghost">Sign In</Button>
+                  </Link>
+                  <Link href="/auth/sign-up">
+                    <Button className="bg-accent hover:bg-accent/90">Get Started Free</Button>
+                  </Link>
+                </>
+              )}
             </div>
             <div className="md:hidden">
               <Sheet>
@@ -58,10 +90,9 @@ export default async function HomePage() {
                 <SheetContent side="right" className="w-[300px] sm:w-[400px]">
                   <div className="flex flex-col h-full">
                     <div className="flex items-center mb-8 mt-6">
-                      <MyDayLogsLogo size="sm" /> {/* Updated component name */}
+                      <MyDayLogsLogo size="sm" />
                     </div>
 
-                    {/* Navigation Links */}
                     <div className="flex flex-col space-y-6 mb-8">
                       <a
                         href="#features"
@@ -86,32 +117,56 @@ export default async function HomePage() {
                       </a>
                     </div>
 
-                    {/* CTA Buttons - More prominent */}
                     <div className="mt-auto mb-6">
                       <div className="bg-muted/30 rounded-lg p-6 space-y-4">
-                        <div className="text-center mb-4">
-                          <h3 className="font-semibold text-foreground mb-2">Ready to get started?</h3>
-                          <p className="text-sm text-muted-foreground">
-                            Join thousands of businesses streamlining compliance and operations
-                          </p>
-                        </div>
-
-                        <Link href="/auth/sign-up" className="block">
-                          <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground h-12 text-base font-semibold">
-                            <CheckCircle className="w-5 h-5 mr-2" />
-                            Get Started Free
-                          </Button>
-                        </Link>
-
-                        <Link href="/auth/login" className="block">
-                          <Button
-                            variant="outline"
-                            className="w-full h-11 text-base border-2 hover:bg-muted bg-transparent"
-                          >
-                            <Users className="w-4 h-4 mr-2" />
-                            Sign In
-                          </Button>
-                        </Link>
+                        {user ? (
+                          <>
+                            <div className="text-center mb-4">
+                              <h3 className="font-semibold text-foreground mb-2">Welcome back!</h3>
+                              <p className="text-sm text-muted-foreground">
+                                Access your dashboard and manage your tasks
+                              </p>
+                            </div>
+                            <Link href="/admin" className="block">
+                              <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground h-12 text-base font-semibold">
+                                <CheckCircle className="w-5 h-5 mr-2" />
+                                Go to Dashboard
+                              </Button>
+                            </Link>
+                            <Link href="/auth/logout" className="block">
+                              <Button
+                                variant="outline"
+                                className="w-full h-11 text-base border-2 hover:bg-muted bg-transparent"
+                              >
+                                Sign Out
+                              </Button>
+                            </Link>
+                          </>
+                        ) : (
+                          <>
+                            <div className="text-center mb-4">
+                              <h3 className="font-semibold text-foreground mb-2">Ready to get started?</h3>
+                              <p className="text-sm text-muted-foreground">
+                                Join thousands of businesses streamlining compliance and operations
+                              </p>
+                            </div>
+                            <Link href="/auth/sign-up" className="block">
+                              <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground h-12 text-base font-semibold">
+                                <CheckCircle className="w-5 h-5 mr-2" />
+                                Get Started Free
+                              </Button>
+                            </Link>
+                            <Link href="/auth/login" className="block">
+                              <Button
+                                variant="outline"
+                                className="w-full h-11 text-base border-2 hover:bg-muted bg-transparent"
+                              >
+                                <Users className="w-4 h-4 mr-2" />
+                                Sign In
+                              </Button>
+                            </Link>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -438,83 +493,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <footer className="bg-sidebar border-t border-sidebar-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid md:grid-cols-4 gap-8">
-            <div>
-              <MyDayLogsLogo size="md" /> {/* Updated component name */}
-              <p className="text-sidebar-foreground/70 mt-4">
-                Professional task management and compliance platform for multi-industry enterprises.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-sidebar-foreground mb-4">Product</h3>
-              <ul className="space-y-2 text-sidebar-foreground/70">
-                <li>
-                  <a href="#features" className="hover:text-sidebar-foreground">
-                    Features
-                  </a>
-                </li>
-                <li>
-                  <a href="#pricing" className="hover:text-sidebar-foreground">
-                    Pricing
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-sidebar-foreground">
-                    API
-                  </a>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold text-sidebar-foreground mb-4">Company</h3>
-              <ul className="space-y-2 text-sidebar-foreground/70">
-                <li>
-                  <a href="#" className="hover:text-sidebar-foreground">
-                    About
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-sidebar-foreground">
-                    Contact
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-sidebar-foreground">
-                    Support
-                  </a>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold text-sidebar-foreground mb-4">Legal</h3>
-              <ul className="space-y-2 text-sidebar-foreground/70">
-                <li>
-                  <a href="#" className="hover:text-sidebar-foreground">
-                    Privacy Policy
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-sidebar-foreground">
-                    Terms of Service
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-sidebar-foreground">
-                    GDPR
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-sidebar-border mt-8 pt-8 text-center text-sidebar-foreground/70">
-            <Link href="/masterlogin">
-              <p>&copy; 2025 MyDayLogs. All rights reserved.</p>
-            </Link>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }

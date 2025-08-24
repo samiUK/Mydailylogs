@@ -3,6 +3,9 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { BrandingProvider } from "@/components/branding-provider"
 import { AdminNavigation } from "@/components/admin-navigation"
+import { Footer } from "@/components/footer"
+import { FeedbackModal } from "@/components/feedback-modal"
+import { FeedbackBanner } from "@/components/feedback-banner"
 import { cookies } from "next/headers"
 
 async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -81,8 +84,12 @@ async function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <BrandingProvider initialBranding={brandingData}>
       <div className="min-h-screen bg-gray-50">
+        <FeedbackBanner />
         <AdminNavigation user={profile} onSignOut={handleSignOut} />
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">{children}</main>
+
+        <Footer />
+        <FeedbackModal autoTrigger={true} />
       </div>
     </BrandingProvider>
   )

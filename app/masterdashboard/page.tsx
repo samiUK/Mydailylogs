@@ -101,6 +101,8 @@ export default function MasterDashboardPage() {
     }
 
     try {
+      console.log("[v0] Starting master admin impersonation for:", userEmail, "Role:", userRole)
+
       const impersonationData = {
         masterAdminEmail: "arsami.uk@gmail.com",
         targetUserEmail: userEmail.trim(),
@@ -109,19 +111,20 @@ export default function MasterDashboardPage() {
       }
 
       sessionStorage.setItem("masterAdminImpersonation", JSON.stringify(impersonationData))
+      console.log("[v0] Set sessionStorage impersonation data")
 
       // Set cookie for middleware to detect impersonation
       document.cookie = `masterAdminImpersonation=true; path=/; max-age=3600` // 1 hour expiry
       document.cookie = `impersonatedUserEmail=${userEmail.trim()}; path=/; max-age=3600`
       document.cookie = `impersonatedUserRole=${userRole}; path=/; max-age=3600`
+      console.log("[v0] Set impersonation cookies")
 
       setTimeout(() => {
-        if (userRole === "admin") {
-          window.location.href = `/admin`
-        } else {
-          window.location.href = `/staff`
-        }
-      }, 100) // 100ms delay to ensure cookies are processed
+        const targetUrl = userRole === "admin" ? `/admin` : `/staff`
+        console.log("[v0] Redirecting to:", targetUrl)
+        console.log("[v0] Current cookies:", document.cookie)
+        window.location.href = targetUrl
+      }, 500) // Increased delay to 500ms to ensure cookies are processed
     } catch (error) {
       console.error("Error setting up impersonation:", error)
       alert("Failed to login as user")
@@ -257,6 +260,8 @@ export default function MasterDashboardPage() {
     const supabase = createClient()
 
     try {
+      console.log("[v0] Fetching organizations and other data...")
+
       const [orgsResponse, usersResponse, subscriptionsResponse, paymentsResponse] = await Promise.all([
         supabase.from("organizations").select(`
           *,
@@ -288,6 +293,11 @@ export default function MasterDashboardPage() {
         `)
           .order("created_at", { ascending: false }),
       ])
+
+      console.log("[v0] Organizations response:", orgsResponse)
+      console.log("[v0] Organizations data:", orgsResponse.data)
+      console.log("[v0] Organizations error:", orgsResponse.error)
+      console.log("[v0] Number of organizations found:", orgsResponse.data?.length || 0)
 
       setOrganizations(orgsResponse.data || [])
       setAllUsers(usersResponse.data || [])

@@ -3,28 +3,60 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { BrandingProvider } from "@/components/branding-provider"
 import { AdminNavigation } from "@/components/admin-navigation"
+import { cookies } from "next/headers"
 
 async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const cookieStore = await cookies()
+  const isMasterAdminImpersonating = cookieStore.get("masterAdminImpersonation")?.value === "true"
+  const impersonatedUserEmail = cookieStore.get("impersonatedUserEmail")?.value
+
+  let user: any = null
+  let profile: any = null
+
+  if (isMasterAdminImpersonating && impersonatedUserEmail) {
+    const supabase = await createClient()
+    const { data: impersonatedProfile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("email", impersonatedUserEmail)
+      .single()
+
+    if (impersonatedProfile) {
+      user = { email: impersonatedUserEmail }
+      profile = impersonatedProfile
+    } else {
+      redirect("/auth/login?error=impersonated_user_not_found")
+    }
+  } else {
+    const supabase = await createClient()
+    const {
+      data: { user: authUser },
+      error,
+    } = await supabase.auth.getUser()
+
+    if (error || !authUser) {
+      redirect("/auth/login")
+    }
+
+    const { data: userProfile, error: profileError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", authUser.id)
+      .single()
+
+    if (profileError || !userProfile) {
+      redirect("/auth/login?error=profile_not_found")
+    }
+
+    if (userProfile.role !== "admin") {
+      redirect("/staff")
+    }
+
+    user = authUser
+    profile = userProfile
+  }
+
   const supabase = await createClient()
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-
-  if (error || !user) {
-    redirect("/auth/login")
-  }
-
-  const { data: profile, error: profileError } = await supabase.from("profiles").select("*").eq("id", user.id).single()
-
-  if (profileError || !profile) {
-    redirect("/auth/login?error=profile_not_found")
-  }
-
-  if (profile.role !== "admin") {
-    redirect("/staff")
-  }
-
   const { data: organization } = await supabase
     .from("organizations")
     .select("name, logo_url, primary_color, secondary_color")

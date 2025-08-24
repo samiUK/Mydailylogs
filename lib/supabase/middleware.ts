@@ -8,6 +8,13 @@ export async function updateSession(request: NextRequest) {
 
   const isMasterAdminImpersonating = request.cookies.get("masterAdminImpersonation")?.value === "true"
 
+  console.log("[v0] Middleware - Path:", request.nextUrl.pathname)
+  console.log(
+    "[v0] Middleware - masterAdminImpersonation cookie:",
+    request.cookies.get("masterAdminImpersonation")?.value,
+  )
+  console.log("[v0] Middleware - isMasterAdminImpersonating:", isMasterAdminImpersonating)
+
   // With Fluid compute, don't put this client in a global environment
   // variable. Always create a new one on each request.
   const supabase = createServerClient(
@@ -39,6 +46,20 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  console.log("[v0] Middleware - User exists:", !!user)
+  console.log(
+    "[v0] Middleware - Should redirect:",
+    request.nextUrl.pathname !== "/" &&
+      !user &&
+      !isMasterAdminImpersonating &&
+      !request.nextUrl.pathname.startsWith("/login") &&
+      !request.nextUrl.pathname.startsWith("/auth") &&
+      !request.nextUrl.pathname.startsWith("/masterlogin") &&
+      !request.nextUrl.pathname.startsWith("/masterdashboard") &&
+      !request.nextUrl.pathname.match(/^\/admin\/[^/]+$/) &&
+      !request.nextUrl.pathname.match(/^\/staff\/[^/]+$/),
+  )
+
   if (
     request.nextUrl.pathname !== "/" &&
     !user &&
@@ -50,11 +71,14 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.match(/^\/admin\/[^/]+$/) &&
     !request.nextUrl.pathname.match(/^\/staff\/[^/]+$/)
   ) {
+    console.log("[v0] Middleware - Redirecting to auth/login")
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone()
     url.pathname = "/auth/login"
     return NextResponse.redirect(url)
   }
+
+  console.log("[v0] Middleware - Allowing access to:", request.nextUrl.pathname)
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is.
   // If you're creating a new response object with NextResponse.next() make sure to:

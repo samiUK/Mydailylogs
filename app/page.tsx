@@ -165,10 +165,11 @@ export default async function HomePage() {
             <span className="text-accent block">& Team Reporting</span>
           </h1>
           <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-            Comprehensive task management and compliance platform for multi-industry enterprises. Streamline operations,
-            ensure regulatory compliance, track team performance, and generate professional reports across any business
-            sector.
+            Cost-effective white-label solution designed specifically for SMEs. Streamline operations, ensure
+            compliance, and manage teams without breaking the budget. Perfect for businesses with 5-100 employees
+            looking for enterprise-grade functionality at SME-friendly prices.
           </p>
+          {/* </CHANGE> */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/auth/sign-up">
               <Button size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground">
@@ -190,63 +191,66 @@ export default async function HomePage() {
       <section className="py-20 bg-muted/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">How It Works</h2>
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Built for Small-Medium Enterprises</h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Get started with our simple three-step process
+              Everything your growing business needs without the enterprise complexity or cost
             </p>
+            {/* </CHANGE> */}
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             <Card>
               <CardHeader>
                 <CheckCircle className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>Task Management</CardTitle>
+                <CardTitle>Simple Task Management</CardTitle>
                 <CardDescription>
-                  Create and manage operational tasks with customizable templates for any industry workflow
+                  No complex setup required. Create and manage tasks with templates designed for small business
+                  workflows
                 </CardDescription>
+                {/* </CHANGE> */}
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <Shield className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>Compliance Tracking</CardTitle>
+                <CardTitle>Affordable Compliance</CardTitle>
                 <CardDescription>
-                  Ensure regulatory compliance across industries with automated tracking and reporting
+                  Meet regulatory requirements without expensive consultants. Automated tracking that fits your budget
                 </CardDescription>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <BarChart3 className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>Advanced Reporting</CardTitle>
+                <CardTitle>Professional Reports</CardTitle>
                 <CardDescription>
-                  Generate professional reports with your branding and export to PDF for any business need
+                  Impress clients and stakeholders with branded reports that look like they came from a big consultancy
                 </CardDescription>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <Users className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>Team Management</CardTitle>
+                <CardTitle>Team Collaboration</CardTitle>
                 <CardDescription>
-                  Assign tasks, track progress, and manage team members efficiently across departments
+                  Keep your small team aligned and productive with simple task assignment and progress tracking
                 </CardDescription>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <Clock className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>Automated Scheduling</CardTitle>
+                <CardTitle>Time-Saving Automation</CardTitle>
                 <CardDescription>
-                  Set up daily, weekly, monthly, or custom schedules for operational tasks and compliance requirements
+                  Reduce manual work with automated scheduling and reminders - perfect for lean teams
                 </CardDescription>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <FileText className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>White-Label Solution</CardTitle>
+                <CardTitle>White-Label Ready</CardTitle>
                 <CardDescription>
-                  Customize with your branding and present as your own platform to clients and stakeholders
+                  Brand it as your own and offer premium services to your clients without the development costs
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -313,17 +317,21 @@ export default async function HomePage() {
       <section id="pricing" className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Simple, Transparent Pricing</h2>
-            <p className="text-xl text-muted-foreground">Choose the plan that fits your business needs</p>
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">SME-Friendly Pricing</h2>
+            <p className="text-xl text-muted-foreground">
+              Enterprise features at small business prices - no hidden costs
+            </p>
+            {/* </CHANGE> */}
           </div>
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             <Card className="relative">
               <CardHeader>
-                <CardTitle className="text-2xl">Free</CardTitle>
+                <CardTitle className="text-2xl">Starter</CardTitle>
                 <div className="text-3xl font-bold">
                   £0<span className="text-lg font-normal text-muted-foreground">/month</span>
                 </div>
-                <CardDescription>Perfect for small teams getting started</CardDescription>
+                <CardDescription>Perfect for micro-businesses and startups</CardDescription>
+                {/* </CHANGE> */}
               </CardHeader>
               <CardContent>
                 <ul className="space-y-3 mb-6">
@@ -336,7 +344,7 @@ export default async function HomePage() {
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2" />
-                    Basic reporting with no branding
+                    Basic reporting
                   </li>
                 </ul>
                 <Link href="/auth/sign-up">
@@ -348,13 +356,13 @@ export default async function HomePage() {
             </Card>
 
             <Card className="relative border-accent">
-              <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-accent">Most Popular</Badge>
+              <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-accent">Best for SMEs</Badge>
               <CardHeader>
-                <CardTitle className="text-2xl">Base</CardTitle>
+                <CardTitle className="text-2xl">Growth</CardTitle>
                 <div className="text-3xl font-bold">
                   £19<span className="text-lg font-normal text-muted-foreground">/month</span>
                 </div>
-                <CardDescription>Ideal for growing businesses</CardDescription>
+                <CardDescription>Ideal for growing small-medium businesses</CardDescription>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-3 mb-6">
@@ -368,11 +376,11 @@ export default async function HomePage() {
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2" />
-                    Custom Branding
+                    Full White-Label Branding
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2" />
-                    Email Support
+                    Priority Email Support
                   </li>
                 </ul>
                 <Link href="/auth/sign-up">
@@ -383,11 +391,11 @@ export default async function HomePage() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-2xl">Pro</CardTitle>
+                <CardTitle className="text-2xl">Scale</CardTitle>
                 <div className="text-3xl font-bold">
                   £39<span className="text-lg font-normal text-muted-foreground">/month</span>
                 </div>
-                <CardDescription>For large teams and enterprises</CardDescription>
+                <CardDescription>For established SMEs ready to scale</CardDescription>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-3 mb-6">
@@ -405,7 +413,7 @@ export default async function HomePage() {
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2" />
-                    Priority Support
+                    Dedicated Account Manager
                   </li>
                 </ul>
                 <Link href="/auth/sign-up">
@@ -422,7 +430,8 @@ export default async function HomePage() {
       <section id="testimonials" className="py-20 bg-muted/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Trusted Across Industries</h2>
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Trusted by Growing SMEs</h2>
+            {/* </CHANGE> */}
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             <Card>
@@ -433,11 +442,12 @@ export default async function HomePage() {
                   ))}
                 </div>
                 <p className="text-gray-600 mb-4">
-                  "MyDayLogs has transformed how we handle both operational tasks and compliance. The automated
-                  reporting saves us hours every week across all our departments."
+                  "Finally, enterprise-level task management that doesn't cost a fortune. MyDayLogs helped us streamline
+                  operations without breaking our small business budget."
                 </p>
                 <div className="font-semibold">Sarah Johnson</div>
-                <div className="text-sm text-muted-foreground">Operations Manager, TechCorp</div>
+                <div className="text-sm text-muted-foreground">Founder, Local Marketing Agency (12 employees)</div>
+                {/* </CHANGE> */}
               </CardContent>
             </Card>
             <Card>
@@ -448,11 +458,11 @@ export default async function HomePage() {
                   ))}
                 </div>
                 <p className="text-muted-foreground mb-4">
-                  "The white-label solution is perfect for our consulting business. Our clients love the professional
-                  reports for both operational and compliance needs."
+                  "The white-label feature lets us offer premium consulting services to our clients. We look like a big
+                  consultancy but with SME agility and pricing."
                 </p>
                 <div className="font-semibold">Michael Chen</div>
-                <div className="text-sm text-muted-foreground">CEO, Business Solutions Ltd</div>
+                <div className="text-sm text-muted-foreground">Director, SME Business Solutions (8 employees)</div>
               </CardContent>
             </Card>
             <Card>
@@ -463,11 +473,13 @@ export default async function HomePage() {
                   ))}
                 </div>
                 <p className="text-muted-foreground mb-4">
-                  "Perfect for managing our quality control processes and safety compliance. Easy to use across our
-                  entire manufacturing operation."
+                  "Perfect for our growing manufacturing business. Easy compliance tracking without the complexity of
+                  enterprise software. Our team of 25 loves how simple it is."
                 </p>
                 <div className="font-semibold">Emma Williams</div>
-                <div className="text-sm text-muted-foreground">Quality Manager, Manufacturing Plus</div>
+                <div className="text-sm text-muted-foreground">
+                  Operations Manager, Precision Manufacturing (25 employees)
+                </div>
               </CardContent>
             </Card>
           </div>

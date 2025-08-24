@@ -28,6 +28,7 @@ import { ChevronDown, Users, UserCheck, Bell, CheckCircle, Plus, UserPlus, Alert
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import Link from "next/link"
+import { FeedbackBanner } from "@/components/feedback-banner"
 
 export default function AdminDashboard() {
   const [user, setUser] = useState<any>(null)
@@ -484,6 +485,8 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8">
+      <FeedbackBanner />
+
       {isImpersonating && impersonationData && (
         <div className="bg-orange-100 border-l-4 border-orange-500 px-3 py-2 rounded-md text-sm">
           <div className="flex items-center justify-between">

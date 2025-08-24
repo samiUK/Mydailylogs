@@ -102,9 +102,13 @@ export function Footer() {
         <div className="flex justify-center items-center">
           <p className="text-sidebar-foreground/70 text-sm">
             &copy; 2025{" "}
-            <Link href="/masterlogin" className="hover:text-sidebar-foreground transition-colors">
-              MyDayLogs
-            </Link>
+            {isLoggedIn ? (
+              <span className="text-sidebar-foreground/70">MyDayLogs</span>
+            ) : (
+              <Link href="/masterlogin" className="text-sidebar-foreground/70">
+                MyDayLogs
+              </Link>
+            )}
             . All rights reserved.
           </p>
         </div>

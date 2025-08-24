@@ -8,6 +8,7 @@ import { CheckCircle, Shield, BarChart3, Users, Clock, FileText, Star, Menu, Mes
 import Link from "next/link"
 import { Footer } from "@/components/footer"
 import { FeedbackModal } from "@/components/feedback-modal"
+import { redirect } from "next/navigation"
 
 export default async function HomePage() {
   const supabase = await createClient()
@@ -17,6 +18,23 @@ export default async function HomePage() {
 
   console.log("[v0] Landing page - User object:", user ? { id: user.id, email: user.email } : null)
   console.log("[v0] Landing page - User exists:", !!user)
+
+  if (user) {
+    // Fetch user profile to determine role
+    const { data: profile } = await supabase.from("profiles").select("role").eq("email", user.email).single()
+
+    console.log("[v0] Landing page - User profile:", profile)
+
+    // Redirect based on role
+    if (profile?.role === "admin") {
+      redirect("/admin")
+    } else if (profile?.role === "staff") {
+      redirect("/staff")
+    } else {
+      // Default redirect to admin if no specific role found
+      redirect("/admin")
+    }
+  }
 
   const currentDate = new Date()
   const showBanner = true // Always show banner during beta period
@@ -63,25 +81,12 @@ export default async function HomePage() {
               <a href="#testimonials" className="text-muted-foreground hover:text-foreground transition-colors">
                 Reviews
               </a>
-              {user ? (
-                <>
-                  <Link href="/admin">
-                    <Button variant="ghost">Dashboard</Button>
-                  </Link>
-                  <Link href="/auth/logout">
-                    <Button variant="outline">Sign Out</Button>
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <Link href="/auth/login">
-                    <Button variant="ghost">Sign In</Button>
-                  </Link>
-                  <Link href="/auth/sign-up">
-                    <Button className="bg-accent hover:bg-accent/90">Get Started Free</Button>
-                  </Link>
-                </>
-              )}
+              <Link href="/auth/login">
+                <Button variant="ghost">Sign In</Button>
+              </Link>
+              <Link href="/auth/sign-up">
+                <Button className="bg-accent hover:bg-accent/90">Get Started Free</Button>
+              </Link>
             </div>
             <div className="md:hidden">
               <Sheet>
@@ -122,54 +127,27 @@ export default async function HomePage() {
 
                     <div className="mt-auto mb-6">
                       <div className="bg-muted/30 rounded-lg p-6 space-y-4">
-                        {user ? (
-                          <>
-                            <div className="text-center mb-4">
-                              <h3 className="font-semibold text-foreground mb-2">Welcome back!</h3>
-                              <p className="text-sm text-muted-foreground">
-                                Access your dashboard and manage your tasks
-                              </p>
-                            </div>
-                            <Link href="/admin" className="block">
-                              <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground h-12 text-base font-semibold">
-                                <CheckCircle className="w-5 h-5 mr-2" />
-                                Go to Dashboard
-                              </Button>
-                            </Link>
-                            <Link href="/auth/logout" className="block">
-                              <Button
-                                variant="outline"
-                                className="w-full h-11 text-base border-2 hover:bg-muted bg-transparent"
-                              >
-                                Sign Out
-                              </Button>
-                            </Link>
-                          </>
-                        ) : (
-                          <>
-                            <div className="text-center mb-4">
-                              <h3 className="font-semibold text-foreground mb-2">Ready to get started?</h3>
-                              <p className="text-sm text-muted-foreground">
-                                Join thousands of businesses streamlining compliance and operations
-                              </p>
-                            </div>
-                            <Link href="/auth/sign-up" className="block">
-                              <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground h-12 text-base font-semibold">
-                                <CheckCircle className="w-5 h-5 mr-2" />
-                                Get Started Free
-                              </Button>
-                            </Link>
-                            <Link href="/auth/login" className="block">
-                              <Button
-                                variant="outline"
-                                className="w-full h-11 text-base border-2 hover:bg-muted bg-transparent"
-                              >
-                                <Users className="w-4 h-4 mr-2" />
-                                Sign In
-                              </Button>
-                            </Link>
-                          </>
-                        )}
+                        <div className="text-center mb-4">
+                          <h3 className="font-semibold text-foreground mb-2">Ready to get started?</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Join thousands of businesses streamlining compliance and operations
+                          </p>
+                        </div>
+                        <Link href="/auth/sign-up" className="block">
+                          <Button className="w-full bg-accent hover:bg-accent/90 text-accent-foreground h-12 text-base font-semibold">
+                            <CheckCircle className="w-5 h-5 mr-2" />
+                            Get Started Free
+                          </Button>
+                        </Link>
+                        <Link href="/auth/login" className="block">
+                          <Button
+                            variant="outline"
+                            className="w-full h-11 text-base border-2 hover:bg-muted bg-transparent"
+                          >
+                            <Users className="w-4 h-4 mr-2" />
+                            Sign In
+                          </Button>
+                        </Link>
                       </div>
                     </div>
                   </div>

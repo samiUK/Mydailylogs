@@ -21,9 +21,9 @@ export const metadata: Metadata = {
   description: "Professional compliance checklist platform for businesses",
   generator: "v0.app",
   icons: {
-    icon: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-OZTlBeS8aWjLvK7YvAKE8Z6KEHGrIQ.png",
-    shortcut: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-OZTlBeS8aWjLvK7YvAKE8Z6KEHGrIQ.png",
-    apple: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-OZTlBeS8aWjLvK7YvAKE8Z6KEHGrIQ.png",
+    icon: "/favicon.ico",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
   },
 }
 

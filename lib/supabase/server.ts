@@ -1,5 +1,4 @@
 import { createServerClient as supabaseCreateServerClient } from "@supabase/ssr"
-import { cookies } from "next/headers"
 
 /**
  * Especially important if using Fluid compute: Don't put this client in a
@@ -7,7 +6,8 @@ import { cookies } from "next/headers"
  * it.
  */
 export async function createClient() {
-  const cookieStore = await cookies()
+  const { cookies: getCookies } = await import("next/headers")
+  const cookieStore = await getCookies()
 
   return supabaseCreateServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     cookies: {

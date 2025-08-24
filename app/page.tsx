@@ -15,6 +15,9 @@ export default async function HomePage() {
     data: { user },
   } = await supabase.auth.getUser()
 
+  console.log("[v0] Landing page - User object:", user ? { id: user.id, email: user.email } : null)
+  console.log("[v0] Landing page - User exists:", !!user)
+
   const currentDate = new Date()
   const showBanner = true // Always show banner during beta period
 

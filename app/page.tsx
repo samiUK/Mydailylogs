@@ -188,6 +188,59 @@ export default async function HomePage() {
         />
       </section>
 
+      <section className="py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">How It Works</h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Get started in minutes with our simple 3-step process designed for busy SME owners
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-accent rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-2xl font-bold text-accent-foreground">1</span>
+              </div>
+              <h3 className="text-xl font-semibold mb-4">Sign Up & Setup</h3>
+              <p className="text-muted-foreground">
+                Create your account in under 2 minutes. Add your team members and customize your organization settings.
+              </p>
+            </div>
+
+            <div className="text-center">
+              <div className="w-16 h-16 bg-accent rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-2xl font-bold text-accent-foreground">2</span>
+              </div>
+              <h3 className="text-xl font-semibold mb-4">Create Custom Templates</h3>
+              <p className="text-muted-foreground">
+                Build highly customizable templates tailored to your specific business and industry needs. Create
+                unlimited task lists that adapt to your unique workflows.
+              </p>
+            </div>
+
+            <div className="text-center">
+              <div className="w-16 h-16 bg-accent rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-2xl font-bold text-accent-foreground">3</span>
+              </div>
+              <h3 className="text-xl font-semibold mb-4">Track & Report</h3>
+              <p className="text-muted-foreground">
+                Monitor progress in real-time and generate professional reports that impress clients and stakeholders.
+              </p>
+            </div>
+          </div>
+
+          <div className="text-center mt-12">
+            <Link href="/auth/sign-up">
+              <Button size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground">
+                Start Your Free Trial
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+      {/* </CHANGE> */}
+
       <section className="py-20 bg-muted/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">

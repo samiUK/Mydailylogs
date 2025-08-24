@@ -206,7 +206,6 @@ export default async function HomePage() {
                   No complex setup required. Create and manage tasks with templates designed for small business
                   workflows
                 </CardDescription>
-                {/* </CHANGE> */}
               </CardHeader>
             </Card>
             <Card>
@@ -245,15 +244,6 @@ export default async function HomePage() {
                 </CardDescription>
               </CardHeader>
             </Card>
-            <Card>
-              <CardHeader>
-                <FileText className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>White-Label Ready</CardTitle>
-                <CardDescription>
-                  Brand it as your own and offer premium services to your clients without the development costs
-                </CardDescription>
-              </CardHeader>
-            </Card>
           </div>
 
           <div className="mt-16">
@@ -264,7 +254,22 @@ export default async function HomePage() {
               <h3 className="text-2xl font-bold text-foreground mb-4">Premium Features</h3>
               <p className="text-muted-foreground">Advanced capabilities launching in the coming months</p>
             </div>
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <Card className="relative opacity-75">
+                <div className="absolute top-4 right-4">
+                  <Badge variant="outline" className="text-xs">
+                    Coming Soon
+                  </Badge>
+                </div>
+                <CardHeader>
+                  <FileText className="w-8 h-8 text-muted-foreground mb-3" />
+                  <CardTitle className="text-lg">White Label Branding</CardTitle>
+                  <CardDescription className="text-sm">
+                    Complete white-label solution to brand the platform as your own and offer premium services
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
               <Card className="relative opacity-75">
                 <div className="absolute top-4 right-4">
                   <Badge variant="outline" className="text-xs">
@@ -331,7 +336,6 @@ export default async function HomePage() {
                   £0<span className="text-lg font-normal text-muted-foreground">/month</span>
                 </div>
                 <CardDescription>Perfect for micro-businesses and startups</CardDescription>
-                {/* </CHANGE> */}
               </CardHeader>
               <CardContent>
                 <ul className="space-y-3 mb-6">
@@ -376,7 +380,7 @@ export default async function HomePage() {
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2" />
-                    Full White-Label Branding
+                    Advanced Reporting
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2" />

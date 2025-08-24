@@ -24,17 +24,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  ChevronDown,
-  Users,
-  UserCheck,
-  Bell,
-  CheckCircle,
-  Plus,
-  UserPlus,
-  AlertTriangle,
-  ArrowLeft,
-} from "lucide-react"
+import { ChevronDown, Users, UserCheck, Bell, CheckCircle, Plus, UserPlus, AlertTriangle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import Link from "next/link"
@@ -495,25 +485,22 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-8">
       {isImpersonating && impersonationData && (
-        <div className="bg-orange-500 text-white px-4 py-3 rounded-lg">
+        <div className="bg-orange-100 border-l-4 border-orange-500 px-3 py-2 rounded-md text-sm">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5" />
-              <span className="font-medium">
-                Impersonated by masteradmin - Viewing {impersonationData.targetUserEmail} (Admin Dashboard)
-              </span>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-orange-600" />
+              <span className="text-orange-700">Viewing as {impersonationData.targetUserEmail}</span>
             </div>
             <Button
-              variant="secondary"
+              variant="ghost"
               size="sm"
               onClick={() => {
                 sessionStorage.removeItem("masterAdminImpersonation")
                 window.location.href = "/masterdashboard"
               }}
-              className="bg-white text-orange-600 hover:bg-gray-100"
+              className="text-orange-700 hover:text-orange-900 h-6 px-2 text-xs"
             >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Exit Impersonation
+              Exit
             </Button>
           </div>
         </div>

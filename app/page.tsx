@@ -33,7 +33,7 @@ export default async function HomePage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-accent-foreground hover:bg-accent-foreground/20 h-8 px-4 text-sm font-medium border border-accent-foreground/30 hover:border-accent-foreground/50 transition-all duration-200 hover:scale-105 hover:shadow-md bg-accent-foreground/10 hover:bg-accent-foreground/20"
+                  className="!bg-orange-500 hover:!bg-orange-600 !text-white !border-orange-400 hover:!border-orange-300 h-8 px-4 text-sm font-medium transition-all duration-200 hover:scale-105 hover:shadow-lg"
                 >
                   <MessageSquare className="w-4 h-4 mr-2" />
                   Give Feedback

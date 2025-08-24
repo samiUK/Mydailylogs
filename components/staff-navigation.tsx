@@ -178,7 +178,10 @@ export function StaffNavigation({ user, onSignOut }: StaffNavigationProps) {
                 <DropdownMenuSeparator />
                 <FeedbackModal
                   trigger={
-                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                    <DropdownMenuItem
+                      onSelect={(e) => e.preventDefault()}
+                      className="!bg-orange-500 hover:!bg-orange-600 !text-white focus:!bg-orange-600 focus:!text-white"
+                    >
                       <MessageSquare className="mr-2 h-4 w-4" />
                       <span>Give Feedback</span>
                     </DropdownMenuItem>

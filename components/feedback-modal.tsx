@@ -137,6 +137,39 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
       }
 
       console.log("[v0] Feedback successfully saved to database")
+
+      try {
+        console.log("[v0] Sending email notification to admin...")
+        const emailResponse = await fetch("/api/send-email", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            type: "feedback_notification",
+            to: "info@mydaylogs.co.uk",
+            subject: `New Feedback: ${subject || "Feedback!"}`,
+            data: {
+              name: name.trim(),
+              email: email.trim() || "Anonymous",
+              subject: subject || "Feedback!",
+              message: feedback.trim(),
+              page_url: currentPage,
+              submitted_at: new Date().toISOString(),
+            },
+          }),
+        })
+
+        if (!emailResponse.ok) {
+          console.error("[v0] Failed to send admin notification email")
+        } else {
+          console.log("[v0] Admin notification email sent successfully")
+        }
+      } catch (emailError) {
+        console.error("[v0] Error sending admin notification:", emailError)
+        // Don't throw here - feedback was saved successfully, email is just a bonus
+      }
+
       localStorage.setItem("feedbackSubmitted", "true")
       setHasSubmitted(true)
       setShowThankYou(true)

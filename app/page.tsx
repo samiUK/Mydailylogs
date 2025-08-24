@@ -158,7 +158,7 @@ export default async function HomePage() {
         </div>
       </nav>
 
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <section className="px-4 sm:px-6 lg:px-8 py-0">
         <div className="max-w-7xl mx-auto text-center">
           <h1 className="text-4xl md:text-6xl font-bold text-foreground mb-6">
             Streamline Task Management
@@ -172,7 +172,7 @@ export default async function HomePage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/auth/sign-up">
               <Button size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground">
-                Start Free Trial
+                Get Started
               </Button>
             </Link>
           </div>
@@ -376,7 +376,7 @@ export default async function HomePage() {
                   </li>
                 </ul>
                 <Link href="/auth/sign-up">
-                  <Button className="w-full bg-accent hover:bg-accent/90">Start Free Trial</Button>
+                  <Button className="w-full bg-accent hover:bg-accent/90">Get Started</Button>
                 </Link>
               </CardContent>
             </Card>
@@ -410,7 +410,7 @@ export default async function HomePage() {
                 </ul>
                 <Link href="/auth/sign-up">
                   <Button className="w-full bg-transparent" variant="outline">
-                    Start Free Trial
+                    Get Started
                   </Button>
                 </Link>
               </CardContent>

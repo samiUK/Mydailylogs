@@ -169,14 +169,6 @@ export default async function HomePage() {
             compliance, and manage teams without breaking the budget. Perfect for businesses with 5-100 employees
             looking for enterprise-grade functionality at SME-friendly prices.
           </p>
-          {/* </CHANGE> */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/auth/sign-up">
-              <Button size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground">
-                Get Started
-              </Button>
-            </Link>
-          </div>
         </div>
       </section>
 
@@ -235,13 +227,12 @@ export default async function HomePage() {
           <div className="text-center mt-12">
             <Link href="/auth/sign-up">
               <Button size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground">
-                Start Your Free Trial
+                Get started Now!
               </Button>
             </Link>
           </div>
         </div>
       </section>
-      {/* </CHANGE> */}
 
       <section className="py-20 bg-muted/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -250,7 +241,6 @@ export default async function HomePage() {
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Everything your growing business needs without the enterprise complexity or cost
             </p>
-            {/* </CHANGE> */}
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             <Card>
@@ -381,7 +371,6 @@ export default async function HomePage() {
             <p className="text-xl text-muted-foreground">
               Enterprise features at small business prices - no hidden costs
             </p>
-            {/* </CHANGE> */}
           </div>
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             <Card className="relative">
@@ -490,7 +479,6 @@ export default async function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Trusted by Growing SMEs</h2>
-            {/* </CHANGE> */}
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             <Card>
@@ -506,7 +494,6 @@ export default async function HomePage() {
                 </p>
                 <div className="font-semibold">Sarah Johnson</div>
                 <div className="text-sm text-muted-foreground">Founder, Local Marketing Agency (12 employees)</div>
-                {/* </CHANGE> */}
               </CardContent>
             </Card>
             <Card>

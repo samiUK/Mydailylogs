@@ -99,9 +99,9 @@ export default function ImpersonatedAdminDashboard() {
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h1 className="text-xl font-semibold mb-2">User Not Found</h1>
           <p className="text-gray-600 mb-4">The user {userEmail} could not be found.</p>
-          <Button onClick={exitImpersonation}>
+          <Button onClick={() => window.close()}>
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Master Dashboard
+            Close Window
           </Button>
         </div>
       </div>

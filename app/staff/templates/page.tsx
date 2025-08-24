@@ -1,165 +1,65 @@
-"use client"
+console.log("[v0] Staff Templates page - File loaded and parsing")
 
-import { useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Calendar, CheckSquare, Clock, AlertCircle } from "lucide-react"
-import { toast } from "sonner"
+import { CheckSquare, Calendar, Clock, AlertCircle } from "lucide-react"
 
-export default function StaffTemplatesPage() {
-  const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState<any>(null)
-  const [profile, setProfile] = useState<any>(null)
-  const [templates, setTemplates] = useState<any[]>([])
-  const [filteredTemplates, setFilteredTemplates] = useState<any[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
-  const [filterType, setFilterType] = useState<"all" | "daily" | "weekly" | "monthly" | "specific">("all")
-  const [assigning, setAssigning] = useState<string | null>(null)
+export default async function StaffTemplatesPage() {
+  console.log("[v0] Staff Templates page - Component function called")
 
-  useEffect(() => {
-    const loadData = async () => {
-      const supabase = createClient()
+  const supabase = createClient()
 
-      // Get user
-      const {
-        data: { user: currentUser },
-      } = await supabase.auth.getUser()
-      if (!currentUser) return
+  // Get user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-      setUser(currentUser)
+  console.log("[v0] Staff Templates page - User:", user ? "found" : "not found")
 
-      // Get user's profile and organization
-      const { data: userProfile } = await supabase.from("profiles").select("*").eq("id", currentUser.id).single()
-
-      setProfile(userProfile)
-
-      if (!userProfile?.organization_id) return
-
-      // Get available templates for the organization
-      const { data: availableTemplates } = await supabase
-        .from("checklist_templates")
-        .select(`
-          *,
-          checklist_items(id, name, task_type, description)
-        `)
-        .eq("organization_id", userProfile.organization_id)
-        .eq("is_active", true)
-        .order("name")
-
-      setTemplates(availableTemplates || [])
-      setFilteredTemplates(availableTemplates || [])
-      setLoading(false)
-    }
-
-    loadData()
-  }, [])
-
-  useEffect(() => {
-    let filtered = [...templates]
-
-    // Apply search filter
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (template) =>
-          template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          template.description?.toLowerCase().includes(searchTerm.toLowerCase()),
-      )
-    }
-
-    // Apply type filter
-    if (filterType !== "all") {
-      filtered = filtered.filter((template) => template.schedule_type === filterType)
-    }
-
-    setFilteredTemplates(filtered)
-  }, [templates, searchTerm, filterType])
-
-  const assignTemplateToSelf = async (templateId: string) => {
-    if (!user || !profile) return
-
-    setAssigning(templateId)
-    const supabase = createClient()
-
-    try {
-      // Check if already assigned
-      const { data: existingAssignment } = await supabase
-        .from("template_assignments")
-        .select("id")
-        .eq("template_id", templateId)
-        .eq("assigned_to", user.id)
-        .eq("status", "pending")
-        .single()
-
-      if (existingAssignment) {
-        toast.error("You already have this template assigned")
-        return
-      }
-
-      const { data: template } = await supabase
-        .from("checklist_templates")
-        .select("schedule_type, specific_date, deadline_date, frequency")
-        .eq("id", templateId)
-        .single()
-
-      let dueDate = new Date()
-
-      if (template) {
-        if (template.schedule_type === "specific_date" && template.specific_date) {
-          dueDate = new Date(template.specific_date)
-        } else if (template.schedule_type === "deadline" && template.deadline_date) {
-          dueDate = new Date(template.deadline_date)
-        } else if (template.schedule_type === "recurring") {
-          // For recurring tasks, set due date based on frequency
-          switch (template.frequency) {
-            case "daily":
-              dueDate = new Date(Date.now() + 24 * 60 * 60 * 1000) // Tomorrow
-              break
-            case "weekly":
-              dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // Next week
-              break
-            case "monthly":
-              dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Next month
-              break
-            default:
-              dueDate = new Date(Date.now() + 24 * 60 * 60 * 1000) // Default to tomorrow
-          }
-        } else {
-          // Default fallback
-          dueDate = new Date(Date.now() + 24 * 60 * 60 * 1000)
-        }
-      }
-
-      console.log("[v0] Assigning template with due date:", dueDate.toISOString())
-
-      // Create new assignment
-      const { error } = await supabase.from("template_assignments").insert({
-        template_id: templateId,
-        assigned_to: user.id,
-        assigned_by: user.id, // Self-assigned
-        organization_id: profile.organization_id,
-        status: "pending",
-        assigned_at: new Date().toISOString(),
-        due_date: dueDate.toISOString(),
-      })
-
-      if (error) {
-        console.log("[v0] Assignment error:", error)
-        throw error
-      }
-
-      console.log("[v0] Template assigned successfully")
-      toast.success("Template assigned successfully! Check your dashboard to complete it.")
-    } catch (error) {
-      console.error("Error assigning template:", error)
-      toast.error("Failed to assign template")
-    } finally {
-      setAssigning(null)
-    }
+  if (!user) {
+    console.log("[v0] Staff Templates page - No user found, redirecting to login")
+    redirect("/auth/login")
   }
+
+  // Get user's profile and organization
+  const { data: userProfile, error: profileError } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .single()
+
+  console.log("[v0] Staff Templates page - Profile:", userProfile ? "found" : "not found")
+  console.log("[v0] Staff Templates page - Profile error:", profileError)
+
+  if (!userProfile?.organization_id) {
+    console.log("[v0] Staff Templates page - No organization found")
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Profile Setup Required</h2>
+          <p className="text-gray-600">Your profile needs to be set up with an organization.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Get available templates for the organization
+  const { data: availableTemplates, error: templatesError } = await supabase
+    .from("checklist_templates")
+    .select(`
+      *,
+      checklist_items(id, name, task_type, description)
+    `)
+    .eq("organization_id", userProfile.organization_id)
+    .eq("is_active", true)
+    .order("name")
+
+  console.log("[v0] Staff Templates page - Templates found:", availableTemplates?.length || 0)
+  console.log("[v0] Staff Templates page - Templates error:", templatesError)
+
+  const templates = availableTemplates || []
 
   const getScheduleIcon = (scheduleType: string) => {
     switch (scheduleType) {
@@ -191,60 +91,18 @@ export default function StaffTemplatesPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading templates...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!user) {
-    return <div>Please log in to view templates.</div>
-  }
-
   return (
     <div className="space-y-8">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Available Templates</h1>
-        <p className="text-gray-600 mt-2">Assign yourself to available compliance templates</p>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="flex-1">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <Input
-              placeholder="Search templates..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-white"
-            />
-          </div>
-        </div>
-        <Select value={filterType} onValueChange={(value: any) => setFilterType(value)}>
-          <SelectTrigger className="w-48 bg-white">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Templates</SelectItem>
-            <SelectItem value="daily">Daily Reports</SelectItem>
-            <SelectItem value="weekly">Weekly Reports</SelectItem>
-            <SelectItem value="monthly">Monthly Reports</SelectItem>
-            <SelectItem value="specific">Specific Date</SelectItem>
-          </SelectContent>
-        </Select>
+        <p className="text-gray-600 mt-2">View available compliance templates for your organization</p>
       </div>
 
       {/* Templates Grid */}
-      {filteredTemplates.length > 0 ? (
+      {templates.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTemplates.map((template) => (
+          {templates.map((template) => (
             <Card key={template.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -278,13 +136,9 @@ export default function StaffTemplatesPage() {
                     )}
                   </div>
 
-                  <Button
-                    onClick={() => assignTemplateToSelf(template.id)}
-                    disabled={assigning === template.id}
-                    className="w-full"
-                  >
-                    {assigning === template.id ? "Assigning..." : "Assign to Myself"}
-                  </Button>
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600">Contact your admin to get this template assigned</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -294,11 +148,9 @@ export default function StaffTemplatesPage() {
         <Card>
           <CardContent className="text-center py-12">
             <CheckSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Templates Found</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Templates Available</h3>
             <p className="text-gray-600">
-              {searchTerm || filterType !== "all"
-                ? "No templates match your search criteria"
-                : "No templates are currently available for self-assignment"}
+              No templates are currently available for your organization. Contact your admin for more information.
             </p>
           </CardContent>
         </Card>

@@ -74,7 +74,7 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                 className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
                 style={{ "--hover-color": primaryColor } as React.CSSProperties}
               >
-                Templates
+                Report Templates
               </Link>
               <Link
                 href="/admin/team"
@@ -82,6 +82,20 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                 style={{ "--hover-color": primaryColor } as React.CSSProperties}
               >
                 Team
+              </Link>
+              <Link
+                href="/admin/history"
+                className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
+                style={{ "--hover-color": primaryColor } as React.CSSProperties}
+              >
+                Submitted Reports
+              </Link>
+              <Link
+                href="/admin/analytics"
+                className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
+                style={{ "--hover-color": primaryColor } as React.CSSProperties}
+              >
+                Analytics
               </Link>
             </div>
           </div>
@@ -109,7 +123,7 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                     className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Templates
+                    Report Templates
                   </Link>
                   <Link
                     href="/admin/team"
@@ -117,6 +131,20 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Team
+                  </Link>
+                  <Link
+                    href="/admin/history"
+                    className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Submitted Reports
+                  </Link>
+                  <Link
+                    href="/admin/analytics"
+                    className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Analytics
                   </Link>
                 </div>
               </SheetContent>

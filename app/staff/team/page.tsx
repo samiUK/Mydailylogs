@@ -4,6 +4,8 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { User } from "lucide-react"
 
+console.log("[v0] Staff Team page - File loaded and parsing")
+
 interface TeamMember {
   id: string
   email: string
@@ -146,18 +148,30 @@ function OrganizationalChart({ members }: { members: TeamMember[] }) {
 }
 
 export default async function StaffTeamPage() {
+  console.log("[v0] Staff Team page - Component function called")
+
   const supabase = await createClient()
 
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) return null
+  if (!user) {
+    console.log("[v0] Staff Team page - No user found, returning null")
+    return null
+  }
+
+  console.log("[v0] Staff Team page - User found:", user.id)
 
   // Get user's organization
   const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single()
 
-  if (!profile) return null
+  if (!profile) {
+    console.log("[v0] Staff Team page - No profile found, returning null")
+    return null
+  }
+
+  console.log("[v0] Staff Team page - Profile found, organization_id:", profile.organization_id)
 
   const { data: members, error: membersError } = await supabase
     .from("profiles")

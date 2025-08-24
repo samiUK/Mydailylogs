@@ -75,11 +75,11 @@ export function StaffNavigation({ user, onSignOut }: StaffNavigationProps) {
                 Staff Dashboard
               </Link>
               <Link
-                href="/staff/templates"
+                href="/staff/new"
                 className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
                 style={{ "--hover-color": primaryColor } as React.CSSProperties}
               >
-                New Task
+                New Report
               </Link>
               <Link
                 href="/staff/history"
@@ -117,11 +117,11 @@ export function StaffNavigation({ user, onSignOut }: StaffNavigationProps) {
                     Staff Dashboard
                   </Link>
                   <Link
-                    href="/staff/templates"
+                    href="/staff/new"
                     className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    New Task
+                    New Report
                   </Link>
                   <Link
                     href="/staff/history"

@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { HistoryFilters } from "./history-filters"
 
+console.log("[v0] Staff History page - File loaded and parsing")
+
 interface Assignment {
   id: string
   template_id: string
@@ -33,6 +35,8 @@ interface Response {
 }
 
 export default async function HistoryPage() {
+  console.log("[v0] Staff History page - Component function called")
+
   const supabase = await createClient()
 
   const {
@@ -40,6 +44,7 @@ export default async function HistoryPage() {
   } = await supabase.auth.getUser()
 
   if (!user) {
+    console.log("[v0] Staff History page - No user found, redirecting to login")
     redirect("/auth/login")
   }
 

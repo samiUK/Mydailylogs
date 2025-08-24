@@ -47,6 +47,16 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   console.log("[v0] Middleware - User exists:", !!user)
+
+  if (request.nextUrl.pathname.startsWith("/masterdashboard")) {
+    if (!isMasterAdminImpersonating && user) {
+      console.log("[v0] Middleware - Blocking regular user from masterdashboard, redirecting to admin")
+      const url = request.nextUrl.clone()
+      url.pathname = "/admin"
+      return NextResponse.redirect(url)
+    }
+  }
+
   console.log(
     "[v0] Middleware - Should redirect:",
     request.nextUrl.pathname !== "/" &&
@@ -55,7 +65,6 @@ export async function updateSession(request: NextRequest) {
       !request.nextUrl.pathname.startsWith("/login") &&
       !request.nextUrl.pathname.startsWith("/auth") &&
       !request.nextUrl.pathname.startsWith("/masterlogin") &&
-      !request.nextUrl.pathname.startsWith("/masterdashboard") &&
       !request.nextUrl.pathname.startsWith("/api/send-email") &&
       !request.nextUrl.pathname.startsWith("/api/admin/") &&
       !request.nextUrl.pathname.match(/^\/admin\/[^/]+$/) &&
@@ -69,7 +78,6 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith("/login") &&
     !request.nextUrl.pathname.startsWith("/auth") &&
     !request.nextUrl.pathname.startsWith("/masterlogin") &&
-    !request.nextUrl.pathname.startsWith("/masterdashboard") &&
     !request.nextUrl.pathname.startsWith("/api/send-email") &&
     !request.nextUrl.pathname.startsWith("/api/admin/") &&
     !request.nextUrl.pathname.match(/^\/admin\/[^/]+$/) &&

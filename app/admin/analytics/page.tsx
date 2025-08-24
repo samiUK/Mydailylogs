@@ -1,5 +1,3 @@
-"use client"
-
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -250,7 +248,6 @@ export default async function AdminReportsAnalyticsPage() {
                   <p className="text-center text-muted-foreground py-8">No submissions found</p>
                 ) : (
                   submissions.slice(0, 50).map((submission) => (
-                    /* Made submission cards one-liners for hundreds of submissions */
                     <div
                       key={submission.id}
                       className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
@@ -271,49 +268,10 @@ export default async function AdminReportsAnalyticsPage() {
                         >
                           {submission.status}
                         </Badge>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            // Open PDF preview in new window with print option
-                            const reportWindow = window.open("", "_blank", "width=800,height=600")
-                            if (reportWindow) {
-                              reportWindow.document.write(`
-                                <html>
-                                  <head>
-                                    <title>Report Preview - ${submission.checklist_templates?.name}</title>
-                                    <style>
-                                      body { font-family: Arial, sans-serif; padding: 20px; }
-                                      .header { border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
-                                      .print-btn { position: fixed; top: 10px; right: 10px; padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
-                                      @media print { .print-btn { display: none; } }
-                                    </style>
-                                  </head>
-                                  <body>
-                                    <button class="print-btn" onclick="window.print()">Print Report</button>
-                                    <div class="header">
-                                      <h1>${submission.checklist_templates?.name || "Report"}</h1>
-                                      <p><strong>Submitted by:</strong> ${submission.profiles?.full_name || "Unknown User"}</p>
-                                      <p><strong>Date:</strong> ${new Date(submission.completed_at).toLocaleDateString()}</p>
-                                      <p><strong>Status:</strong> ${submission.status}</p>
-                                    </div>
-                                    <div class="content">
-                                      <h2>Report Details</h2>
-                                      <p>Report ID: ${submission.id}</p>
-                                      <p>Template: ${submission.checklist_templates?.name}</p>
-                                      <p>Assigned to: ${submission.profiles?.full_name} (${submission.profiles?.email})</p>
-                                      <p>Completed at: ${new Date(submission.completed_at).toLocaleString()}</p>
-                                      <br>
-                                      <p><em>Full report content would be displayed here based on the submission data.</em></p>
-                                    </div>
-                                  </body>
-                                </html>
-                              `)
-                              reportWindow.document.close()
-                            }
-                          }}
-                        >
-                          View Report
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/admin/reports/${submission.id}`} target="_blank" rel="noopener noreferrer">
+                            View Report
+                          </Link>
                         </Button>
                       </div>
                     </div>

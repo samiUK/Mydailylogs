@@ -3,30 +3,70 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { BrandingProvider } from "@/components/branding-provider"
 import { StaffNavigation } from "@/components/staff-navigation"
+import { cookies } from "next/headers"
 
 async function StaffLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
+  const cookieStore = cookies()
+  const isMasterAdminImpersonating = cookieStore.get("masterAdminImpersonation")?.value === "true"
+  const impersonatedUserEmail = cookieStore.get("impersonatedUserEmail")?.value
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
+  let user = null
+  let profile = null
 
-  if (error || !user) {
-    redirect("/auth/login")
-  }
+  if (isMasterAdminImpersonating && impersonatedUserEmail) {
+    const supabase = await createClient()
+    const { data: impersonatedProfile, error: profileError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("email", impersonatedUserEmail)
+      .single()
 
-  const { data: profile, error: profileError } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+    if (profileError || !impersonatedProfile) {
+      redirect("/auth/login")
+    }
 
-  if (profileError || !profile) {
-    redirect("/auth/login")
+    profile = impersonatedProfile
+  } else {
+    const supabase = await createClient()
+
+    const {
+      data: { user: authUser },
+      error,
+    } = await supabase.auth.getUser()
+
+    if (error || !authUser) {
+      redirect("/auth/login")
+    }
+
+    user = authUser
+
+    const { data: userProfile, error: profileError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single()
+
+    if (profileError || !userProfile) {
+      redirect("/auth/login")
+    }
+
+    profile = userProfile
   }
 
   const handleSignOut = async () => {
     "use server"
-    const supabase = await createClient()
-    await supabase.auth.signOut()
-    redirect("/auth/login") // Redirect directly to login page instead of home page
+    const cookieStore = cookies()
+    const isMasterAdminImpersonating = cookieStore.get("masterAdminImpersonation")?.value === "true"
+
+    if (isMasterAdminImpersonating) {
+      // For impersonated sessions, redirect to master dashboard
+      redirect("/masterdashboard")
+    } else {
+      // For normal users, sign out and redirect to login
+      const supabase = await createClient()
+      await supabase.auth.signOut()
+      redirect("/auth/login")
+    }
   }
 
   return (

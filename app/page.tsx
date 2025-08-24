@@ -215,7 +215,8 @@ export default async function HomePage() {
               <h3 className="text-xl font-semibold mb-4">Create Custom Templates</h3>
               <p className="text-muted-foreground">
                 Build highly customizable templates tailored to your specific business and industry needs. Create
-                unlimited task lists that adapt to your unique workflows.
+                unlimited task lists that adapt to your unique workflows and assign templates to team members for
+                streamlined collaboration.
               </p>
             </div>
 
@@ -225,7 +226,8 @@ export default async function HomePage() {
               </div>
               <h3 className="text-xl font-semibold mb-4">Track & Report</h3>
               <p className="text-muted-foreground">
-                Monitor progress in real-time and generate professional reports that impress clients and stakeholders.
+                Track while every team member is completing task lists in real-time. Generate and save professional
+                reports for regulatory and compliance needs that impress auditors and stakeholders.
               </p>
             </div>
           </div>

@@ -15,16 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import {
-  ChevronDownIcon,
-  UserIcon,
-  SettingsIcon,
-  LogOutIcon,
-  MenuIcon,
-  Check,
-  CreditCard,
-  MessageSquare,
-} from "lucide-react"
+import { ChevronDownIcon, UserIcon, SettingsIcon, LogOutIcon, MenuIcon, Check, CreditCard, MessageSquare } from 'lucide-react'
 import { FeedbackModal } from "@/components/feedback-modal"
 
 interface AdminNavigationProps {
@@ -84,18 +75,11 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                 Team
               </Link>
               <Link
-                href="/admin/history"
-                className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
-                style={{ "--hover-color": primaryColor } as React.CSSProperties}
-              >
-                Submitted Reports
-              </Link>
-              <Link
                 href="/admin/analytics"
                 className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
                 style={{ "--hover-color": primaryColor } as React.CSSProperties}
               >
-                Analytics
+                Reports and Analytics
               </Link>
             </div>
           </div>
@@ -133,18 +117,11 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                     Team
                   </Link>
                   <Link
-                    href="/admin/history"
-                    className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Submitted Reports
-                  </Link>
-                  <Link
                     href="/admin/analytics"
                     className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Analytics
+                    Reports and Analytics
                   </Link>
                 </div>
               </SheetContent>

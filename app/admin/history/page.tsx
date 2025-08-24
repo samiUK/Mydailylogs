@@ -67,7 +67,7 @@ export default async function AdminHistoryPage() {
       .select(`
         *,
         checklist_templates(name, description),
-        profiles!template_assignments_assigned_to_fkey(full_name, email)
+        profiles(full_name, email)
       `)
       .eq("status", "completed")
       .not("completed_at", "is", null)

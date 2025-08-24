@@ -4,13 +4,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Calendar, Download, Users, FileText, TrendingUp, AlertCircle } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Calendar, Users, FileText, TrendingUp, AlertCircle, Search, Download } from "lucide-react"
 import Link from "next/link"
 
-console.log("[v0] Admin Analytics page - File loaded and parsing")
+console.log("[v0] Admin Reports and Analytics page - File loaded and parsing")
 
-export default async function AdminAnalyticsPage() {
-  console.log("[v0] Admin Analytics page - Component function called")
+export default async function AdminReportsAnalyticsPage() {
+  console.log("[v0] Admin Reports and Analytics page - Component function called")
 
   const supabase = await createClient()
 
@@ -18,20 +20,20 @@ export default async function AdminAnalyticsPage() {
     data: { user },
   } = await supabase.auth.getUser()
 
-  console.log("[v0] Admin Analytics page - User ID:", user?.id)
+  console.log("[v0] Admin Reports and Analytics page - User ID:", user?.id)
 
   if (!user) {
-    console.log("[v0] Admin Analytics page - No user found, redirecting to login")
+    console.log("[v0] Admin Reports and Analytics page - No user found, redirecting to login")
     redirect("/auth/login")
   }
 
   // Get user profile
   const { data: profile, error: profileError } = await supabase.from("profiles").select("*").eq("id", user.id).single()
 
-  console.log("[v0] Admin Analytics page - Profile query error:", profileError)
+  console.log("[v0] Admin Reports and Analytics page - Profile query error:", profileError)
 
   if (profileError || !profile?.organization_id) {
-    console.log("[v0] Admin Analytics page - Profile not found or no organization")
+    console.log("[v0] Admin Reports and Analytics page - Profile not found or no organization")
     return (
       <div className="container mx-auto p-6">
         <Card className="max-w-md mx-auto">
@@ -52,7 +54,7 @@ export default async function AdminAnalyticsPage() {
     )
   }
 
-  console.log("[v0] Admin Analytics page - Profile found, organization_id:", profile.organization_id)
+  console.log("[v0] Admin Reports and Analytics page - Profile found, organization_id:", profile.organization_id)
 
   // Load submissions
   const { data: submissions, error: submissionsError } = await supabase
@@ -71,8 +73,8 @@ export default async function AdminAnalyticsPage() {
     .order("completed_at", { ascending: false })
     .limit(100)
 
-  console.log("[v0] Admin Analytics page - Submissions query error:", submissionsError)
-  console.log("[v0] Admin Analytics page - Submissions found:", submissions?.length || 0)
+  console.log("[v0] Admin Reports and Analytics page - Submissions query error:", submissionsError)
+  console.log("[v0] Admin Reports and Analytics page - Submissions found:", submissions?.length || 0)
 
   // Load team members
   const { data: teamMembers, error: teamError } = await supabase
@@ -81,8 +83,8 @@ export default async function AdminAnalyticsPage() {
     .eq("organization_id", profile.organization_id)
     .neq("id", user.id)
 
-  console.log("[v0] Admin Analytics page - Team members query error:", teamError)
-  console.log("[v0] Admin Analytics page - Team members found:", teamMembers?.length || 0)
+  console.log("[v0] Admin Reports and Analytics page - Team members query error:", teamError)
+  console.log("[v0] Admin Reports and Analytics page - Team members found:", teamMembers?.length || 0)
 
   // Load templates
   const { data: templates, error: templatesError } = await supabase
@@ -90,8 +92,8 @@ export default async function AdminAnalyticsPage() {
     .select("*")
     .eq("organization_id", profile.organization_id)
 
-  console.log("[v0] Admin Analytics page - Templates query error:", templatesError)
-  console.log("[v0] Admin Analytics page - Templates found:", templates?.length || 0)
+  console.log("[v0] Admin Reports and Analytics page - Templates query error:", templatesError)
+  console.log("[v0] Admin Reports and Analytics page - Templates found:", templates?.length || 0)
 
   // Calculate stats
   const totalSubmissions = submissions?.length || 0
@@ -106,18 +108,8 @@ export default async function AdminAnalyticsPage() {
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
+          <h1 className="text-3xl font-bold">Reports and Analytics</h1>
           <p className="text-muted-foreground">Comprehensive reporting and analytics for your organization</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Export PDF
-          </Button>
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </Button>
         </div>
       </div>
 
@@ -183,23 +175,98 @@ export default async function AdminAnalyticsPage() {
               <CardDescription>Latest report submissions from your team</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div className="flex flex-col md:flex-row gap-4 mb-6">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input placeholder="Search reports..." className="pl-10" />
+                  </div>
+                </div>
+                <Select>
+                  <SelectTrigger className="w-full md:w-48">
+                    <SelectValue placeholder="Report Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Report Types</SelectItem>
+                    {templates?.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select>
+                  <SelectTrigger className="w-full md:w-48">
+                    <SelectValue placeholder="Submitted By" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Team Members</SelectItem>
+                    {teamMembers?.map((member) => (
+                      <SelectItem key={member.id} value={member.id}>
+                        {member.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select>
+                  <SelectTrigger className="w-full md:w-32">
+                    <SelectValue placeholder="Year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2025">2025</SelectItem>
+                    <SelectItem value="2024">2024</SelectItem>
+                    <SelectItem value="2023">2023</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select>
+                  <SelectTrigger className="w-full md:w-32">
+                    <SelectValue placeholder="Month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="01">January</SelectItem>
+                    <SelectItem value="02">February</SelectItem>
+                    <SelectItem value="03">March</SelectItem>
+                    <SelectItem value="04">April</SelectItem>
+                    <SelectItem value="05">May</SelectItem>
+                    <SelectItem value="06">June</SelectItem>
+                    <SelectItem value="07">July</SelectItem>
+                    <SelectItem value="08">August</SelectItem>
+                    <SelectItem value="09">September</SelectItem>
+                    <SelectItem value="10">October</SelectItem>
+                    <SelectItem value="11">November</SelectItem>
+                    <SelectItem value="12">December</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="sm">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </Button>
+              </div>
+
+              <div className="space-y-2">
                 {!submissions || submissions.length === 0 ? (
                   <p className="text-center text-muted-foreground py-8">No submissions found</p>
                 ) : (
-                  submissions.slice(0, 10).map((submission) => (
-                    <div key={submission.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="space-y-1">
-                        <p className="font-medium">{submission.profiles?.full_name || "Unknown User"}</p>
-                        <p className="text-sm text-muted-foreground">
+                  submissions.slice(0, 50).map((submission) => (
+                    /* Made submission cards one-liners for hundreds of submissions */
+                    <div
+                      key={submission.id}
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
+                    >
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className="font-medium truncate">{submission.profiles?.full_name || "Unknown User"}</div>
+                        <div className="text-sm text-muted-foreground truncate">
                           {submission.checklist_templates?.name || "Unknown Report Template"}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
+                        </div>
+                        <div className="text-xs text-muted-foreground whitespace-nowrap">
                           {new Date(submission.completed_at).toLocaleDateString()}
-                        </p>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={submission.status === "completed" ? "default" : "secondary"}>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Badge
+                          variant={submission.status === "completed" ? "default" : "secondary"}
+                          className="text-xs"
+                        >
                           {submission.status}
                         </Badge>
                         <Button variant="outline" size="sm">

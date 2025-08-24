@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MyDayLogsLogo } from "@/components/mydaylogs-logo"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -21,6 +22,9 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isMasterLogin, setIsMasterLogin] = useState(false)
   const [masterLoginEmail, setMasterLoginEmail] = useState("")
+  const [availableRoles, setAvailableRoles] = useState<string[]>([])
+  const [selectedRole, setSelectedRole] = useState<string>("")
+  const [showRoleSelection, setShowRoleSelection] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -38,6 +42,49 @@ export default function LoginPage() {
       sessionStorage.removeItem("masterLoginEmail")
     }
   }, [])
+
+  const checkForMultipleRoles = async (emailAddress: string) => {
+    if (!emailAddress || isMasterLogin) return
+
+    try {
+      const supabase = createClient()
+      const { data: profiles, error } = await supabase.from("profiles").select("role").eq("email", emailAddress)
+
+      if (error) {
+        console.log("[v0] Error checking roles:", error)
+        return
+      }
+
+      if (profiles && profiles.length > 1) {
+        const roles = profiles.map((p) => p.role).filter(Boolean)
+        const uniqueRoles = [...new Set(roles)]
+
+        if (uniqueRoles.length > 1) {
+          setAvailableRoles(uniqueRoles)
+          setShowRoleSelection(true)
+          setSelectedRole("")
+        } else {
+          setShowRoleSelection(false)
+          setSelectedRole(uniqueRoles[0] || "")
+        }
+      } else {
+        setShowRoleSelection(false)
+        setSelectedRole(profiles?.[0]?.role || "")
+      }
+    } catch (error) {
+      console.log("[v0] Error checking for multiple roles:", error)
+    }
+  }
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (email && email.includes("@")) {
+        checkForMultipleRoles(email)
+      }
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
+  }, [email, isMasterLogin])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -59,7 +106,7 @@ export default function LoginPage() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, role: selectedRole }),
         })
 
         console.log("[v0] API response status:", response.status)
@@ -100,6 +147,10 @@ export default function LoginPage() {
         return
       }
 
+      if (showRoleSelection && !selectedRole) {
+        throw new Error("Please select a role to continue.")
+      }
+
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -109,21 +160,33 @@ export default function LoginPage() {
 
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      const { data: userProfile, error: roleError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("email", email)
-        .single()
+      let profileQuery = supabase.from("profiles").select("role, id, organization_id").eq("email", email)
 
-      if (roleError || !userProfile) {
+      if (selectedRole) {
+        profileQuery = profileQuery.eq("role", selectedRole)
+      }
+
+      const { data: userProfiles, error: roleError } = await profileQuery
+
+      if (roleError || !userProfiles || userProfiles.length === 0) {
         throw new Error("Profile not found. Please contact your administrator.")
+      }
+
+      let userProfile = userProfiles[0]
+
+      // If multiple profiles but no role selected, use the first one
+      if (userProfiles.length > 1 && !selectedRole) {
+        userProfile = userProfiles[0]
       }
 
       let userRole = userProfile.role
 
       if (!userRole) {
         console.log("[v0] User has no role set, setting to admin")
-        const { error: updateError } = await supabase.from("profiles").update({ role: "admin" }).eq("email", email)
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .update({ role: "admin" })
+          .eq("id", userProfile.id)
 
         if (updateError) {
           console.log("[v0] Error updating user role:", updateError)
@@ -200,6 +263,25 @@ export default function LoginPage() {
                     disabled={isMasterLogin}
                   />
                 </div>
+                {showRoleSelection && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="role" required>
+                      Sign in as
+                    </Label>
+                    <Select value={selectedRole} onValueChange={setSelectedRole}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select your role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableRoles.map((role) => (
+                          <SelectItem key={role} value={role}>
+                            {role.charAt(0).toUpperCase() + role.slice(1)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="grid gap-2">
                   <Label htmlFor="password" required>
                     {isMasterLogin ? "Master Password" : "Password"}

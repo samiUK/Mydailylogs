@@ -323,33 +323,21 @@ export default function AdminDashboard() {
         if (impersonationContext) {
           const impersonationData = JSON.parse(impersonationContext)
 
-          // Verify this is actually a master admin impersonation by checking if we have a real Supabase user
-          const {
-            data: { user: supabaseUser },
-          } = await supabase.auth.getUser()
+          // Always honor valid impersonation context for master admin
+          setIsImpersonating(true)
+          setImpersonationData(impersonationData)
 
-          // If there's a real Supabase user session, this is a normal login, not impersonation
-          if (supabaseUser) {
-            // Clear the stale impersonation context
-            sessionStorage.removeItem("masterAdminImpersonation")
-            document.cookie = "masterAdminImpersonation=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-          } else {
-            // This is a valid impersonation session
-            setIsImpersonating(true)
-            setImpersonationData(impersonationData)
+          // Fetch the target user's profile data
+          const { data: targetProfile } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("email", impersonationData.targetUserEmail)
+            .single()
 
-            // Fetch the target user's profile data
-            const { data: targetProfile } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("email", impersonationData.targetUserEmail)
-              .single()
-
-            if (targetProfile) {
-              setUser({ email: impersonationData.targetUserEmail })
-              setProfile(targetProfile)
-              return
-            }
+          if (targetProfile) {
+            setUser({ email: impersonationData.targetUserEmail, id: targetProfile.id })
+            setProfile(targetProfile)
+            return
           }
         }
 

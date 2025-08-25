@@ -30,28 +30,20 @@ export default function StaffDashboard() {
         if (impersonationContext) {
           const impersonationData = JSON.parse(impersonationContext)
 
-          const {
-            data: { user: supabaseUser },
-          } = await supabase.auth.getUser()
+          // Always honor valid impersonation context for master admin
+          setIsImpersonating(true)
+          setImpersonationData(impersonationData)
 
-          if (supabaseUser) {
-            sessionStorage.removeItem("masterAdminImpersonation")
-            document.cookie = "masterAdminImpersonation=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-          } else {
-            setIsImpersonating(true)
-            setImpersonationData(impersonationData)
+          const { data: targetProfile } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("email", impersonationData.targetUserEmail)
+            .single()
 
-            const { data: targetProfile } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("email", impersonationData.targetUserEmail)
-              .single()
-
-            if (targetProfile) {
-              setUser({ email: impersonationData.targetUserEmail, id: targetProfile.id })
-              setProfile(targetProfile)
-              return
-            }
+          if (targetProfile) {
+            setUser({ email: impersonationData.targetUserEmail, id: targetProfile.id })
+            setProfile(targetProfile)
+            return
           }
         }
 

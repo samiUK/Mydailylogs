@@ -38,6 +38,7 @@ import {
   X,
   Search,
   Calendar,
+  FileText,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -130,6 +131,8 @@ export default function MasterDashboardPage() {
     withSubscriptions: 0,
     totalUsers: 0,
   })
+
+  const [totalSubmittedReports, setTotalSubmittedReports] = useState(0)
 
   const loginAsUser = async (userEmail: string, userRole: string) => {
     if (!userEmail.trim()) {
@@ -299,39 +302,48 @@ export default function MasterDashboardPage() {
     try {
       console.log("[v0] Fetching organizations and other data...")
 
-      const [orgsResponse, usersResponse, subscriptionsResponse, paymentsResponse, feedbackResponse] =
-        await Promise.all([
-          supabase.from("organizations").select(`
+      const [
+        orgsResponse,
+        usersResponse,
+        subscriptionsResponse,
+        paymentsResponse,
+        feedbackResponse,
+        internalReportsResponse,
+        externalReportsResponse,
+      ] = await Promise.all([
+        supabase.from("organizations").select(`
           *,
           profiles(count),
           subscriptions(*)
         `),
-          supabase
-            .from("profiles")
-            .select(`
+        supabase
+          .from("profiles")
+          .select(`
           *,
           organizations(name, logo_url)
         `)
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("subscriptions")
-            .select(`
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("subscriptions")
+          .select(`
           *,
           organizations(name, logo_url)
         `)
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("payments")
-            .select(`
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("payments")
+          .select(`
           *,
           subscriptions(
             plan_name,
             organizations(name)
           )
         `)
-            .order("created_at", { ascending: false }),
-          supabase.from("feedback").select("*").order("created_at", { ascending: false }),
-        ])
+          .order("created_at", { ascending: false }),
+        supabase.from("feedback").select("*").order("created_at", { ascending: false }),
+        supabase.from("template_assignments").select("id").eq("status", "completed"),
+        supabase.from("external_submissions").select("id").not("submitted_at", "is", null),
+      ])
 
       console.log("[v0] Organizations response:", orgsResponse)
       console.log("[v0] Organizations data:", orgsResponse.data)
@@ -352,6 +364,16 @@ export default function MasterDashboardPage() {
       setAllPayments(paymentsResponse.data || [])
       setFeedback(feedbackResponse.data || [])
       setUnreadFeedbackCount(feedbackResponse.data?.filter((f) => f.status === "unread").length || 0)
+
+      const internalReportsCount = internalReportsResponse.data?.length || 0
+      const externalReportsCount = externalReportsResponse.data?.length || 0
+      const totalReports = internalReportsCount + externalReportsCount
+
+      console.log("[v0] Internal reports count:", internalReportsCount)
+      console.log("[v0] External reports count:", externalReportsCount)
+      console.log("[v0] Total submitted reports:", totalReports)
+
+      setTotalSubmittedReports(totalReports)
     } catch (error) {
       console.error("Error loading data:", error)
     } finally {
@@ -360,8 +382,70 @@ export default function MasterDashboardPage() {
   }
 
   useEffect(() => {
-    checkAuthAndLoadData()
-  }, [router])
+    const fetchData = async () => {
+      setIsLoading(true)
+      const supabase = createClient()
+      try {
+        console.log("[v0] Fetching organizations and other data...")
+
+        const [
+          orgsResponse,
+          usersResponse,
+          subscriptionsResponse,
+          paymentsResponse,
+          feedbackResponse,
+          internalReportsResponse,
+          externalReportsResponse,
+        ] = await Promise.all([
+          supabase.from("organizations").select(`
+            *,
+            profiles(count),
+            subscriptions(*)
+          `),
+          supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+          supabase.from("subscriptions").select("*"),
+          supabase.from("payments").select("*"),
+          supabase.from("feedback").select("*").order("created_at", { ascending: false }),
+          supabase.from("template_assignments").select("*").eq("status", "completed"),
+          supabase.from("external_submissions").select("*").not("submitted_at", "is", null),
+        ])
+
+        console.log("[v0] Organizations response:", orgsResponse)
+        console.log("[v0] Organizations data:", orgsResponse.data)
+        console.log("[v0] Organizations error:", orgsResponse.error)
+        console.log("[v0] Number of organizations found:", orgsResponse.data?.length || 0)
+
+        console.log("[v0] Feedback response:", feedbackResponse)
+        console.log("[v0] Feedback data:", feedbackResponse.data)
+        console.log("[v0] Feedback error:", feedbackResponse.error)
+        console.log("[v0] Number of feedback items found:", feedbackResponse.data?.length || 0)
+        console.log("[v0] Sample feedback item:", feedbackResponse.data?.[0]?.message)
+
+        setOrganizations(orgsResponse.data || [])
+        setAllUsers(usersResponse.data || [])
+        setAllSubscriptions(subscriptionsResponse.data || [])
+        setAllPayments(paymentsResponse.data || [])
+        setFeedback(feedbackResponse.data || [])
+        setUnreadFeedbackCount(feedbackResponse.data?.filter((f) => f.status === "unread").length || 0)
+
+        const internalReportsCount = internalReportsResponse.data?.length || 0
+        const externalReportsCount = externalReportsResponse.data?.length || 0
+        const totalReports = internalReportsCount + externalReportsCount
+
+        console.log("[v0] Internal reports count:", internalReportsCount)
+        console.log("[v0] External reports count:", externalReportsCount)
+        console.log("[v0] Total submitted reports:", totalReports)
+
+        setTotalSubmittedReports(totalReports)
+      } catch (error) {
+        console.error("Error loading data:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
 
   const handleSignOut = async () => {
     localStorage.removeItem("masterAdminAuth")
@@ -661,12 +745,23 @@ export default function MasterDashboardPage() {
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Organizations</CardTitle>
+                  <CardTitle className="text-sm font-medium">Total Organizations</CardTitle>
                   <Building2 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{organizations.length}</div>
-                  <p className="text-xs text-muted-foreground">Active organizations</p>
+                  <p className="text-xs text-muted-foreground">All organizations</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Submitted Reports</CardTitle>
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{totalSubmittedReports}</div>
+                  <p className="text-xs text-muted-foreground">Team members + External users</p>
                 </CardContent>
               </Card>
 
@@ -698,50 +793,6 @@ export default function MasterDashboardPage() {
                 </CardContent>
               </Card>
             </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Organizations</CardTitle>
-                <CardDescription>All registered organizations and their details</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {organizations.map((org) => (
-                    <div key={org.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        {org.logo_url ? (
-                          <img
-                            src={org.logo_url || "/placeholder.svg"}
-                            alt={org.name}
-                            className="w-10 h-10 rounded-lg object-cover"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
-                            <Building2 className="w-5 h-5 text-gray-500" />
-                          </div>
-                        )}
-                        <div>
-                          <h3 className="font-medium">{org.name}</h3>
-                          <p className="text-sm text-gray-500">
-                            {org.profiles?.[0]?.count || 0} users • Created{" "}
-                            {new Date(org.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {org.subscriptions?.[0] ? (
-                          <Badge variant={org.subscriptions[0].status === "active" ? "default" : "secondary"}>
-                            {org.subscriptions[0].plan_name} - {org.subscriptions[0].status}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">Free</Badge>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
 
             <Card>
               <CardHeader>

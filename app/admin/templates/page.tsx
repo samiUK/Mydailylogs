@@ -60,36 +60,76 @@ export default function AdminTemplatesPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      const supabase = createClient()
+      const isMasterAdminImpersonating = localStorage.getItem("masterAdminImpersonation") === "true"
+      const impersonatedUserEmail = localStorage.getItem("impersonatedUserEmail")
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+      console.log("[v0] Admin Templates page - Master admin impersonating:", isMasterAdminImpersonating)
+      console.log("[v0] Admin Templates page - Impersonated user email:", impersonatedUserEmail)
 
-      console.log("[v0] Admin Templates page - User ID:", user?.id)
+      let user: any = null
+      let profileData: any = null
 
-      if (!user) {
-        console.log("[v0] Admin Templates page - No user found, redirecting to login")
-        window.location.href = "/auth/login"
-        return
+      if (isMasterAdminImpersonating && impersonatedUserEmail) {
+        // Master admin is impersonating - get the impersonated user's data
+        const supabase = createClient()
+
+        const { data: impersonatedProfile, error: impersonatedError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("email", impersonatedUserEmail)
+          .single()
+
+        console.log("[v0] Admin Templates page - Impersonated profile error:", impersonatedError)
+        console.log("[v0] Admin Templates page - Impersonated profile found:", impersonatedProfile?.id)
+
+        if (impersonatedProfile) {
+          user = { id: impersonatedProfile.id }
+          profileData = impersonatedProfile
+        }
+      } else {
+        // Regular authentication flow
+        const supabase = createClient()
+        const {
+          data: { user: authUser },
+        } = await supabase.auth.getUser()
+
+        console.log("[v0] Admin Templates page - Regular user ID:", authUser?.id)
+
+        if (!authUser) {
+          console.log("[v0] Admin Templates page - No user found, redirecting to login")
+          window.location.href = "/auth/login"
+          return
+        }
+
+        user = authUser
+
+        const { data: regularProfile, error: profileError } = await supabase
+          .from("profiles")
+          .select("organization_id")
+          .eq("id", user.id)
+          .single()
+
+        console.log("[v0] Admin Templates page - Profile query error:", profileError)
+        console.log("[v0] Admin Templates page - Profile found, organization_id:", regularProfile?.organization_id)
+
+        if (profileError || !regularProfile) {
+          console.log("[v0] Admin Templates page - Profile not found, redirecting to login")
+          window.location.href = "/auth/login"
+          return
+        }
+
+        profileData = regularProfile
       }
 
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("organization_id")
-        .eq("id", user.id)
-        .single()
-
-      console.log("[v0] Admin Templates page - Profile query error:", profileError)
-      console.log("[v0] Admin Templates page - Profile found, organization_id:", profileData?.organization_id)
-
-      if (profileError || !profileData) {
-        console.log("[v0] Admin Templates page - Profile not found, redirecting to login")
+      if (!user || !profileData) {
+        console.log("[v0] Admin Templates page - No valid user or profile, redirecting to login")
         window.location.href = "/auth/login"
         return
       }
 
       setProfile(profileData)
+
+      const supabase = createClient()
 
       const { data: templatesData, error: templatesError } = await supabase
         .from("checklist_templates")

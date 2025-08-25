@@ -59,24 +59,48 @@ export default function StaffProfilePage() {
 
     async function loadProfile() {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        if (!user) {
-          router.push("/auth/login")
-          return
+        const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
+        let currentUser: any = null
+
+        if (impersonationContext) {
+          const impersonationData = JSON.parse(impersonationContext)
+
+          const { data: targetProfile } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("email", impersonationData.targetUserEmail)
+            .single()
+
+          if (targetProfile) {
+            currentUser = { id: targetProfile.id, email: impersonationData.targetUserEmail }
+            setProfile(targetProfile)
+          }
         }
 
-        const { data: profileData, error } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+        if (!currentUser) {
+          // Regular authentication flow
+          const {
+            data: { user },
+          } = await supabase.auth.getUser()
 
-        if (error) throw error
-        setProfile(profileData)
+          if (!user) {
+            router.push("/auth/login")
+            return
+          }
 
-        if (profileData.organization_id) {
+          currentUser = user
+
+          const { data: profileData, error } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+
+          if (error) throw error
+          setProfile(profileData)
+        }
+
+        if (profile && profile.organization_id) {
           const { data: orgData, error: orgError } = await supabase
             .from("organizations")
             .select("id, name")
-            .eq("id", profileData.organization_id)
+            .eq("id", profile.organization_id)
             .single()
 
           if (!orgError && orgData) {

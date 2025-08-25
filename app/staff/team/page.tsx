@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { User } from "lucide-react"
+import { cookies } from "next/headers"
 
 console.log("[v0] Staff Team page - File loaded and parsing")
 
@@ -150,27 +151,59 @@ function OrganizationalChart({ members }: { members: TeamMember[] }) {
 export default async function StaffTeamPage() {
   console.log("[v0] Staff Team page - Component function called")
 
+  const cookieStore = cookies()
+  const isMasterAdminImpersonating = cookieStore.get("masterAdminImpersonation")?.value === "true"
+  const impersonatedUserEmail = cookieStore.get("impersonatedUserEmail")?.value
+
+  let user: any = null
+  let profile: any = null
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  if (isMasterAdminImpersonating && impersonatedUserEmail) {
+    // Master admin is impersonating - get the impersonated user's data
+    const { data: impersonatedProfile, error: impersonatedError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("email", impersonatedUserEmail)
+      .single()
 
-  if (!user) {
-    console.log("[v0] Staff Team page - No user found, returning null")
-    return null
+    if (impersonatedProfile) {
+      user = { id: impersonatedProfile.id }
+      profile = impersonatedProfile
+    } else {
+      console.log("[v0] Staff Team page - No user found, returning null")
+      return null
+    }
+  } else {
+    // Regular authentication flow
+
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+
+    if (!authUser) {
+      console.log("[v0] Staff Team page - No user found, returning null")
+      return null
+    }
+
+    user = authUser
+
+    // Get user's organization
+    const { data: regularProfile } = await supabase
+      .from("profiles")
+      .select("organization_id")
+      .eq("id", user.id)
+      .single()
+
+    if (!regularProfile) {
+      console.log("[v0] Staff Team page - No profile found, returning null")
+      return null
+    }
+
+    profile = regularProfile
   }
 
   console.log("[v0] Staff Team page - User found:", user.id)
-
-  // Get user's organization
-  const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single()
-
-  if (!profile) {
-    console.log("[v0] Staff Team page - No profile found, returning null")
-    return null
-  }
-
   console.log("[v0] Staff Team page - Profile found, organization_id:", profile.organization_id)
 
   const { data: members, error: membersError } = await supabase

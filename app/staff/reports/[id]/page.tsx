@@ -1,6 +1,7 @@
-import { createClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
 import { ReportViewClient } from "./report-view-client"
+import { cookies } from "next/headers"
+import { supabase } from "@/lib/supabase/client" // Declare the supabase variable
 
 export const dynamic = "force-dynamic"
 
@@ -10,14 +11,39 @@ interface PageProps {
 }
 
 export default async function StaffReportViewPage({ params, searchParams }: PageProps) {
-  const supabase = await createClient()
+  const cookieStore = cookies()
+  const isMasterAdminImpersonating = cookieStore.get("masterAdminImpersonation")?.value === "true"
+  const impersonatedUserEmail = cookieStore.get("impersonatedUserEmail")?.value
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user: any = null
+  let profile: any = null
 
-  if (!user) {
-    redirect("/auth/login")
+  if (isMasterAdminImpersonating && impersonatedUserEmail) {
+    // Master admin is impersonating - get the impersonated user's data
+    const { data: impersonatedProfile, error: impersonatedError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("email", impersonatedUserEmail)
+      .single()
+
+    if (impersonatedProfile) {
+      user = { id: impersonatedProfile.id }
+      profile = impersonatedProfile
+    } else {
+      redirect("/auth/login")
+    }
+  } else {
+    // Regular authentication flow
+
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+
+    if (!authUser) {
+      redirect("/auth/login")
+    }
+
+    user = authUser
   }
 
   console.log("[v0] Staff ReportView - Loading report ID:", params.id)

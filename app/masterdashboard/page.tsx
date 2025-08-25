@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -51,7 +50,7 @@ interface Organization {
   name: string
   logo_url: string | null
   created_at: string
-  profiles?: { count: number }[]
+  profiles?: { count: number; role: string }[]
   subscriptions?: { plan_name: string; status: string }[]
 }
 
@@ -140,6 +139,8 @@ export default function MasterDashboardPage() {
     active: 0,
     withSubscriptions: 0,
     totalUsers: 0,
+    totalAdmins: 0,
+    totalStaff: 0,
   })
 
   const [totalSubmittedReports, setTotalSubmittedReports] = useState(0)
@@ -325,52 +326,45 @@ export default function MasterDashboardPage() {
       console.log("[v0] Fetching organizations and other data...")
 
       const [
-        orgsResponse,
-        usersResponse,
+        organizationsResponse,
+        profilesResponse,
         subscriptionsResponse,
         paymentsResponse,
         feedbackResponse,
-        submittedReportsResponse,
-        superusersResponse,
+        completedAssignmentsResponse,
+        externalSubmissionsResponse,
       ] = await Promise.all([
         supabase.from("organizations").select(`
           *,
-          profiles(count),
+          profiles!inner(
+            id,
+            email,
+            full_name,
+            role,
+            created_at
+          ),
           subscriptions(*)
         `),
-        supabase
-          .from("profiles")
-          .select(`
-          *,
-          organizations(name, logo_url)
-        `)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("subscriptions")
-          .select(`
-          *,
-          organizations(name, logo_url)
-        `)
-          .order("created_at", { ascending: false }),
+        supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+        supabase.from("subscriptions").select("*").order("created_at", { ascending: false }),
         supabase
           .from("payments")
           .select(`
           *,
-          subscriptions(
-            plan_name,
-            organizations(name)
-          )
+          subscriptions(plan_name)
         `)
           .order("created_at", { ascending: false }),
         supabase.from("feedback").select("*").order("created_at", { ascending: false }),
-        supabase.from("submitted_reports").select("id").is("deleted_at", null),
-        supabase.from("superusers").select("*").order("created_at", { ascending: false }),
+        supabase.from("template_assignments").select("*").eq("status", "completed"),
+        supabase.from("external_submissions").select("*").not("submitted_at", "is", null),
       ])
 
-      console.log("[v0] Organizations response:", orgsResponse)
-      console.log("[v0] Organizations data:", orgsResponse.data)
-      console.log("[v0] Organizations error:", orgsResponse.error)
-      console.log("[v0] Number of organizations found:", orgsResponse.data?.length || 0)
+      console.log("[v0] Organizations response:", organizationsResponse)
+      console.log("[v0] Organizations data:", organizationsResponse.data)
+      console.log("[v0] Organizations error:", organizationsResponse.error)
+      if (organizationsResponse.error) {
+        console.error("[v0] Organizations query failed:", organizationsResponse.error.message)
+      }
 
       console.log("[v0] Feedback response:", feedbackResponse)
       console.log("[v0] Feedback data:", feedbackResponse.data)
@@ -380,19 +374,34 @@ export default function MasterDashboardPage() {
         console.log("[v0] Sample feedback item:", feedbackResponse.data[0])
       }
 
-      setOrganizations(orgsResponse.data || [])
-      setAllUsers(usersResponse.data || [])
+      setOrganizations(organizationsResponse.data || [])
+      setAllUsers(profilesResponse.data || [])
       setAllSubscriptions(subscriptionsResponse.data || [])
       setAllPayments(paymentsResponse.data || [])
       setFeedback(feedbackResponse.data || [])
       setUnreadFeedbackCount(feedbackResponse.data?.filter((f) => f.status === "unread").length || 0)
 
-      const totalReports = submittedReportsResponse.data?.length || 0
-      console.log("[v0] Total submitted reports from new table:", totalReports)
+      const internalReportsCount = completedAssignmentsResponse.data?.length || 0
+      const externalReportsCount = externalSubmissionsResponse.data?.length || 0
+      const totalReports = internalReportsCount + externalReportsCount
+
+      console.log("[v0] Internal reports count:", internalReportsCount)
+      console.log("[v0] External reports count:", externalReportsCount)
+      console.log("[v0] Total submitted reports:", totalReports)
+
       setTotalSubmittedReports(totalReports)
 
       // Load superusers
-      setSuperusers(superusersResponse.data || [])
+      const { data: superusersData, error: superusersError } = await supabase
+        .from("superusers")
+        .select("*")
+        .order("created_at", { ascending: false })
+
+      if (superusersError) {
+        console.error("Error fetching superusers:", superusersError)
+      } else {
+        setSuperusers(superusersData || [])
+      }
     } catch (error) {
       console.error("Error loading data:", error)
     } finally {
@@ -419,7 +428,7 @@ export default function MasterDashboardPage() {
         ] = await Promise.all([
           supabase.from("organizations").select(`
             *,
-            profiles(count),
+            profiles(count, role),
             subscriptions(*)
           `),
           supabase.from("profiles").select("*").order("created_at", { ascending: false }),
@@ -689,6 +698,14 @@ export default function MasterDashboardPage() {
       active: organizations.filter((org) => org.subscriptions?.some((sub) => sub.status === "active")).length,
       withSubscriptions: organizations.filter((org) => org.subscriptions && org.subscriptions.length > 0).length,
       totalUsers: organizations.reduce((sum, org) => sum + (org.profiles?.[0]?.count || 0), 0),
+      totalAdmins: organizations.reduce(
+        (sum, org) => sum + (org.profiles?.filter((p) => p.role === "admin").length || 0),
+        0,
+      ),
+      totalStaff: organizations.reduce(
+        (sum, org) => sum + (org.profiles?.filter((p) => p.role === "staff").length || 0),
+        0,
+      ),
     }
     setOrganizationStats(stats)
   }, [organizations])
@@ -1093,7 +1110,7 @@ export default function MasterDashboardPage() {
           </TabsContent>
 
           <TabsContent value="organizations" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <Card>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
@@ -1109,10 +1126,10 @@ export default function MasterDashboardPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600">Active Subscriptions</p>
-                      <p className="text-2xl font-bold">{organizationStats.active}</p>
+                      <p className="text-sm font-medium text-gray-600">Total Admins</p>
+                      <p className="text-2xl font-bold">{organizationStats.totalAdmins || 0}</p>
                     </div>
-                    <CheckCircle className="w-8 h-8 text-green-500" />
+                    <Shield className="w-8 h-8 text-green-500" />
                   </div>
                 </CardContent>
               </Card>
@@ -1120,19 +1137,8 @@ export default function MasterDashboardPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600">With Subscriptions</p>
-                      <p className="text-2xl font-bold">{organizationStats.withSubscriptions}</p>
-                    </div>
-                    <CreditCard className="w-8 h-8 text-purple-500" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Total Users</p>
-                      <p className="text-2xl font-bold">{organizationStats.totalUsers}</p>
+                      <p className="text-sm font-medium text-gray-600">Total Staff</p>
+                      <p className="text-2xl font-bold">{organizationStats.totalStaff || 0}</p>
                     </div>
                     <Users className="w-8 h-8 text-orange-500" />
                   </div>
@@ -1144,8 +1150,8 @@ export default function MasterDashboardPage() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Organization Management</CardTitle>
-                    <CardDescription>Manage all organizations and their subscriptions</CardDescription>
+                    <CardTitle>Organization Hierarchy</CardTitle>
+                    <CardDescription>View all organizations with their admin and staff members</CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="relative">
@@ -1157,45 +1163,45 @@ export default function MasterDashboardPage() {
                         className="pl-10 w-64"
                       />
                     </div>
-                    <Button variant="outline" size="sm">
-                      <Search className="w-4 h-4" />
-                    </Button>
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {filteredOrganizations.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Building2 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-500">No organizations found</p>
+                    <div className="text-center py-12">
+                      <Building2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No Organizations Found</h3>
+                      <p className="text-gray-500 mb-4">
+                        Organizations will appear here once users sign up and create profiles.
+                      </p>
                       {organizationSearchTerm && (
                         <p className="text-sm text-gray-400">Try adjusting your search terms</p>
                       )}
                     </div>
                   ) : (
                     filteredOrganizations.map((org) => (
-                      <div key={org.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                        <div className="flex items-center justify-between">
+                      <div
+                        key={org.id}
+                        className="border rounded-xl p-6 bg-white shadow-sm hover:shadow-md transition-all"
+                      >
+                        {/* Organization Header */}
+                        <div className="flex items-start justify-between mb-6">
                           <div className="flex items-center gap-4">
                             {org.logo_url ? (
                               <img
                                 src={org.logo_url || "/placeholder.svg"}
                                 alt={org.name}
-                                className="w-16 h-16 rounded-lg object-cover border"
+                                className="w-16 h-16 rounded-xl object-cover border-2 border-gray-100"
                               />
                             ) : (
-                              <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center border">
+                              <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center border-2 border-gray-100">
                                 <Building2 className="w-8 h-8 text-blue-600" />
                               </div>
                             )}
-                            <div className="space-y-1">
-                              <h3 className="font-semibold text-lg">{org.name}</h3>
+                            <div className="space-y-2">
+                              <h3 className="text-xl font-bold text-gray-900">{org.name}</h3>
                               <div className="flex items-center gap-4 text-sm text-gray-500">
-                                <span className="flex items-center gap-1">
-                                  <Users className="w-4 h-4" />
-                                  {org.profiles?.[0]?.count || 0} users
-                                </span>
                                 <span className="flex items-center gap-1">
                                   <Calendar className="w-4 h-4" />
                                   Created {new Date(org.created_at).toLocaleDateString()}
@@ -1205,64 +1211,96 @@ export default function MasterDashboardPage() {
                                   ID: {org.id.slice(0, 8)}...
                                 </span>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-xs">
-                                  Organization Level: Root
-                                </Badge>
-                                {org.subscriptions && org.subscriptions.length > 0 && (
-                                  <Badge variant="outline" className="text-xs">
-                                    Subscribed
-                                  </Badge>
-                                )}
-                              </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            {org.subscriptions?.[0] ? (
-                              <Badge variant={org.subscriptions[0].status === "active" ? "default" : "secondary"}>
-                                {org.subscriptions[0].plan_name} - {org.subscriptions[0].status}
+                          <Badge variant="outline" className="text-sm px-3 py-1">
+                            Active Organization
+                          </Badge>
+                        </div>
+
+                        {/* Organization Members Hierarchy */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {/* Admins Section */}
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                              <Shield className="w-5 h-5 text-green-600" />
+                              <h4 className="font-semibold text-gray-900">Administrators</h4>
+                              <Badge variant="secondary" className="text-xs">
+                                {org.profiles?.filter((p) => p.role === "admin").length || 0}
                               </Badge>
-                            ) : (
-                              <Badge variant="outline">Free Plan</Badge>
-                            )}
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button variant="outline" size="sm">
-                                  <Plus className="w-4 h-4 mr-1" />
-                                  Add Subscription
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>Add Subscription</DialogTitle>
-                                  <DialogDescription>Add a new subscription for {org.name}</DialogDescription>
-                                </DialogHeader>
-                                <div className="space-y-4">
-                                  <div>
-                                    <Label htmlFor="planSelect">Subscription Plan</Label>
-                                    <Select value={newSubscriptionPlan} onValueChange={setNewSubscriptionPlan}>
-                                      <SelectTrigger>
-                                        <SelectValue placeholder="Select a plan" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="Base">Base Plan</SelectItem>
-                                        <SelectItem value="Pro">Pro Plan</SelectItem>
-                                        <SelectItem value="Enterprise">Enterprise Plan</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
+                            </div>
+                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                              {org.profiles?.filter((p) => p.role === "admin").length > 0 ? (
+                                org.profiles
+                                  .filter((p) => p.role === "admin")
+                                  .map((admin) => (
+                                    <div
+                                      key={admin.id}
+                                      className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-100"
+                                    >
+                                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                                        <Shield className="w-4 h-4 text-green-600" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-gray-900 truncate">{admin.full_name}</p>
+                                        <p className="text-sm text-gray-500 truncate">{admin.email}</p>
+                                      </div>
+                                    </div>
+                                  ))
+                              ) : (
+                                <div className="text-center py-4 text-gray-500">
+                                  <Shield className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                                  <p className="text-sm">No administrators</p>
                                 </div>
-                                <DialogFooter>
-                                  <Button
-                                    onClick={() => addSubscription(org.id, newSubscriptionPlan)}
-                                    disabled={!newSubscriptionPlan || isProcessing}
-                                  >
-                                    {isProcessing ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : null}
-                                    Add Subscription
-                                  </Button>
-                                </DialogFooter>
-                              </DialogContent>
-                            </Dialog>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Staff Section */}
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                              <Users className="w-5 h-5 text-blue-600" />
+                              <h4 className="font-semibold text-gray-900">Staff Members</h4>
+                              <Badge variant="secondary" className="text-xs">
+                                {org.profiles?.filter((p) => p.role === "staff").length || 0}
+                              </Badge>
+                            </div>
+                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                              {org.profiles?.filter((p) => p.role === "staff").length > 0 ? (
+                                org.profiles
+                                  .filter((p) => p.role === "staff")
+                                  .map((staff) => (
+                                    <div
+                                      key={staff.id}
+                                      className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-100"
+                                    >
+                                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                        <Users className="w-4 h-4 text-blue-600" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-gray-900 truncate">{staff.full_name}</p>
+                                        <p className="text-sm text-gray-500 truncate">{staff.email}</p>
+                                      </div>
+                                    </div>
+                                  ))
+                              ) : (
+                                <div className="text-center py-4 text-gray-500">
+                                  <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                                  <p className="text-sm">No staff members</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Organization Summary */}
+                        <div className="mt-6 pt-4 border-t border-gray-100">
+                          <div className="flex items-center justify-between text-sm text-gray-600">
+                            <span>Total Members: {org.profiles?.length || 0}</span>
+                            <span>
+                              Admins: {org.profiles?.filter((p) => p.role === "admin").length || 0} | Staff:{" "}
+                              {org.profiles?.filter((p) => p.role === "staff").length || 0}
+                            </span>
                           </div>
                         </div>
                       </div>

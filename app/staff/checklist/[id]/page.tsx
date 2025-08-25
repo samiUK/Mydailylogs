@@ -173,16 +173,38 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
     async function loadChecklist() {
       console.log("[v0] Loading checklist for template ID:", params.id)
       const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
 
-      if (!user) {
-        console.log("[v0] No user found")
-        return
+      const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
+      let currentUser: any = null
+
+      if (impersonationContext) {
+        const impersonationData = JSON.parse(impersonationContext)
+
+        const { data: targetProfile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("email", impersonationData.targetUserEmail)
+          .single()
+
+        if (targetProfile) {
+          currentUser = { id: targetProfile.id, email: impersonationData.targetUserEmail }
+        }
       }
 
-      console.log("[v0] User found:", user.id)
+      if (!currentUser) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        if (!user) {
+          console.log("[v0] No user found")
+          return
+        }
+
+        currentUser = user
+      }
+
+      console.log("[v0] User found:", currentUser.id)
 
       // Check if user has access to this template
       const { data: assignmentData } = await supabase
@@ -197,7 +219,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
           )
         `)
         .eq("template_id", params.id)
-        .eq("assigned_to", user.id)
+        .eq("assigned_to", currentUser.id)
         .eq("is_active", true)
         .single()
 
@@ -218,7 +240,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
             .from("daily_checklists")
             .select("*")
             .eq("template_id", params.id)
-            .eq("assigned_to", user.id)
+            .eq("assigned_to", currentUser.id)
             .eq("date", today)
             .single()
 
@@ -234,7 +256,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
               .from("daily_checklists")
               .insert({
                 template_id: params.id,
-                assigned_to: user.id,
+                assigned_to: currentUser.id,
                 date: today,
                 status: "in_progress",
                 organization_id: assignmentData.organization_id,
@@ -303,11 +325,33 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
 
   const handleTaskResponse = async (taskId: string, value: string, isCompleted = true) => {
     const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
 
-    if (!user) return
+    const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
+    let currentUser: any = null
+
+    if (impersonationContext) {
+      const impersonationData = JSON.parse(impersonationContext)
+
+      const { data: targetProfile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("email", impersonationData.targetUserEmail)
+        .single()
+
+      if (targetProfile) {
+        currentUser = { id: targetProfile.id, email: impersonationData.targetUserEmail }
+      }
+    }
+
+    if (!currentUser) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) return
+
+      currentUser = user
+    }
 
     const existingResponse = responses.find((r) => r.item_id === taskId)
     const checklistId = dailyChecklist?.id || params.id
@@ -350,11 +394,33 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
 
   const handleTaskNotes = async (taskId: string, notes: string) => {
     const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
 
-    if (!user) return
+    const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
+    let currentUser: any = null
+
+    if (impersonationContext) {
+      const impersonationData = JSON.parse(impersonationContext)
+
+      const { data: targetProfile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("email", impersonationData.targetUserEmail)
+        .single()
+
+      if (targetProfile) {
+        currentUser = { id: targetProfile.id, email: impersonationData.targetUserEmail }
+      }
+    }
+
+    if (!currentUser) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) return
+
+      currentUser = user
+    }
 
     setLocalNotes((prev) => ({ ...prev, [taskId]: notes }))
 
@@ -397,16 +463,38 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
     console.log("[v0] Mark completed button clicked for task:", taskId)
 
     const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
 
-    if (!user) {
-      console.log("[v0] No user found")
-      return
+    const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
+    let currentUser: any = null
+
+    if (impersonationContext) {
+      const impersonationData = JSON.parse(impersonationContext)
+
+      const { data: targetProfile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("email", impersonationData.targetUserEmail)
+        .single()
+
+      if (targetProfile) {
+        currentUser = { id: targetProfile.id, email: impersonationData.targetUserEmail }
+      }
     }
 
-    console.log("[v0] User found:", user.id)
+    if (!currentUser) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        console.log("[v0] No user found")
+        return
+      }
+
+      currentUser = user
+    }
+
+    console.log("[v0] User found:", currentUser.id)
 
     const existingResponse = responses.find((r) => r.item_id === taskId)
     const currentValue = localInputValues[taskId] ?? ""
@@ -636,17 +724,39 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
     setIsSaving(true)
 
     const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
 
-    if (!user) {
-      console.log("[v0] No user found for checklist completion")
-      setIsSaving(false)
-      return
+    const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
+    let currentUser: any = null
+
+    if (impersonationContext) {
+      const impersonationData = JSON.parse(impersonationContext)
+
+      const { data: targetProfile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("email", impersonationData.targetUserEmail)
+        .single()
+
+      if (targetProfile) {
+        currentUser = { id: targetProfile.id, email: impersonationData.targetUserEmail }
+      }
     }
 
-    console.log("[v0] User found for completion:", user.id)
+    if (!currentUser) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        console.log("[v0] No user found for checklist completion")
+        setIsSaving(false)
+        return
+      }
+
+      currentUser = user
+    }
+
+    console.log("[v0] User found for completion:", currentUser.id)
     console.log("[v0] Template ID:", params.id)
 
     // Check if all required tasks are completed
@@ -697,7 +807,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
             updated_at: new Date().toISOString(),
           })
           .eq("template_id", params.id)
-          .eq("assigned_to", user.id)
+          .eq("assigned_to", currentUser.id)
           .eq("is_active", true)
           .select()
 
@@ -720,10 +830,10 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
 
       // Create a completion notification for admin
       const { error: notificationError } = await supabase.from("notifications").insert({
-        user_id: user.id,
+        user_id: currentUser.id,
         template_id: params.id,
         type: "checklist_completed",
-        message: `${user.email} submitted a report: ${template?.name}`,
+        message: `${currentUser.email} submitted a report: ${template?.name}`,
         created_at: new Date().toISOString(),
       })
 

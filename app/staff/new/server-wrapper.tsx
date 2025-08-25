@@ -14,7 +14,88 @@ export default async function StaffNewReportServerWrapper() {
   console.log("[v0] Staff New Report page - Component function called")
 
   const cookieStore = cookies()
-  const supabase = createServerClient(
+  const isMasterAdminImpersonating = cookieStore.get("masterAdminImpersonation")?.value === "true"
+  const impersonatedUserEmail = cookieStore.get("impersonatedUserEmail")?.value
+
+  let user: any = null
+  let profile: any = null
+
+  if (isMasterAdminImpersonating && impersonatedUserEmail) {
+    // Master admin is impersonating - get the impersonated user's data
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+        },
+      },
+    )
+
+    const { data: impersonatedProfile, error: impersonatedError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("email", impersonatedUserEmail)
+      .single()
+
+    if (impersonatedProfile) {
+      user = { id: impersonatedProfile.id }
+      profile = impersonatedProfile
+    } else {
+      console.log("[v0] Staff New Report page - No user found, redirecting to login")
+      redirect("/auth/login")
+    }
+  } else {
+    // Regular authentication flow
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+        },
+      },
+    )
+
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+
+    if (!authUser) {
+      console.log("[v0] Staff New Report page - No user found, redirecting to login")
+      redirect("/auth/login")
+    }
+
+    user = authUser
+
+    console.log("[v0] Staff New Report page - User ID:", user.id)
+
+    // Get user profile
+    const { data: regularProfile, error: profileError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single()
+
+    if (profileError || !regularProfile) {
+      console.log("[v0] Staff New Report page - Profile error:", profileError)
+      return (
+        <div className="container mx-auto p-6">
+          <div className="text-center text-muted-foreground">Unable to load profile. Please try again.</div>
+        </div>
+      )
+    }
+
+    profile = regularProfile
+  }
+
+  console.log("[v0] Staff New Report page - Profile found, organization_id:", profile.organization_id)
+
+  const { data: subscription, error: subscriptionError } = await createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -25,33 +106,6 @@ export default async function StaffNewReportServerWrapper() {
       },
     },
   )
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    console.log("[v0] Staff New Report page - No user found, redirecting to login")
-    redirect("/auth/login")
-  }
-
-  console.log("[v0] Staff New Report page - User ID:", user.id)
-
-  // Get user profile
-  const { data: profile, error: profileError } = await supabase.from("profiles").select("*").eq("id", user.id).single()
-
-  if (profileError || !profile) {
-    console.log("[v0] Staff New Report page - Profile error:", profileError)
-    return (
-      <div className="container mx-auto p-6">
-        <div className="text-center text-muted-foreground">Unable to load profile. Please try again.</div>
-      </div>
-    )
-  }
-
-  console.log("[v0] Staff New Report page - Profile found, organization_id:", profile.organization_id)
-
-  const { data: subscription, error: subscriptionError } = await supabase
     .from("subscriptions")
     .select("status, plan_name")
     .eq("organization_id", profile.organization_id)
@@ -97,7 +151,17 @@ export default async function StaffNewReportServerWrapper() {
   }
 
   // Get available report templates
-  const { data: templates, error: templatesError } = await supabase
+  const { data: templates, error: templatesError } = await createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+      },
+    },
+  )
     .from("checklist_templates")
     .select("*")
     .eq("organization_id", profile.organization_id)

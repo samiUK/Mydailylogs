@@ -8,34 +8,65 @@ import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CheckSquare, Calendar, Clock, AlertCircle } from "lucide-react"
+import { cookies } from "next/headers"
 
 export default async function StaffTemplatesPage() {
   console.log("[v0] Staff Templates page - Component function called")
 
   try {
-    const supabase = await createClient()
+    const cookieStore = cookies()
+    const isMasterAdminImpersonating = cookieStore.get("masterAdminImpersonation")?.value === "true"
+    const impersonatedUserEmail = cookieStore.get("impersonatedUserEmail")?.value
 
-    // Get user
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    let user: any = null
+    let userProfile: any = null
 
-    console.log("[v0] Staff Templates page - User:", user ? "found" : "not found")
+    if (isMasterAdminImpersonating && impersonatedUserEmail) {
+      // Master admin is impersonating - get the impersonated user's data
+      const supabase = await createClient()
+      const { data: impersonatedProfile, error: impersonatedError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("email", impersonatedUserEmail)
+        .single()
 
-    if (!user) {
-      console.log("[v0] Staff Templates page - No user found, redirecting to login")
-      redirect("/auth/login")
+      if (impersonatedProfile) {
+        user = { id: impersonatedProfile.id }
+        userProfile = impersonatedProfile
+      } else {
+        console.log("[v0] Staff Templates page - No user found, redirecting to login")
+        redirect("/auth/login")
+      }
+    } else {
+      // Regular authentication flow
+      const supabase = await createClient()
+
+      // Get user
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser()
+
+      console.log("[v0] Staff Templates page - User:", authUser ? "found" : "not found")
+
+      if (!authUser) {
+        console.log("[v0] Staff Templates page - No user found, redirecting to login")
+        redirect("/auth/login")
+      }
+
+      user = authUser
+
+      // Get user's profile and organization
+      const { data: regularProfile, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single()
+
+      console.log("[v0] Staff Templates page - Profile:", regularProfile ? "found" : "not found")
+      console.log("[v0] Staff Templates page - Profile error:", profileError)
+
+      userProfile = regularProfile
     }
-
-    // Get user's profile and organization
-    const { data: userProfile, error: profileError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single()
-
-    console.log("[v0] Staff Templates page - Profile:", userProfile ? "found" : "not found")
-    console.log("[v0] Staff Templates page - Profile error:", profileError)
 
     if (!userProfile?.organization_id) {
       console.log("[v0] Staff Templates page - No organization found")
@@ -50,7 +81,7 @@ export default async function StaffTemplatesPage() {
     }
 
     // Get available templates for the organization
-    const { data: availableTemplates, error: templatesError } = await supabase
+    const { data: availableTemplates, error: templatesError } = await createClient()
       .from("checklist_templates")
       .select(`
         *,

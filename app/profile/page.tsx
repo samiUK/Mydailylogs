@@ -85,25 +85,47 @@ export default function ProfilePage() {
 
     async function loadProfile() {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        if (!user) {
-          router.push("/auth/login")
-          return
+        const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
+        let currentUser: any = null
+
+        if (impersonationContext) {
+          const impersonationData = JSON.parse(impersonationContext)
+
+          const { data: targetProfile } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("email", impersonationData.targetUserEmail)
+            .single()
+
+          if (targetProfile) {
+            currentUser = { id: targetProfile.id, email: impersonationData.targetUserEmail }
+            setProfile(targetProfile)
+          }
         }
 
-        const { data: profileData, error } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+        if (!currentUser) {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser()
 
-        if (error) throw error
-        setProfile(profileData)
+          if (!user) {
+            router.push("/auth/login")
+            return
+          }
+
+          currentUser = user
+
+          const { data: profileData, error } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+
+          if (error) throw error
+          setProfile(profileData)
+        }
 
         const response = await fetch("/api/user/organizations")
         if (response.ok) {
           const { organizations: userOrgs } = await response.json()
           setOrganizations(userOrgs)
 
-          // Find current active organization
           const activeOrg = userOrgs.find((org: UserOrganization) => org.isActive)
           if (activeOrg) {
             setCurrentOrganization(activeOrg)
@@ -144,7 +166,6 @@ export default function ProfilePage() {
 
       setMessage(`Switching to ${selectedOrg.name} as ${selectedOrg.role}...`)
 
-      // Redirect to the appropriate dashboard after a short delay
       setTimeout(() => {
         window.location.href = redirectPath
       }, 1500)
@@ -309,7 +330,6 @@ export default function ProfilePage() {
       }
 
       setPasswordMessage("Password changed successfully!")
-      // Reset form
       e.currentTarget.reset()
     } catch (error) {
       console.error("Error changing password:", error)

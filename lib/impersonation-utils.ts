@@ -37,39 +37,45 @@ export async function getServerImpersonationContext(): Promise<ImpersonationCont
   }
 }
 
-// Client-side impersonation detection using sessionStorage
+// Client-side impersonation detection using cookies
 export function getClientImpersonationContext(): ImpersonationContext {
   if (typeof window === "undefined") {
     return { isImpersonating: false }
   }
 
-  const impersonationData = sessionStorage.getItem("masterAdminImpersonation")
-  if (impersonationData) {
-    try {
-      const parsed = JSON.parse(impersonationData)
-      return {
-        isImpersonating: true,
-        impersonatedUserEmail: parsed.targetUserEmail,
-        impersonatedUserRole: parsed.targetUserRole,
-        impersonatedOrganizationId: parsed.targetOrganizationId,
-        masterAdminType: parsed.masterAdminType,
-      }
-    } catch (error) {
-      console.error("Error parsing impersonation data:", error)
-    }
-  }
+  // Use only cookies for session management
+  const isImpersonating =
+    document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("masterAdminImpersonation="))
+      ?.split("=")[1] === "true"
 
-  // Fallback to localStorage for backward compatibility
-  const isImpersonating = localStorage.getItem("masterAdminImpersonation") === "true"
-  const impersonatedUserEmail = localStorage.getItem("impersonatedUserEmail") || undefined
-  const impersonatedUserRole = localStorage.getItem("impersonatedUserRole") || undefined
-  const impersonatedOrganizationId = localStorage.getItem("impersonatedOrganizationId") || undefined
+  const impersonatedUserEmail = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith("impersonatedUserEmail="))
+    ?.split("=")[1]
+
+  const impersonatedUserRole = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith("impersonatedUserRole="))
+    ?.split("=")[1]
+
+  const impersonatedOrganizationId = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith("impersonatedOrganizationId="))
+    ?.split("=")[1]
+
+  const masterAdminType = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith("masterAdminType="))
+    ?.split("=")[1] as "master_admin" | "superuser"
 
   return {
     isImpersonating,
-    impersonatedUserEmail,
+    impersonatedUserEmail: impersonatedUserEmail ? decodeURIComponent(impersonatedUserEmail) : undefined,
     impersonatedUserRole,
     impersonatedOrganizationId,
+    masterAdminType,
   }
 }
 
@@ -174,46 +180,17 @@ export function startImpersonation(
   targetOrganizationId: string,
   masterAdminType: "master_admin" | "superuser" = "master_admin",
 ) {
-  const impersonationData = {
-    targetUserEmail,
-    targetUserRole,
-    targetOrganizationId,
-    masterAdminType,
-    startedAt: new Date().toISOString(),
-  }
-
-  // Set sessionStorage for new impersonation system
-  sessionStorage.setItem("masterAdminImpersonation", JSON.stringify(impersonationData))
-
-  // Set localStorage for backward compatibility
-  localStorage.setItem("masterAdminImpersonation", "true")
-  localStorage.setItem("impersonatedUserEmail", targetUserEmail)
-  localStorage.setItem("impersonatedUserRole", targetUserRole)
-  localStorage.setItem("impersonatedOrganizationId", targetOrganizationId)
-
-  // Set cookies for server-side detection
-  document.cookie = `masterAdminImpersonation=true; path=/; max-age=86400`
-  document.cookie = `impersonatedUserEmail=${targetUserEmail}; path=/; max-age=86400`
-  document.cookie = `impersonatedUserRole=${targetUserRole}; path=/; max-age=86400`
-  document.cookie = `impersonatedOrganizationId=${targetOrganizationId}; path=/; max-age=86400`
-  document.cookie = `masterAdminType=${masterAdminType}; path=/; max-age=86400`
+  // Set cookies for server-side detection only
+  document.cookie = `masterAdminImpersonation=true; path=/; max-age=86400; SameSite=Lax`
+  document.cookie = `impersonatedUserEmail=${encodeURIComponent(targetUserEmail)}; path=/; max-age=86400; SameSite=Lax`
+  document.cookie = `impersonatedUserRole=${targetUserRole}; path=/; max-age=86400; SameSite=Lax`
+  document.cookie = `impersonatedOrganizationId=${targetOrganizationId}; path=/; max-age=86400; SameSite=Lax`
+  document.cookie = `masterAdminType=${masterAdminType}; path=/; max-age=86400; SameSite=Lax`
 }
 
 // Exit impersonation session (client-side)
 export function exitImpersonation() {
-  // Clear sessionStorage
-  sessionStorage.removeItem("masterAdminImpersonation")
-  sessionStorage.removeItem("impersonated_user")
-  sessionStorage.removeItem("impersonated_profile")
-  sessionStorage.removeItem("is_impersonating")
-
-  // Clear localStorage
-  localStorage.removeItem("masterAdminImpersonation")
-  localStorage.removeItem("impersonatedUserEmail")
-  localStorage.removeItem("impersonatedUserRole")
-  localStorage.removeItem("impersonatedOrganizationId")
-
-  // Clear cookies
+  // Clear cookies only
   document.cookie = "masterAdminImpersonation=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
   document.cookie = "impersonatedUserEmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
   document.cookie = "impersonatedUserRole=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"

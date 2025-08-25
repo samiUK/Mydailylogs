@@ -20,8 +20,98 @@ export async function updateSession(request: NextRequest) {
   )
   console.log("[v0] Middleware - isMasterAdminImpersonating:", isMasterAdminImpersonating)
 
-  // With Fluid compute, don't put this client in a global environment
-  // variable. Always create a new one on each request.
+  // Master admin routes - only accessible during impersonation or master login
+  if (request.nextUrl.pathname.startsWith("/master-admin/")) {
+    if (!isMasterAdminImpersonating) {
+      const url = request.nextUrl.clone()
+      url.pathname = "/masterlogin"
+      return NextResponse.redirect(url)
+    }
+    return supabaseResponse
+  }
+
+  // Admin routes - separate from staff routes
+  if (request.nextUrl.pathname.startsWith("/admin/")) {
+    // Allow impersonation access
+    if (isMasterAdminImpersonating) {
+      return supabaseResponse
+    }
+
+    // Regular admin authentication
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+            supabaseResponse = NextResponse.next({
+              request,
+            })
+            cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
+          },
+        },
+      },
+    )
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      const url = request.nextUrl.clone()
+      url.pathname = "/auth/login"
+      url.searchParams.set("redirect", request.nextUrl.pathname)
+      return NextResponse.redirect(url)
+    }
+
+    return supabaseResponse
+  }
+
+  // Staff routes - separate from admin routes
+  if (request.nextUrl.pathname.startsWith("/staff/")) {
+    // Allow impersonation access
+    if (isMasterAdminImpersonating) {
+      return supabaseResponse
+    }
+
+    // Regular staff authentication
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+            supabaseResponse = NextResponse.next({
+              request,
+            })
+            cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
+          },
+        },
+      },
+    )
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      const url = request.nextUrl.clone()
+      url.pathname = "/auth/login"
+      url.searchParams.set("redirect", request.nextUrl.pathname)
+      return NextResponse.redirect(url)
+    }
+
+    return supabaseResponse
+  }
+
   let user = null
   if (!isMasterAdminImpersonating) {
     const supabase = createServerClient(

@@ -16,7 +16,7 @@ interface BrandingContextType {
 }
 
 const BrandingContext = createContext<BrandingContextType>({
-  organizationName: "MyDayLogs", // Updated default from "Mydailylogs" to "MyDayLogs"
+  organizationName: "MyDayLogs",
   logoUrl: null,
   primaryColor: "#059669",
   secondaryColor: "#6B7280",
@@ -46,6 +46,54 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
   const refreshBranding = async () => {
     const supabase = createClient()
 
+    // Check for impersonation context from cookies only
+    const impersonationCookie = document.cookie.split("; ").find((row) => row.startsWith("masterAdminImpersonation="))
+
+    const isImpersonating = impersonationCookie?.split("=")[1] === "true"
+
+    if (isImpersonating) {
+      const impersonatedEmailCookie = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("impersonatedUserEmail="))
+
+      const impersonatedEmail = impersonatedEmailCookie?.split("=")[1]
+
+      if (impersonatedEmail) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("organization_id, organization_name")
+          .eq("email", decodeURIComponent(impersonatedEmail))
+          .single()
+
+        if (profile?.organization_id) {
+          const subscriptionLimits = await getSubscriptionLimits(profile.organization_id)
+          const { data: organization } = await supabase
+            .from("organizations")
+            .select("logo_url, primary_color, secondary_color")
+            .eq("id", profile.organization_id)
+            .single()
+
+          if (organization) {
+            setBranding({
+              organizationName: subscriptionLimits.hasCustomBranding
+                ? profile.organization_name || "Your Organization"
+                : "MyDayLogs",
+              logoUrl: organization.logo_url,
+              primaryColor: subscriptionLimits.hasCustomBranding ? organization.primary_color || "#059669" : "#059669",
+              secondaryColor: subscriptionLimits.hasCustomBranding
+                ? organization.secondary_color || "#6B7280"
+                : "#6B7280",
+              hasCustomBranding: subscriptionLimits.hasCustomBranding,
+              isLoading: false,
+              refreshBranding,
+            })
+          }
+        }
+        return
+      }
+    }
+
+    // Regular user authentication
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -83,55 +131,8 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
   }
 
   useEffect(() => {
-    const fetchOrganizationBranding = async () => {
-      const supabase = createClient()
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) {
-        setBranding((prev) => ({ ...prev, isLoading: false }))
-        return
-      }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("organization_id, organization_name")
-        .eq("id", user.id)
-        .single()
-
-      if (!profile?.organization_id) {
-        setBranding((prev) => ({ ...prev, isLoading: false }))
-        return
-      }
-
-      const subscriptionLimits = await getSubscriptionLimits(profile.organization_id)
-
-      const { data: organization } = await supabase
-        .from("organizations")
-        .select("logo_url, primary_color, secondary_color")
-        .eq("id", profile.organization_id)
-        .single()
-
-      if (organization) {
-        setBranding({
-          organizationName: subscriptionLimits.hasCustomBranding
-            ? profile.organization_name || "Your Organization"
-            : "MyDayLogs",
-          logoUrl: organization.logo_url,
-          primaryColor: subscriptionLimits.hasCustomBranding ? organization.primary_color || "#059669" : "#059669",
-          secondaryColor: subscriptionLimits.hasCustomBranding ? organization.secondary_color || "#6B7280" : "#6B7280",
-          hasCustomBranding: subscriptionLimits.hasCustomBranding,
-          isLoading: false,
-          refreshBranding,
-        })
-      } else {
-        setBranding((prev) => ({ ...prev, isLoading: false }))
-      }
-    }
-
     if (!initialBranding) {
-      fetchOrganizationBranding()
+      refreshBranding()
     } else {
       setBranding((prev) => ({ ...prev, isLoading: false, refreshBranding }))
     }

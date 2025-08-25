@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Eye, Download, Search, Loader2 } from "lucide-react"
+import { Eye, Download, Search, Loader2, ExternalLink } from "lucide-react"
 import Link from "next/link"
 
 console.log("[v0] Admin Reports Analytics page - File loaded and parsing")
@@ -92,6 +92,18 @@ export default function AdminReportsAnalyticsPage() {
           .eq("organization_id", profile.organization_id)
           .order("date", { ascending: false })
 
+        const { data: externalReports } = await supabase
+          .from("external_submissions")
+          .select(`
+            id,
+            submitter_name,
+            status,
+            submitted_at,
+            checklist_templates!inner(id, name, description, schedule_type)
+          `)
+          .eq("organization_id", profile.organization_id)
+          .order("submitted_at", { ascending: false })
+
         // Combine and format reports
         const combinedReports = [
           ...(regularReports || []).map((report) => ({
@@ -123,6 +135,18 @@ export default function AdminReportsAnalyticsPage() {
               `${report.profiles?.first_name} ${report.profiles?.last_name}` ||
               "Unknown User",
             assignee_email: report.profiles?.email,
+          })),
+          ...(externalReports || []).map((report) => ({
+            id: report.id,
+            type: "external" as const,
+            name: report.checklist_templates?.name || "Unknown Template",
+            description: report.checklist_templates?.description,
+            schedule_type: report.checklist_templates?.schedule_type,
+            status: report.status || "completed",
+            date: report.submitted_at,
+            completed_at: report.submitted_at,
+            assignee: report.submitter_name,
+            assignee_email: null,
           })),
         ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
@@ -164,7 +188,9 @@ export default function AdminReportsAnalyticsPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold text-foreground">Reports and Analytics</h1>
-        <p className="text-muted-foreground mt-2">View and analyze all report submissions</p>
+        <p className="text-muted-foreground mt-2">
+          View and analyze all report submissions including external contractors
+        </p>
       </div>
 
       {/* Search and Filters */}
@@ -202,6 +228,7 @@ export default function AdminReportsAnalyticsPage() {
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="daily">Daily Reports</SelectItem>
                 <SelectItem value="regular">Regular Reports</SelectItem>
+                <SelectItem value="external">External Reports</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -212,7 +239,7 @@ export default function AdminReportsAnalyticsPage() {
       <Card>
         <CardHeader>
           <CardTitle>All Reports ({filteredReports.length})</CardTitle>
-          <CardDescription>Complete list of report submissions</CardDescription>
+          <CardDescription>Complete list of report submissions including external contractors</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
@@ -231,8 +258,22 @@ export default function AdminReportsAnalyticsPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-3">
                       <h3 className="font-medium">{report.name}</h3>
-                      <Badge variant={report.type === "daily" ? "default" : "secondary"}>
-                        {report.type === "daily" ? "Daily" : "Regular"}
+                      <Badge
+                        variant={
+                          report.type === "daily" ? "default" : report.type === "external" ? "outline" : "secondary"
+                        }
+                        className={report.type === "external" ? "border-blue-500 text-blue-700" : ""}
+                      >
+                        {report.type === "daily" ? (
+                          "Daily"
+                        ) : report.type === "external" ? (
+                          <span className="flex items-center gap-1">
+                            <ExternalLink className="w-3 h-3" />
+                            External
+                          </span>
+                        ) : (
+                          "Regular"
+                        )}
                       </Badge>
                       <Badge
                         variant={
@@ -247,13 +288,18 @@ export default function AdminReportsAnalyticsPage() {
                       </Badge>
                     </div>
                     <div className="text-sm text-muted-foreground mt-1">
-                      <span>Assigned to: {report.assignee}</span>
+                      <span>
+                        {report.type === "external" ? "Submitted by:" : "Assigned to:"} {report.assignee}
+                      </span>
                       <span className="mx-2">•</span>
                       <span>Date: {new Date(report.date).toLocaleDateString()}</span>
                       {report.completed_at && (
                         <>
                           <span className="mx-2">•</span>
-                          <span>Completed: {new Date(report.completed_at).toLocaleDateString()}</span>
+                          <span>
+                            {report.type === "external" ? "Submitted:" : "Completed:"}{" "}
+                            {new Date(report.completed_at).toLocaleDateString()}
+                          </span>
                         </>
                       )}
                     </div>

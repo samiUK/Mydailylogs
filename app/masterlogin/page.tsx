@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { Shield, AlertTriangle } from "lucide-react"
+import { Shield, AlertTriangle, ArrowLeft } from "lucide-react"
 
 export default function MasterLoginPage() {
   const [email, setEmail] = useState("")
@@ -51,6 +51,17 @@ export default function MasterLoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center p-6">
       <div className="w-full max-w-md">
+        <div className="mb-4">
+          <Button
+            variant="ghost"
+            onClick={() => router.push("/")}
+            className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Home
+          </Button>
+        </div>
+
         <Card className="border-red-200 shadow-xl">
           <CardHeader className="text-center space-y-4">
             <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">

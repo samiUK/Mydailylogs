@@ -2,7 +2,7 @@ import { cookies } from "next/headers"
 import { createServerClient } from "@supabase/ssr"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Trash2, Users } from "lucide-react"
+import { Trash2, Users, ExternalLink } from "lucide-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 
@@ -139,6 +139,12 @@ export default async function AdminTemplatesPage() {
                     <Button variant="outline" size="sm">
                       <Users className="w-4 h-4 mr-1" />
                       Assign
+                    </Button>
+                  </Link>
+                  <Link href={`/admin/templates/share/${template.id}`}>
+                    <Button variant="outline" size="sm" className="text-blue-600 hover:text-blue-700 bg-transparent">
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      Share External
                     </Button>
                   </Link>
                   <form action={`/api/admin/delete-template`} method="POST">

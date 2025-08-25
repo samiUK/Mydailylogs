@@ -8,6 +8,8 @@ import { Footer } from "@/components/footer"
 import { FeedbackModal } from "@/components/feedback-modal"
 import { FeedbackBanner } from "@/components/feedback-banner"
 
+export const dynamic = "force-dynamic"
+
 async function StaffLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = cookies()
   const isMasterAdminImpersonating = cookieStore.get("masterAdminImpersonation")?.value === "true"

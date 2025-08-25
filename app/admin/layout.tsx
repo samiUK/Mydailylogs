@@ -8,6 +8,8 @@ import { FeedbackModal } from "@/components/feedback-modal"
 import { FeedbackBanner } from "@/components/feedback-banner"
 import { cookies } from "next/headers"
 
+export const dynamic = "force-dynamic"
+
 async function AdminLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies()
   const isMasterAdminImpersonating = cookieStore.get("masterAdminImpersonation")?.value === "true"

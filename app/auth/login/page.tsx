@@ -25,9 +25,16 @@ export default function LoginPage() {
   const [availableRoles, setAvailableRoles] = useState<string[]>([])
   const [selectedRole, setSelectedRole] = useState<string>("")
   const [showRoleSelection, setShowRoleSelection] = useState(false)
+  const [isClient, setIsClient] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  useEffect(() => {
+    if (!isClient) return
+
     const savedEmail = localStorage.getItem("mydaylogs_remembered_email")
     if (savedEmail) {
       setEmail(savedEmail)
@@ -41,7 +48,7 @@ export default function LoginPage() {
       setEmail(masterEmail)
       sessionStorage.removeItem("masterLoginEmail")
     }
-  }, [])
+  }, [isClient])
 
   const checkForMultipleRoles = async (emailAddress: string) => {
     if (!emailAddress || isMasterLogin) return
@@ -123,16 +130,18 @@ export default function LoginPage() {
         const userProfile = result.profile
         console.log("[v0] User profile retrieved:", userProfile)
 
-        sessionStorage.setItem(
-          "masterAdminContext",
-          JSON.stringify({
-            isMasterAdmin: true,
-            targetUserEmail: email,
-            targetUserRole: userProfile.role,
-            targetUserId: userProfile.id,
-            targetUserOrgId: userProfile.organization_id,
-          }),
-        )
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem(
+            "masterAdminContext",
+            JSON.stringify({
+              isMasterAdmin: true,
+              targetUserEmail: email,
+              targetUserRole: userProfile.role,
+              targetUserId: userProfile.id,
+              targetUserOrgId: userProfile.organization_id,
+            }),
+          )
+        }
 
         console.log(
           "[v0] Master admin login successful, redirecting to:",
@@ -195,10 +204,12 @@ export default function LoginPage() {
         userRole = "admin"
       }
 
-      if (rememberMe) {
-        localStorage.setItem("mydaylogs_remembered_email", email)
-      } else {
-        localStorage.removeItem("mydaylogs_remembered_email")
+      if (typeof window !== "undefined") {
+        if (rememberMe) {
+          localStorage.setItem("mydaylogs_remembered_email", email)
+        } else {
+          localStorage.removeItem("mydaylogs_remembered_email")
+        }
       }
 
       console.log("[v0] Login successful, redirecting to:", userRole === "admin" ? "/admin" : "/staff")
@@ -213,6 +224,20 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (!isClient) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-secondary to-accent/20 flex items-center justify-center p-6">
+        <div className="w-full max-w-sm">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center">Loading...</div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
   }
 
   return (

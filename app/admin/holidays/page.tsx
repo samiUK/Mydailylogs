@@ -7,6 +7,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Calendar } from "@/components/ui/calendar"
 import { Trash2, Plus, CalendarIcon } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { createClient } from "@/lib/supabase/client"
 import { format } from "date-fns"
 
@@ -22,6 +31,7 @@ export default function HolidaysPage() {
   const [selectedDate, setSelectedDate] = useState<Date>()
   const [holidayName, setHolidayName] = useState("")
   const [loading, setLoading] = useState(true)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<string | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -76,9 +86,11 @@ export default function HolidaysPage() {
         setHolidayName("")
         setSelectedDate(undefined)
         fetchHolidays()
+        alert("Holiday added successfully!")
       }
     } catch (error) {
       console.error("Error adding holiday:", error)
+      alert("Failed to add holiday. Please try again.")
     }
   }
 
@@ -88,9 +100,14 @@ export default function HolidaysPage() {
 
       if (!error) {
         fetchHolidays()
+        setDeleteConfirmOpen(null)
+        alert("Holiday deleted successfully!")
+      } else {
+        throw error
       }
     } catch (error) {
       console.error("Error deleting holiday:", error)
+      alert("Failed to delete holiday. Please try again.")
     }
   }
 
@@ -172,14 +189,39 @@ export default function HolidaysPage() {
                       <p className="font-medium">{holiday.name}</p>
                       <p className="text-sm text-muted-foreground">{format(new Date(holiday.date), "MMMM d, yyyy")}</p>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteHoliday(holiday.id)}
-                      className="text-red-600 hover:text-red-700"
+                    <Dialog
+                      open={deleteConfirmOpen === holiday.id}
+                      onOpenChange={(open) => !open && setDeleteConfirmOpen(null)}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeleteConfirmOpen(holiday.id)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Delete Holiday</DialogTitle>
+                          <DialogDescription>
+                            Are you sure you want to delete "{holiday.name}" on{" "}
+                            {format(new Date(holiday.date), "MMMM d, yyyy")}? This action cannot be undone and may
+                            affect existing task schedules.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setDeleteConfirmOpen(null)}>
+                            Cancel
+                          </Button>
+                          <Button variant="destructive" onClick={() => deleteHoliday(holiday.id)}>
+                            Delete Holiday
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 ))}
               </div>

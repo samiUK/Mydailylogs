@@ -10,6 +10,15 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 
@@ -45,6 +54,8 @@ export default function AdminTemplatesPage() {
   const [profile, setProfile] = useState<any>(null)
   const [assigningTemplate, setAssigningTemplate] = useState<string | null>(null)
   const [selectedMembers, setSelectedMembers] = useState<{ [key: string]: string[] }>({})
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<string | null>(null)
+  const [assignConfirmOpen, setAssignConfirmOpen] = useState<string | null>(null)
 
   useEffect(() => {
     const loadData = async () => {
@@ -124,12 +135,39 @@ export default function AdminTemplatesPage() {
       if (!response.ok) throw new Error("Failed to assign template")
 
       setSelectedMembers((prev) => ({ ...prev, [templateId]: [] }))
+      setAssignConfirmOpen(null)
       alert("Template assigned successfully!")
     } catch (error) {
       console.error("Error assigning template:", error)
       alert("Failed to assign template")
     } finally {
       setAssigningTemplate(null)
+    }
+  }
+
+  const handleAssignConfirm = (templateId: string) => {
+    const memberIds = selectedMembers[templateId] || []
+    if (memberIds.length === 0) return
+
+    setAssignConfirmOpen(templateId)
+  }
+
+  const handleDeleteTemplate = async (templateId: string) => {
+    try {
+      const response = await fetch("/api/admin/delete-template", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: templateId }),
+      })
+
+      if (!response.ok) throw new Error("Failed to delete template")
+
+      setTemplates(templates.filter((t) => t.id !== templateId))
+      setDeleteConfirmOpen(null)
+      alert("Template deleted successfully!")
+    } catch (error) {
+      console.error("Error deleting template:", error)
+      alert("Failed to delete template")
     }
   }
 
@@ -230,7 +268,7 @@ export default function AdminTemplatesPage() {
                       ))}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
-                        onClick={() => handleAssign(template.id, selectedMembers[template.id] || [])}
+                        onClick={() => handleAssignConfirm(template.id)}
                         disabled={(selectedMembers[template.id] || []).length === 0}
                       >
                         <UserCheck className="mr-2 h-4 w-4" />
@@ -250,17 +288,39 @@ export default function AdminTemplatesPage() {
                     <ExternalLink className="w-3 h-3 mr-1" />
                     Share
                   </Button>
-                  <form action={`/api/admin/delete-template`} method="POST">
-                    <input type="hidden" name="id" value={template.id} />
-                    <Button
-                      type="submit"
-                      variant="outline"
-                      size="sm"
-                      className="text-red-600 hover:text-red-700 bg-transparent"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </form>
+
+                  <Dialog
+                    open={deleteConfirmOpen === template.id}
+                    onOpenChange={(open) => !open && setDeleteConfirmOpen(null)}
+                  >
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 bg-transparent"
+                        onClick={() => setDeleteConfirmOpen(template.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Delete Template</DialogTitle>
+                        <DialogDescription>
+                          Are you sure you want to delete "{template.name}"? This action cannot be undone and will
+                          remove all associated tasks and assignments.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteConfirmOpen(null)}>
+                          Cancel
+                        </Button>
+                        <Button variant="destructive" onClick={() => handleDeleteTemplate(template.id)}>
+                          Delete Template
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </CardContent>
             </Card>
@@ -277,6 +337,43 @@ export default function AdminTemplatesPage() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={assignConfirmOpen !== null} onOpenChange={(open) => !open && setAssignConfirmOpen(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Assignment</DialogTitle>
+            <DialogDescription>
+              {assignConfirmOpen && (
+                <>
+                  Are you sure you want to assign "{templates.find((t) => t.id === assignConfirmOpen)?.name}" to{" "}
+                  {(selectedMembers[assignConfirmOpen] || []).length} team member(s)?
+                  <br />
+                  <br />
+                  Selected members:{" "}
+                  {(selectedMembers[assignConfirmOpen] || [])
+                    .map((memberId) => {
+                      const member = teamMembers.find((m) => m.id === memberId)
+                      return member?.full_name || `${member?.first_name} ${member?.last_name}`
+                    })
+                    .join(", ")}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssignConfirmOpen(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() =>
+                assignConfirmOpen && handleAssign(assignConfirmOpen, selectedMembers[assignConfirmOpen] || [])
+              }
+            >
+              Confirm Assignment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

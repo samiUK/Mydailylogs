@@ -12,6 +12,14 @@ import { ArrowLeft, Users, CalendarIcon, X } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 interface Template {
   id: string
@@ -47,12 +55,7 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const [holidays, setHolidays] = useState<Holiday[]>([])
-  const [excludeHolidays, setExcludeHolidays] = useState(true)
-  const [excludeWeekends, setExcludeWeekends] = useState(false)
-  const [customExcludedDates, setCustomExcludedDates] = useState<Date[]>([])
-  const [showCalendar, setShowCalendar] = useState(false)
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
 
   const router = useRouter()
 
@@ -70,12 +73,10 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
       } = await supabase.auth.getUser()
       if (!user) throw new Error("Not authenticated")
 
-      // Get user's organization
       const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single()
 
       if (!profile) throw new Error("Profile not found")
 
-      // Get template details
       const { data: templateData, error: templateError } = await supabase
         .from("checklist_templates")
         .select("id, name, description, frequency, schedule_type")
@@ -108,7 +109,6 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
         }
       }
 
-      // Get team members and their assignment status
       const { data: members, error: membersError } = await supabase
         .from("profiles")
         .select(`
@@ -116,11 +116,10 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
           template_assignments!left(id, is_active)
         `)
         .eq("organization_id", profile.organization_id)
-        .neq("id", user.id) // Exclude current user
+        .neq("id", user.id)
 
       if (membersError) throw membersError
 
-      // Process members to include assignment status
       const processedMembers =
         members?.map((member) => ({
           ...member,
@@ -132,7 +131,6 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
 
       setTeamMembers(processedMembers)
 
-      // Pre-select already assigned members
       const assignedMemberIds = processedMembers.filter((member) => member.is_assigned).map((member) => member.id)
       setSelectedMembers(new Set(assignedMemberIds))
     } catch (err) {
@@ -163,6 +161,11 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
     }
   }
 
+  const handleSubmitClick = () => {
+    if (!template) return
+    setConfirmDialogOpen(true)
+  }
+
   const handleSubmit = async () => {
     if (!template) return
 
@@ -179,18 +182,14 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
 
       if (!profile) throw new Error("Profile not found")
 
-      // Get currently assigned members
       const currentlyAssigned = teamMembers.filter((member) => member.is_assigned).map((member) => member.id)
 
       const newlySelected = Array.from(selectedMembers)
 
-      // Members to unassign (were assigned but not selected now)
       const toUnassign = currentlyAssigned.filter((id) => !selectedMembers.has(id))
 
-      // Members to assign (selected but not currently assigned)
       const toAssign = newlySelected.filter((id) => !currentlyAssigned.includes(id))
 
-      // Unassign members
       if (toUnassign.length > 0) {
         const { error: unassignError } = await supabase
           .from("template_assignments")
@@ -201,7 +200,6 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
         if (unassignError) throw unassignError
       }
 
-      // Assign new members
       if (toAssign.length > 0) {
         const assignments = toAssign.map((memberId) => ({
           template_id: template.id,
@@ -231,6 +229,8 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
         if (exclusionError) throw exclusionError
       }
 
+      setConfirmDialogOpen(false)
+      alert("Template assignments updated successfully!")
       router.push("/admin")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update assignments")
@@ -238,6 +238,12 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
       setSubmitting(false)
     }
   }
+
+  const [holidays, setHolidays] = useState<Holiday[]>([])
+  const [excludeHolidays, setExcludeHolidays] = useState(true)
+  const [excludeWeekends, setExcludeWeekends] = useState(false)
+  const [customExcludedDates, setCustomExcludedDates] = useState<Date[]>([])
+  const [showCalendar, setShowCalendar] = useState(false)
 
   if (loading) {
     return (
@@ -279,7 +285,6 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="flex items-center gap-4">
         <Link href="/admin">
           <Button variant="outline" size="sm">
@@ -293,7 +298,6 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
         </div>
       </div>
 
-      {/* Template Info */}
       <Card>
         <CardHeader>
           <CardTitle>{template.name}</CardTitle>
@@ -397,7 +401,6 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
         </Card>
       )}
 
-      {/* Team Members */}
       <Card>
         <CardHeader>
           <CardTitle>Select Team Members</CardTitle>
@@ -449,15 +452,53 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
         </CardContent>
       </Card>
 
-      {/* Actions */}
       <div className="flex justify-end gap-4">
         <Link href="/admin">
           <Button variant="outline">Cancel</Button>
         </Link>
-        <Button onClick={handleSubmit} disabled={submitting}>
+        <Button onClick={handleSubmitClick} disabled={submitting}>
           {submitting ? "Updating..." : "Update Report Assignments"}
         </Button>
       </div>
+
+      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Assignment Changes</DialogTitle>
+            <DialogDescription>
+              {template && (
+                <>
+                  You are about to update assignments for "{template.name}".
+                  <br />
+                  <br />
+                  <strong>{selectedMembers.size}</strong> team member(s) will be assigned to this template.
+                  {selectedMembers.size > 0 && (
+                    <>
+                      <br />
+                      <br />
+                      Selected members:{" "}
+                      {Array.from(selectedMembers)
+                        .map((memberId) => {
+                          const member = teamMembers.find((m) => m.id === memberId)
+                          return member?.full_name || `${member?.first_name} ${member?.last_name}` || "Unknown"
+                        })
+                        .join(", ")}
+                    </>
+                  )}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={submitting}>
+              {submitting ? "Updating..." : "Confirm Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

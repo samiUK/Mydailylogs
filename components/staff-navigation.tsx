@@ -98,18 +98,18 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
           <div className="flex items-center gap-2">
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="sm" className="md:hidden">
-                  <MenuIcon className="h-5 w-5" />
+                <Button variant="ghost" size="default" className="md:hidden min-w-12 min-h-12">
+                  <MenuIcon className="h-6 w-6" />
                 </Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-80">
                 <SheetHeader>
                   <SheetTitle className="text-left">Navigation</SheetTitle>
                 </SheetHeader>
-                <div className="flex flex-col space-y-4 mt-6">
+                <div className="flex flex-col space-y-2 mt-6">
                   <Link
                     href="/staff"
-                    className="text-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
+                    className="text-foreground hover:text-indigo-600 px-4 py-4 rounded-md text-base font-medium border-b min-h-12 flex items-center"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Staff Dashboard
@@ -117,7 +117,7 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
                   {hasPaidSubscription && (
                     <Link
                       href="/staff/new"
-                      className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
+                      className="text-muted-foreground hover:text-indigo-600 px-4 py-4 rounded-md text-base font-medium border-b min-h-12 flex items-center"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       New Report
@@ -125,7 +125,7 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
                   )}
                   <Link
                     href="/staff/team"
-                    className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
+                    className="text-muted-foreground hover:text-indigo-600 px-4 py-4 rounded-md text-base font-medium border-b min-h-12 flex items-center"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Team
@@ -136,16 +136,16 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 h-auto py-2 px-2 sm:px-3">
-                  <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                <Button variant="ghost" className="flex items-center gap-2 min-h-12 py-3 px-3 sm:px-4">
+                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
                     {user?.avatar_url ? (
                       <img
                         src={user.avatar_url || "/placeholder.svg"}
                         alt="Profile"
-                        className="w-8 h-8 rounded-full object-cover"
+                        className="w-10 h-10 rounded-full object-cover"
                       />
                     ) : (
-                      <UserIcon className="w-4 h-4 text-muted-foreground" />
+                      <UserIcon className="w-5 h-5 text-muted-foreground" />
                     )}
                   </div>
                   <span className="text-sm font-medium text-foreground hidden sm:inline">
@@ -155,14 +155,14 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel className="font-normal">
+                <DropdownMenuLabel className="font-normal py-3">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium leading-none">{user?.full_name || "User"}</p>
                     <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
+                <DropdownMenuItem asChild className="py-3">
                   <Link href="/staff/profile" className="flex items-center">
                     <UserIcon className="mr-2 h-4 w-4" />
                     <span>Profile</span>
@@ -173,7 +173,7 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
                   trigger={
                     <DropdownMenuItem
                       onSelect={(e) => e.preventDefault()}
-                      className="!bg-orange-500 hover:!bg-orange-600 !text-white focus:!bg-orange-600 focus:!text-white"
+                      className="!bg-orange-500 hover:!bg-orange-600 !text-white focus:!bg-orange-600 focus:!text-white py-3"
                     >
                       <MessageSquare className="mr-2 h-4 w-4" />
                       <span>Give Feedback</span>
@@ -181,7 +181,7 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
                   }
                 />
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={onSignOut}>
+                <DropdownMenuItem className="text-red-600 focus:text-red-600 py-3" onClick={onSignOut}>
                   <LogOutIcon className="mr-2 h-4 w-4" />
                   <span>Sign out</span>
                 </DropdownMenuItem>

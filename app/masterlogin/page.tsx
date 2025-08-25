@@ -21,21 +21,31 @@ export default function MasterLoginPage() {
     setIsLoading(true)
     setError(null)
 
-    const MASTER_EMAIL = "arsami.uk@gmail.com"
-    const MASTER_PASSWORD = "7286707$Bd"
-
-    if (email !== MASTER_EMAIL || password !== MASTER_PASSWORD) {
-      setError("Invalid credentials. Access denied.")
-      setIsLoading(false)
-      return
-    }
-
     try {
+      const response = await fetch("/api/admin/authenticate-superuser", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || "Invalid credentials. Access denied.")
+        setIsLoading(false)
+        return
+      }
+
+      // Set authentication cookies and localStorage
       localStorage.setItem("masterAdminAuth", "true")
       localStorage.setItem("masterAdminEmail", email)
+      localStorage.setItem("userType", data.userType) // 'master_admin' or 'superuser'
 
-      document.cookie = `masterAdminImpersonation=true; path=/; max-age=86400` // 24 hour expiry
+      document.cookie = `masterAdminImpersonation=true; path=/; max-age=86400`
       document.cookie = `masterAdminEmail=${email}; path=/; max-age=86400`
+      document.cookie = `userType=${data.userType}; path=/; max-age=86400`
       console.log("[v0] Set master admin authentication cookies")
 
       await new Promise((resolve) => setTimeout(resolve, 1000))
@@ -43,7 +53,6 @@ export default function MasterLoginPage() {
       router.push("/masterdashboard")
     } catch (error: unknown) {
       setError("Authentication failed. Please try again.")
-    } finally {
       setIsLoading(false)
     }
   }

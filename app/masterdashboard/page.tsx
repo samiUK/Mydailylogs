@@ -39,6 +39,9 @@ import {
   Search,
   Calendar,
   FileText,
+  Shield,
+  Edit,
+  LogOut,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { ReportDirectoryContent } from "./report-directory-content"
@@ -96,6 +99,12 @@ interface Feedback {
   page_url?: string // Added page_url field
 }
 
+interface Superuser {
+  id: string
+  email: string
+  created_at: string
+}
+
 export default function MasterDashboardPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
@@ -134,6 +143,13 @@ export default function MasterDashboardPage() {
   })
 
   const [totalSubmittedReports, setTotalSubmittedReports] = useState(0)
+
+  // Superuser Management State
+  const [superusers, setSuperusers] = useState<Superuser[]>([])
+  const [newSuperuserEmail, setNewSuperuserEmail] = useState("")
+  const [newSuperuserPassword, setNewSuperuserPassword] = useState("")
+  const [editingSuperuser, setEditingSuperuser] = useState<Superuser | null>(null)
+  const [userType, setUserType] = useState<string>("Master Admin")
 
   const loginAsUser = async (userEmail: string, userRole: string) => {
     if (!userEmail.trim()) {
@@ -293,10 +309,15 @@ export default function MasterDashboardPage() {
     const isAuthenticated = localStorage.getItem("masterAdminAuth")
     const adminEmail = localStorage.getItem("masterAdminEmail")
 
-    if (!isAuthenticated || adminEmail !== "arsami.uk@gmail.com") {
+    const isMasterAdmin = adminEmail === "arsami.uk@gmail.com"
+    const isSuperuser = !isMasterAdmin && isAuthenticated
+
+    if (!isAuthenticated || (!isMasterAdmin && !isSuperuser)) {
       router.push("/masterlogin")
       return
     }
+
+    setUserType(isMasterAdmin ? "Master Admin" : "Super User")
 
     const supabase = createClient()
 
@@ -310,6 +331,7 @@ export default function MasterDashboardPage() {
         paymentsResponse,
         feedbackResponse,
         submittedReportsResponse,
+        superusersResponse,
       ] = await Promise.all([
         supabase.from("organizations").select(`
           *,
@@ -342,6 +364,7 @@ export default function MasterDashboardPage() {
           .order("created_at", { ascending: false }),
         supabase.from("feedback").select("*").order("created_at", { ascending: false }),
         supabase.from("submitted_reports").select("id").is("deleted_at", null),
+        supabase.from("superusers").select("*").order("created_at", { ascending: false }),
       ])
 
       console.log("[v0] Organizations response:", orgsResponse)
@@ -367,6 +390,9 @@ export default function MasterDashboardPage() {
       const totalReports = submittedReportsResponse.data?.length || 0
       console.log("[v0] Total submitted reports from new table:", totalReports)
       setTotalSubmittedReports(totalReports)
+
+      // Load superusers
+      setSuperusers(superusersResponse.data || [])
     } catch (error) {
       console.error("Error loading data:", error)
     } finally {
@@ -389,6 +415,7 @@ export default function MasterDashboardPage() {
           feedbackResponse,
           internalReportsResponse,
           externalReportsResponse,
+          superusersResponse,
         ] = await Promise.all([
           supabase.from("organizations").select(`
             *,
@@ -401,6 +428,7 @@ export default function MasterDashboardPage() {
           supabase.from("feedback").select("*").order("created_at", { ascending: false }),
           supabase.from("template_assignments").select("*").eq("status", "completed"),
           supabase.from("external_submissions").select("*").not("submitted_at", "is", null),
+          supabase.from("superusers").select("*").order("created_at", { ascending: false }),
         ])
 
         console.log("[v0] Organizations response:", orgsResponse)
@@ -430,6 +458,9 @@ export default function MasterDashboardPage() {
         console.log("[v0] Total submitted reports:", totalReports)
 
         setTotalSubmittedReports(totalReports)
+
+        // Load superusers
+        setSuperusers(superusersResponse.data || [])
       } catch (error) {
         console.error("Error loading data:", error)
       } finally {
@@ -662,6 +693,102 @@ export default function MasterDashboardPage() {
     setOrganizationStats(stats)
   }, [organizations])
 
+  // Superuser Management Functions
+  const addSuperuser = async () => {
+    if (!newSuperuserEmail || !newSuperuserPassword) {
+      alert("Please enter both email and password")
+      return
+    }
+
+    try {
+      const response = await fetch("/api/admin/add-superuser", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: newSuperuserEmail, password: newSuperuserPassword }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        alert("Failed to add superuser: " + data.error)
+        return
+      }
+
+      // Refresh superusers list
+      await checkAuthAndLoadData()
+      setNewSuperuserEmail("")
+      setNewSuperuserPassword("")
+      alert("Superuser added successfully")
+    } catch (error) {
+      console.error("Error adding superuser:", error)
+      alert("Failed to add superuser")
+    }
+  }
+
+  const removeSuperuser = async (superuserId: string) => {
+    if (!confirm("Are you sure you want to remove this superuser?")) return
+
+    try {
+      const response = await fetch("/api/admin/remove-superuser", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ superuserId }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        alert("Failed to remove superuser: " + data.error)
+        return
+      }
+
+      // Refresh superusers list
+      await checkAuthAndLoadData()
+      alert("Superuser removed successfully")
+    } catch (error) {
+      console.error("Error removing superuser:", error)
+      alert("Failed to remove superuser")
+    }
+  }
+
+  const updateSuperuser = async () => {
+    if (!editingSuperuser) return
+    if (!newSuperuserPassword) {
+      alert("Please enter a new password")
+      return
+    }
+
+    try {
+      const response = await fetch("/api/admin/update-superuser", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ superuserId: editingSuperuser.id, newPassword: newSuperuserPassword }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        alert("Failed to update superuser: " + data.error)
+        return
+      }
+
+      // Refresh superusers list
+      await checkAuthAndLoadData()
+      setEditingSuperuser(null)
+      setNewSuperuserPassword("")
+      alert("Superuser updated successfully")
+    } catch (error) {
+      console.error("Error updating superuser:", error)
+      alert("Failed to update superuser")
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-6 py-4">
@@ -700,8 +827,15 @@ export default function MasterDashboardPage() {
             </TabsTrigger>
             <TabsTrigger value="subscriptions">Subscriptions</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
-            <TabsTrigger value="login-as">Password Reset</TabsTrigger>
             <TabsTrigger value="reports">Report Directory</TabsTrigger>
+            {userType === "Master Admin" && (
+              <TabsTrigger
+                value="login-as"
+                className="text-red-600 border-red-200 data-[state=active]:bg-red-50 data-[state=active]:text-red-700"
+              >
+                Superuser Tools
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -1404,39 +1538,160 @@ export default function MasterDashboardPage() {
             </div>
           )}
 
-          <TabsContent value="login-as" className="space-y-6">
-            <div className="space-y-6">
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <AlertTriangle className="w-6 h-6 text-orange-600" />
-                  <h2 className="text-xl font-semibold text-orange-800">Password Reset Tool</h2>
-                </div>
-                <p className="text-orange-700 mb-4">
-                  For security and data protection compliance, we've replaced the "Login As" feature with a secure
-                  password reset tool. This approach maintains GDPR/CCPA compliance while allowing you to help users
-                  access their accounts.
-                </p>
+          {userType === "Master Admin" && (
+            <TabsContent value="login-as" className="space-y-6">
+              <div className="space-y-6">
+                <Tabs defaultValue="password-reset" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="password-reset">Password Reset</TabsTrigger>
+                    <TabsTrigger value="add-superusers">Add Superusers</TabsTrigger>
+                  </TabsList>
 
-                <div className="space-y-4">
-                  <div className="flex gap-2">
-                    <Input
-                      type="email"
-                      placeholder="Enter user email to reset password"
-                      value={resetPasswordEmail}
-                      onChange={(e) => setResetPasswordEmail(e.target.value)}
-                      className="flex-1"
-                    />
-                    <Button onClick={() => resetUserPassword(resetPasswordEmail)} variant="destructive">
-                      Reset Password
-                    </Button>
-                  </div>
-                  <Button onClick={testApiRoute} variant="outline" className="w-full bg-transparent">
-                    Test API Connection
-                  </Button>
-                </div>
+                  <TabsContent value="password-reset" className="mt-6">
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <AlertTriangle className="w-6 h-6 text-orange-600" />
+                        <h2 className="text-xl font-semibold text-orange-800">Password Reset Tool</h2>
+                      </div>
+                      <p className="text-orange-700 mb-4">
+                        For security and data protection compliance, we've replaced the "Login As" feature with a secure
+                        password reset tool. This approach maintains GDPR/CCPA compliance while allowing you to help
+                        users access their accounts.
+                      </p>
+
+                      <div className="space-y-4">
+                        <div className="flex gap-2">
+                          <Input
+                            type="email"
+                            placeholder="Enter user email to reset password"
+                            value={resetPasswordEmail}
+                            onChange={(e) => setResetPasswordEmail(e.target.value)}
+                            className="flex-1"
+                          />
+                          <Button onClick={() => resetUserPassword(resetPasswordEmail)} variant="destructive">
+                            Reset Password
+                          </Button>
+                        </div>
+                        <Button onClick={testApiRoute} variant="outline" className="w-full bg-transparent">
+                          Test API Connection
+                        </Button>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="add-superusers" className="mt-6">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <Shield className="w-6 h-6 text-blue-600" />
+                        <h2 className="text-xl font-semibold text-blue-800">Superuser Management</h2>
+                      </div>
+                      <p className="text-blue-700 mb-6">
+                        Manage CS agents and superusers who can access the Master Admin Dashboard. These users will have
+                        full administrative privileges.
+                      </p>
+
+                      {/* Add New Superuser Form */}
+                      <div className="space-y-4 mb-8">
+                        <h3 className="text-lg font-medium text-blue-800">Add New Superuser</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <Input
+                            type="email"
+                            placeholder="Superuser email"
+                            value={newSuperuserEmail}
+                            onChange={(e) => setNewSuperuserEmail(e.target.value)}
+                          />
+                          <Input
+                            type="password"
+                            placeholder="Superuser password"
+                            value={newSuperuserPassword}
+                            onChange={(e) => setNewSuperuserPassword(e.target.value)}
+                          />
+                        </div>
+                        <Button onClick={addSuperuser} className="w-full md:w-auto">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Superuser
+                        </Button>
+                      </div>
+
+                      {/* Existing Superusers List */}
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-medium text-blue-800">Existing Superusers</h3>
+                        <div className="space-y-3">
+                          {superusers.map((superuser) => (
+                            <div
+                              key={superuser.id}
+                              className="flex items-center justify-between p-4 bg-white rounded-lg border"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                  <User className="w-4 h-4 text-blue-600" />
+                                </div>
+                                <div>
+                                  <p className="font-medium text-gray-900">{superuser.email}</p>
+                                  <p className="text-sm text-gray-500">
+                                    Added {new Date(superuser.created_at).toLocaleDateString()}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingSuperuser(superuser)
+                                    setNewSuperuserPassword("")
+                                  }}
+                                >
+                                  <Edit className="w-4 h-4 mr-1" />
+                                  Edit
+                                </Button>
+                                <Button variant="destructive" size="sm" onClick={() => removeSuperuser(superuser.id)}>
+                                  <Trash2 className="w-4 h-4 mr-1" />
+                                  Remove
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                          {superusers.length === 0 && (
+                            <div className="text-center p-8 text-gray-500">
+                              <Shield className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                              <p>No superusers added yet</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Edit Superuser Modal */}
+                      {editingSuperuser && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                            <h3 className="text-lg font-medium mb-4">Edit Superuser</h3>
+                            <div className="space-y-4">
+                              <Input type="email" value={editingSuperuser.email} disabled className="bg-gray-50" />
+                              <Input
+                                type="password"
+                                placeholder="New password (leave blank to keep current)"
+                                value={newSuperuserPassword}
+                                onChange={(e) => setNewSuperuserPassword(e.target.value)}
+                              />
+                            </div>
+                            <div className="flex gap-2 mt-6">
+                              <Button onClick={updateSuperuser} className="flex-1">
+                                Update
+                              </Button>
+                              <Button variant="outline" onClick={() => setEditingSuperuser(null)} className="flex-1">
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </div>
-            </div>
-          </TabsContent>
+            </TabsContent>
+          )}
 
           <TabsContent value="tools" className="space-y-6">
             <Card>
@@ -1489,6 +1744,26 @@ export default function MasterDashboardPage() {
           </TabsContent>
         </Tabs>
       </div>
+      <footer className="bg-white border-t border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-500">© {new Date().getFullYear()} MyDayLogs. All rights reserved.</p>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-muted-foreground">Signed in as {userType}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                localStorage.removeItem("masterAdminAuth")
+                localStorage.removeItem("masterAdminEmail")
+                router.push("/masterlogin")
+              }}
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }

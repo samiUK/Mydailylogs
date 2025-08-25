@@ -578,45 +578,32 @@ export default function AdminDashboard() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Report Templates</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{templates?.length || 0}</div>
-            <p className="text-xs text-muted-foreground">Report templates</p>
-            <p className="text-xs text-blue-600 font-medium mt-1">
-              Remaining quota: {Math.max(0, 3 - (templates?.length || 0))}
-            </p>
-          </CardContent>
-        </Card>
-
         <Card className="md:col-span-2">
           <CardHeader>
-            <CardTitle>Report Overview</CardTitle>
-            <CardDescription>Report templates awaiting completion</CardDescription>
+            <CardTitle className="text-lg">Report Overview</CardTitle>
+            <CardDescription className="text-base">Report templates awaiting completion</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3 max-h-48 overflow-y-auto">
+            <div className="space-y-3 max-h-48 overflow-y-auto text-left">
               {todayChecklists?.filter((assignment) => assignment.status !== "completed").length === 0 ? (
-                <div className="text-sm text-muted-foreground text-center py-4">No pending reports</div>
+                <div className="text-base text-muted-foreground text-left py-4">No pending reports</div>
               ) : (
                 todayChecklists
                   ?.filter((assignment) => assignment.status !== "completed")
                   .slice(0, 5)
                   .map((assignment) => (
                     <div key={assignment.id} className="flex items-center justify-between p-2 border rounded-lg">
-                      <div className="flex-1">
-                        <h5 className="text-sm font-medium text-foreground">
+                      <div className="flex-1 text-left">
+                        <h5 className="text-base font-medium text-foreground">
                           {assignment.checklist_templates?.name || "Template"}
                         </h5>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-sm text-muted-foreground">
                           Assigned to:{" "}
                           {assignment.profiles?.full_name ||
                             `${assignment.profiles?.first_name} ${assignment.profiles?.last_name}` ||
                             "Team Member"}
                         </p>
-                        <p className="text-xs text-blue-600">
+                        <p className="text-sm text-blue-600">
                           Assigned: {new Date(assignment.assigned_at).toLocaleString()}
                         </p>
                       </div>
@@ -629,12 +616,25 @@ export default function AdminDashboard() {
                   ))
               )}
             </div>
-            <div className="mt-3 pt-3 border-t">
-              <p className="text-xs text-muted-foreground">
+            <div className="mt-3 pt-3 border-t text-left">
+              <p className="text-sm text-muted-foreground">
                 Pending: {todayChecklists?.filter((assignment) => assignment.status !== "completed").length || 0} •
                 Total Reports: {todayChecklists?.length || 0} • Completed: {totalCompleted}
               </p>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Report Templates</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{templates?.length || 0}</div>
+            <p className="text-xs text-muted-foreground">Report templates</p>
+            <p className="text-xs text-blue-600 font-medium mt-1">
+              Remaining quota: {Math.max(0, 3 - (templates?.length || 0))}
+            </p>
           </CardContent>
         </Card>
 

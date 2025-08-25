@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
-import { Camera, FileText, Hash, CheckSquare, Check } from "lucide-react"
+import { Camera, FileText, Hash, CheckSquare, Check, X } from "lucide-react"
 
 interface ChecklistTask {
   id: string
@@ -59,7 +59,115 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
   const [globalNotes, setGlobalNotes] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [uploadedFiles, setUploadedFiles] = useState<Record<string, File[]>>({})
+  const [uploading, setUploading] = useState<Record<string, boolean>>({})
   const router = useRouter()
+
+  const compressImage = (file: File, targetSizeKB = 15): Promise<File> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement("canvas")
+      const ctx = canvas.getContext("2d")
+      const img = new Image()
+
+      img.onload = () => {
+        let { width, height } = img
+        const maxDimension = 400
+
+        if (width > height) {
+          if (width > maxDimension) {
+            height = (height * maxDimension) / width
+            width = maxDimension
+          }
+        } else {
+          if (height > maxDimension) {
+            width = (width * maxDimension) / height
+            height = maxDimension
+          }
+        }
+
+        canvas.width = width
+        canvas.height = height
+        ctx?.drawImage(img, 0, 0, width, height)
+
+        let quality = 0.8
+        const tryCompress = () => {
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                const sizeKB = blob.size / 1024
+                if (sizeKB <= targetSizeKB || quality <= 0.1) {
+                  const compressedFile = new File([blob], file.name, {
+                    type: "image/jpeg",
+                    lastModified: Date.now(),
+                  })
+                  console.log(
+                    `[v0] Compressed ${file.name}: ${(file.size / 1024).toFixed(1)}KB → ${(compressedFile.size / 1024).toFixed(1)}KB`,
+                  )
+                  resolve(compressedFile)
+                } else {
+                  quality -= 0.1
+                  tryCompress()
+                }
+              }
+            },
+            "image/jpeg",
+            quality,
+          )
+        }
+        tryCompress()
+      }
+      img.src = URL.createObjectURL(file)
+    })
+  }
+
+  const handleFileUpload = async (taskId: string, files: FileList | null) => {
+    if (!files || files.length === 0) return
+
+    setUploading((prev) => ({ ...prev, [taskId]: true }))
+
+    try {
+      const fileArray = Array.from(files)
+      const compressedFiles = await Promise.all(
+        fileArray.map(async (file) => {
+          if (file.type.startsWith("image/")) {
+            return await compressImage(file)
+          }
+          return file
+        }),
+      )
+
+      setUploadedFiles((prev) => ({
+        ...prev,
+        [taskId]: [...(prev[taskId] || []), ...compressedFiles],
+      }))
+
+      const fileNames = compressedFiles.map((file) => file.name)
+      const allFileNames = [...(localInputValues[taskId]?.split(",") || []), ...fileNames].filter(Boolean)
+      const value = allFileNames.join(",")
+
+      setLocalInputValues((prev) => ({ ...prev, [taskId]: value }))
+      handleTaskResponse(taskId, value, true)
+    } catch (error) {
+      console.error("[v0] Error handling file upload:", error)
+    } finally {
+      setUploading((prev) => ({ ...prev, [taskId]: false }))
+    }
+  }
+
+  const removeFile = (taskId: string, fileIndex: number) => {
+    setUploadedFiles((prev) => {
+      const newFiles = [...(prev[taskId] || [])]
+      newFiles.splice(fileIndex, 1)
+      return { ...prev, [taskId]: newFiles }
+    })
+
+    const currentFiles = localInputValues[taskId]?.split(",") || []
+    currentFiles.splice(fileIndex, 1)
+    const value = currentFiles.filter(Boolean).join(",")
+
+    setLocalInputValues((prev) => ({ ...prev, [taskId]: value }))
+    handleTaskResponse(taskId, value, !!value)
+  }
 
   useEffect(() => {
     async function loadChecklist() {
@@ -449,20 +557,57 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
 
       case "photo":
         return (
-          <div className="space-y-2">
-            <Input
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) {
-                  const value = file.name
-                  setLocalInputValues((prev) => ({ ...prev, [task.id]: value }))
-                  handleTaskResponse(task.id, value, true)
-                }
-              }}
-            />
-            {currentValue && <p className="text-xs text-green-600">Photo uploaded: {currentValue}</p>}
+          <div className="space-y-3">
+            <div className="flex items-center justify-center w-full">
+              <label
+                htmlFor={`photo-${task.id}`}
+                className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
+              >
+                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                  <Camera className="w-8 h-8 mb-2 text-gray-400" />
+                  <p className="mb-2 text-sm text-gray-500">
+                    <span className="font-semibold">Click to upload photos</span>
+                  </p>
+                  <p className="text-xs text-gray-500">PNG, JPG, JPEG (Auto-compressed to ~15KB)</p>
+                </div>
+                <input
+                  id={`photo-${task.id}`}
+                  type="file"
+                  className="hidden"
+                  accept="image/*"
+                  multiple
+                  capture="environment"
+                  onChange={(e) => handleFileUpload(task.id, e.target.files)}
+                />
+              </label>
+            </div>
+
+            {uploadedFiles[task.id] && uploadedFiles[task.id].length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                {uploadedFiles[task.id].map((file, index) => (
+                  <div key={index} className="relative">
+                    <img
+                      src={URL.createObjectURL(file) || "/placeholder.svg"}
+                      alt={`Upload ${index + 1}`}
+                      className="w-full h-24 object-cover rounded-lg border"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeFile(task.id, index)}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                    <p className="text-xs text-gray-500 mt-1 truncate">{file.name}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {uploading[task.id] && <div className="text-sm text-blue-600">Compressing photos...</div>}
+            {currentValue && (
+              <p className="text-xs text-green-600">Photos uploaded: {currentValue.split(",").length} file(s)</p>
+            )}
           </div>
         )
 

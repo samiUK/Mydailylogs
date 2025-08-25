@@ -8,7 +8,15 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Eye, Download, Search, Loader2, ExternalLink } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Eye, Download, Search, Loader2, ExternalLink, UserPlus } from "lucide-react"
 import Link from "next/link"
 
 console.log("[v0] Admin Reports Analytics page - File loaded and parsing")
@@ -20,9 +28,13 @@ export default function AdminReportsAnalyticsPage() {
   const [user, setUser] = useState<any>(null)
   const [profile, setProfile] = useState<any>(null)
   const [allReports, setAllReports] = useState<any[]>([])
+  const [teamMembers, setTeamMembers] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [typeFilter, setTypeFilter] = useState("all")
+  const [assigningReport, setAssigningReport] = useState<any>(null)
+  const [selectedMember, setSelectedMember] = useState("")
+  const [assigning, setAssigning] = useState(false)
   const router = useRouter()
 
   const supabase = createBrowserClient(
@@ -63,6 +75,15 @@ export default function AdminReportsAnalyticsPage() {
         setProfile(profile)
         console.log("[v0] Admin Reports Analytics page - Profile loaded, org:", profile.organization_id)
 
+        const { data: members } = await supabase
+          .from("profiles")
+          .select("id, full_name, first_name, last_name, email, role")
+          .eq("organization_id", profile.organization_id)
+          .in("role", ["staff", "admin"])
+          .order("full_name")
+
+        setTeamMembers(members || [])
+
         // Load reports data
         console.log("[v0] Admin Reports Analytics page - Loading reports data")
 
@@ -99,6 +120,7 @@ export default function AdminReportsAnalyticsPage() {
             submitter_name,
             status,
             submitted_at,
+            template_id,
             checklist_templates!inner(id, name, description, schedule_type)
           `)
           .eq("organization_id", profile.organization_id)
@@ -147,6 +169,7 @@ export default function AdminReportsAnalyticsPage() {
             completed_at: report.submitted_at,
             assignee: report.submitter_name,
             assignee_email: null,
+            template_id: report.template_id,
           })),
         ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
@@ -161,6 +184,50 @@ export default function AdminReportsAnalyticsPage() {
 
     loadData()
   }, [router, supabase])
+
+  const handleAssignToMember = async () => {
+    if (!assigningReport || !selectedMember) return
+
+    setAssigning(true)
+    try {
+      console.log("[v0] Assigning external report to team member:", selectedMember)
+
+      // Create a new template assignment for the selected team member
+      const { error: assignmentError } = await supabase.from("template_assignments").insert({
+        template_id: assigningReport.template_id,
+        assigned_to: selectedMember,
+        organization_id: profile.organization_id,
+        status: "active",
+        assigned_at: new Date().toISOString(),
+        is_active: true,
+      })
+
+      if (assignmentError) throw assignmentError
+
+      // Update external submission status to indicate it's been assigned
+      const { error: updateError } = await supabase
+        .from("external_submissions")
+        .update({
+          status: "assigned_to_team",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", assigningReport.id)
+
+      if (updateError) throw updateError
+
+      console.log("[v0] Successfully assigned external report to team member")
+
+      // Refresh the reports list
+      window.location.reload()
+    } catch (error) {
+      console.error("[v0] Error assigning report:", error)
+      alert("Error assigning report to team member. Please try again.")
+    } finally {
+      setAssigning(false)
+      setAssigningReport(null)
+      setSelectedMember("")
+    }
+  }
 
   // Filter reports based on search and filters
   const filteredReports = allReports.filter((report) => {
@@ -311,6 +378,60 @@ export default function AdminReportsAnalyticsPage() {
                         View Report
                       </Button>
                     </Link>
+                    {report.type === "external" && report.status !== "assigned_to_team" && (
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm" onClick={() => setAssigningReport(report)}>
+                            <UserPlus className="w-4 h-4 mr-1" />
+                            Assign
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Assign External Report to Team Member</DialogTitle>
+                            <DialogDescription>
+                              Assign "{report.name}" submitted by {report.assignee} to an internal team member.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div>
+                              <label className="text-sm font-medium">Select Team Member</label>
+                              <Select value={selectedMember} onValueChange={setSelectedMember}>
+                                <SelectTrigger className="w-full mt-1">
+                                  <SelectValue placeholder="Choose a team member..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {teamMembers.map((member) => (
+                                    <SelectItem key={member.id} value={member.id}>
+                                      {member.full_name || `${member.first_name} ${member.last_name}`} ({member.email})
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                onClick={handleAssignToMember}
+                                disabled={!selectedMember || assigning}
+                                className="flex-1"
+                              >
+                                {assigning ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Assigning...
+                                  </>
+                                ) : (
+                                  <>
+                                    <UserPlus className="w-4 h-4 mr-2" />
+                                    Assign Report
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    )}
                   </div>
                 </div>
               ))

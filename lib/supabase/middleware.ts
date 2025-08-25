@@ -73,7 +73,9 @@ export async function updateSession(request: NextRequest) {
       !request.nextUrl.pathname.startsWith("/api/send-email") &&
       !request.nextUrl.pathname.startsWith("/api/admin/") &&
       !request.nextUrl.pathname.match(/^\/admin\/[^/]+$/) &&
-      !request.nextUrl.pathname.match(/^\/staff\/[^/]+$/),
+      !request.nextUrl.pathname.match(/^\/staff\/[^/]+$/) &&
+      !request.nextUrl.pathname.startsWith("/external/form/") &&
+      !request.nextUrl.pathname.match(/^\/[^/]+\/reports\/external\/form\/[^/]+$/),
   )
 
   if (
@@ -86,7 +88,9 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith("/api/send-email") &&
     !request.nextUrl.pathname.startsWith("/api/admin/") &&
     !request.nextUrl.pathname.match(/^\/admin\/[^/]+$/) &&
-    !request.nextUrl.pathname.match(/^\/staff\/[^/]+$/)
+    !request.nextUrl.pathname.match(/^\/staff\/[^/]+$/) &&
+    !request.nextUrl.pathname.startsWith("/external/form/") &&
+    !request.nextUrl.pathname.match(/^\/[^/]+\/reports\/external\/form\/[^/]+$/)
   ) {
     console.log("[v0] Middleware - Redirecting to auth/login")
     // no user, potentially respond by redirecting the user to the login page

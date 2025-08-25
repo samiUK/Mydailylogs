@@ -136,8 +136,13 @@ export default function SettingsPage() {
           : null,
       )
 
+      window.dispatchEvent(new CustomEvent("brandingRefresh"))
+
       alert("Settings saved successfully!")
-      window.location.reload()
+
+      setTimeout(() => {
+        window.location.reload()
+      }, 500)
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred")
     } finally {

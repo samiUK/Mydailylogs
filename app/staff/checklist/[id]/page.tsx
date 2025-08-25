@@ -316,8 +316,8 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
         const { data, error } = await supabase
           .from("checklist_responses")
           .update({
-            is_completed: true,
-            completed_at: new Date().toISOString(),
+            is_completed: !existingResponse.is_completed,
+            completed_at: existingResponse.is_completed ? null : new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
           .eq("id", existingResponse.id)
@@ -578,7 +578,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
         user_id: user.id,
         template_id: params.id,
         type: "checklist_completed",
-        message: `${user.email} completed checklist: ${template?.name}`,
+        message: `${user.email} submitted a report: ${template?.name}`,
         created_at: new Date().toISOString(),
       })
 
@@ -589,11 +589,11 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
       }
 
       console.log("[v0] Checklist completion process finished successfully")
-      alert("Checklist completed successfully!")
+      alert("Report submitted successfully!")
       router.push("/staff")
     } catch (error) {
       console.error("[v0] Exception in checklist completion:", error)
-      alert("Error completing checklist. Please try again.")
+      alert("Error submitting report. Please try again.")
     }
 
     setIsSaving(false)
@@ -611,20 +611,15 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
   const totalTasks = tasks.length
   const progress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
 
-  const tasksByCategory = tasks
-    .filter((task) => {
-      const response = responses.find((r) => r.item_id === task.id)
-      return !response?.is_completed
-    })
-    .reduce(
-      (acc, task) => {
-        const category = task.category || "General"
-        if (!acc[category]) acc[category] = []
-        acc[category].push(task)
-        return acc
-      },
-      {} as Record<string, ChecklistTask[]>,
-    )
+  const tasksByCategory = tasks.reduce(
+    (acc, task) => {
+      const category = task.category || "General"
+      if (!acc[category]) acc[category] = []
+      acc[category].push(task)
+      return acc
+    },
+    {} as Record<string, ChecklistTask[]>,
+  )
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-6 space-y-4 md:space-y-6">
@@ -717,15 +712,14 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
                         </div>
                         <Button
                           size="sm"
-                          variant="default"
+                          variant={isCompleted ? "outline" : "default"}
                           onClick={() => {
                             console.log("[v0] Mark completed button clicked for task:", task.id)
                             handleMarkCompleted(task.id)
                           }}
-                          disabled={isCompleted}
                           className="text-xs"
                         >
-                          Mark as Completed
+                          {isCompleted ? "Completed ✓" : "Mark as Completed"}
                         </Button>
                       </div>
                     </CardContent>
@@ -740,7 +734,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
       {progress === 100 && (
         <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t">
           <Button onClick={handleCompleteChecklist} disabled={isSaving} size="lg" className="flex-1">
-            {isSaving ? "Submitting..." : "Complete Checklist"}
+            {isSaving ? "Submitting..." : "Submit Report"}
           </Button>
           <Button variant="outline" onClick={() => router.push("/staff")} size="lg" className="flex-1 sm:flex-none">
             Back to Tasks
@@ -751,7 +745,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
       {progress < 100 && (
         <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t">
           <div className="text-center text-muted-foreground">
-            Complete all tasks to finish this checklist ({Math.round(progress)}% done)
+            Complete all tasks to finish this report ({Math.round(progress)}% done)
           </div>
           <Button variant="outline" onClick={() => router.push("/staff")} size="lg" className="flex-1 sm:flex-none">
             Back to Tasks

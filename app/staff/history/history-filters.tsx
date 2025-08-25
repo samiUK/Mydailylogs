@@ -170,13 +170,17 @@ export function HistoryFilters({ assignments, responses }: HistoryFiltersProps) 
 
                   <div className="flex items-center gap-2 ml-4">
                     <Button variant="outline" size="sm" asChild>
-                      <Link href={`/staff/reports/${assignment.id}`}>
+                      <Link
+                        href={`/staff/reports/${assignment.is_daily_instance ? assignment.id : assignment.template_id}`}
+                      >
                         <Eye className="w-3 h-3 mr-1" />
                         View Report
                       </Link>
                     </Button>
                     <Button variant="default" size="sm" asChild>
-                      <Link href={`/staff/reports/${assignment.id}?download=true`}>
+                      <Link
+                        href={`/staff/reports/${assignment.is_daily_instance ? assignment.id : assignment.template_id}?download=true`}
+                      >
                         <Download className="w-3 h-3 mr-1" />
                         Download
                       </Link>

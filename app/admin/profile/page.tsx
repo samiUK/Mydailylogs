@@ -42,29 +42,9 @@ export default function ProfilePage() {
       const localStorageImpersonation = localStorage.getItem("masterAdminImpersonation") === "true"
       const impersonatedEmail = localStorage.getItem("impersonatedUserEmail") || ""
 
-      // Also check server-side cookie via API
-      try {
-        const response = await fetch("/api/admin/check-impersonation")
-        const { isImpersonating } = await response.json()
-
-        // Only show impersonation banner if both client and server agree
-        const actuallyImpersonating = localStorageImpersonation && isImpersonating
-        setIsImpersonated(actuallyImpersonating)
-        setImpersonatedBy(actuallyImpersonating ? impersonatedEmail : "")
-
-        // Clear stale localStorage if server says not impersonating
-        if (localStorageImpersonation && !isImpersonating) {
-          localStorage.removeItem("masterAdminImpersonation")
-          localStorage.removeItem("impersonatedUserEmail")
-          localStorage.removeItem("impersonatedUserRole")
-          localStorage.removeItem("impersonatedOrganizationId")
-        }
-      } catch (error) {
-        console.error("Error checking impersonation status:", error)
-        // Fallback to localStorage only if API fails
-        setIsImpersonated(localStorageImpersonation)
-        setImpersonatedBy(localStorageImpersonation ? impersonatedEmail : "")
-      }
+      // Only use localStorage for impersonation detection to maintain session
+      setIsImpersonated(localStorageImpersonation)
+      setImpersonatedBy(localStorageImpersonation ? impersonatedEmail : "")
     }
 
     checkImpersonation()

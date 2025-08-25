@@ -24,13 +24,21 @@ export async function createUserWithProfile(formData: {
     if (existingUser) {
       const { data: existingAdminProfile } = await adminSupabase
         .from("profiles")
-        .select("id, organization_id")
+        .select("id, organization_id, organizations(name)")
         .eq("email", email)
         .eq("role", "admin")
         .single()
 
       if (existingAdminProfile) {
-        throw new Error("You already have an admin account. Please sign in instead.")
+        const { data: existingOrg } = await adminSupabase
+          .from("organizations")
+          .select("name")
+          .eq("name", organizationName)
+          .single()
+
+        if (existingOrg) {
+          throw new Error("You already have an admin account for this organization. Please sign in instead.")
+        }
       }
 
       authUserId = existingUser.id
@@ -61,23 +69,35 @@ export async function createUserWithProfile(formData: {
       console.log("[v0] Created new auth user:", authUserId)
     }
 
-    const { data: orgData, error: orgError } = await adminSupabase
+    const { data: existingOrg } = await adminSupabase
       .from("organizations")
-      .insert({
-        name: organizationName,
-        slug: organizationName
-          .toLowerCase()
-          .replace(/\s+/g, "-")
-          .replace(/[^a-z0-9-]/g, ""),
-      })
-      .select()
+      .select("id, name")
+      .eq("name", organizationName)
       .single()
 
-    if (orgError) {
-      if (isNewUser) {
-        await adminSupabase.auth.admin.deleteUser(authUserId)
+    let orgData
+    if (existingOrg) {
+      orgData = existingOrg
+    } else {
+      const { data: newOrgData, error: orgError } = await adminSupabase
+        .from("organizations")
+        .insert({
+          name: organizationName,
+          slug: organizationName
+            .toLowerCase()
+            .replace(/\s+/g, "-")
+            .replace(/[^a-z0-9-]/g, ""),
+        })
+        .select()
+        .single()
+
+      if (orgError) {
+        if (isNewUser) {
+          await adminSupabase.auth.admin.deleteUser(authUserId)
+        }
+        throw new Error(`Organization creation failed: ${orgError.message}`)
       }
-      throw new Error(`Organization creation failed: ${orgError.message}`)
+      orgData = newOrgData
     }
 
     const { error: profileError } = await adminSupabase.from("profiles").insert({

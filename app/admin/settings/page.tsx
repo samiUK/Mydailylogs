@@ -246,7 +246,10 @@ export default function SettingsPage() {
                   />
                 </div>
               )}
-              <h3 className="text-xl font-bold text-gray-900">{name || "Your Organization"}</h3>
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-gray-900">{name || "Your Organization"}</h3>
+                <p className="text-sm text-gray-600">Organization Brand Preview</p>
+              </div>
             </div>
             <div className="space-y-3">
               <div

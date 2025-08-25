@@ -342,8 +342,7 @@ export default function MasterDashboardPage() {
             full_name,
             role,
             created_at
-          ),
-          subscriptions(*)
+          )
         `),
         supabase.from("profiles").select("*").order("created_at", { ascending: false }),
         supabase.from("subscriptions").select("*").order("created_at", { ascending: false }),
@@ -428,8 +427,13 @@ export default function MasterDashboardPage() {
         ] = await Promise.all([
           supabase.from("organizations").select(`
             *,
-            profiles(count, role),
-            subscriptions(*)
+            profiles(
+              id,
+              email,
+              full_name,
+              role,
+              created_at
+            )
           `),
           supabase.from("profiles").select("*").order("created_at", { ascending: false }),
           supabase.from("subscriptions").select("*"),

@@ -36,38 +36,35 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <Link href="/staff" className="flex items-center gap-3">
-              {logoUrl ? (
-                <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
-                  <img
-                    src={logoUrl || "/placeholder.svg"}
-                    alt={`${organizationName} logo`}
-                    className="max-w-full max-h-full object-contain"
-                    onError={(e) => {
-                      // Fallback if logo fails to load
-                      e.currentTarget.style.display = "none"
-                      e.currentTarget.parentElement!.innerHTML = `
-                        <div class="flex items-center gap-2">
+              <div className="flex items-center gap-2">
+                {logoUrl ? (
+                  <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
+                    <img
+                      src={logoUrl || "/placeholder.svg"}
+                      alt={`${organizationName} logo`}
+                      className="max-w-full max-h-full object-contain"
+                      onError={(e) => {
+                        // Fallback if logo fails to load
+                        e.currentTarget.style.display = "none"
+                        e.currentTarget.parentElement!.innerHTML = `
                           <div class="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
                             <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                             </svg>
                           </div>
-                          <span class="text-xl font-bold text-emerald-600">${organizationName}</span>
-                        </div>
-                      `
-                    }}
-                  />
-                </div>
-              ) : organizationName === "MyDayLogs" ? (
-                <MyDayLogsLogo size="sm" />
-              ) : (
-                <div className="flex items-center gap-2">
+                        `
+                      }}
+                    />
+                  </div>
+                ) : organizationName === "MyDayLogs" ? (
+                  <MyDayLogsLogo size="sm" showText={false} />
+                ) : (
                   <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
                     <Check className="w-4 h-4 text-white" />
                   </div>
-                  <span className="text-xl font-bold text-emerald-600">{organizationName}</span>
-                </div>
-              )}
+                )}
+                <span className="text-xl font-bold text-emerald-600">{organizationName}</span>
+              </div>
             </Link>
             <div className="hidden md:ml-10 md:flex md:space-x-8">
               <Link

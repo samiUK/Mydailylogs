@@ -45,24 +45,24 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <Link href="/admin" className="flex items-center gap-3">
-              {logoUrl ? (
-                <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
-                  <img
-                    src={logoUrl || "/placeholder.svg"}
-                    alt={organizationName}
-                    className="max-w-full max-h-full object-contain"
-                  />
-                </div>
-              ) : organizationName === "MyDayLogs" ? (
-                <MyDayLogsLogo size="sm" />
-              ) : (
-                <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2">
+                {logoUrl ? (
+                  <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
+                    <img
+                      src={logoUrl || "/placeholder.svg"}
+                      alt={organizationName}
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  </div>
+                ) : organizationName === "MyDayLogs" ? (
+                  <MyDayLogsLogo size="sm" showText={false} />
+                ) : (
                   <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
                     <Check className="w-4 h-4 text-white" />
                   </div>
-                  <span className="text-xl font-bold text-emerald-600">{organizationName}</span>
-                </div>
-              )}
+                )}
+                <span className="text-xl font-bold text-emerald-600">{organizationName}</span>
+              </div>
             </Link>
             <div className="hidden md:ml-10 md:flex md:space-x-8">
               <Link

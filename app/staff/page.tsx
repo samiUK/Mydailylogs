@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Clock, Bell, AlertTriangle, ArrowLeft } from "lucide-react"
+import { Clock, Bell, AlertTriangle, ArrowLeft, History } from "lucide-react"
 import { useState, useEffect } from "react"
 
 export default function StaffDashboard() {
@@ -14,6 +14,7 @@ export default function StaffDashboard() {
   const [profile, setProfile] = useState<any>(null)
   const [assignedTemplates, setAssignedTemplates] = useState<any[]>([])
   const [notifications, setNotifications] = useState<any[]>([])
+  const [completedReports, setCompletedReports] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   const [isImpersonating, setIsImpersonating] = useState(false)
@@ -26,26 +27,20 @@ export default function StaffDashboard() {
       try {
         const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
 
-        // Check if this is a valid impersonation session
         if (impersonationContext) {
           const impersonationData = JSON.parse(impersonationContext)
 
-          // Verify this is actually a master admin impersonation by checking if we have a real Supabase user
           const {
             data: { user: supabaseUser },
           } = await supabase.auth.getUser()
 
-          // If there's a real Supabase user session, this is a normal login, not impersonation
           if (supabaseUser) {
-            // Clear the stale impersonation context
             sessionStorage.removeItem("masterAdminImpersonation")
             document.cookie = "masterAdminImpersonation=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
           } else {
-            // This is a valid impersonation session
             setIsImpersonating(true)
             setImpersonationData(impersonationData)
 
-            // Fetch the target user's profile data
             const { data: targetProfile } = await supabase
               .from("profiles")
               .select("*")
@@ -60,7 +55,6 @@ export default function StaffDashboard() {
           }
         }
 
-        // Normal user authentication flow
         const {
           data: { user },
           error: userError,
@@ -119,6 +113,26 @@ export default function StaffDashboard() {
           .eq("is_active", true)
           .order("assigned_at", { ascending: false })
 
+        const { data: completedReportsData } = await supabase
+          .from("template_assignments")
+          .select(`
+            *,
+            checklist_templates:template_id(
+              id,
+              name,
+              description
+            ),
+            profiles:assigned_to(
+              full_name,
+              email
+            )
+          `)
+          .eq("assigned_to", user.id)
+          .eq("status", "completed")
+          .not("completed_at", "is", null)
+          .order("completed_at", { ascending: false })
+          .limit(10)
+
         const { data: notificationsData } = await supabase
           .from("notifications")
           .select("*")
@@ -128,6 +142,7 @@ export default function StaffDashboard() {
           .order("created_at", { ascending: false })
 
         setAssignedTemplates(assignedTemplatesData || [])
+        setCompletedReports(completedReportsData || [])
         setNotifications(notificationsData || [])
 
         console.log(
@@ -139,6 +154,8 @@ export default function StaffDashboard() {
             assigned_at: a.assigned_at,
           })),
         )
+
+        console.log("[v0] Completed reports:", completedReportsData?.length || 0)
       } catch (error) {
         console.error("Error fetching dashboard data:", error)
       } finally {
@@ -173,12 +190,10 @@ export default function StaffDashboard() {
     const template = assignment.checklist_templates
     if (!template) return
 
-    // Skip if completed today
     if (assignment.completed_at && new Date(assignment.completed_at).toDateString() === todayString) {
       return
     }
 
-    // Calculate due date based on template scheduling
     let dueDate: Date | null = null
 
     if (template.deadline_date) {
@@ -186,36 +201,29 @@ export default function StaffDashboard() {
     } else if (template.specific_date) {
       dueDate = new Date(template.specific_date)
     } else if (template.schedule_type === "daily") {
-      // For daily reports, due date is today
       dueDate = new Date(today)
-      dueDate.setHours(23, 59, 59, 999) // End of day
+      dueDate.setHours(23, 59, 59, 999)
     } else if (template.schedule_type === "weekly") {
-      // For weekly reports, due date is end of week
       dueDate = new Date(today)
       dueDate.setDate(today.getDate() + (7 - today.getDay()))
       dueDate.setHours(23, 59, 59, 999)
     } else if (template.schedule_type === "monthly") {
-      // For monthly reports, due date is end of month
       dueDate = new Date(today.getFullYear(), today.getMonth() + 1, 0)
       dueDate.setHours(23, 59, 59, 999)
     }
 
-    // Categorize reports based on schedule type
     if (
       template.schedule_type === "deadline" ||
       template.schedule_type === "specific_date" ||
       template.deadline_date ||
       template.specific_date
     ) {
-      // Custom dated or deadline jobs go to upcoming reports
       upcomingReports.push({ ...assignment, dueDate, template })
     } else {
-      // Recurring jobs go to regular reports
       regularReports.push({ ...assignment, dueDate, template })
     }
   })
 
-  // Sort upcoming reports by due date
   upcomingReports.sort((a, b) => {
     if (!a.dueDate && !b.dueDate) return 0
     if (!a.dueDate) return 1
@@ -223,7 +231,6 @@ export default function StaffDashboard() {
     return a.dueDate.getTime() - b.dueDate.getTime()
   })
 
-  // Sort regular reports by frequency priority (daily, weekly, monthly)
   const frequencyPriority = { daily: 1, weekly: 2, monthly: 3, custom: 4 }
   regularReports.sort((a, b) => {
     const aPriority = frequencyPriority[a.template.frequency as keyof typeof frequencyPriority] || 5
@@ -259,7 +266,6 @@ export default function StaffDashboard() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground">My Assigned Reports</h1>
         <p className="text-muted-foreground mt-2">Complete your assigned compliance checklists</p>
@@ -282,7 +288,6 @@ export default function StaffDashboard() {
         </div>
       )}
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -451,6 +456,47 @@ export default function StaffDashboard() {
             </p>
           </CardContent>
         </Card>
+      )}
+
+      {completedReports.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+            <History className="w-5 h-5" />
+            Report History ({completedReports.length})
+          </h2>
+          <p className="text-sm text-muted-foreground">Your completed reports</p>
+
+          <div className="space-y-4">
+            {completedReports.map((report) => (
+              <Card key={report.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-foreground mb-1">
+                        {report.checklist_templates?.name || "Unknown Report"}
+                      </h3>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
+                        <span>
+                          {new Date(report.completed_at).toLocaleDateString()} at{" "}
+                          {new Date(report.completed_at).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                        <Badge variant="secondary" className="bg-green-100 text-green-800">
+                          Completed
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {report.checklist_templates?.description || "Your submission history"}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
       )}
 
       {isImpersonating && impersonationData && (

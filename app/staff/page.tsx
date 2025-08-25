@@ -100,7 +100,7 @@ export default function StaffDashboard() {
       try {
         const supabase = createClient()
 
-        const { data: assignedTemplates } = await supabase
+        const { data: assignedTemplatesData } = await supabase
           .from("template_assignments")
           .select(`
             *,
@@ -119,7 +119,7 @@ export default function StaffDashboard() {
           .eq("is_active", true)
           .order("assigned_at", { ascending: false })
 
-        const { data: notifications } = await supabase
+        const { data: notificationsData } = await supabase
           .from("notifications")
           .select("*")
           .eq("user_id", user.id)
@@ -127,12 +127,12 @@ export default function StaffDashboard() {
           .eq("type", "missed_task")
           .order("created_at", { ascending: false })
 
-        setAssignedTemplates(assignedTemplates || [])
-        setNotifications(notifications || [])
+        setAssignedTemplates(assignedTemplatesData || [])
+        setNotifications(notificationsData || [])
 
         console.log(
           "[v0] All assigned templates:",
-          assignedTemplates?.map((a) => ({
+          assignedTemplatesData?.map((a) => ({
             name: a.checklist_templates?.name,
             status: a.status,
             completed_at: a.completed_at,
@@ -290,7 +290,7 @@ export default function StaffDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalAssigned}</div>
-            <p className="text-xs text-muted-foreground">Total assignments</p>
+            <p className="text-xs text-muted-foreground">Total reports</p>
           </CardContent>
         </Card>
 

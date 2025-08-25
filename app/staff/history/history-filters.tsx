@@ -6,16 +6,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Eye, Search, Calendar } from "lucide-react"
-import { PDFDownloadButton } from "./pdf-download-button"
+import { Eye, Search, Calendar, Download } from "lucide-react"
+import Link from "next/link"
 
 interface Assignment {
   id: string
@@ -146,22 +138,22 @@ export function HistoryFilters({ assignments, responses }: HistoryFiltersProps) 
               {filteredAssignments.map((assignment) => (
                 <div
                   key={assignment.id}
-                  className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                  className="flex items-center justify-between py-3 px-4 hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3">
                       <div className="flex-1">
-                        <h3 className="font-medium text-gray-900 truncate">
+                        <h3 className="font-medium text-gray-900 text-sm truncate">
                           {assignment.checklist_templates?.name}
                           {assignment.is_daily_instance && assignment.submission_date && (
-                            <span className="text-sm text-gray-500 ml-2">
+                            <span className="text-xs text-gray-500 ml-2">
                               ({new Date(assignment.submission_date).toLocaleDateString()})
                             </span>
                           )}
                         </h3>
-                        <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
+                        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
                           <span>
-                            Completed: {new Date(assignment.completed_at).toLocaleDateString()} at{" "}
+                            {new Date(assignment.completed_at).toLocaleDateString()} at{" "}
                             {new Date(assignment.completed_at).toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
@@ -177,94 +169,18 @@ export function HistoryFilters({ assignments, responses }: HistoryFiltersProps) 
                   </div>
 
                   <div className="flex items-center gap-2 ml-4">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <Eye className="w-4 h-4 mr-1" />
-                          View Report
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                        <DialogHeader>
-                          <DialogTitle className="flex items-center justify-between">
-                            <span>{assignment.checklist_templates?.name}</span>
-                            <PDFDownloadButton
-                              assignment={assignment}
-                              responses={responses.filter((r) =>
-                                assignment.checklist_templates?.checklist_items?.some(
-                                  (item: any) => item.id === r.item_id,
-                                ),
-                              )}
-                            />
-                          </DialogTitle>
-                          <DialogDescription>
-                            Completed on {new Date(assignment.completed_at).toLocaleString()}
-                            {assignment.is_daily_instance && assignment.submission_date && (
-                              <span className="block mt-1">
-                                Daily report for {new Date(assignment.submission_date).toLocaleDateString()}
-                              </span>
-                            )}
-                          </DialogDescription>
-                        </DialogHeader>
-
-                        <div className="mt-4 space-y-4">
-                          {assignment.checklist_templates?.checklist_items?.map((task: any) => {
-                            const taskResponse = responses.find((r) => r.item_id === task.id)
-                            return (
-                              <div key={task.id} className="border rounded-lg p-4 bg-gray-50">
-                                <div className="flex items-start justify-between mb-2">
-                                  <h5 className="font-medium text-gray-900">{task.name}</h5>
-                                  <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs">
-                                    ✓ Completed
-                                  </Badge>
-                                </div>
-
-                                <div className="text-sm text-gray-600 mt-2">
-                                  {task.task_type === "boolean" && (
-                                    <p>
-                                      <strong>Response:</strong> Yes
-                                    </p>
-                                  )}
-                                  {task.task_type === "text" && taskResponse?.notes && (
-                                    <p>
-                                      <strong>Response:</strong> {taskResponse.notes}
-                                    </p>
-                                  )}
-                                  {task.task_type === "number" && taskResponse?.notes && (
-                                    <p>
-                                      <strong>Value:</strong> {taskResponse.notes}
-                                    </p>
-                                  )}
-                                  {task.task_type === "photo" && taskResponse?.photo_url && (
-                                    <div>
-                                      <p>
-                                        <strong>Photo:</strong>
-                                      </p>
-                                      <img
-                                        src={taskResponse.photo_url || "/placeholder.svg"}
-                                        alt="Task photo"
-                                        className="max-w-xs max-h-48 rounded-lg mt-2 border"
-                                      />
-                                    </div>
-                                  )}
-                                  {task.task_type === "options" && taskResponse?.notes && (
-                                    <p>
-                                      <strong>Selected:</strong> {taskResponse.notes}
-                                    </p>
-                                  )}
-
-                                  {taskResponse?.completed_at && (
-                                    <p className="text-xs text-gray-500 mt-2">
-                                      Completed: {new Date(taskResponse.completed_at).toLocaleString()}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </DialogContent>
-                    </Dialog>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/staff/reports/${assignment.id}`}>
+                        <Eye className="w-3 h-3 mr-1" />
+                        View Report
+                      </Link>
+                    </Button>
+                    <Button variant="default" size="sm" asChild>
+                      <Link href={`/staff/reports/${assignment.id}?download=true`}>
+                        <Download className="w-3 h-3 mr-1" />
+                        Download
+                      </Link>
+                    </Button>
                   </div>
                 </div>
               ))}

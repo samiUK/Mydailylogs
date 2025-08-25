@@ -184,7 +184,7 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Assign Template</h1>
+            <h1 className="text-3xl font-bold text-foreground">Assign Report Template</h1>
             <p className="text-muted-foreground mt-2">Loading...</p>
           </div>
         </div>
@@ -203,7 +203,7 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Assign Template</h1>
+            <h1 className="text-3xl font-bold text-foreground">Assign Report Template</h1>
             <p className="text-red-600 mt-2">Error: {error || "Template not found"}</p>
           </div>
         </div>
@@ -222,7 +222,7 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
           </Button>
         </Link>
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Assign Template</h1>
+          <h1 className="text-3xl font-bold text-foreground">Assign Report Template</h1>
           <p className="text-muted-foreground mt-2">Assign "{template.name}" to team members</p>
         </div>
       </div>
@@ -295,7 +295,7 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
           <Button variant="outline">Cancel</Button>
         </Link>
         <Button onClick={handleSubmit} disabled={submitting}>
-          {submitting ? "Updating..." : "Update Assignments"}
+          {submitting ? "Updating..." : "Update Report Assignments"}
         </Button>
       </div>
     </div>

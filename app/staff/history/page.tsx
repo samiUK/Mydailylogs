@@ -52,13 +52,13 @@ export default async function HistoryPage() {
     redirect("/auth/login")
   }
 
-  console.log("[v0] History page - User ID:", user.id)
+  console.log("[v0] Staff History page - User found:", user.id)
 
   const { data: templateAssignments, error: assignmentsError } = await supabase
     .from("template_assignments")
     .select(`
       *,
-      checklist_templates(
+      checklist_templates!inner(
         name, 
         description, 
         frequency,
@@ -74,8 +74,12 @@ export default async function HistoryPage() {
     .eq("assigned_to", user.id)
     .eq("status", "completed")
     .not("completed_at", "is", null)
-    .neq("checklist_templates.frequency", "daily") // Exclude daily templates from template assignments
     .order("completed_at", { ascending: false })
+    .limit(50)
+
+  if (assignmentsError) {
+    console.error("[v0] Staff History page - Template assignments error:", assignmentsError)
+  }
 
   const { data: dailyChecklists, error: dailyError } = await supabase
     .from("daily_checklists")
@@ -87,7 +91,7 @@ export default async function HistoryPage() {
       status,
       completed_at,
       created_at,
-      checklist_templates(
+      checklist_templates!inner(
         name, 
         description, 
         frequency,
@@ -104,43 +108,76 @@ export default async function HistoryPage() {
     .eq("status", "completed")
     .not("completed_at", "is", null)
     .order("completed_at", { ascending: false })
+    .limit(50)
 
-  console.log("[v0] History page - Template assignments query error:", assignmentsError)
-  console.log("[v0] History page - Daily checklists query error:", dailyError)
-  console.log("[v0] History page - Template assignments found:", templateAssignments?.length || 0)
-  console.log("[v0] History page - Daily checklists found:", dailyChecklists?.length || 0)
+  if (dailyError) {
+    console.error("[v0] Staff History page - Daily checklists error:", dailyError)
+  }
 
-  const allHistoryItems: HistoryItem[] = [
-    ...(templateAssignments || []).map((item) => ({
-      ...item,
-      is_daily_instance: false,
-      submission_date: undefined,
-    })),
-    ...(dailyChecklists || []).map((item) => ({
-      ...item,
-      is_daily_instance: true,
-      assigned_at: item.created_at,
-      submission_date: item.date,
-    })),
-  ].sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime())
+  console.log("[v0] Staff History page - Template assignments found:", templateAssignments?.length || 0)
+  console.log("[v0] Staff History page - Daily checklists found:", dailyChecklists?.length || 0)
+
+  const allHistoryItems: HistoryItem[] = []
+
+  if (templateAssignments) {
+    allHistoryItems.push(
+      ...templateAssignments.map((item) => ({
+        ...item,
+        is_daily_instance: false,
+        submission_date: undefined,
+      })),
+    )
+  }
+
+  if (dailyChecklists) {
+    allHistoryItems.push(
+      ...dailyChecklists.map((item) => ({
+        ...item,
+        is_daily_instance: true,
+        assigned_at: item.created_at,
+        submission_date: item.date,
+      })),
+    )
+  }
+
+  allHistoryItems.sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime())
 
   let responses: Response[] = []
 
   if (allHistoryItems.length > 0) {
-    const templateIds = templateAssignments?.map((a) => a.template_id) || []
+    const allTemplateIds = [
+      ...(templateAssignments?.map((a) => a.template_id) || []),
+      ...(dailyChecklists?.map((d) => d.template_id) || []),
+    ]
 
-    const { data: responsesData, error: responsesError } = await supabase
-      .from("checklist_responses")
-      .select("*")
-      .in("checklist_id", [...templateIds, ...(dailyChecklists?.map((d) => d.template_id) || [])])
-      .eq("is_completed", true)
+    if (allTemplateIds.length > 0) {
+      const { data: responsesData, error: responsesError } = await supabase
+        .from("checklist_responses")
+        .select("*")
+        .in("checklist_id", allTemplateIds)
+        .eq("is_completed", true)
+        .limit(500)
 
-    console.log("[v0] History page - Responses query error:", responsesError)
-    console.log("[v0] History page - Responses found:", responsesData?.length || 0)
-
-    if (responsesData) {
-      responses = responsesData
+      if (responsesError) {
+        console.error("[v0] Staff History page - Responses error:", responsesError)
+      } else {
+        responses = responsesData || []
+      }
     }
+  }
+
+  console.log("[v0] Staff History page - Total history items:", allHistoryItems.length)
+  console.log("[v0] Staff History page - Total responses:", responses.length)
+
+  if (assignmentsError && dailyError) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Report History</h1>
+          <p className="text-red-600 mt-2">Error loading report history</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -151,7 +188,7 @@ export default async function HistoryPage() {
         <p className="text-gray-600 mt-2">View your completed reports and download PDFs</p>
       </div>
 
-      <HistoryFilters assignments={allHistoryItems || []} responses={responses} />
+      <HistoryFilters assignments={allHistoryItems} responses={responses} />
     </div>
   )
 }

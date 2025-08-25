@@ -189,6 +189,35 @@ export default function AdminDashboard() {
     }
   }
 
+  const handleAssignReport = async (templateId: string, memberIds: string[]) => {
+    if (memberIds.length === 0) return
+
+    setAssigningTemplate(templateId)
+    const supabase = createClient()
+
+    try {
+      const response = await fetch("/api/admin/assign-template", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          templateId,
+          memberIds,
+          organizationId: profile?.organization_id,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to assign template")
+
+      setSelectedMembers((prev) => ({ ...prev, [templateId]: [] }))
+      alert("Report template assigned successfully!")
+    } catch (error) {
+      console.error("Error assigning template:", error)
+      alert("Failed to assign report template")
+    } finally {
+      setAssigningTemplate(null)
+    }
+  }
+
   const toggleMember = (templateId: string, memberId: string) => {
     setSelectedMembers((prev) => {
       const current = prev[templateId] || []
@@ -887,6 +916,53 @@ export default function AdminDashboard() {
                   </div>
                 ))
               )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Pending Reports</CardTitle>
+            <CardDescription>Report templates awaiting completion</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 max-h-48 overflow-y-auto">
+              {todayChecklists?.filter((assignment) => assignment.status !== "completed").length === 0 ? (
+                <div className="text-sm text-muted-foreground text-center py-4">No pending reports</div>
+              ) : (
+                todayChecklists
+                  ?.filter((assignment) => assignment.status !== "completed")
+                  .slice(0, 5)
+                  .map((assignment) => (
+                    <div key={assignment.id} className="flex items-center justify-between p-2 border rounded-lg">
+                      <div className="flex-1">
+                        <h5 className="text-sm font-medium text-foreground">
+                          {assignment.checklist_templates?.name || "Template"}
+                        </h5>
+                        <p className="text-xs text-muted-foreground">
+                          Assigned to:{" "}
+                          {assignment.profiles?.full_name ||
+                            `${assignment.profiles?.first_name} ${assignment.profiles?.last_name}` ||
+                            "Team Member"}
+                        </p>
+                        <p className="text-xs text-blue-600">
+                          Assigned: {new Date(assignment.assigned_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
+                          Pending
+                        </Badge>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </div>
+            <div className="mt-3 pt-3 border-t">
+              <p className="text-xs text-muted-foreground">
+                Pending: {todayChecklists?.filter((assignment) => assignment.status !== "completed").length || 0} •
+                Total Reports: {todayChecklists?.length || 0} • Completed: {totalCompleted}
+              </p>
             </div>
           </CardContent>
         </Card>

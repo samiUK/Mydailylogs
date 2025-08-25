@@ -39,7 +39,6 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
     elements.forEach((el) => {
       const computedStyle = window.getComputedStyle(el)
 
-      // Convert background colors
       if (computedStyle.backgroundColor && computedStyle.backgroundColor.includes("oklch")) {
         const canvas = document.createElement("canvas")
         const ctx = canvas.getContext("2d")
@@ -50,7 +49,6 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
         }
       }
 
-      // Convert text colors
       if (computedStyle.color && computedStyle.color.includes("oklch")) {
         const canvas = document.createElement("canvas")
         const ctx = canvas.getContext("2d")
@@ -61,7 +59,6 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
         }
       }
 
-      // Convert border colors
       if (computedStyle.borderColor && computedStyle.borderColor.includes("oklch")) {
         const canvas = document.createElement("canvas")
         const ctx = canvas.getContext("2d")
@@ -100,8 +97,8 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
       const imgData = canvas.toDataURL("image/png")
       const pdf = new jsPDF("p", "mm", "a4")
 
-      const imgWidth = 210 // A4 width in mm
-      const pageHeight = 295 // A4 height in mm
+      const imgWidth = 210
+      const pageHeight = 295
       const imgHeight = (canvas.height * imgWidth) / canvas.width
       let heightLeft = imgHeight
 
@@ -132,9 +129,9 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
       <div className="print:hidden bg-gray-50 border-b p-4">
         <div className="container mx-auto flex items-center justify-between">
           <Button variant="outline" asChild>
-            <Link href="/admin/dashboard-analytics">
+            <Link href="/staff/history">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Analytics
+              Back to History
             </Link>
           </Button>
           <div className="flex gap-3">

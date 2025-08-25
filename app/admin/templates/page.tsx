@@ -154,20 +154,32 @@ export default function AdminTemplatesPage() {
 
   const handleDeleteTemplate = async (templateId: string) => {
     try {
+      const formData = new FormData()
+      formData.append("id", templateId)
+
       const response = await fetch("/api/admin/delete-template", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: templateId }),
+        body: formData,
       })
 
       if (!response.ok) throw new Error("Failed to delete template")
 
       setTemplates(templates.filter((t) => t.id !== templateId))
       setDeleteConfirmOpen(null)
-      alert("Template deleted successfully!")
+
+      const successMessage = document.createElement("div")
+      successMessage.className = "fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50"
+      successMessage.textContent = "Template deleted successfully!"
+      document.body.appendChild(successMessage)
+      setTimeout(() => document.body.removeChild(successMessage), 3000)
     } catch (error) {
       console.error("Error deleting template:", error)
-      alert("Failed to delete template")
+
+      const errorMessage = document.createElement("div")
+      errorMessage.className = "fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50"
+      errorMessage.textContent = "Failed to delete template"
+      document.body.appendChild(errorMessage)
+      setTimeout(() => document.body.removeChild(errorMessage), 3000)
     }
   }
 

@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
-import { Plus, Trash2, GripVertical, Eye, EyeOff, Users, AlertTriangle, Crown } from "lucide-react"
+import { Plus, Trash2, GripVertical, Eye, EyeOff, Users, AlertTriangle, Crown, CheckCircle } from "lucide-react"
 import { checkCanCreateTemplate, getSubscriptionLimits } from "@/lib/subscription-limits"
 import Link from "next/link"
 
@@ -46,6 +46,7 @@ export default function NewTemplatePage() {
   const [showPreview, setShowPreview] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
   const [canCreateTemplate, setCanCreateTemplate] = useState(true)
   const [limitCheckResult, setLimitCheckResult] = useState<any>(null)
@@ -199,6 +200,7 @@ export default function NewTemplatePage() {
 
     setIsLoading(true)
     setError(null)
+    setSuccess(null)
 
     try {
       const supabase = createClient()
@@ -279,7 +281,10 @@ export default function NewTemplatePage() {
         console.log("[v0] Tasks inserted successfully")
       }
 
-      router.push(`/admin/templates`)
+      setSuccess("Report template created successfully!")
+      setTimeout(() => {
+        router.push(`/admin/templates`)
+      }, 1500)
     } catch (error: unknown) {
       console.log("[v0] Error in template creation:", error)
       setError(error instanceof Error ? error.message : "An error occurred")
@@ -392,6 +397,7 @@ export default function NewTemplatePage() {
                         <SelectItem value="daily">Daily</SelectItem>
                         <SelectItem value="weekly">Weekly</SelectItem>
                         <SelectItem value="monthly">Monthly</SelectItem>
+                        <SelectItem value="one-off">One-off</SelectItem>
                         <SelectItem value="custom">Custom</SelectItem>
                       </SelectContent>
                     </Select>
@@ -719,6 +725,12 @@ export default function NewTemplatePage() {
                 </Card>
 
                 {error && <p className="text-sm text-red-500">{error}</p>}
+                {success && (
+                  <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                    <p className="text-sm text-green-700 font-medium">{success}</p>
+                  </div>
+                )}
 
                 <div className="flex gap-4">
                   <Button

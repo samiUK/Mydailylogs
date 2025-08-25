@@ -155,11 +155,13 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
 
       console.log("[v0] Generating canvas from HTML...")
       const canvas = await html2canvas(clonedElement, {
-        scale: 2,
+        scale: 1.2,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
         logging: false,
+        width: clonedElement.scrollWidth,
+        height: clonedElement.scrollHeight,
         onclone: (clonedDoc) => {
           console.log("[v0] html2canvas cloning completed")
         },
@@ -169,7 +171,7 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
       console.log("[v0] Canvas generation completed, size:", canvas.width, "x", canvas.height)
 
       console.log("[v0] Creating PDF document...")
-      const imgData = canvas.toDataURL("image/png", 0.95)
+      const imgData = canvas.toDataURL("image/jpeg", 0.7)
       const pdf = new jsPDF("p", "mm", "a4")
 
       const imgWidth = 210
@@ -179,13 +181,13 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
 
       let position = 0
 
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight)
+      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight)
       heightLeft -= pageHeight
 
       while (heightLeft >= 0) {
         position = heightLeft - imgHeight
         pdf.addPage()
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight)
+        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight)
         heightLeft -= pageHeight
       }
 

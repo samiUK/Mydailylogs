@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ArrowLeft, Users } from "lucide-react"
+import { Calendar } from "@/components/ui/calendar"
+import { Label } from "@/components/ui/label"
+import { ArrowLeft, Users, CalendarIcon, X } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -16,6 +18,7 @@ interface Template {
   name: string
   description: string | null
   frequency: string
+  schedule_type: string
 }
 
 interface TeamMember {
@@ -30,6 +33,13 @@ interface TeamMember {
   is_assigned?: boolean
 }
 
+interface Holiday {
+  id: string
+  name: string
+  date: string
+  is_recurring: boolean
+}
+
 export default function AssignTemplatePage({ params }: { params: { id: string } }) {
   const [template, setTemplate] = useState<Template | null>(null)
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
@@ -37,6 +47,13 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [holidays, setHolidays] = useState<Holiday[]>([])
+  const [excludeHolidays, setExcludeHolidays] = useState(true)
+  const [excludeWeekends, setExcludeWeekends] = useState(false)
+  const [customExcludedDates, setCustomExcludedDates] = useState<Date[]>([])
+  const [showCalendar, setShowCalendar] = useState(false)
+
   const router = useRouter()
 
   useEffect(() => {
@@ -61,13 +78,35 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
       // Get template details
       const { data: templateData, error: templateError } = await supabase
         .from("checklist_templates")
-        .select("id, name, description, frequency")
+        .select("id, name, description, frequency, schedule_type")
         .eq("id", params.id)
         .eq("organization_id", profile.organization_id)
         .single()
 
       if (templateError) throw templateError
       setTemplate(templateData)
+
+      const { data: holidaysData } = await supabase
+        .from("holidays")
+        .select("*")
+        .eq("organization_id", profile.organization_id)
+        .order("date", { ascending: true })
+
+      setHolidays(holidaysData || [])
+
+      const { data: exclusionsData } = await supabase
+        .from("template_schedule_exclusions")
+        .select("*")
+        .eq("template_id", params.id)
+        .single()
+
+      if (exclusionsData) {
+        setExcludeHolidays(exclusionsData.exclude_holidays)
+        setExcludeWeekends(exclusionsData.exclude_weekends)
+        if (exclusionsData.custom_excluded_dates) {
+          setCustomExcludedDates(exclusionsData.custom_excluded_dates.map((date: string) => new Date(date)))
+        }
+      }
 
       // Get team members and their assignment status
       const { data: members, error: membersError } = await supabase
@@ -111,6 +150,17 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
       newSelected.add(memberId)
     }
     setSelectedMembers(newSelected)
+  }
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return
+
+    const dateExists = customExcludedDates.some((d) => d.toDateString() === date.toDateString())
+    if (dateExists) {
+      setCustomExcludedDates(customExcludedDates.filter((d) => d.toDateString() !== date.toDateString()))
+    } else {
+      setCustomExcludedDates([...customExcludedDates, date])
+    }
   }
 
   const handleSubmit = async () => {
@@ -163,6 +213,22 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
         const { error: assignError } = await supabase.from("template_assignments").insert(assignments)
 
         if (assignError) throw assignError
+      }
+
+      if (template.schedule_type === "recurring") {
+        const exclusionData = {
+          template_id: template.id,
+          organization_id: profile.organization_id,
+          exclude_holidays: excludeHolidays,
+          exclude_weekends: excludeWeekends,
+          custom_excluded_dates: customExcludedDates.map((date) => date.toISOString().split("T")[0]),
+        }
+
+        const { error: exclusionError } = await supabase
+          .from("template_schedule_exclusions")
+          .upsert(exclusionData, { onConflict: "template_id" })
+
+        if (exclusionError) throw exclusionError
       }
 
       router.push("/admin")
@@ -236,6 +302,100 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
           </CardDescription>
         </CardHeader>
       </Card>
+
+      {template.schedule_type === "recurring" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarIcon className="w-5 h-5" />
+              Schedule Management
+            </CardTitle>
+            <CardDescription>Configure holidays and unavailability for this recurring template</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="exclude-holidays" checked={excludeHolidays} onCheckedChange={setExcludeHolidays} />
+                  <Label htmlFor="exclude-holidays">Skip organization holidays</Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="exclude-weekends" checked={excludeWeekends} onCheckedChange={setExcludeWeekends} />
+                  <Label htmlFor="exclude-weekends">Skip weekends</Label>
+                </div>
+
+                {holidays.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Organization Holidays:</Label>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {holidays.map((holiday) => (
+                        <div key={holiday.id} className="text-xs text-muted-foreground flex justify-between">
+                          <span>{holiday.name}</span>
+                          <span>{new Date(holiday.date).toLocaleDateString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Custom Excluded Dates</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setShowCalendar(!showCalendar)}>
+                    <CalendarIcon className="w-4 h-4 mr-2" />
+                    {showCalendar ? "Hide Calendar" : "Select Dates"}
+                  </Button>
+                </div>
+
+                {customExcludedDates.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      {customExcludedDates.map((date, index) => (
+                        <Badge key={index} variant="secondary" className="text-xs">
+                          {date.toLocaleDateString()}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 ml-1 hover:bg-destructive hover:text-destructive-foreground"
+                            onClick={() => setCustomExcludedDates(customExcludedDates.filter((_, i) => i !== index))}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {showCalendar && (
+                  <div className="border rounded-lg p-4">
+                    <Calendar
+                      mode="multiple"
+                      selected={customExcludedDates}
+                      onSelect={(dates) => setCustomExcludedDates(dates || [])}
+                      className="rounded-md border-0"
+                      modifiers={{
+                        holiday: holidays.map((h) => new Date(h.date)),
+                        excluded: customExcludedDates,
+                      }}
+                      modifiersStyles={{
+                        holiday: { backgroundColor: "#fef3c7", color: "#92400e" },
+                        excluded: { backgroundColor: "#fee2e2", color: "#991b1b" },
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Click dates to exclude them from the schedule. Yellow dates are holidays.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Team Members */}
       <Card>

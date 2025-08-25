@@ -111,6 +111,9 @@ export default function StaffDashboard() {
           `)
           .eq("assigned_to", user.id)
           .eq("is_active", true)
+          .or(
+            `status.neq.completed,and(status.eq.completed,checklist_templates.schedule_type.in.(daily,weekly,monthly,recurring))`,
+          )
           .order("assigned_at", { ascending: false })
 
         const { data: completedReportsData } = await supabase

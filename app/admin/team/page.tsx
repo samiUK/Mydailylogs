@@ -89,11 +89,6 @@ function ProfileCard({ member }: { member: TeamMember }) {
                 Edit
               </Button>
             </Link>
-            <Link href={`/admin/team/assign-templates/${member.id}`}>
-              <Button variant="outline" size="sm">
-                Assign
-              </Button>
-            </Link>
           </div>
         </div>
       </CardContent>

@@ -411,11 +411,13 @@ export default function AdminDashboard() {
             .from("template_assignments")
             .select(`
               *,
-              checklist_templates:template_id(name),
+              checklist_templates:template_id(name, schedule_type),
               profiles:assigned_to(first_name, last_name, full_name)
             `)
             .eq("organization_id", profile.organization_id)
-            .or(`status.eq.completed,status.eq.active,status.is.null`)
+            .or(
+              `status.neq.completed,and(status.eq.completed,checklist_templates.schedule_type.in.(daily,weekly,monthly,recurring))`,
+            )
             .order("completed_at", { ascending: false, nullsLast: true })
             .order("assigned_at", { ascending: false })
             .limit(20),

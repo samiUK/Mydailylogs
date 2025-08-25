@@ -20,6 +20,9 @@ export default async function StaffReportViewPage({ params, searchParams }: Page
     redirect("/auth/login")
   }
 
+  console.log("[v0] Staff ReportView - Loading report ID:", params.id)
+  console.log("[v0] Staff ReportView - User ID:", user.id)
+
   // Check template_assignments first
   let { data: submission } = await supabase
     .from("template_assignments")
@@ -42,6 +45,9 @@ export default async function StaffReportViewPage({ params, searchParams }: Page
     .eq("id", params.id)
     .eq("assigned_to", user.id)
     .single()
+
+  console.log("[v0] Staff ReportView - Template assignment result:", submission)
+  console.log("[v0] Staff ReportView - Profile data:", submission?.profiles)
 
   // If not found in template_assignments, check daily_checklists
   if (!submission) {
@@ -67,6 +73,8 @@ export default async function StaffReportViewPage({ params, searchParams }: Page
       .eq("assigned_to", user.id)
       .single()
 
+    console.log("[v0] Staff ReportView - Daily checklist result:", dailySubmission)
+    console.log("[v0] Staff ReportView - Daily profile data:", dailySubmission?.profiles)
     submission = dailySubmission
   }
 

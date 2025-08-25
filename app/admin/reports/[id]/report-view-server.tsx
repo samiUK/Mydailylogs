@@ -34,7 +34,7 @@ export async function ReportViewServer({ reportId, autoDownload = false }: Repor
         description,
         checklist_items(*)
       ),
-      assigned_to_profile:profiles!assigned_to(
+      profiles!assigned_to(
         full_name,
         email
       )
@@ -43,6 +43,7 @@ export async function ReportViewServer({ reportId, autoDownload = false }: Repor
     .single()
 
   console.log("[v0] ReportViewServer - Template assignment query result:", { templateAssignment, templateError })
+  console.log("[v0] ReportViewServer - Profile data:", templateAssignment?.profiles)
 
   let submission = templateAssignment
   let isDaily = false
@@ -59,7 +60,7 @@ export async function ReportViewServer({ reportId, autoDownload = false }: Repor
           description,
           checklist_items(*)
         ),
-        assigned_to_profile:profiles!assigned_to(
+        profiles!assigned_to(
           full_name,
           email
         )
@@ -68,6 +69,7 @@ export async function ReportViewServer({ reportId, autoDownload = false }: Repor
       .single()
 
     console.log("[v0] ReportViewServer - Daily checklist query result:", { dailyChecklist, dailyError })
+    console.log("[v0] ReportViewServer - Daily profile data:", dailyChecklist?.profiles)
 
     if (dailyError || !dailyChecklist) {
       console.log("[v0] ReportViewServer - Report not found in either table")

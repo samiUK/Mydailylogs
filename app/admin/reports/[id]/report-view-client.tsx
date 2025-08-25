@@ -28,7 +28,6 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
 
   const convertOklchToHex = (element: HTMLElement) => {
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_ELEMENT, null)
-
     const elements: HTMLElement[] = []
     let node = walker.nextNode()
     while (node) {
@@ -36,39 +35,87 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
       node = walker.nextNode()
     }
 
+    // Define fallback colors for common Tailwind oklch colors
+    const oklchFallbacks: { [key: string]: string } = {
+      "oklch(0.98 0.013 106.89)": "#fefefe", // white
+      "oklch(0.15 0.02 286.62)": "#1f2937", // gray-800
+      "oklch(0.25 0.02 286.62)": "#374151", // gray-700
+      "oklch(0.35 0.02 286.62)": "#4b5563", // gray-600
+      "oklch(0.45 0.02 286.62)": "#6b7280", // gray-500
+      "oklch(0.55 0.015 286.62)": "#9ca3af", // gray-400
+      "oklch(0.65 0.015 286.62)": "#d1d5db", // gray-300
+      "oklch(0.75 0.01 286.62)": "#e5e7eb", // gray-200
+      "oklch(0.85 0.005 286.62)": "#f3f4f6", // gray-100
+      "oklch(0.95 0.003 286.62)": "#f9fafb", // gray-50
+      "oklch(0.5 0.233 262.29)": "#3b82f6", // blue-500
+      "oklch(0.45 0.243 262.29)": "#2563eb", // blue-600
+      "oklch(0.6 0.18 158.66)": "#10b981", // green-500
+      "oklch(0.55 0.19 158.66)": "#059669", // green-600
+      "oklch(0.65 0.25 29.23)": "#f59e0b", // yellow-500
+      "oklch(0.6 0.26 29.23)": "#d97706", // yellow-600
+      "oklch(0.63 0.24 27.33)": "#ef4444", // red-500
+      "oklch(0.58 0.25 27.33)": "#dc2626", // red-600
+    }
+
     elements.forEach((el) => {
       const computedStyle = window.getComputedStyle(el)
 
+      // Helper function to convert oklch to fallback color
+      const convertColor = (colorValue: string): string => {
+        if (!colorValue || !colorValue.includes("oklch")) return colorValue
+
+        // Try to find exact match first
+        if (oklchFallbacks[colorValue]) {
+          return oklchFallbacks[colorValue]
+        }
+
+        // Try to create a temporary element to get computed color
+        try {
+          const tempDiv = document.createElement("div")
+          tempDiv.style.color = colorValue
+          document.body.appendChild(tempDiv)
+          const computedColor = window.getComputedStyle(tempDiv).color
+          document.body.removeChild(tempDiv)
+
+          // If we got an rgb value, return it
+          if (computedColor && computedColor.startsWith("rgb")) {
+            return computedColor
+          }
+        } catch (e) {
+          console.warn("[v0] Could not convert color:", colorValue)
+        }
+
+        // Fallback to a safe color
+        return colorValue.includes("0.9")
+          ? "#f9fafb"
+          : colorValue.includes("0.8")
+            ? "#f3f4f6"
+            : colorValue.includes("0.1")
+              ? "#1f2937"
+              : "#6b7280"
+      }
+
       // Convert background colors
-      if (computedStyle.backgroundColor && computedStyle.backgroundColor.includes("oklch")) {
-        const canvas = document.createElement("canvas")
-        const ctx = canvas.getContext("2d")
-        if (ctx) {
-          ctx.fillStyle = computedStyle.backgroundColor
-          const hexColor = ctx.fillStyle
-          el.style.backgroundColor = hexColor
+      if (computedStyle.backgroundColor) {
+        const convertedBg = convertColor(computedStyle.backgroundColor)
+        if (convertedBg !== computedStyle.backgroundColor) {
+          el.style.backgroundColor = convertedBg
         }
       }
 
       // Convert text colors
-      if (computedStyle.color && computedStyle.color.includes("oklch")) {
-        const canvas = document.createElement("canvas")
-        const ctx = canvas.getContext("2d")
-        if (ctx) {
-          ctx.fillStyle = computedStyle.color
-          const hexColor = ctx.fillStyle
-          el.style.color = hexColor
+      if (computedStyle.color) {
+        const convertedColor = convertColor(computedStyle.color)
+        if (convertedColor !== computedStyle.color) {
+          el.style.color = convertedColor
         }
       }
 
       // Convert border colors
-      if (computedStyle.borderColor && computedStyle.borderColor.includes("oklch")) {
-        const canvas = document.createElement("canvas")
-        const ctx = canvas.getContext("2d")
-        if (ctx) {
-          ctx.fillStyle = computedStyle.borderColor
-          const hexColor = ctx.fillStyle
-          el.style.borderColor = hexColor
+      if (computedStyle.borderColor) {
+        const convertedBorder = convertColor(computedStyle.borderColor)
+        if (convertedBorder !== computedStyle.borderColor) {
+          el.style.borderColor = convertedBorder
         }
       }
     })
@@ -78,25 +125,36 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
     setIsGenerating(true)
 
     try {
+      console.log("[v0] Starting PDF generation...")
       const element = document.getElementById("report-content")
-      if (!element) return
+      if (!element) {
+        console.error("[v0] Report content element not found")
+        return
+      }
 
       const clonedElement = element.cloneNode(true) as HTMLElement
       document.body.appendChild(clonedElement)
       clonedElement.style.position = "absolute"
       clonedElement.style.left = "-9999px"
+      clonedElement.style.top = "0"
+      clonedElement.style.width = element.offsetWidth + "px"
 
+      console.log("[v0] Converting oklch colors...")
       convertOklchToHex(clonedElement)
 
+      console.log("[v0] Generating canvas from HTML...")
       const canvas = await html2canvas(clonedElement, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
+        logging: false,
+        removeContainer: true,
       })
 
       document.body.removeChild(clonedElement)
 
+      console.log("[v0] Creating PDF...")
       const imgData = canvas.toDataURL("image/png")
       const pdf = new jsPDF("p", "mm", "a4")
 
@@ -118,9 +176,11 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
       }
 
       const fileName = `report-${submission.checklist_templates?.name?.replace(/[^a-zA-Z0-9]/g, "-")}-${new Date().toISOString().split("T")[0]}.pdf`
+      console.log("[v0] Saving PDF as:", fileName)
       pdf.save(fileName)
+      console.log("[v0] PDF generation completed successfully")
     } catch (error) {
-      console.error("Error generating PDF:", error)
+      console.error("[v0] Error generating PDF:", error)
       alert("Error generating PDF. Please try again.")
     } finally {
       setIsGenerating(false)

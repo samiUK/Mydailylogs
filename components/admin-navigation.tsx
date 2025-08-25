@@ -67,7 +67,7 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                 className="text-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
                 style={{ "--hover-color": primaryColor } as React.CSSProperties}
               >
-                Dashboard
+                Admin Dashboard
               </Link>
               <Link
                 href="/admin/templates"

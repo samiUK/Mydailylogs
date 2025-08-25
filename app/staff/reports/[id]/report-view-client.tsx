@@ -27,8 +27,24 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
   }, [autoDownload])
 
   const convertOklchToHex = (element: HTMLElement) => {
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_ELEMENT, null)
+    console.log("[v0] Converting oklch colors to hex...")
 
+    // Common Tailwind oklch colors mapped to hex equivalents
+    const oklchToHexMap: { [key: string]: string } = {
+      "oklch(0.98 0.013 106.89)": "#fefefe", // white
+      "oklch(0.23 0.084 264.52)": "#1e293b", // slate-800
+      "oklch(0.278 0.029 256.85)": "#334155", // slate-700
+      "oklch(0.533 0.015 252.83)": "#64748b", // slate-500
+      "oklch(0.651 0.015 256.85)": "#94a3b8", // slate-400
+      "oklch(0.961 0.013 106.89)": "#f1f5f9", // slate-50
+      "oklch(0.976 0.006 106.89)": "#f8fafc", // slate-50
+      "oklch(0.570 0.191 231.6)": "#3b82f6", // blue-500
+      "oklch(0.628 0.258 142.5)": "#10b981", // green-500
+      "oklch(0.576 0.196 38.18)": "#f59e0b", // yellow-500
+      "oklch(0.628 0.258 29.23)": "#ef4444", // red-500
+    }
+
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_ELEMENT, null)
     const elements: HTMLElement[] = []
     let node = walker.nextNode()
     while (node) {
@@ -39,62 +55,121 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
     elements.forEach((el) => {
       const computedStyle = window.getComputedStyle(el)
 
+      // Convert background color
       if (computedStyle.backgroundColor && computedStyle.backgroundColor.includes("oklch")) {
-        const canvas = document.createElement("canvas")
-        const ctx = canvas.getContext("2d")
-        if (ctx) {
-          ctx.fillStyle = computedStyle.backgroundColor
-          const hexColor = ctx.fillStyle
-          el.style.backgroundColor = hexColor
+        const oklchColor = computedStyle.backgroundColor
+        if (oklchToHexMap[oklchColor]) {
+          el.style.backgroundColor = oklchToHexMap[oklchColor]
+        } else {
+          // Fallback: try to resolve through temporary element
+          try {
+            const tempDiv = document.createElement("div")
+            tempDiv.style.color = oklchColor
+            document.body.appendChild(tempDiv)
+            const resolvedColor = window.getComputedStyle(tempDiv).color
+            document.body.removeChild(tempDiv)
+            if (resolvedColor && !resolvedColor.includes("oklch")) {
+              el.style.backgroundColor = resolvedColor
+            } else {
+              el.style.backgroundColor = "#ffffff" // Safe fallback
+            }
+          } catch (error) {
+            console.warn("[v0] Could not convert oklch background color, using fallback")
+            el.style.backgroundColor = "#ffffff"
+          }
         }
       }
 
+      // Convert text color
       if (computedStyle.color && computedStyle.color.includes("oklch")) {
-        const canvas = document.createElement("canvas")
-        const ctx = canvas.getContext("2d")
-        if (ctx) {
-          ctx.fillStyle = computedStyle.color
-          const hexColor = ctx.fillStyle
-          el.style.color = hexColor
+        const oklchColor = computedStyle.color
+        if (oklchToHexMap[oklchColor]) {
+          el.style.color = oklchToHexMap[oklchColor]
+        } else {
+          try {
+            const tempDiv = document.createElement("div")
+            tempDiv.style.color = oklchColor
+            document.body.appendChild(tempDiv)
+            const resolvedColor = window.getComputedStyle(tempDiv).color
+            document.body.removeChild(tempDiv)
+            if (resolvedColor && !resolvedColor.includes("oklch")) {
+              el.style.color = resolvedColor
+            } else {
+              el.style.color = "#000000" // Safe fallback
+            }
+          } catch (error) {
+            console.warn("[v0] Could not convert oklch text color, using fallback")
+            el.style.color = "#000000"
+          }
         }
       }
 
+      // Convert border color
       if (computedStyle.borderColor && computedStyle.borderColor.includes("oklch")) {
-        const canvas = document.createElement("canvas")
-        const ctx = canvas.getContext("2d")
-        if (ctx) {
-          ctx.fillStyle = computedStyle.borderColor
-          const hexColor = ctx.fillStyle
-          el.style.borderColor = hexColor
+        const oklchColor = computedStyle.borderColor
+        if (oklchToHexMap[oklchColor]) {
+          el.style.borderColor = oklchToHexMap[oklchColor]
+        } else {
+          try {
+            const tempDiv = document.createElement("div")
+            tempDiv.style.borderColor = oklchColor
+            document.body.appendChild(tempDiv)
+            const resolvedColor = window.getComputedStyle(tempDiv).borderColor
+            document.body.removeChild(tempDiv)
+            if (resolvedColor && !resolvedColor.includes("oklch")) {
+              el.style.borderColor = resolvedColor
+            } else {
+              el.style.borderColor = "#e5e7eb" // Safe fallback
+            }
+          } catch (error) {
+            console.warn("[v0] Could not convert oklch border color, using fallback")
+            el.style.borderColor = "#e5e7eb"
+          }
         }
       }
     })
+
+    console.log("[v0] Oklch color conversion completed")
   }
 
   const downloadPDF = async () => {
     setIsGenerating(true)
 
     try {
+      console.log("[v0] Starting PDF generation...")
       const element = document.getElementById("report-content")
-      if (!element) return
+      if (!element) {
+        console.error("[v0] Report content element not found")
+        alert("Error: Report content not found. Please refresh and try again.")
+        return
+      }
 
+      console.log("[v0] Cloning element for PDF generation...")
       const clonedElement = element.cloneNode(true) as HTMLElement
       document.body.appendChild(clonedElement)
       clonedElement.style.position = "absolute"
       clonedElement.style.left = "-9999px"
+      clonedElement.style.width = element.offsetWidth + "px"
 
       convertOklchToHex(clonedElement)
 
+      console.log("[v0] Generating canvas from HTML...")
       const canvas = await html2canvas(clonedElement, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
+        logging: false,
+        onclone: (clonedDoc) => {
+          console.log("[v0] html2canvas cloning completed")
+        },
       })
 
       document.body.removeChild(clonedElement)
+      console.log("[v0] Canvas generation completed, size:", canvas.width, "x", canvas.height)
 
-      const imgData = canvas.toDataURL("image/png")
+      console.log("[v0] Creating PDF document...")
+      const imgData = canvas.toDataURL("image/png", 0.95)
       const pdf = new jsPDF("p", "mm", "a4")
 
       const imgWidth = 210
@@ -114,11 +189,13 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
         heightLeft -= pageHeight
       }
 
-      const fileName = `report-${submission.checklist_templates?.name?.replace(/[^a-zA-Z0-9]/g, "-")}-${new Date().toISOString().split("T")[0]}.pdf`
+      const fileName = `staff-report-${submission.checklist_templates?.name?.replace(/[^a-zA-Z0-9]/g, "-")}-${new Date().toISOString().split("T")[0]}.pdf`
+      console.log("[v0] Saving PDF as:", fileName)
       pdf.save(fileName)
+      console.log("[v0] PDF generation completed successfully")
     } catch (error) {
-      console.error("Error generating PDF:", error)
-      alert("Error generating PDF. Please try again.")
+      console.error("[v0] Error generating PDF:", error)
+      alert("Error generating PDF: " + (error instanceof Error ? error.message : "Unknown error"))
     } finally {
       setIsGenerating(false)
     }

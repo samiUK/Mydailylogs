@@ -103,6 +103,7 @@ export async function createUserWithProfile(formData: {
     const { error: profileError } = await adminSupabase.from("profiles").insert({
       id: authUserId,
       organization_id: orgData.id,
+      organization_name: organizationName, // Store organization name directly in profiles
       first_name: firstName,
       last_name: lastName,
       full_name: fullName,

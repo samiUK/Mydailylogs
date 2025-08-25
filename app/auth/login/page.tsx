@@ -230,15 +230,15 @@ export default function LoginPage() {
   useEffect(() => {
     const fetchOrganizationName = async () => {
       const supabase = createClient()
-      const { data: profiles, error } = await supabase.from("profiles").select("organization_name").eq("email", email)
+      const { data: profiles, error } = await supabase.from("profiles").select("organizations(name)").eq("email", email)
 
       if (error) {
-        console.log("[v0] Error fetching organization name:", error)
+        console.log("[v0] Error fetching organization name:", error.message)
         return
       }
 
-      if (profiles && profiles.length > 0) {
-        setOrganizationName(profiles[0].organization_name || null)
+      if (profiles && profiles.length > 0 && profiles[0].organizations) {
+        setOrganizationName(profiles[0].organizations.name || null)
       }
     }
 

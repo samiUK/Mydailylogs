@@ -116,6 +116,15 @@ export default function SettingsPage() {
 
       if (updateError) throw updateError
 
+      const { error: profileUpdateError } = await supabase
+        .from("profiles")
+        .update({
+          organization_name: name,
+        })
+        .eq("organization_id", organization.id)
+
+      if (profileUpdateError) throw profileUpdateError
+
       setOrganization((prev) =>
         prev
           ? {
@@ -128,6 +137,7 @@ export default function SettingsPage() {
       )
 
       alert("Settings saved successfully!")
+      window.location.reload()
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred")
     } finally {

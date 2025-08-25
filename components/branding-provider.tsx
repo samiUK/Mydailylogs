@@ -53,8 +53,11 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
         return
       }
 
-      // Get user's profile to find organization_id
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single()
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id, organization_name")
+        .eq("id", user.id)
+        .single()
 
       if (!profile?.organization_id) {
         setBranding((prev) => ({ ...prev, isLoading: false }))
@@ -63,21 +66,21 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
 
       const subscriptionLimits = await getSubscriptionLimits(profile.organization_id)
 
-      // Get organization branding data
+      // Get organization branding data (logo and colors only)
       const { data: organization } = await supabase
         .from("organizations")
-        .select("name, logo_url, primary_color, secondary_color")
+        .select("logo_url, primary_color, secondary_color")
         .eq("id", profile.organization_id)
         .single()
 
       if (organization) {
         setBranding({
           organizationName: subscriptionLimits.hasCustomBranding
-            ? organization.name || "Your Organization"
-            : "MyDayLogs", // Updated default from "Mydailylogs" to "MyDayLogs"
+            ? profile.organization_name || "Your Organization"
+            : "MyDayLogs",
           logoUrl: organization.logo_url,
-          primaryColor: subscriptionLimits.hasCustomBranding ? organization.primary_color || "#059669" : "#059669", // Default MyDayLogs green for free users
-          secondaryColor: subscriptionLimits.hasCustomBranding ? organization.secondary_color || "#6B7280" : "#6B7280", // Default gray for free users
+          primaryColor: subscriptionLimits.hasCustomBranding ? organization.primary_color || "#059669" : "#059669",
+          secondaryColor: subscriptionLimits.hasCustomBranding ? organization.secondary_color || "#6B7280" : "#6B7280",
           hasCustomBranding: subscriptionLimits.hasCustomBranding,
           isLoading: false,
         })

@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { MyDayLogsLogo } from "@/components/mydaylogs-logo" // Updated import path and component name
+import { MyDayLogsLogo } from "@/components/mydaylogs-logo"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Check } from "lucide-react"
 
 export default function SignUpPage() {
   const [email, setEmail] = useState("")
@@ -60,6 +60,20 @@ export default function SignUpPage() {
     }
   }
 
+  const renderLogo = () => {
+    if (organizationName && organizationName !== "MyDayLogs") {
+      return (
+        <div className="flex items-center gap-2">
+          <div className="w-12 h-12 bg-emerald-500 rounded-lg flex items-center justify-center shadow-sm">
+            <Check className="w-6 h-6 text-white" />
+          </div>
+          <span className="text-xl font-bold text-emerald-600">{organizationName}</span>
+        </div>
+      )
+    }
+    return <MyDayLogsLogo size="lg" />
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-secondary to-accent/20 flex items-center justify-center p-6">
       <div className="w-full max-w-sm">
@@ -75,13 +89,10 @@ export default function SignUpPage() {
         <Card>
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
-              <Link href="/">
-                <MyDayLogsLogo size="lg" /> {/* Updated component name */}
-              </Link>
+              <Link href="/">{renderLogo()}</Link>
             </div>
             <CardTitle className="text-2xl">Create Account</CardTitle>
-            <CardDescription>Set up your MyDayLogs organization</CardDescription>{" "}
-            {/* Updated from "Mydailylogs" to "MyDayLogs" */}
+            <CardDescription>Set up your {organizationName || "MyDayLogs"} organization</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSignUp}>

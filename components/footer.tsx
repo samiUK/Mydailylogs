@@ -1,11 +1,14 @@
 "use client"
 import { MyDayLogsLogo } from "@/components/mydaylogs-logo"
+import { useBranding } from "@/components/branding-provider"
 import Link from "next/link"
 import { createBrowserClient } from "@supabase/ssr"
 import { useEffect, useState } from "react"
+import { Check } from "lucide-react"
 
 export function Footer() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const { organizationName, logoUrl, hasCustomBranding } = useBranding()
 
   useEffect(() => {
     const supabase = createBrowserClient(
@@ -23,13 +26,41 @@ export function Footer() {
     checkAuth()
   }, [])
 
+  const renderLogo = () => {
+    if (!isLoggedIn) {
+      return <MyDayLogsLogo size="md" />
+    }
+
+    // Show organization-specific branding for logged-in users
+    return (
+      <div className="flex items-center gap-2">
+        {logoUrl ? (
+          <div className="w-10 h-10 rounded overflow-hidden bg-white flex items-center justify-center shadow-sm">
+            <img
+              src={logoUrl || "/placeholder.svg"}
+              alt={organizationName}
+              className="max-w-full max-h-full object-contain"
+            />
+          </div>
+        ) : organizationName === "MyDayLogs" ? (
+          <MyDayLogsLogo size="md" showText={false} />
+        ) : (
+          <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center shadow-sm">
+            <Check className="w-6 h-6 text-white" />
+          </div>
+        )}
+        <span className="text-xl font-bold text-emerald-600">{organizationName}</span>
+      </div>
+    )
+  }
+
   return (
     <footer className="bg-sidebar border-t border-sidebar-border">
       {!isLoggedIn && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="grid md:grid-cols-4 gap-8">
             <div>
-              <MyDayLogsLogo size="md" />
+              {renderLogo()}
               <p className="text-sidebar-foreground/70 mt-4">
                 Professional task management and compliance platform for multi-industry enterprises.
               </p>
@@ -103,7 +134,7 @@ export function Footer() {
           <p className="text-sidebar-foreground/70 text-sm">
             &copy; 2025{" "}
             {isLoggedIn ? (
-              <span className="text-sidebar-foreground/70">MyDayLogs</span>
+              <span className="text-sidebar-foreground/70">{organizationName}</span>
             ) : (
               <Link href="/masterlogin" className="text-sidebar-foreground/70">
                 MyDayLogs

@@ -26,6 +26,7 @@ export default function LoginPage() {
   const [selectedRole, setSelectedRole] = useState<string>("")
   const [showRoleSelection, setShowRoleSelection] = useState(false)
   const [isClient, setIsClient] = useState(false)
+  const [organizationName, setOrganizationName] = useState<string | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -226,6 +227,26 @@ export default function LoginPage() {
     }
   }
 
+  useEffect(() => {
+    const fetchOrganizationName = async () => {
+      const supabase = createClient()
+      const { data: profiles, error } = await supabase.from("profiles").select("organization_name").eq("email", email)
+
+      if (error) {
+        console.log("[v0] Error fetching organization name:", error)
+        return
+      }
+
+      if (profiles && profiles.length > 0) {
+        setOrganizationName(profiles[0].organization_name || null)
+      }
+    }
+
+    if (email && email.includes("@")) {
+      fetchOrganizationName()
+    }
+  }, [email])
+
   if (!isClient) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-secondary to-accent/20 flex items-center justify-center p-6">
@@ -261,7 +282,11 @@ export default function LoginPage() {
             </div>
             <CardTitle className="text-2xl">{isMasterLogin ? "Master Admin Login" : "Welcome Back"}</CardTitle>
             <CardDescription>
-              {isMasterLogin ? `Logging in as: ${masterLoginEmail}` : "Sign in to your MyDayLogs account"}
+              {isMasterLogin
+                ? `Logging in as: ${masterLoginEmail}`
+                : organizationName
+                  ? `Sign in to your ${organizationName} account`
+                  : "Sign in to your account"}
             </CardDescription>
           </CardHeader>
           <CardContent>

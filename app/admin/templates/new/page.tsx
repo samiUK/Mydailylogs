@@ -293,13 +293,13 @@ export default function NewTemplatePage() {
   return (
     <div className="max-w-6xl mx-auto space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Create New Template</h1>
-        <p className="text-muted-foreground mt-2">Set up a new checklist template for your team</p>
+        <h1 className="text-3xl font-bold text-foreground">Create New Report Template</h1>
+        <p className="text-muted-foreground mt-2">Set up a new report template for your team</p>
 
         {limitCheckResult && subscriptionLimits && (
           <div className="mt-4 flex items-center gap-4">
             <div className="text-sm text-muted-foreground">
-              Templates: {limitCheckResult.currentCount} / {limitCheckResult.maxAllowed} used
+              Report Templates: {limitCheckResult.currentCount} / {limitCheckResult.maxAllowed} used
             </div>
             <div className="text-sm text-muted-foreground">Plan: {subscriptionLimits.planName}</div>
             {!canCreateTemplate && (
@@ -333,17 +333,17 @@ export default function NewTemplatePage() {
           <form onSubmit={handleSubmit} className="space-y-8">
             <Card className={!canCreateTemplate ? "opacity-50" : ""}>
               <CardHeader>
-                <CardTitle>Template Details</CardTitle>
-                <CardDescription>Basic information about your checklist template</CardDescription>
+                <CardTitle>Report Template Details</CardTitle>
+                <CardDescription>Basic information about your report template</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid gap-2">
                   <Label htmlFor="name" required>
-                    Template Name
+                    Report Template Name
                   </Label>
                   <Input
                     id="name"
-                    placeholder="Daily Safety Checklist"
+                    placeholder="Daily Safety Report"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
@@ -355,7 +355,7 @@ export default function NewTemplatePage() {
                   <Label htmlFor="description">Description</Label>
                   <Textarea
                     id="description"
-                    placeholder="Describe what this checklist covers..."
+                    placeholder="Describe what this report covers..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     rows={3}
@@ -507,7 +507,7 @@ export default function NewTemplatePage() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Tasks</CardTitle>
-                    <CardDescription>Define the tasks that will be included in this checklist</CardDescription>
+                    <CardDescription>Define the tasks that will be included in this report</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {tasks.map((task, index) => (
@@ -726,7 +726,7 @@ export default function NewTemplatePage() {
                     disabled={isLoading || !canCreateTemplate}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-3 text-base shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isLoading ? "Creating..." : "Create Template"}
+                    {isLoading ? "Creating..." : "Create Report Template"}
                   </Button>
                   <Button
                     type="button"
@@ -752,13 +752,13 @@ export default function NewTemplatePage() {
                     {showPreview ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
-                <CardDescription>How staff will see this checklist</CardDescription>
+                <CardDescription>How staff will see this report</CardDescription>
               </CardHeader>
               {showPreview && (
                 <CardContent className="space-y-4">
                   <div className="border rounded-lg p-3 bg-muted/50">
-                    <h3 className="font-semibold text-sm">{name || "Template Name"}</h3>
-                    <p className="text-xs text-muted-foreground mt-1">{description || "Template description"}</p>
+                    <h3 className="font-semibold text-sm">{name || "Report Template Name"}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{description || "Report template description"}</p>
                     <div className="flex items-center gap-1 mt-2">
                       <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
                         {scheduleType === "recurring" && (frequency || "Frequency")}

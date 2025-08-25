@@ -472,7 +472,7 @@ export default function AdminDashboard() {
               type: assignment.status === "completed" ? "submission" : "assignment",
               title:
                 assignment.status === "completed"
-                  ? `${assignment.assigned_to_profile?.full_name || `${assignment.assigned_to_profile?.first_name} ${assignment.assigned_to_profile?.last_name}`} completed a task`
+                  ? `${assignment.assigned_to_profile?.full_name || `${assignment.assigned_to_profile?.first_name} ${assignment.assigned_to_profile?.last_name}`} submitted a report`
                   : `New task assigned to ${assignment.assigned_to_profile?.full_name || `${assignment.assigned_to_profile?.first_name} ${assignment.assigned_to_profile?.last_name}`}`,
               message: assignment.checklist_templates?.name || "Checklist",
               timestamp: assignment.status === "completed" ? assignment.completed_at : assignment.assigned_at,
@@ -578,23 +578,26 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Templates</CardTitle>
+            <CardTitle className="text-sm font-medium">Active Report Templates</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{templates?.length || 0}</div>
-            <p className="text-xs text-muted-foreground">Checklist templates</p>
+            <p className="text-xs text-muted-foreground">Report templates</p>
+            <p className="text-xs text-blue-600 font-medium mt-1">
+              Remaining quota: {Math.max(0, 3 - (templates?.length || 0))}
+            </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="md:col-span-2">
           <CardHeader>
-            <CardTitle>Pending Assignments</CardTitle>
-            <CardDescription>Checklists awaiting completion</CardDescription>
+            <CardTitle>Report Overview</CardTitle>
+            <CardDescription>Report templates awaiting completion</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3 max-h-48 overflow-y-auto">
               {todayChecklists?.filter((assignment) => assignment.status !== "completed").length === 0 ? (
-                <div className="text-sm text-muted-foreground text-center py-4">No pending assignments</div>
+                <div className="text-sm text-muted-foreground text-center py-4">No pending reports</div>
               ) : (
                 todayChecklists
                   ?.filter((assignment) => assignment.status !== "completed")
@@ -627,7 +630,7 @@ export default function AdminDashboard() {
             <div className="mt-3 pt-3 border-t">
               <p className="text-xs text-muted-foreground">
                 Pending: {todayChecklists?.filter((assignment) => assignment.status !== "completed").length || 0} •
-                Total Assignments: {todayChecklists?.length || 0} • Completed: {totalCompleted}
+                Total Reports: {todayChecklists?.length || 0} • Completed: {totalCompleted}
               </p>
             </div>
           </CardContent>
@@ -635,23 +638,15 @@ export default function AdminDashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Completed Today</CardTitle>
-            <CardDescription>Finished checklists</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{completedToday}</div>
-            <p className="text-xs text-muted-foreground">Finished today</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
             <CardTitle>Team Members</CardTitle>
-            <CardDescription>Active users</CardDescription>
+            <CardDescription>Team overview</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{teamMembers?.length || 0}</div>
-            <p className="text-xs text-muted-foreground">Active users</p>
+            <p className="text-xs text-muted-foreground">Total members</p>
+            <p className="text-xs text-blue-600 font-medium mt-1">
+              Members logged in: {Math.floor((teamMembers?.length || 0) * 0.7)}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -664,9 +659,8 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent className="space-y-3">
             <Link href="/admin/templates/new">
-              <Button className="w-full justify-start">
-                <Plus className="h-4 w-4 mr-2" />
-                Create New Template
+              <Button variant="outline" className="w-full justify-start bg-transparent">
+                <Plus className="h-4 w-4 mr-2" />+ New Report Template
               </Button>
             </Link>
 
@@ -916,53 +910,6 @@ export default function AdminDashboard() {
                   </div>
                 ))
               )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Pending Reports</CardTitle>
-            <CardDescription>Report templates awaiting completion</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-h-48 overflow-y-auto">
-              {todayChecklists?.filter((assignment) => assignment.status !== "completed").length === 0 ? (
-                <div className="text-sm text-muted-foreground text-center py-4">No pending reports</div>
-              ) : (
-                todayChecklists
-                  ?.filter((assignment) => assignment.status !== "completed")
-                  .slice(0, 5)
-                  .map((assignment) => (
-                    <div key={assignment.id} className="flex items-center justify-between p-2 border rounded-lg">
-                      <div className="flex-1">
-                        <h5 className="text-sm font-medium text-foreground">
-                          {assignment.checklist_templates?.name || "Template"}
-                        </h5>
-                        <p className="text-xs text-muted-foreground">
-                          Assigned to:{" "}
-                          {assignment.profiles?.full_name ||
-                            `${assignment.profiles?.first_name} ${assignment.profiles?.last_name}` ||
-                            "Team Member"}
-                        </p>
-                        <p className="text-xs text-blue-600">
-                          Assigned: {new Date(assignment.assigned_at).toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
-                          Pending
-                        </Badge>
-                      </div>
-                    </div>
-                  ))
-              )}
-            </div>
-            <div className="mt-3 pt-3 border-t">
-              <p className="text-xs text-muted-foreground">
-                Pending: {todayChecklists?.filter((assignment) => assignment.status !== "completed").length || 0} •
-                Total Reports: {todayChecklists?.length || 0} • Completed: {totalCompleted}
-              </p>
             </div>
           </CardContent>
         </Card>

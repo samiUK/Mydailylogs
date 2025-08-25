@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/supabase/server"
+import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -16,7 +17,8 @@ console.log("[v0] Admin Reports and Analytics page - File loaded and parsing")
 export default async function AdminReportsAnalyticsPage() {
   console.log("[v0] Admin Reports and Analytics page - Component function called")
 
-  const supabase = await createClient()
+  const cookieStore = cookies()
+  const supabase = createServerClient(cookieStore)
 
   const {
     data: { user },
@@ -30,7 +32,11 @@ export default async function AdminReportsAnalyticsPage() {
   }
 
   // Get user profile
-  const { data: profile, error: profileError } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("organization_id")
+    .eq("id", user.id)
+    .single()
 
   console.log("[v0] Admin Reports and Analytics page - Profile query error:", profileError)
 

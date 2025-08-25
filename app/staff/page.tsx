@@ -153,7 +153,7 @@ export default function StaffDashboard() {
     return (
       <div className="space-y-8">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">My Assigned Tasks</h1>
+          <h1 className="text-3xl font-bold text-foreground">My Assigned Reports</h1>
           <p className="text-muted-foreground mt-2">Loading...</p>
         </div>
       </div>
@@ -166,8 +166,8 @@ export default function StaffDashboard() {
   const todayString = today.toDateString()
   console.log("[v0] Today's date string:", todayString)
 
-  const upcomingTasks: any[] = []
-  const regularTasks: any[] = []
+  const upcomingReports: any[] = []
+  const regularReports: any[] = []
 
   assignedTemplates?.forEach((assignment) => {
     const template = assignment.checklist_templates
@@ -186,46 +186,46 @@ export default function StaffDashboard() {
     } else if (template.specific_date) {
       dueDate = new Date(template.specific_date)
     } else if (template.schedule_type === "daily") {
-      // For daily tasks, due date is today
+      // For daily reports, due date is today
       dueDate = new Date(today)
       dueDate.setHours(23, 59, 59, 999) // End of day
     } else if (template.schedule_type === "weekly") {
-      // For weekly tasks, due date is end of week
+      // For weekly reports, due date is end of week
       dueDate = new Date(today)
       dueDate.setDate(today.getDate() + (7 - today.getDay()))
       dueDate.setHours(23, 59, 59, 999)
     } else if (template.schedule_type === "monthly") {
-      // For monthly tasks, due date is end of month
+      // For monthly reports, due date is end of month
       dueDate = new Date(today.getFullYear(), today.getMonth() + 1, 0)
       dueDate.setHours(23, 59, 59, 999)
     }
 
-    // Categorize tasks based on schedule type
+    // Categorize reports based on schedule type
     if (
       template.schedule_type === "deadline" ||
       template.schedule_type === "specific_date" ||
       template.deadline_date ||
       template.specific_date
     ) {
-      // Custom dated or deadline jobs go to upcoming tasks
-      upcomingTasks.push({ ...assignment, dueDate, template })
+      // Custom dated or deadline jobs go to upcoming reports
+      upcomingReports.push({ ...assignment, dueDate, template })
     } else {
-      // Recurring jobs go to regular tasks
-      regularTasks.push({ ...assignment, dueDate, template })
+      // Recurring jobs go to regular reports
+      regularReports.push({ ...assignment, dueDate, template })
     }
   })
 
-  // Sort upcoming tasks by due date
-  upcomingTasks.sort((a, b) => {
+  // Sort upcoming reports by due date
+  upcomingReports.sort((a, b) => {
     if (!a.dueDate && !b.dueDate) return 0
     if (!a.dueDate) return 1
     if (!b.dueDate) return -1
     return a.dueDate.getTime() - b.dueDate.getTime()
   })
 
-  // Sort regular tasks by frequency priority (daily, weekly, monthly)
+  // Sort regular reports by frequency priority (daily, weekly, monthly)
   const frequencyPriority = { daily: 1, weekly: 2, monthly: 3, custom: 4 }
-  regularTasks.sort((a, b) => {
+  regularReports.sort((a, b) => {
     const aPriority = frequencyPriority[a.template.frequency as keyof typeof frequencyPriority] || 5
     const bPriority = frequencyPriority[b.template.frequency as keyof typeof frequencyPriority] || 5
     return aPriority - bPriority
@@ -233,7 +233,7 @@ export default function StaffDashboard() {
 
   const totalAssigned = assignedTemplates?.length || 0
   const completedTemplates = assignedTemplates?.filter((a) => a.status === "completed").length || 0
-  const activeTemplates = upcomingTasks.length + regularTasks.length
+  const activeTemplates = upcomingReports.length + regularReports.length
 
   const completedToday =
     assignedTemplates?.filter((a) => {
@@ -253,15 +253,15 @@ export default function StaffDashboard() {
     completedTemplates,
     activeTemplates,
     completedToday,
-    upcomingTasks: upcomingTasks.length,
-    regularTasks: regularTasks.length,
+    upcomingReports: upcomingReports.length,
+    regularReports: regularReports.length,
   })
 
   return (
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground">My Assigned Tasks</h1>
+        <h1 className="text-3xl font-bold text-foreground">My Assigned Reports</h1>
         <p className="text-muted-foreground mt-2">Complete your assigned compliance checklists</p>
       </div>
 
@@ -275,7 +275,7 @@ export default function StaffDashboard() {
           {notifications?.map((notification) => (
             <Alert key={notification.id}>
               <Bell className="h-4 w-4" />
-              <AlertTitle>Task Reminder</AlertTitle>
+              <AlertTitle>Report Reminder</AlertTitle>
               <AlertDescription>{notification.message}</AlertDescription>
             </Alert>
           ))}
@@ -286,7 +286,7 @@ export default function StaffDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Assigned Tasks</CardTitle>
+            <CardTitle className="text-sm font-medium">Assigned Reports</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalAssigned}</div>
@@ -306,7 +306,7 @@ export default function StaffDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Tasks</CardTitle>
+            <CardTitle className="text-sm font-medium">Active Reports</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-600">{activeTemplates}</div>
@@ -325,36 +325,36 @@ export default function StaffDashboard() {
         </Card>
       </div>
 
-      {upcomingTasks.length > 0 && (
+      {upcomingReports.length > 0 && (
         <div className="space-y-4">
           <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
             <Clock className="w-5 h-5" />
-            Upcoming Tasks ({upcomingTasks.length})
+            Upcoming Reports ({upcomingReports.length})
           </h2>
           <div className="space-y-4">
-            {upcomingTasks.map((task) => {
-              const isOverdue = task.dueDate && today > task.dueDate
-              const daysLeft = task.dueDate
-                ? Math.ceil((task.dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+            {upcomingReports.map((report) => {
+              const isOverdue = report.dueDate && today > report.dueDate
+              const daysLeft = report.dueDate
+                ? Math.ceil((report.dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
                 : null
 
               return (
                 <Card
-                  key={task.id}
+                  key={report.id}
                   className={`${isOverdue ? "border-red-200 bg-red-50" : "border-yellow-200 bg-yellow-50"}`}
                 >
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
                       <div>
-                        <CardTitle className="text-lg">{task.template.name}</CardTitle>
-                        <CardDescription className="mt-1">{task.template.description}</CardDescription>
+                        <CardTitle className="text-lg">{report.template.name}</CardTitle>
+                        <CardDescription className="mt-1">{report.template.description}</CardDescription>
                         <div className="flex items-center gap-2 mt-2">
                           <Badge variant="outline" className="text-xs">
-                            {task.template.schedule_type === "deadline" ? "Deadline" : "Custom Date"}
+                            {report.template.schedule_type === "deadline" ? "Deadline" : "Custom Date"}
                           </Badge>
-                          {task.dueDate && (
+                          {report.dueDate && (
                             <span className={`text-xs font-medium ${isOverdue ? "text-red-700" : "text-yellow-700"}`}>
-                              Due: {task.dueDate.toLocaleDateString()}
+                              Due: {report.dueDate.toLocaleDateString()}
                             </span>
                           )}
                           {daysLeft !== null && (
@@ -374,9 +374,9 @@ export default function StaffDashboard() {
                       <div className="text-sm text-muted-foreground">
                         <p>Status: Ready to start</p>
                       </div>
-                      <Link href={`/staff/checklist/${task.template.id}`}>
+                      <Link href={`/staff/checklist/${report.template.id}`}>
                         <Button size="sm" variant={isOverdue ? "destructive" : "default"}>
-                          {isOverdue ? "Start Now" : "Start Task"}
+                          {isOverdue ? "Start Now" : "Start Report"}
                         </Button>
                       </Link>
                     </div>
@@ -388,28 +388,28 @@ export default function StaffDashboard() {
         </div>
       )}
 
-      {regularTasks.length > 0 && (
+      {regularReports.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-foreground">Regular Tasks ({regularTasks.length})</h2>
+          <h2 className="text-xl font-semibold text-foreground">Regular Reports ({regularReports.length})</h2>
           <div className="space-y-4">
-            {regularTasks.map((task) => {
+            {regularReports.map((report) => {
               return (
-                <Card key={task.id} className="hover:shadow-md transition-shadow">
+                <Card key={report.id} className="hover:shadow-md transition-shadow">
                   <CardHeader>
                     <div className="flex justify-between items-start">
                       <div>
-                        <CardTitle className="text-lg">{task.template.name}</CardTitle>
-                        <CardDescription className="mt-1">{task.template.description}</CardDescription>
+                        <CardTitle className="text-lg">{report.template.name}</CardTitle>
+                        <CardDescription className="mt-1">{report.template.description}</CardDescription>
                         <div className="flex items-center gap-2 mt-2">
                           <Badge variant="outline" className="text-xs capitalize">
-                            {task.template.frequency}
+                            {report.template.frequency}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
-                            Assigned: {new Date(task.assigned_at).toLocaleDateString()}
+                            Assigned: {new Date(report.assigned_at).toLocaleDateString()}
                           </span>
-                          {task.completed_at && (
+                          {report.completed_at && (
                             <span className="text-xs text-green-600">
-                              Last completed: {new Date(task.completed_at).toLocaleDateString()}
+                              Last completed: {new Date(report.completed_at).toLocaleDateString()}
                             </span>
                           )}
                         </div>
@@ -424,8 +424,8 @@ export default function StaffDashboard() {
                       <div className="text-sm text-muted-foreground">
                         <p>Status: Ready to start</p>
                       </div>
-                      <Link href={`/staff/checklist/${task.template.id}`}>
-                        <Button size="sm">Start Checklist</Button>
+                      <Link href={`/staff/checklist/${report.template.id}`}>
+                        <Button size="sm">Start Report</Button>
                       </Link>
                     </div>
                   </CardContent>
@@ -436,17 +436,17 @@ export default function StaffDashboard() {
         </div>
       )}
 
-      {upcomingTasks.length === 0 && regularTasks.length === 0 && (
+      {upcomingReports.length === 0 && regularReports.length === 0 && (
         <Card>
           <CardContent className="text-center py-12">
             <h3 className="text-lg font-semibold text-foreground mb-2">
               {assignedTemplates && assignedTemplates.length > 0
-                ? "All tasks completed for today! Great job!"
-                : "No tasks assigned"}
+                ? "All reports completed for today! Great job!"
+                : "No reports assigned"}
             </h3>
             <p className="text-muted-foreground">
               {assignedTemplates && assignedTemplates.length > 0
-                ? "Your assigned tasks will reappear tomorrow for the next day's work."
+                ? "Your assigned reports will reappear tomorrow for the next day's work."
                 : "Contact your administrator to get assigned compliance checklists."}
             </p>
           </CardContent>

@@ -21,11 +21,14 @@ import { FeedbackModal } from "@/components/feedback-modal"
 interface StaffNavigationProps {
   user: any
   onSignOut: () => void
+  subscriptionStatus?: string | null
 }
 
-export function StaffNavigation({ user, onSignOut }: StaffNavigationProps) {
+export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNavigationProps) {
   const { organizationName, logoUrl, primaryColor } = useBranding()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  const hasPaidSubscription = subscriptionStatus === "active"
 
   return (
     <nav className="bg-white shadow-sm border-b">
@@ -74,13 +77,15 @@ export function StaffNavigation({ user, onSignOut }: StaffNavigationProps) {
               >
                 Staff Dashboard
               </Link>
-              <Link
-                href="/staff/new"
-                className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
-                style={{ "--hover-color": primaryColor } as React.CSSProperties}
-              >
-                New Report
-              </Link>
+              {hasPaidSubscription && (
+                <Link
+                  href="/staff/new"
+                  className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
+                  style={{ "--hover-color": primaryColor } as React.CSSProperties}
+                >
+                  New Report
+                </Link>
+              )}
               <Link
                 href="/staff/history"
                 className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
@@ -116,13 +121,15 @@ export function StaffNavigation({ user, onSignOut }: StaffNavigationProps) {
                   >
                     Staff Dashboard
                   </Link>
-                  <Link
-                    href="/staff/new"
-                    className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    New Report
-                  </Link>
+                  {hasPaidSubscription && (
+                    <Link
+                      href="/staff/new"
+                      className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      New Report
+                    </Link>
+                  )}
                   <Link
                     href="/staff/history"
                     className="text-muted-foreground hover:text-indigo-600 px-3 py-3 rounded-md text-base font-medium border-b"

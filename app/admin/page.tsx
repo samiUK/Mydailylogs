@@ -30,6 +30,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import Link from "next/link"
 import { FeedbackBanner } from "@/components/feedback-banner"
 
+export const dynamic = "force-dynamic"
+
 export default function AdminDashboard() {
   const [user, setUser] = useState<any>(null)
   const [profile, setProfile] = useState<any>(null)

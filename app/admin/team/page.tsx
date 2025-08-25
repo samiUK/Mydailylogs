@@ -8,6 +8,8 @@ import Link from "next/link"
 import { Edit, User } from "lucide-react"
 import { redirect } from "next/navigation"
 
+export const dynamic = "force-dynamic"
+
 console.log("[v0] Admin Team page - File loaded and parsing")
 
 interface TeamMember {

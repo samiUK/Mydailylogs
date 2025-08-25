@@ -56,6 +56,13 @@ async function StaffLayout({ children }: { children: React.ReactNode }) {
     profile = userProfile
   }
 
+  const supabase = await createClient()
+  const { data: subscription } = await supabase
+    .from("subscriptions")
+    .select("status, plan_name")
+    .eq("organization_id", profile.organization_id)
+    .single()
+
   const handleSignOut = async () => {
     "use server"
     const cookieStore = cookies()
@@ -76,7 +83,7 @@ async function StaffLayout({ children }: { children: React.ReactNode }) {
     <BrandingProvider>
       <div className="min-h-screen bg-gray-50">
         <FeedbackBanner />
-        <StaffNavigation user={profile} onSignOut={handleSignOut} />
+        <StaffNavigation user={profile} onSignOut={handleSignOut} subscriptionStatus={subscription?.status || null} />
         <main className="w-full max-w-4xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">{children}</main>
         <Footer />
         <FeedbackModal autoTrigger={true} />

@@ -6,6 +6,8 @@ import { Trash2, Users } from "lucide-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 
+export const dynamic = "force-dynamic"
+
 console.log("[v0] Admin Templates page - File loaded and parsing")
 
 interface Template {

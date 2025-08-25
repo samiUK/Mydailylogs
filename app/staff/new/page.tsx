@@ -1,79 +1,66 @@
-import { createServerClient } from "@supabase/ssr"
-import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
+"use client"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, FileText, Plus } from "lucide-react"
+import { toast } from "sonner"
 
-console.log("[v0] Staff New Report page - File loaded and parsing")
+interface Template {
+  id: string
+  name: string
+  description: string | null
+  created_at: string
+  updated_at: string
+  is_recurring: boolean
+  recurrence_type: string | null
+}
 
-export default async function StaffNewReportPage() {
-  console.log("[v0] Staff New Report page - Component function called")
+interface StaffNewReportPageProps {
+  templates: Template[]
+  user: any
+  profile: any
+}
 
-  const cookieStore = cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
+export default function StaffNewReportPage({ templates, user, profile }: StaffNewReportPageProps) {
+  const [isCreating, setIsCreating] = useState<string | null>(null)
+  const router = useRouter()
+
+  const handleStartReport = async (templateId: string) => {
+    setIsCreating(templateId)
+
+    try {
+      const response = await fetch("/api/staff/create-report", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      },
-    },
-  )
+        body: JSON.stringify({ templateId }),
+      })
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+      const data = await response.json()
 
-  if (!user) {
-    console.log("[v0] Staff New Report page - No user found, redirecting to login")
-    redirect("/auth/login")
-  }
+      if (response.ok) {
+        // Show success toast
+        toast.success(data.message)
 
-  console.log("[v0] Staff New Report page - User ID:", user.id)
-
-  // Get user profile
-  const { data: profile, error: profileError } = await supabase.from("profiles").select("*").eq("id", user.id).single()
-
-  if (profileError || !profile) {
-    console.log("[v0] Staff New Report page - Profile error:", profileError)
-    return (
-      <div className="container mx-auto p-6">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">Unable to load profile. Please try again.</p>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  console.log("[v0] Staff New Report page - Profile found, organization_id:", profile.organization_id)
-
-  // Get available report templates
-  const { data: templates, error: templatesError } = await supabase
-    .from("checklist_templates")
-    .select("*")
-    .eq("organization_id", profile.organization_id)
-    .eq("is_active", true)
-    .order("name")
-
-  console.log("[v0] Staff New Report page - Templates query error:", templatesError)
-  console.log("[v0] Staff New Report page - Templates found:", templates?.length || 0)
-
-  if (templatesError) {
-    return (
-      <div className="container mx-auto p-6">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">Error loading report templates. Please try again.</p>
-          </CardContent>
-        </Card>
-      </div>
-    )
+        // Navigate to the checklist page
+        if (data.type === "daily") {
+          router.push(`/staff/checklist/daily/${data.reportId}`)
+        } else {
+          router.push(`/staff/checklist/${data.reportId}`)
+        }
+      } else {
+        toast.error(data.error || "Failed to create report")
+      }
+    } catch (error) {
+      console.error("Error creating report:", error)
+      toast.error("Failed to create report. Please try again.")
+    } finally {
+      setIsCreating(null)
+    }
   }
 
   return (
@@ -116,12 +103,14 @@ export default async function StaffNewReportPage() {
                   </div>
                 </div>
 
-                <form action={`/staff/new/${template.id}`} method="get">
-                  <Button type="submit" className="w-full">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Start Report
-                  </Button>
-                </form>
+                <Button
+                  onClick={() => handleStartReport(template.id)}
+                  disabled={isCreating === template.id}
+                  className="w-full"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  {isCreating === template.id ? "Creating..." : "Start Report"}
+                </Button>
               </CardContent>
             </Card>
           ))}

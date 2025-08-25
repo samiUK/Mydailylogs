@@ -30,6 +30,7 @@ interface TaskResponse {
   notes: string
   completed_at: string
   updated_at: string
+  response_value: string
 }
 
 interface Template {
@@ -39,8 +40,18 @@ interface Template {
   frequency: string
 }
 
+interface DailyChecklist {
+  id: string
+  template_id: string
+  assigned_to: string
+  date: string
+  status: string
+  completed_at: string | null
+}
+
 export default function ChecklistPage({ params }: { params: { id: string } }) {
   const [template, setTemplate] = useState<Template | null>(null)
+  const [dailyChecklist, setDailyChecklist] = useState<DailyChecklist | null>(null)
   const [tasks, setTasks] = useState<ChecklistTask[]>([])
   const [responses, setResponses] = useState<TaskResponse[]>([])
   const [localInputValues, setLocalInputValues] = useState<Record<string, string>>({})
@@ -52,13 +63,20 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     async function loadChecklist() {
+      console.log("[v0] Loading checklist for template ID:", params.id)
       const supabase = createClient()
       const {
         data: { user },
       } = await supabase.auth.getUser()
 
-      if (!user) return
+      if (!user) {
+        console.log("[v0] No user found")
+        return
+      }
 
+      console.log("[v0] User found:", user.id)
+
+      // Check if user has access to this template
       const { data: assignmentData } = await supabase
         .from("template_assignments")
         .select(`
@@ -75,24 +93,81 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
         .eq("is_active", true)
         .single()
 
-      if (assignmentData?.checklist_templates) {
-        setTemplate(assignmentData.checklist_templates)
+      console.log("[v0] Assignment data:", assignmentData)
 
+      if (assignmentData?.checklist_templates) {
+        const templateData = assignmentData.checklist_templates
+        setTemplate(templateData)
+        console.log("[v0] Template loaded:", templateData)
+
+        let dailyChecklistData = null
+        if (templateData.frequency === "daily") {
+          const today = new Date().toISOString().split("T")[0] // YYYY-MM-DD format
+          console.log("[v0] Daily template detected, checking for today's instance:", today)
+
+          // Check if today's daily checklist already exists
+          const { data: existingDaily } = await supabase
+            .from("daily_checklists")
+            .select("*")
+            .eq("template_id", params.id)
+            .eq("assigned_to", user.id)
+            .eq("date", today)
+            .single()
+
+          console.log("[v0] Existing daily checklist:", existingDaily)
+
+          if (existingDaily) {
+            dailyChecklistData = existingDaily
+            console.log("[v0] Using existing daily checklist")
+          } else {
+            // Create new daily checklist for today
+            console.log("[v0] Creating new daily checklist for today")
+            const { data: newDaily, error: dailyError } = await supabase
+              .from("daily_checklists")
+              .insert({
+                template_id: params.id,
+                assigned_to: user.id,
+                date: today,
+                status: "in_progress",
+                organization_id: assignmentData.organization_id,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .select()
+              .single()
+
+            if (dailyError) {
+              console.error("[v0] Error creating daily checklist:", dailyError)
+            } else {
+              dailyChecklistData = newDaily
+              console.log("[v0] Created new daily checklist:", newDaily)
+            }
+          }
+
+          setDailyChecklist(dailyChecklistData)
+        }
+
+        // Load tasks
         const { data: tasksData } = await supabase
           .from("checklist_items")
           .select("*")
           .eq("template_id", params.id)
           .order("order_index")
 
+        console.log("[v0] Tasks loaded:", tasksData?.length)
         if (tasksData) {
           setTasks(tasksData)
         }
 
+        const checklistId = dailyChecklistData?.id || params.id
+        console.log("[v0] Loading responses for checklist ID:", checklistId)
+
         const { data: responsesData } = await supabase
           .from("checklist_responses")
           .select("*")
-          .eq("checklist_id", params.id) // Use template_id directly
+          .eq("checklist_id", checklistId)
 
+        console.log("[v0] Responses loaded:", responsesData?.length)
         if (responsesData) {
           setResponses(responsesData)
           const initialInputValues: Record<string, string> = {}
@@ -101,6 +176,9 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
           responsesData.forEach((response) => {
             if (response.notes) {
               initialNotes[response.item_id] = response.notes
+            }
+            if (response.response_value) {
+              initialInputValues[response.item_id] = response.response_value
             }
           })
 
@@ -124,11 +202,13 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
     if (!user) return
 
     const existingResponse = responses.find((r) => r.item_id === taskId)
+    const checklistId = dailyChecklist?.id || params.id
 
     if (existingResponse) {
       const { data } = await supabase
         .from("checklist_responses")
         .update({
+          response_value: value,
           is_completed: isCompleted,
           updated_at: new Date().toISOString(),
         })
@@ -138,6 +218,24 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
 
       if (data) {
         setResponses((prev) => prev.map((r) => (r.id === data.id ? data : r)))
+      }
+    } else {
+      // Create new response
+      const { data } = await supabase
+        .from("checklist_responses")
+        .insert({
+          checklist_id: checklistId,
+          item_id: taskId,
+          response_value: value,
+          is_completed: isCompleted,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
+
+      if (data) {
+        setResponses((prev) => [...prev, data])
       }
     }
   }
@@ -153,6 +251,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
     setLocalNotes((prev) => ({ ...prev, [taskId]: notes }))
 
     const existingResponse = responses.find((r) => r.item_id === taskId)
+    const checklistId = dailyChecklist?.id || params.id
 
     if (existingResponse) {
       const { data } = await supabase
@@ -164,6 +263,24 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
 
       if (data) {
         setResponses((prev) => prev.map((r) => (r.id === data.id ? data : r)))
+      }
+    } else {
+      // Create new response with notes
+      const { data } = await supabase
+        .from("checklist_responses")
+        .insert({
+          checklist_id: checklistId,
+          item_id: taskId,
+          notes,
+          is_completed: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
+
+      if (data) {
+        setResponses((prev) => [...prev, data])
       }
     }
   }
@@ -186,10 +303,12 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
     const existingResponse = responses.find((r) => r.item_id === taskId)
     const currentValue = localInputValues[taskId] ?? ""
     const task = tasks.find((t) => t.id === taskId)
+    const checklistId = dailyChecklist?.id || params.id
 
     console.log("[v0] Existing response:", existingResponse)
     console.log("[v0] Current value:", currentValue)
     console.log("[v0] Task:", task)
+    console.log("[v0] Checklist ID:", checklistId)
 
     try {
       if (existingResponse) {
@@ -215,15 +334,16 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
           setResponses((prev) => prev.map((r) => (r.id === data.id ? data : r)))
         }
       } else {
-        console.log("[v0] Creating new response without daily_checklist dependency")
+        console.log("[v0] Creating new response for daily checklist")
         const { data, error } = await supabase
           .from("checklist_responses")
           .insert({
-            checklist_id: params.id, // Use template_id directly
+            checklist_id: checklistId,
             item_id: taskId,
             is_completed: true,
             completed_at: new Date().toISOString(),
             notes: localNotes[taskId] || "",
+            response_value: currentValue,
           })
           .select()
           .single()
@@ -402,40 +522,56 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
     }
 
     try {
-      console.log("[v0] Updating template assignment to completed")
-      console.log("[v0] Query conditions - template_id:", params.id, "assigned_to:", user.id, "is_active: true")
+      if (template?.frequency === "daily" && dailyChecklist) {
+        console.log("[v0] Completing daily checklist instance")
+        const { data: dailyUpdateData, error: dailyError } = await supabase
+          .from("daily_checklists")
+          .update({
+            status: "completed",
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", dailyChecklist.id)
+          .select()
 
-      // Update template assignment to mark as completed
-      const { data: updateData, error: assignmentError } = await supabase
-        .from("template_assignments")
-        .update({
-          status: "completed",
-          completed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("template_id", params.id)
-        .eq("assigned_to", user.id)
-        .eq("is_active", true)
-        .select()
+        if (dailyError) {
+          console.error("[v0] Database error updating daily checklist:", dailyError)
+          alert(`Database error completing checklist: ${dailyError.message}. Please try again.`)
+          setIsSaving(false)
+          return
+        }
 
-      console.log("[v0] Template assignment update result:", updateData)
-      console.log("[v0] Template assignment update error:", assignmentError)
+        console.log("[v0] Daily checklist completed successfully:", dailyUpdateData)
+      } else {
+        console.log("[v0] Updating template assignment to completed")
+        const { data: updateData, error: assignmentError } = await supabase
+          .from("template_assignments")
+          .update({
+            status: "completed",
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("template_id", params.id)
+          .eq("assigned_to", user.id)
+          .eq("is_active", true)
+          .select()
 
-      if (assignmentError) {
-        console.error("[v0] Database error updating assignment:", assignmentError)
-        alert(`Database error completing checklist: ${assignmentError.message}. Please try again.`)
-        setIsSaving(false)
-        return
+        if (assignmentError) {
+          console.error("[v0] Database error updating assignment:", assignmentError)
+          alert(`Database error completing checklist: ${assignmentError.message}. Please try again.`)
+          setIsSaving(false)
+          return
+        }
+
+        if (!updateData || updateData.length === 0) {
+          console.error("[v0] No template assignment found to update")
+          alert("Error: Could not update assignment. Please contact support.")
+          setIsSaving(false)
+          return
+        }
+
+        console.log("[v0] Template assignment updated successfully")
       }
-
-      if (!updateData || updateData.length === 0) {
-        console.error("[v0] No template assignment found to update - this might be an RLS policy issue")
-        alert("Error: Could not update assignment. This might be a permissions issue. Please contact support.")
-        setIsSaving(false)
-        return
-      }
-
-      console.log("[v0] Template assignment updated successfully")
 
       // Create a completion notification for admin
       const { error: notificationError } = await supabase.from("notifications").insert({

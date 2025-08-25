@@ -27,6 +27,8 @@ interface Subscription {
   subscription_plans: SubscriptionPlan
 }
 
+export const dynamic = "force-dynamic"
+
 export default function BillingPage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [plans, setPlans] = useState<SubscriptionPlan[]>([])

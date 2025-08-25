@@ -1,10 +1,17 @@
-import { cookies } from "next/headers"
-import { createServerClient } from "@supabase/ssr"
+"use client"
+import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Trash2, Users, Crown, ExternalLink } from "lucide-react"
+import { Trash2, Users, Crown, ExternalLink, ChevronDown, UserCheck } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
 import Link from "next/link"
-import { redirect } from "next/navigation"
+import { useState, useEffect } from "react"
 
 export const dynamic = "force-dynamic"
 
@@ -30,65 +37,120 @@ interface TeamMember {
   role: string
 }
 
-export default async function AdminTemplatesPage() {
+export default function AdminTemplatesPage() {
   console.log("[v0] Admin Templates page - Component function called")
 
-  const cookieStore = cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-      },
-    },
-  )
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
+  const [profile, setProfile] = useState<any>(null)
+  const [assigningTemplate, setAssigningTemplate] = useState<string | null>(null)
+  const [selectedMembers, setSelectedMembers] = useState<{ [key: string]: string[] }>({})
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  useEffect(() => {
+    const loadData = async () => {
+      const supabase = createClient()
 
-  console.log("[v0] Admin Templates page - User ID:", user?.id)
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
-  if (!user) {
-    console.log("[v0] Admin Templates page - No user found, redirecting to login")
-    redirect("/auth/login")
+      console.log("[v0] Admin Templates page - User ID:", user?.id)
+
+      if (!user) {
+        console.log("[v0] Admin Templates page - No user found, redirecting to login")
+        window.location.href = "/auth/login"
+        return
+      }
+
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("id", user.id)
+        .single()
+
+      console.log("[v0] Admin Templates page - Profile query error:", profileError)
+      console.log("[v0] Admin Templates page - Profile found, organization_id:", profileData?.organization_id)
+
+      if (profileError || !profileData) {
+        console.log("[v0] Admin Templates page - Profile not found, redirecting to login")
+        window.location.href = "/auth/login"
+        return
+      }
+
+      setProfile(profileData)
+
+      const { data: templatesData, error: templatesError } = await supabase
+        .from("checklist_templates")
+        .select("*, profiles!checklist_templates_created_by_fkey(full_name)")
+        .eq("organization_id", profileData.organization_id)
+        .order("created_at", { ascending: false })
+
+      console.log("[v0] Admin Templates page - Templates query error:", templatesError)
+      console.log("[v0] Admin Templates page - Templates found:", templatesData?.length || 0)
+
+      const { data: teamMembersData, error: teamError } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, full_name, role")
+        .eq("organization_id", profileData.organization_id)
+        .neq("id", user.id)
+        .order("first_name")
+
+      console.log("[v0] Admin Templates page - Team members query error:", teamError)
+      console.log("[v0] Admin Templates page - Team members found:", teamMembersData?.length || 0)
+
+      setTemplates(templatesData || [])
+      setTeamMembers(teamMembersData || [])
+    }
+
+    loadData()
+  }, [])
+
+  const handleAssign = async (templateId: string, memberIds: string[]) => {
+    if (memberIds.length === 0) return
+
+    setAssigningTemplate(templateId)
+
+    try {
+      const response = await fetch("/api/admin/assign-template", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          templateId,
+          memberIds,
+          organizationId: profile?.organization_id,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to assign template")
+
+      setSelectedMembers((prev) => ({ ...prev, [templateId]: [] }))
+      alert("Template assigned successfully!")
+    } catch (error) {
+      console.error("Error assigning template:", error)
+      alert("Failed to assign template")
+    } finally {
+      setAssigningTemplate(null)
+    }
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("organization_id")
-    .eq("id", user.id)
-    .single()
-
-  console.log("[v0] Admin Templates page - Profile query error:", profileError)
-  console.log("[v0] Admin Templates page - Profile found, organization_id:", profile?.organization_id)
-
-  if (profileError || !profile) {
-    console.log("[v0] Admin Templates page - Profile not found, redirecting to login")
-    redirect("/auth/login")
+  const toggleMember = (templateId: string, memberId: string) => {
+    setSelectedMembers((prev) => {
+      const current = prev[templateId] || []
+      const updated = current.includes(memberId) ? current.filter((id) => id !== memberId) : [...current, memberId]
+      return { ...prev, [templateId]: updated }
+    })
   }
 
-  const { data: templates, error: templatesError } = await supabase
-    .from("checklist_templates")
-    .select("*, profiles!checklist_templates_created_by_fkey(full_name)")
-    .eq("organization_id", profile.organization_id)
-    .order("created_at", { ascending: false })
+  const selectAllMembers = (templateId: string) => {
+    setSelectedMembers((prev) => ({
+      ...prev,
+      [templateId]: teamMembers.map((member) => member.id),
+    }))
+  }
 
-  console.log("[v0] Admin Templates page - Templates query error:", templatesError)
-  console.log("[v0] Admin Templates page - Templates found:", templates?.length || 0)
-
-  const { data: teamMembers, error: teamError } = await supabase
-    .from("profiles")
-    .select("id, first_name, last_name, full_name, role")
-    .eq("organization_id", profile.organization_id)
-    .neq("id", user.id)
-    .order("first_name")
-
-  console.log("[v0] Admin Templates page - Team members query error:", teamError)
-  console.log("[v0] Admin Templates page - Team members found:", teamMembers?.length || 0)
+  const clearSelection = (templateId: string) => {
+    setSelectedMembers((prev) => ({ ...prev, [templateId]: [] }))
+  }
 
   return (
     <div className="space-y-8">
@@ -135,12 +197,48 @@ export default async function AdminTemplatesPage() {
                       Edit
                     </Button>
                   </Link>
-                  <Link href={`/admin/templates/assign/${template.id}`}>
-                    <Button variant="outline" size="sm">
-                      <Users className="w-4 h-4 mr-1" />
-                      Assign
-                    </Button>
-                  </Link>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" disabled={assigningTemplate === template.id}>
+                        {assigningTemplate === template.id ? "Assigning..." : "Assign"}
+                        <ChevronDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem onClick={() => selectAllMembers(template.id)}>
+                        <Users className="mr-2 h-4 w-4" />
+                        Select All ({teamMembers.length})
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => clearSelection(template.id)}>Clear Selection</DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      {teamMembers.map((member) => (
+                        <DropdownMenuItem key={member.id} onClick={() => toggleMember(template.id, member.id)}>
+                          <div className="flex items-center w-full">
+                            <input
+                              type="checkbox"
+                              checked={(selectedMembers[template.id] || []).includes(member.id)}
+                              onChange={() => {}}
+                              className="mr-2"
+                            />
+                            <span className="flex-1">
+                              {member.full_name || `${member.first_name} ${member.last_name}`}
+                            </span>
+                            <span className="text-xs text-muted-foreground ml-2">{member.role}</span>
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => handleAssign(template.id, selectedMembers[template.id] || [])}
+                        disabled={(selectedMembers[template.id] || []).length === 0}
+                      >
+                        <UserCheck className="mr-2 h-4 w-4" />
+                        Assign to {(selectedMembers[template.id] || []).length} member(s)
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
                   <Button
                     variant="outline"
                     size="sm"

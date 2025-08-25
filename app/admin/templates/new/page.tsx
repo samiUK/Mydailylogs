@@ -225,7 +225,7 @@ export default function NewTemplatePage() {
       if (scheduleType === "recurring") {
         mappedFrequency = frequency
       } else {
-        // For specific_date and deadline, use 'custom' as the frequency
+        // For specific_date, deadline, and one-off, use 'custom' as the frequency
         mappedFrequency = "custom"
       }
 
@@ -397,8 +397,8 @@ export default function NewTemplatePage() {
                         <SelectItem value="daily">Daily</SelectItem>
                         <SelectItem value="weekly">Weekly</SelectItem>
                         <SelectItem value="monthly">Monthly</SelectItem>
-                        <SelectItem value="one-off">One-off</SelectItem>
                         <SelectItem value="custom">Custom</SelectItem>
+                        <SelectItem value="one-off">One-off</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

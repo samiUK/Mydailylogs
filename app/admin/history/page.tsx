@@ -159,7 +159,7 @@ export default async function AdminHistoryPage() {
 
                   <div className="flex justify-end">
                     <Button asChild variant="outline">
-                      <Link href={`/admin/reports/view/${submission.id}`}>View Details</Link>
+                      <Link href={`/admin/reports/${submission.id}`}>View Details</Link>
                     </Button>
                   </div>
                 </CardContent>

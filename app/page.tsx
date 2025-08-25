@@ -10,6 +10,8 @@ import { Footer } from "@/components/footer"
 import { FeedbackModal } from "@/components/feedback-modal"
 import { redirect } from "next/navigation"
 
+export const dynamic = "force-dynamic"
+
 export default async function HomePage() {
   const supabase = await createClient()
   const {

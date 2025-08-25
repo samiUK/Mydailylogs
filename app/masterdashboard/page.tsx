@@ -41,6 +41,7 @@ import {
   FileText,
 } from "lucide-react"
 import { useEffect, useState } from "react"
+import { ReportDirectoryContent } from "./report-directory-content"
 
 interface Organization {
   id: string
@@ -685,7 +686,7 @@ export default function MasterDashboardPage() {
 
       <div className="p-6 space-y-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="organizations">Organizations</TabsTrigger>
@@ -700,6 +701,7 @@ export default function MasterDashboardPage() {
             <TabsTrigger value="subscriptions">Subscriptions</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="login-as">Password Reset</TabsTrigger>
+            <TabsTrigger value="reports">Report Directory</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -1469,6 +1471,19 @@ export default function MasterDashboardPage() {
                     <span>Data Backup</span>
                   </Button>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="reports" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Report Directory</CardTitle>
+                <CardDescription>
+                  Manage deleted reports - view, restore, or permanently delete reports within 30 days
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ReportDirectoryContent />
               </CardContent>
             </Card>
           </TabsContent>

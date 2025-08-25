@@ -17,10 +17,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
+import { MultiLevelDeleteDialog } from "@/components/multi-level-delete-dialog"
+import { reportSecurity } from "@/lib/report-security"
 import Link from "next/link"
 import { useState, useEffect } from "react"
+import { toast } from "sonner"
 
 export const dynamic = "force-dynamic"
 
@@ -54,7 +56,6 @@ export default function AdminTemplatesPage() {
   const [profile, setProfile] = useState<any>(null)
   const [assigningTemplate, setAssigningTemplate] = useState<string | null>(null)
   const [selectedMembers, setSelectedMembers] = useState<{ [key: string]: string[] }>({})
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<string | null>(null)
   const [assignConfirmOpen, setAssignConfirmOpen] = useState<string | null>(null)
 
   useEffect(() => {
@@ -122,6 +123,12 @@ export default function AdminTemplatesPage() {
     setAssigningTemplate(templateId)
 
     try {
+      await reportSecurity.logReportAccess(templateId, "submitted_report", "create", {
+        action: "template_assignment",
+        assigned_to: memberIds,
+        assigned_count: memberIds.length,
+      })
+
       const response = await fetch("/api/admin/assign-template", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -136,10 +143,10 @@ export default function AdminTemplatesPage() {
 
       setSelectedMembers((prev) => ({ ...prev, [templateId]: [] }))
       setAssignConfirmOpen(null)
-      alert("Template assigned successfully!")
+      toast.success("Template assigned successfully!")
     } catch (error) {
       console.error("Error assigning template:", error)
-      alert("Failed to assign template")
+      toast.error("Failed to assign template")
     } finally {
       setAssigningTemplate(null)
     }
@@ -154,6 +161,17 @@ export default function AdminTemplatesPage() {
 
   const handleDeleteTemplate = async (templateId: string) => {
     try {
+      const template = templates.find((t) => t.id === templateId)
+      if (!template) throw new Error("Template not found")
+
+      await reportSecurity.createReportBackup(templateId, "submitted_report", "pre_deletion")
+
+      await reportSecurity.logReportAccess(templateId, "submitted_report", "delete", {
+        template_name: template.name,
+        template_frequency: template.frequency,
+        deletion_reason: "admin_initiated",
+      })
+
       const formData = new FormData()
       formData.append("id", templateId)
 
@@ -165,21 +183,10 @@ export default function AdminTemplatesPage() {
       if (!response.ok) throw new Error("Failed to delete template")
 
       setTemplates(templates.filter((t) => t.id !== templateId))
-      setDeleteConfirmOpen(null)
-
-      const successMessage = document.createElement("div")
-      successMessage.className = "fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50"
-      successMessage.textContent = "Template deleted successfully!"
-      document.body.appendChild(successMessage)
-      setTimeout(() => document.body.removeChild(successMessage), 3000)
+      toast.success("Template deleted successfully!")
     } catch (error) {
       console.error("Error deleting template:", error)
-
-      const errorMessage = document.createElement("div")
-      errorMessage.className = "fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50"
-      errorMessage.textContent = "Failed to delete template"
-      document.body.appendChild(errorMessage)
-      setTimeout(() => document.body.removeChild(errorMessage), 3000)
+      toast.error("Failed to delete template")
     }
   }
 
@@ -204,7 +211,6 @@ export default function AdminTemplatesPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Report Templates</h1>
@@ -215,7 +221,6 @@ export default function AdminTemplatesPage() {
         </Link>
       </div>
 
-      {/* Templates Grid */}
       {templates && templates.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {templates.map((template) => (
@@ -301,38 +306,25 @@ export default function AdminTemplatesPage() {
                     Share
                   </Button>
 
-                  <Dialog
-                    open={deleteConfirmOpen === template.id}
-                    onOpenChange={(open) => !open && setDeleteConfirmOpen(null)}
-                  >
-                    <DialogTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-red-600 hover:text-red-700 bg-transparent"
-                        onClick={() => setDeleteConfirmOpen(template.id)}
-                      >
+                  <MultiLevelDeleteDialog
+                    trigger={
+                      <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 bg-transparent">
                         <Trash2 className="w-4 h-4" />
                       </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Delete Template</DialogTitle>
-                        <DialogDescription>
-                          Are you sure you want to delete "{template.name}"? This action cannot be undone and will
-                          remove all associated tasks and assignments.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setDeleteConfirmOpen(null)}>
-                          Cancel
-                        </Button>
-                        <Button variant="destructive" onClick={() => handleDeleteTemplate(template.id)}>
-                          Delete Template
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
+                    }
+                    title="Delete Report Template"
+                    description="This will permanently remove the template and may affect business operations."
+                    itemName={template.name}
+                    itemDetails={{
+                      Frequency: template.frequency,
+                      "Created by": template.profiles?.full_name || "Unknown",
+                      Created: new Date(template.created_at).toLocaleDateString(),
+                      Status: template.is_active ? "Active" : "Inactive",
+                    }}
+                    riskLevel="high"
+                    requiresSecureSession={true}
+                    onConfirm={() => handleDeleteTemplate(template.id)}
+                  />
                 </div>
               </CardContent>
             </Card>

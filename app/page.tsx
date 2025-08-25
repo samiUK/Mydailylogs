@@ -325,9 +325,10 @@ export default async function HomePage() {
                 </div>
                 <CardHeader>
                   <Shield className="w-8 h-8 text-muted-foreground mb-3" />
-                  <CardTitle className="text-lg">Compliance Analytics</CardTitle>
+                  <CardTitle className="text-lg">Security Audit</CardTitle>
                   <CardDescription className="text-sm">
-                    Advanced compliance reporting with trend analysis and risk assessment
+                    Comprehensive security auditing with detailed logs and compliance tracking for enterprise-grade
+                    protection
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -340,24 +341,9 @@ export default async function HomePage() {
                 </div>
                 <CardHeader>
                   <BarChart3 className="w-8 h-8 text-muted-foreground mb-3" />
-                  <CardTitle className="text-lg">Template Analytics</CardTitle>
+                  <CardTitle className="text-lg">Backup & Data Recovery</CardTitle>
                   <CardDescription className="text-sm">
-                    Deep insights into template performance and completion rates
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-
-              <Card className="relative opacity-75">
-                <div className="absolute top-4 right-4">
-                  <Badge variant="outline" className="text-xs">
-                    Coming Soon
-                  </Badge>
-                </div>
-                <CardHeader>
-                  <FileText className="w-8 h-8 text-muted-foreground mb-3" />
-                  <CardTitle className="text-lg">Custom Reports</CardTitle>
-                  <CardDescription className="text-sm">
-                    Build custom report templates with advanced filtering and formatting
+                    Automated backup systems with one-click recovery to protect your valuable business data
                   </CardDescription>
                 </CardHeader>
               </Card>

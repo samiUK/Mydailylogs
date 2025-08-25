@@ -308,8 +308,7 @@ export default function MasterDashboardPage() {
         subscriptionsResponse,
         paymentsResponse,
         feedbackResponse,
-        internalReportsResponse,
-        externalReportsResponse,
+        submittedReportsResponse,
       ] = await Promise.all([
         supabase.from("organizations").select(`
           *,
@@ -341,8 +340,7 @@ export default function MasterDashboardPage() {
         `)
           .order("created_at", { ascending: false }),
         supabase.from("feedback").select("*").order("created_at", { ascending: false }),
-        supabase.from("template_assignments").select("id").eq("status", "completed"),
-        supabase.from("external_submissions").select("id").not("submitted_at", "is", null),
+        supabase.from("submitted_reports").select("id").is("deleted_at", null),
       ])
 
       console.log("[v0] Organizations response:", orgsResponse)
@@ -365,14 +363,8 @@ export default function MasterDashboardPage() {
       setFeedback(feedbackResponse.data || [])
       setUnreadFeedbackCount(feedbackResponse.data?.filter((f) => f.status === "unread").length || 0)
 
-      const internalReportsCount = internalReportsResponse.data?.length || 0
-      const externalReportsCount = externalReportsResponse.data?.length || 0
-      const totalReports = internalReportsCount + externalReportsCount
-
-      console.log("[v0] Internal reports count:", internalReportsCount)
-      console.log("[v0] External reports count:", externalReportsCount)
-      console.log("[v0] Total submitted reports:", totalReports)
-
+      const totalReports = submittedReportsResponse.data?.length || 0
+      console.log("[v0] Total submitted reports from new table:", totalReports)
       setTotalSubmittedReports(totalReports)
     } catch (error) {
       console.error("Error loading data:", error)

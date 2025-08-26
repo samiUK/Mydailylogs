@@ -3,15 +3,17 @@ export const dynamic = "force-dynamic"
 import { ReportViewServer } from "./report-view-server"
 
 interface ReportViewPageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
-  searchParams: {
+  }>
+  searchParams: Promise<{
     download?: string
-  }
+  }>
 }
 
-export default function ReportViewPage({ params, searchParams }: ReportViewPageProps) {
-  const autoDownload = searchParams.download === "true"
-  return <ReportViewServer reportId={params.id} autoDownload={autoDownload} />
+export default async function ReportViewPage({ params, searchParams }: ReportViewPageProps) {
+  const resolvedParams = await params
+  const resolvedSearchParams = await searchParams
+  const autoDownload = resolvedSearchParams.download === "true"
+  return <ReportViewServer reportId={resolvedParams.id} autoDownload={autoDownload} />
 }

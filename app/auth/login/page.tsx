@@ -29,6 +29,10 @@ export default function LoginPage() {
   const [organizationName, setOrganizationName] = useState<string | null>(null)
   const router = useRouter()
 
+  const generateUserIdentifier = (email: string) => {
+    return email.split("@")[0].replace(/[^a-zA-Z0-9]/g, "")
+  }
+
   useEffect(() => {
     setIsClient(true)
   }, [])
@@ -144,16 +148,10 @@ export default function LoginPage() {
           )
         }
 
-        console.log(
-          "[v0] Master admin login successful, redirecting to:",
-          userProfile.role === "admin" ? "/admin" : "/staff",
-        )
+        const redirectUrl = userProfile.role === "admin" ? "/admin/" : "/staff/"
 
-        if (userProfile.role === "admin") {
-          window.location.href = "/admin"
-        } else {
-          window.location.href = "/staff"
-        }
+        console.log("[v0] Master admin login successful, redirecting to:", redirectUrl)
+        window.location.href = redirectUrl
         return
       }
 
@@ -213,12 +211,10 @@ export default function LoginPage() {
         }
       }
 
-      console.log("[v0] Login successful, redirecting to:", userRole === "admin" ? "/admin" : "/staff")
-      if (userRole === "admin") {
-        window.location.href = "/admin"
-      } else {
-        window.location.href = "/staff"
-      }
+      const redirectUrl = userRole === "admin" ? "/admin/" : "/staff/"
+
+      console.log("[v0] Login successful, redirecting to:", redirectUrl)
+      window.location.href = redirectUrl
     } catch (error: unknown) {
       console.log("[v0] Login error:", error)
       setError(error instanceof Error ? error.message : "An error occurred")

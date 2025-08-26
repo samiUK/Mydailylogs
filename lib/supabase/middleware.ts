@@ -11,12 +11,16 @@ export async function updateSession(request: NextRequest) {
     request,
   })
 
-  const isMasterAdminImpersonating = request.cookies.get("masterAdminImpersonation")?.value === "true"
+  const sessionId = request.nextUrl.searchParams.get("session") || "default"
+  const sessionPrefix = sessionId !== "default" ? `${sessionId}_` : ""
+
+  const isMasterAdminImpersonating = request.cookies.get(`${sessionPrefix}masterAdminImpersonation`)?.value === "true"
 
   console.log("[v0] Middleware - Path:", request.nextUrl.pathname)
+  console.log("[v0] Middleware - Session ID:", sessionId)
   console.log(
     "[v0] Middleware - masterAdminImpersonation cookie:",
-    request.cookies.get("masterAdminImpersonation")?.value,
+    request.cookies.get(`${sessionPrefix}masterAdminImpersonation`)?.value,
   )
   console.log("[v0] Middleware - isMasterAdminImpersonating:", isMasterAdminImpersonating)
 
@@ -25,6 +29,9 @@ export async function updateSession(request: NextRequest) {
     if (!isMasterAdminImpersonating) {
       const url = request.nextUrl.clone()
       url.pathname = "/masterlogin"
+      if (sessionId !== "default") {
+        url.searchParams.set("session", sessionId)
+      }
       return NextResponse.redirect(url)
     }
     return supabaseResponse
@@ -37,21 +44,33 @@ export async function updateSession(request: NextRequest) {
       return supabaseResponse
     }
 
-    // Regular admin authentication
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
           getAll() {
-            return request.cookies.getAll()
+            return request.cookies.getAll().map((cookie) => ({
+              ...cookie,
+              name: cookie.name.startsWith(`${sessionPrefix}sb-`)
+                ? cookie.name
+                : cookie.name.startsWith("sb-")
+                  ? `${sessionPrefix}${cookie.name}`
+                  : cookie.name,
+            }))
           },
           setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+            cookiesToSet.forEach(({ name, value }) => {
+              const prefixedName = name.startsWith("sb-") ? `${sessionPrefix}${name}` : name
+              request.cookies.set(prefixedName, value)
+            })
             supabaseResponse = NextResponse.next({
               request,
             })
-            cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
+            cookiesToSet.forEach(({ name, value, options }) => {
+              const prefixedName = name.startsWith("sb-") ? `${sessionPrefix}${name}` : name
+              supabaseResponse.cookies.set(prefixedName, value, options)
+            })
           },
         },
       },
@@ -65,6 +84,9 @@ export async function updateSession(request: NextRequest) {
       const url = request.nextUrl.clone()
       url.pathname = "/auth/login"
       url.searchParams.set("redirect", request.nextUrl.pathname)
+      if (sessionId !== "default") {
+        url.searchParams.set("session", sessionId)
+      }
       return NextResponse.redirect(url)
     }
 
@@ -78,21 +100,33 @@ export async function updateSession(request: NextRequest) {
       return supabaseResponse
     }
 
-    // Regular staff authentication
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
           getAll() {
-            return request.cookies.getAll()
+            return request.cookies.getAll().map((cookie) => ({
+              ...cookie,
+              name: cookie.name.startsWith(`${sessionPrefix}sb-`)
+                ? cookie.name
+                : cookie.name.startsWith("sb-")
+                  ? `${sessionPrefix}${cookie.name}`
+                  : cookie.name,
+            }))
           },
           setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+            cookiesToSet.forEach(({ name, value }) => {
+              const prefixedName = name.startsWith("sb-") ? `${sessionPrefix}${name}` : name
+              request.cookies.set(prefixedName, value)
+            })
             supabaseResponse = NextResponse.next({
               request,
             })
-            cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
+            cookiesToSet.forEach(({ name, value, options }) => {
+              const prefixedName = name.startsWith("sb-") ? `${sessionPrefix}${name}` : name
+              supabaseResponse.cookies.set(prefixedName, value, options)
+            })
           },
         },
       },
@@ -106,6 +140,9 @@ export async function updateSession(request: NextRequest) {
       const url = request.nextUrl.clone()
       url.pathname = "/auth/login"
       url.searchParams.set("redirect", request.nextUrl.pathname)
+      if (sessionId !== "default") {
+        url.searchParams.set("session", sessionId)
+      }
       return NextResponse.redirect(url)
     }
 
@@ -120,14 +157,27 @@ export async function updateSession(request: NextRequest) {
       {
         cookies: {
           getAll() {
-            return request.cookies.getAll()
+            return request.cookies.getAll().map((cookie) => ({
+              ...cookie,
+              name: cookie.name.startsWith(`${sessionPrefix}sb-`)
+                ? cookie.name
+                : cookie.name.startsWith("sb-")
+                  ? `${sessionPrefix}${cookie.name}`
+                  : cookie.name,
+            }))
           },
           setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+            cookiesToSet.forEach(({ name, value }) => {
+              const prefixedName = name.startsWith("sb-") ? `${sessionPrefix}${name}` : name
+              request.cookies.set(prefixedName, value)
+            })
             supabaseResponse = NextResponse.next({
               request,
             })
-            cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
+            cookiesToSet.forEach(({ name, value, options }) => {
+              const prefixedName = name.startsWith("sb-") ? `${sessionPrefix}${name}` : name
+              supabaseResponse.cookies.set(prefixedName, value, options)
+            })
           },
         },
       },
@@ -146,61 +196,35 @@ export async function updateSession(request: NextRequest) {
       console.log("[v0] Middleware - Blocking regular user from masterdashboard, redirecting to admin")
       const url = request.nextUrl.clone()
       url.pathname = "/admin"
+      if (sessionId !== "default") {
+        url.searchParams.set("session", sessionId)
+      }
       return NextResponse.redirect(url)
     }
   }
 
-  console.log(
-    "[v0] Middleware - Should redirect:",
-    request.nextUrl.pathname !== "/" &&
-      !user &&
-      !isMasterAdminImpersonating &&
-      !request.nextUrl.pathname.startsWith("/login") &&
-      !request.nextUrl.pathname.startsWith("/auth") &&
-      !request.nextUrl.pathname.startsWith("/masterlogin") &&
-      !request.nextUrl.pathname.startsWith("/api/send-email") &&
-      !request.nextUrl.pathname.startsWith("/api/admin/") &&
-      !request.nextUrl.pathname.match(/^\/admin\/[^/]+$/) &&
-      !request.nextUrl.pathname.match(/^\/staff\/[^/]+$/) &&
-      !request.nextUrl.pathname.startsWith("/external/form/") &&
-      !request.nextUrl.pathname.match(/^\/[^/]+\/reports\/external\/form\/[^/]+$/),
-  )
-
   if (
     request.nextUrl.pathname !== "/" &&
     !user &&
-    !isMasterAdminImpersonating && // Allow access when master admin is impersonating
+    !isMasterAdminImpersonating &&
     !request.nextUrl.pathname.startsWith("/login") &&
     !request.nextUrl.pathname.startsWith("/auth") &&
     !request.nextUrl.pathname.startsWith("/masterlogin") &&
     !request.nextUrl.pathname.startsWith("/api/send-email") &&
     !request.nextUrl.pathname.startsWith("/api/admin/") &&
-    !request.nextUrl.pathname.match(/^\/admin\/[^/]+$/) &&
-    !request.nextUrl.pathname.match(/^\/staff\/[^/]+$/) &&
     !request.nextUrl.pathname.startsWith("/external/form/") &&
     !request.nextUrl.pathname.match(/^\/[^/]+\/reports\/external\/form\/[^/]+$/)
   ) {
     console.log("[v0] Middleware - Redirecting to auth/login")
-    // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone()
     url.pathname = "/auth/login"
+    if (sessionId !== "default") {
+      url.searchParams.set("session", sessionId)
+    }
     return NextResponse.redirect(url)
   }
 
   console.log("[v0] Middleware - Allowing access to:", request.nextUrl.pathname)
-
-  // IMPORTANT: You *must* return the supabaseResponse object as it is.
-  // If you're creating a new response object with NextResponse.next() make sure to:
-  // 1. Pass the request in it, like so:
-  //    const myNewResponse = NextResponse.next({ request })
-  // 2. Copy over the cookies, like so:
-  //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
-  // 3. Change the myNewResponse object to fit your needs, but avoid changing
-  //    the cookies!
-  // 4. Finally:
-  //    return myNewResponse
-  // If this is not done, you may be causing the browser and server to go out
-  // of sync and terminate the user's session prematurely!
 
   return supabaseResponse
 }

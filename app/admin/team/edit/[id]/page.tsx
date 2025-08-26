@@ -24,27 +24,38 @@ interface Profile {
   reports_to: string | null
 }
 
-export default function EditTeamMemberPage({ params }: { params: { id: string } }) {
+export default function EditTeamMemberPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [member, setMember] = useState<Profile | null>(null)
   const [admins, setAdmins] = useState<Profile[]>([])
+  const [memberId, setMemberId] = useState<string>("")
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
     position: "",
     role: "staff",
-    reports_to: "none", // Updated default value to be a non-empty string
+    reports_to: "none",
   })
 
   useEffect(() => {
-    loadMemberData()
-    loadAdmins()
-  }, [params.id])
+    const resolveParams = async () => {
+      const resolvedParams = await params
+      setMemberId(resolvedParams.id)
+    }
+    resolveParams()
+  }, [params])
+
+  useEffect(() => {
+    if (memberId) {
+      loadMemberData()
+      loadAdmins()
+    }
+  }, [memberId])
 
   const loadMemberData = async () => {
-    const { data: member } = await supabase.from("profiles").select("*").eq("id", params.id).single()
+    const { data: member } = await supabase.from("profiles").select("*").eq("id", memberId).single()
 
     if (member) {
       setMember(member)
@@ -53,7 +64,7 @@ export default function EditTeamMemberPage({ params }: { params: { id: string } 
         last_name: member.last_name || "",
         position: member.position || "",
         role: member.role || "staff",
-        reports_to: member.reports_to || "none", // Updated default value to be a non-empty string
+        reports_to: member.reports_to || "none",
       })
     }
   }
@@ -90,9 +101,9 @@ export default function EditTeamMemberPage({ params }: { params: { id: string } 
           full_name: fullName,
           position: formData.position,
           role: formData.role,
-          reports_to: formData.reports_to === "none" ? null : formData.reports_to, // Updated to handle "none" value
+          reports_to: formData.reports_to === "none" ? null : formData.reports_to,
         })
-        .eq("id", params.id)
+        .eq("id", memberId)
 
       if (error) throw error
 

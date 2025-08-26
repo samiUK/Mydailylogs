@@ -36,7 +36,7 @@ interface FormResponse {
   [key: string]: string | number | boolean | File | null
 }
 
-export default function ExternalFormPage({ params }: { params: { id: string } }) {
+export default function ExternalFormPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = createClient()
   const [template, setTemplate] = useState<Template | null>(null)
   const [items, setItems] = useState<ChecklistItem[]>([])
@@ -46,17 +46,28 @@ export default function ExternalFormPage({ params }: { params: { id: string } })
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState("")
+  const [templateId, setTemplateId] = useState<string>("")
 
   useEffect(() => {
-    loadTemplate()
-  }, [params.id])
+    const resolveParams = async () => {
+      const resolvedParams = await params
+      setTemplateId(resolvedParams.id)
+    }
+    resolveParams()
+  }, [params])
+
+  useEffect(() => {
+    if (templateId) {
+      loadTemplate()
+    }
+  }, [templateId])
 
   const loadTemplate = async () => {
     try {
       const { data: templateData, error: templateError } = await supabase
         .from("checklist_templates")
         .select("*")
-        .eq("id", params.id)
+        .eq("id", templateId)
         .eq("is_active", true)
         .single()
 
@@ -65,7 +76,7 @@ export default function ExternalFormPage({ params }: { params: { id: string } })
       const { data: itemsData, error: itemsError } = await supabase
         .from("checklist_items")
         .select("*")
-        .eq("template_id", params.id)
+        .eq("template_id", templateId)
         .order("order_index")
 
       if (itemsError) throw itemsError
@@ -128,7 +139,7 @@ export default function ExternalFormPage({ params }: { params: { id: string } })
 
     try {
       const submissionData = {
-        template_id: params.id,
+        template_id: templateId,
         organization_id: template?.organization_id,
         submitter_name: submitterName.trim(),
         submission_type: "external",

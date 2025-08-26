@@ -48,7 +48,7 @@ interface Holiday {
   is_recurring: boolean
 }
 
-export default function AssignTemplatePage({ params }: { params: { id: string } }) {
+export default function AssignTemplatePage({ params }: { params: Promise<{ id: string }> }) {
   const [template, setTemplate] = useState<Template | null>(null)
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set())
@@ -56,12 +56,23 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const [templateId, setTemplateId] = useState<string>("")
 
   const router = useRouter()
 
   useEffect(() => {
-    loadData()
-  }, [params.id])
+    const resolveParams = async () => {
+      const resolvedParams = await params
+      setTemplateId(resolvedParams.id)
+    }
+    resolveParams()
+  }, [params])
+
+  useEffect(() => {
+    if (templateId) {
+      loadData()
+    }
+  }, [templateId])
 
   const loadData = async () => {
     try {
@@ -80,7 +91,7 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
       const { data: templateData, error: templateError } = await supabase
         .from("checklist_templates")
         .select("id, name, description, frequency, schedule_type")
-        .eq("id", params.id)
+        .eq("id", templateId)
         .eq("organization_id", profile.organization_id)
         .single()
 
@@ -98,7 +109,7 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
       const { data: exclusionsData } = await supabase
         .from("template_schedule_exclusions")
         .select("*")
-        .eq("template_id", params.id)
+        .eq("template_id", templateId)
         .single()
 
       if (exclusionsData) {
@@ -125,7 +136,7 @@ export default function AssignTemplatePage({ params }: { params: { id: string } 
           ...member,
           is_assigned:
             member.template_assignments?.some(
-              (assignment: any) => assignment.is_active && assignment.template_id === params.id,
+              (assignment: any) => assignment.is_active && assignment.template_id === templateId,
             ) || false,
         })) || []
 

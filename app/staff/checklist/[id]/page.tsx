@@ -48,7 +48,7 @@ interface DailyChecklist {
   completed_at: string | null
 }
 
-export default function ChecklistPage({ params }: { params: { id: string } }) {
+export default function ChecklistPage({ params }: { params: Promise<{ id: string }> }) {
   const [template, setTemplate] = useState<Template | null>(null)
   const [dailyChecklist, setDailyChecklist] = useState<DailyChecklist | null>(null)
   const [tasks, setTasks] = useState<ChecklistTask[]>([])
@@ -170,7 +170,8 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     async function loadChecklist() {
-      console.log("[v0] Loading checklist for template ID:", params.id)
+      const resolvedParams = await params
+      console.log("[v0] Loading checklist for template ID:", resolvedParams.id)
       const supabase = createClient()
 
       const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
@@ -217,7 +218,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
             frequency
           )
         `)
-        .eq("template_id", params.id)
+        .eq("template_id", resolvedParams.id)
         .eq("assigned_to", currentUser.id)
         .eq("is_active", true)
         .single()
@@ -238,7 +239,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
           const { data: existingDaily } = await supabase
             .from("daily_checklists")
             .select("*")
-            .eq("template_id", params.id)
+            .eq("template_id", resolvedParams.id)
             .eq("assigned_to", currentUser.id)
             .eq("date", today)
             .single()
@@ -254,7 +255,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
             const { data: newDaily, error: dailyError } = await supabase
               .from("daily_checklists")
               .insert({
-                template_id: params.id,
+                template_id: resolvedParams.id,
                 assigned_to: currentUser.id,
                 date: today,
                 status: "in_progress",
@@ -280,7 +281,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
         const { data: tasksData } = await supabase
           .from("checklist_items")
           .select("*")
-          .eq("template_id", params.id)
+          .eq("template_id", resolvedParams.id)
           .order("order_index")
 
         console.log("[v0] Tasks loaded:", tasksData?.length)
@@ -288,7 +289,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
           setTasks(tasksData)
         }
 
-        const checklistId = dailyChecklistData?.id || params.id
+        const checklistId = dailyChecklistData?.id || resolvedParams.id
         console.log("[v0] Loading responses for checklist ID:", checklistId)
 
         const { data: responsesData } = await supabase
@@ -320,7 +321,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
     }
 
     loadChecklist()
-  }, [params.id])
+  }, [params])
 
   const handleTaskResponse = async (taskId: string, value: string, isCompleted = true) => {
     const supabase = createClient()
@@ -353,7 +354,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
     }
 
     const existingResponse = responses.find((r) => r.item_id === taskId)
-    const checklistId = dailyChecklist?.id || params.id
+    const checklistId = dailyChecklist?.id || (await params).id
 
     if (existingResponse) {
       const { data } = await supabase
@@ -424,7 +425,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
     setLocalNotes((prev) => ({ ...prev, [taskId]: notes }))
 
     const existingResponse = responses.find((r) => r.item_id === taskId)
-    const checklistId = dailyChecklist?.id || params.id
+    const checklistId = dailyChecklist?.id || (await params).id
 
     if (existingResponse) {
       const { data } = await supabase
@@ -498,7 +499,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
     const existingResponse = responses.find((r) => r.item_id === taskId)
     const currentValue = localInputValues[taskId] ?? ""
     const task = tasks.find((t) => t.id === taskId)
-    const checklistId = dailyChecklist?.id || params.id
+    const checklistId = dailyChecklist?.id || (await params).id
 
     console.log("[v0] Existing response:", existingResponse)
     console.log("[v0] Current value:", currentValue)
@@ -783,7 +784,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
     }
 
     console.log("[v0] User found for completion:", currentUser.id)
-    console.log("[v0] Template ID:", params.id)
+    console.log("[v0] Template ID:", (await params).id)
 
     // Check if all required tasks are completed
     const requiredTasks = tasks.filter((task) => task.is_required)
@@ -832,7 +833,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
             completed_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
-          .eq("template_id", params.id)
+          .eq("template_id", (await params).id)
           .eq("assigned_to", currentUser.id)
           .eq("is_active", true)
           .select()
@@ -857,7 +858,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
       // Create a completion notification for admin
       const { error: notificationError } = await supabase.from("notifications").insert({
         user_id: currentUser.id,
-        template_id: params.id,
+        template_id: (await params).id,
         type: "checklist_completed",
         message: `${currentUser.email} submitted a report: ${template?.name}`,
         created_at: new Date().toISOString(),

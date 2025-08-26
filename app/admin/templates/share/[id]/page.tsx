@@ -25,7 +25,7 @@ interface Organization {
   slug: string
 }
 
-export default function ShareTemplatePage({ params }: { params: { id: string } }) {
+export default function ShareTemplatePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
   const supabase = createClient()
   const [template, setTemplate] = useState<Template | null>(null)
@@ -33,18 +33,29 @@ export default function ShareTemplatePage({ params }: { params: { id: string } }
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
   const [shareableLink, setShareableLink] = useState("")
+  const [templateId, setTemplateId] = useState<string>("")
 
   useEffect(() => {
-    loadTemplate()
-    loadOrganization()
-  }, [params.id])
+    const resolveParams = async () => {
+      const resolvedParams = await params
+      setTemplateId(resolvedParams.id)
+    }
+    resolveParams()
+  }, [params])
+
+  useEffect(() => {
+    if (templateId) {
+      loadTemplate()
+      loadOrganization()
+    }
+  }, [templateId])
 
   const loadTemplate = async () => {
     try {
       const { data: templateData, error } = await supabase
         .from("checklist_templates")
         .select("*")
-        .eq("id", params.id)
+        .eq("id", templateId)
         .single()
 
       if (error) throw error
@@ -85,7 +96,7 @@ export default function ShareTemplatePage({ params }: { params: { id: string } }
   const generateShareableLink = (orgSlug?: string) => {
     const baseUrl = window.location.origin
     const slug = orgSlug || organization?.slug || "organization"
-    const link = `${baseUrl}/${slug}/reports/external/form/${params.id}`
+    const link = `${baseUrl}/${slug}/reports/external/form/${templateId}`
     setShareableLink(link)
   }
 

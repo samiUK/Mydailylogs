@@ -54,13 +54,14 @@ interface Template {
   updated_at: string
 }
 
-export default function EditTemplatePage({ params }: { params: { id: string } }) {
+export default function EditTemplatePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
   const supabase = createClient()
   const [template, setTemplate] = useState<Template | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  const [templateId, setTemplateId] = useState<string>("")
 
   const [formData, setFormData] = useState({
     name: "",
@@ -73,20 +74,30 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
   const [teamMembers, setTeamMembers] = useState<Array<{ id: string; full_name: string; role: string }>>([])
 
   useEffect(() => {
-    if (params.id === "new") {
+    const resolveParams = async () => {
+      const resolvedParams = await params
+      setTemplateId(resolvedParams.id)
+    }
+    resolveParams()
+  }, [params])
+
+  useEffect(() => {
+    if (!templateId) return
+
+    if (templateId === "new") {
       router.replace("/admin/templates/new")
       return
     }
     loadTemplate()
     loadTeamMembers()
-  }, [params.id])
+  }, [templateId])
 
   const loadTemplate = async () => {
     try {
       const { data: templateData, error: templateError } = await supabase
         .from("checklist_templates")
         .select("*")
-        .eq("id", params.id)
+        .eq("id", templateId)
         .single()
 
       if (templateError) throw templateError
@@ -94,7 +105,7 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
       const { data: tasksData, error: tasksError } = await supabase
         .from("checklist_items")
         .select("*")
-        .eq("template_id", params.id)
+        .eq("template_id", templateId)
         .order("order_index")
 
       if (tasksError) throw tasksError
@@ -158,20 +169,20 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
           is_active: formData.is_active,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", params.id)
+        .eq("id", templateId)
 
       if (templateError) throw templateError
 
       // This prevents accidentally deleting all tasks if the tasks array is empty
       if (tasks.length > 0) {
         // Delete existing tasks only after we confirm we have new tasks to insert
-        const { error: deleteError } = await supabase.from("checklist_items").delete().eq("template_id", params.id)
+        const { error: deleteError } = await supabase.from("checklist_items").delete().eq("template_id", templateId)
 
         if (deleteError) throw deleteError
 
         // Insert updated tasks
         const tasksToInsert = tasks.map((task) => ({
-          template_id: params.id,
+          template_id: templateId,
           name: task.name,
           task_type: task.type,
           category: task.category,

@@ -249,7 +249,12 @@ export default function LoginPage() {
         <div className="w-full max-w-sm">
           <Card>
             <CardContent className="pt-6">
-              <div className="text-center">Loading...</div>
+              <div className="space-y-4 animate-pulse">
+                <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto"></div>
+                <div className="h-10 bg-gray-200 rounded"></div>
+                <div className="h-10 bg-gray-200 rounded"></div>
+                <div className="h-10 bg-gray-200 rounded"></div>
+              </div>
             </CardContent>
           </Card>
         </div>

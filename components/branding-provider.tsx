@@ -39,94 +39,113 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
     primaryColor: initialBranding?.primaryColor || "#059669",
     secondaryColor: initialBranding?.secondaryColor || "#6B7280",
     hasCustomBranding: initialBranding?.hasCustomBranding || false,
-    isLoading: initialBranding?.isLoading ?? true,
+    isLoading: false,
     refreshBranding: async () => {},
   })
 
   const refreshBranding = async () => {
     const supabase = createClient()
 
-    // Check for impersonation context from cookies only
-    const impersonationCookie = document.cookie.split("; ").find((row) => row.startsWith("masterAdminImpersonation="))
+    try {
+      // Check for impersonation context from cookies only
+      const impersonationCookie = document.cookie.split("; ").find((row) => row.startsWith("masterAdminImpersonation="))
 
-    const isImpersonating = impersonationCookie?.split("=")[1] === "true"
+      const isImpersonating = impersonationCookie?.split("=")[1] === "true"
 
-    if (isImpersonating) {
-      const impersonatedEmailCookie = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("impersonatedUserEmail="))
+      if (isImpersonating) {
+        const impersonatedEmailCookie = document.cookie
+          .split("; ")
+          .find((row) => row.startsWith("impersonatedUserEmail="))
 
-      const impersonatedEmail = impersonatedEmailCookie?.split("=")[1]
+        const impersonatedEmail = impersonatedEmailCookie?.split("=")[1]
 
-      if (impersonatedEmail) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("organization_id, organization_name")
-          .eq("email", decodeURIComponent(impersonatedEmail))
-          .single()
-
-        if (profile?.organization_id) {
-          const subscriptionLimits = await getSubscriptionLimits(profile.organization_id)
-          const { data: organization } = await supabase
-            .from("organizations")
-            .select("logo_url, primary_color, secondary_color")
-            .eq("id", profile.organization_id)
+        if (impersonatedEmail) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("organization_id, organization_name")
+            .eq("email", decodeURIComponent(impersonatedEmail))
             .single()
 
-          if (organization) {
-            setBranding({
-              organizationName: subscriptionLimits.hasCustomBranding
-                ? profile.organization_name || "Your Organization"
-                : "MyDayLogs",
-              logoUrl: organization.logo_url,
-              primaryColor: subscriptionLimits.hasCustomBranding ? organization.primary_color || "#059669" : "#059669",
-              secondaryColor: subscriptionLimits.hasCustomBranding
-                ? organization.secondary_color || "#6B7280"
-                : "#6B7280",
-              hasCustomBranding: subscriptionLimits.hasCustomBranding,
-              isLoading: false,
-              refreshBranding,
-            })
+          if (profile?.organization_id) {
+            const [subscriptionLimits, organizationData] = await Promise.all([
+              getSubscriptionLimits(profile.organization_id),
+              supabase
+                .from("organizations")
+                .select("logo_url, primary_color, secondary_color")
+                .eq("id", profile.organization_id)
+                .single(),
+            ])
+
+            if (organizationData.data) {
+              setBranding({
+                organizationName: subscriptionLimits.hasCustomBranding
+                  ? profile.organization_name || "Your Organization"
+                  : "MyDayLogs",
+                logoUrl: organizationData.data.logo_url,
+                primaryColor: subscriptionLimits.hasCustomBranding
+                  ? organizationData.data.primary_color || "#059669"
+                  : "#059669",
+                secondaryColor: subscriptionLimits.hasCustomBranding
+                  ? organizationData.data.secondary_color || "#6B7280"
+                  : "#6B7280",
+                hasCustomBranding: subscriptionLimits.hasCustomBranding,
+                isLoading: false,
+                refreshBranding,
+              })
+            }
           }
         }
         return
       }
-    }
 
-    // Regular user authentication
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) return
+      // Regular user authentication
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("organization_id, organization_name")
-      .eq("id", user.id)
-      .single()
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id, organization_name")
+        .eq("id", user.id)
+        .single()
 
-    if (!profile?.organization_id) return
+      if (!profile?.organization_id) return
 
-    const subscriptionLimits = await getSubscriptionLimits(profile.organization_id)
+      const [subscriptionLimits, organizationData] = await Promise.all([
+        getSubscriptionLimits(profile.organization_id),
+        supabase
+          .from("organizations")
+          .select("logo_url, primary_color, secondary_color")
+          .eq("id", profile.organization_id)
+          .single(),
+      ])
 
-    const { data: organization } = await supabase
-      .from("organizations")
-      .select("logo_url, primary_color, secondary_color")
-      .eq("id", profile.organization_id)
-      .single()
-
-    if (organization) {
-      setBranding({
-        organizationName: subscriptionLimits.hasCustomBranding
-          ? profile.organization_name || "Your Organization"
-          : "MyDayLogs",
-        logoUrl: organization.logo_url,
-        primaryColor: subscriptionLimits.hasCustomBranding ? organization.primary_color || "#059669" : "#059669",
-        secondaryColor: subscriptionLimits.hasCustomBranding ? organization.secondary_color || "#6B7280" : "#6B7280",
-        hasCustomBranding: subscriptionLimits.hasCustomBranding,
+      if (organizationData.data) {
+        setBranding({
+          organizationName: subscriptionLimits.hasCustomBranding
+            ? profile.organization_name || "Your Organization"
+            : "MyDayLogs",
+          logoUrl: organizationData.data.logo_url,
+          primaryColor: subscriptionLimits.hasCustomBranding
+            ? organizationData.data.primary_color || "#059669"
+            : "#059669",
+          secondaryColor: subscriptionLimits.hasCustomBranding
+            ? organizationData.data.secondary_color || "#6B7280"
+            : "#6B7280",
+          hasCustomBranding: subscriptionLimits.hasCustomBranding,
+          isLoading: false,
+          refreshBranding,
+        })
+      }
+    } catch (error) {
+      console.error("[v0] Error refreshing branding:", error)
+      setBranding((prev) => ({
+        ...prev,
+        organizationName: "MyDayLogs",
         isLoading: false,
         refreshBranding,
-      })
+      }))
     }
   }
 

@@ -3,7 +3,6 @@
 import type React from "react"
 import { createContext, useContext, useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { getSubscriptionLimits } from "@/lib/subscription-limits"
 
 interface BrandingContextType {
   organizationName: string
@@ -34,11 +33,11 @@ interface BrandingProviderProps {
 
 export function BrandingProvider({ children, initialBranding }: BrandingProviderProps) {
   const [branding, setBranding] = useState<BrandingContextType>({
-    organizationName: initialBranding?.organizationName || "MyDayLogs",
+    organizationName: initialBranding?.organizationName || "Your Organization",
     logoUrl: initialBranding?.logoUrl || null,
     primaryColor: initialBranding?.primaryColor || "#059669",
     secondaryColor: initialBranding?.secondaryColor || "#6B7280",
-    hasCustomBranding: initialBranding?.hasCustomBranding || false,
+    hasCustomBranding: initialBranding?.hasCustomBranding || true,
     isLoading: false,
     refreshBranding: async () => {},
   })
@@ -66,26 +65,33 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
             .eq("email", decodeURIComponent(impersonatedEmail))
             .single()
 
-          if (profile?.organization_id) {
-            const [subscriptionLimits, organizationData] = await Promise.all([
-              getSubscriptionLimits(profile.organization_id),
-              supabase
+          if (profile) {
+            setBranding({
+              organizationName: profile.organization_name || "Your Organization",
+              logoUrl: null,
+              primaryColor: "#059669",
+              secondaryColor: "#6B7280",
+              hasCustomBranding: true,
+              isLoading: false,
+              refreshBranding,
+            })
+
+            // Try to get organization data if organization_id exists
+            if (profile.organization_id) {
+              const { data: organizationData } = await supabase
                 .from("organizations")
                 .select("logo_url, primary_color, secondary_color")
                 .eq("id", profile.organization_id)
-                .single(),
-            ])
+                .single()
 
-            if (organizationData.data) {
-              setBranding({
-                organizationName: profile.organization_name || "Your Organization",
-                logoUrl: organizationData.data.logo_url,
-                primaryColor: organizationData.data.primary_color || "#059669",
-                secondaryColor: organizationData.data.secondary_color || "#6B7280",
-                hasCustomBranding: true,
-                isLoading: false,
-                refreshBranding,
-              })
+              if (organizationData) {
+                setBranding((prev) => ({
+                  ...prev,
+                  logoUrl: organizationData.logo_url,
+                  primaryColor: organizationData.primary_color || "#059669",
+                  secondaryColor: organizationData.secondary_color || "#6B7280",
+                }))
+              }
             }
           }
         }
@@ -104,39 +110,39 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
         .eq("id", user.id)
         .single()
 
-      if (!profile?.organization_id) return
-
-      const [subscriptionLimits, organizationData] = await Promise.all([
-        getSubscriptionLimits(profile.organization_id),
-        supabase
-          .from("organizations")
-          .select("logo_url, primary_color, secondary_color")
-          .eq("id", profile.organization_id)
-          .single(),
-      ])
-
-      if (organizationData.data) {
+      if (profile) {
         setBranding({
-          organizationName: subscriptionLimits.hasCustomBranding
-            ? profile.organization_name || "Your Organization"
-            : "MyDayLogs",
-          logoUrl: organizationData.data.logo_url,
-          primaryColor: subscriptionLimits.hasCustomBranding
-            ? organizationData.data.primary_color || "#059669"
-            : "#059669",
-          secondaryColor: subscriptionLimits.hasCustomBranding
-            ? organizationData.data.secondary_color || "#6B7280"
-            : "#6B7280",
-          hasCustomBranding: subscriptionLimits.hasCustomBranding,
+          organizationName: profile.organization_name || "Your Organization",
+          logoUrl: null,
+          primaryColor: "#059669",
+          secondaryColor: "#6B7280",
+          hasCustomBranding: true,
           isLoading: false,
           refreshBranding,
         })
+
+        // Try to get organization data if organization_id exists
+        if (profile.organization_id) {
+          const { data: organizationData } = await supabase
+            .from("organizations")
+            .select("logo_url, primary_color, secondary_color")
+            .eq("id", profile.organization_id)
+            .single()
+
+          if (organizationData) {
+            setBranding((prev) => ({
+              ...prev,
+              logoUrl: organizationData.logo_url,
+              primaryColor: organizationData.primary_color || "#059669",
+              secondaryColor: organizationData.secondary_color || "#6B7280",
+            }))
+          }
+        }
       }
     } catch (error) {
       console.error("[v0] Error refreshing branding:", error)
       setBranding((prev) => ({
         ...prev,
-        organizationName: "MyDayLogs",
         isLoading: false,
         refreshBranding,
       }))

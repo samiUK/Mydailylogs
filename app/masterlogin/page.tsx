@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { Shield, AlertTriangle, ArrowLeft } from "lucide-react"
+import { useBranding } from "@/components/branding-provider"
 
 export default function MasterLoginPage() {
   const [email, setEmail] = useState("")
@@ -15,6 +16,7 @@ export default function MasterLoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const { organizationName, logoUrl, primaryColor } = useBranding()
 
   const handleMasterLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -70,9 +72,15 @@ export default function MasterLoginPage() {
         <Card className="border-red-200 shadow-xl">
           <CardHeader className="text-center space-y-4">
             <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
-              <Shield className="w-8 h-8 text-red-600" />
+              {logoUrl ? (
+                <img src={logoUrl || "/placeholder.svg"} alt="Logo" className="w-10 h-10 object-contain" />
+              ) : (
+                <Shield className="w-8 h-8 text-red-600" />
+              )}
             </div>
-            <CardTitle className="text-2xl text-red-800">Master Admin Access</CardTitle>
+            <CardTitle className="text-2xl text-red-800">
+              {organizationName || "MyDayLogs"} - Master Admin Access
+            </CardTitle>
             <CardDescription className="text-red-600">
               Restricted access for system monitoring and customer support
             </CardDescription>

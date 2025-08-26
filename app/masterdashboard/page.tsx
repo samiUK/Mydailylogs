@@ -181,9 +181,20 @@ export default function MasterDashboardPage() {
   }
 
   const exitImpersonation = () => {
+    // Clear local state
     setImpersonatedUser(null)
     setImpersonatedUserData(null)
     setActiveTab("overview")
+
+    // Clear all impersonation cookies
+    document.cookie = "masterAdminImpersonation=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+    document.cookie = "impersonatedUserEmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+    document.cookie = "impersonatedUserRole=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+
+    console.log("[v0] Cleared all impersonation cookies")
+
+    // Refresh the page to ensure clean state
+    window.location.reload()
   }
 
   const cancelSubscription = async (subscriptionId: string) => {

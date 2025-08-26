@@ -34,7 +34,7 @@ export default async function ExternalFormPage({
 
   console.log("[v0] External form server - Loading data for org:", organization, "template:", id)
 
-  const supabase = createClient()
+  const supabase = await createClient()
 
   try {
     // Load organization by slug

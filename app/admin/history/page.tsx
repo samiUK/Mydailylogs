@@ -16,7 +16,7 @@ export default async function AdminHistoryPage() {
   console.log("[v0] Admin History page - Component function called")
 
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const isMasterAdminImpersonating = cookieStore.get("masterAdminImpersonation")?.value === "true"
     const impersonatedUserEmail = cookieStore.get("impersonatedUserEmail")?.value
 

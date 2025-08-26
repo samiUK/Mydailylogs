@@ -86,7 +86,9 @@ export default function StaffDashboard() {
       try {
         const supabase = createClient()
 
-        const { data: assignedTemplatesData } = await supabase
+        console.log("[v0] Loading data for user:", { userId: user.id, userEmail: user.email, profileId: profile.id })
+
+        const { data: assignedTemplatesData, error: assignedError } = await supabase
           .from("template_assignments")
           .select(`
             *,
@@ -103,10 +105,28 @@ export default function StaffDashboard() {
           `)
           .eq("assigned_to", user.id)
           .eq("is_active", true)
-          .or(
-            `status.neq.completed,and(status.eq.completed,checklist_templates.schedule_type.in.(daily,weekly,monthly,recurring))`,
-          )
           .order("assigned_at", { ascending: false })
+
+        if (assignedError) {
+          console.error("[v0] Error fetching assigned templates:", assignedError)
+        }
+
+        console.log("[v0] Raw assigned templates query result:", {
+          data: assignedTemplatesData,
+          error: assignedError,
+          userIdUsedInQuery: user.id,
+        })
+
+        const { data: allAssignmentsData, error: allAssignmentsError } = await supabase
+          .from("template_assignments")
+          .select("*")
+          .eq("assigned_to", user.id)
+
+        console.log("[v0] All assignments for user (any status):", {
+          data: allAssignmentsData,
+          error: allAssignmentsError,
+          count: allAssignmentsData?.length || 0,
+        })
 
         const { data: completedReportsData } = await supabase
           .from("template_assignments")

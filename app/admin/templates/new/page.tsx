@@ -380,6 +380,7 @@ export default function NewTemplatePage() {
                       <SelectItem value="recurring">Recurring (Daily/Weekly/Monthly)</SelectItem>
                       <SelectItem value="specific_date">Specific Date</SelectItem>
                       <SelectItem value="deadline">Deadline</SelectItem>
+                      <SelectItem value="one-off">One-off</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -398,7 +399,6 @@ export default function NewTemplatePage() {
                         <SelectItem value="weekly">Weekly</SelectItem>
                         <SelectItem value="monthly">Monthly</SelectItem>
                         <SelectItem value="custom">Custom</SelectItem>
-                        <SelectItem value="one-off">One-off</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -776,6 +776,7 @@ export default function NewTemplatePage() {
                         {scheduleType === "recurring" && (frequency || "Frequency")}
                         {scheduleType === "specific_date" && `Due: ${specificDate || "Select date"}`}
                         {scheduleType === "deadline" && `Deadline: ${deadlineDate || "Select deadline"}`}
+                        {scheduleType === "one-off" && "One-off Task"}
                       </span>
                       {scheduleTime && (
                         <span className="text-xs bg-secondary/10 text-secondary-foreground px-2 py-1 rounded">

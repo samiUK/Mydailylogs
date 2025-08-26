@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
       console.warn("[v0] CRON_SECRET not set - running without authentication (development mode)")
     }
 
-    const supabase = createClient()
+    const supabase = await createClient()
     const today = new Date().toISOString().split("T")[0]
 
     console.log(`[v0] Starting daily task recreation for ${today}`)

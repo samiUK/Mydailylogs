@@ -56,8 +56,8 @@ export default async function AdminDashboardAnalyticsPage() {
     console.log("[v0] Admin Dashboard Analytics page - Organization ID:", profile.organization_id)
 
     const batchResult = await batchQuery([
-      () =>
-        supabase
+      async () => {
+        const result = await supabase
           .from("template_assignments")
           .select(`
             id,
@@ -70,9 +70,10 @@ export default async function AdminDashboardAnalyticsPage() {
           .eq("organization_id", profile.organization_id)
           .order("created_at", { ascending: false })
           .limit(100)
-          .then((result) => result),
-      () =>
-        supabase
+        return { data: result.data, error: result.error }
+      },
+      async () => {
+        const result = await supabase
           .from("daily_checklists")
           .select(`
             id,
@@ -85,7 +86,8 @@ export default async function AdminDashboardAnalyticsPage() {
           .eq("organization_id", profile.organization_id)
           .order("date", { ascending: false })
           .limit(100)
-          .then((result) => result),
+        return { data: result.data, error: result.error }
+      },
     ])
 
     if (batchResult.error) {

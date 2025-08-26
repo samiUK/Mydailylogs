@@ -375,7 +375,7 @@ export default function MasterDashboardPage() {
         completedAssignmentsResponse,
         externalSubmissionsResponse,
       ] = await Promise.all([
-        supabase.from("organizations").select(`
+        (await supabase).from("organizations").select(`
           *,
           profiles!inner(
             id,
@@ -385,18 +385,18 @@ export default function MasterDashboardPage() {
             created_at
           )
         `),
-        supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-        supabase.from("subscriptions").select("*").order("created_at", { ascending: false }),
-        supabase
+        (await supabase).from("profiles").select("*").order("created_at", { ascending: false }),
+        (await supabase).from("subscriptions").select("*").order("created_at", { ascending: false }),
+        (await supabase)
           .from("payments")
           .select(`
           *,
           subscriptions(plan_name)
         `)
           .order("created_at", { ascending: false }),
-        supabase.from("feedback").select("*").order("created_at", { ascending: false }),
-        supabase.from("template_assignments").select("*").eq("status", "completed"),
-        supabase.from("external_submissions").select("*").not("submitted_at", "is", null),
+        (await supabase).from("feedback").select("*").order("created_at", { ascending: false }),
+        (await supabase).from("template_assignments").select("*").eq("status", "completed"),
+        (await supabase).from("external_submissions").select("*").not("submitted_at", "is", null),
       ])
 
       console.log("[v0] Organizations response:", organizationsResponse)

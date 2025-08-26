@@ -104,7 +104,7 @@ export default function BackupRecoveryPage() {
         id: backup.id,
         report_id: backup.report_id,
         report_type: backup.report_type,
-        backup_type: backup.backup_type,
+        backup_reason: backup.backup_reason,
         backup_data: backup.backup_data,
         created_at: backup.created_at,
         metadata: backup.metadata,
@@ -389,9 +389,9 @@ export default function BackupRecoveryPage() {
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
-                            {getBackupTypeIcon(backup.backup_type)}
-                            <Badge className={getBackupTypeColor(backup.backup_type)}>
-                              {backup.backup_type.replace("_", " ").toUpperCase()}
+                            {getBackupTypeIcon(backup.backup_reason)}
+                            <Badge className={getBackupTypeColor(backup.backup_reason)}>
+                              {backup.backup_reason.replace("_", " ").toUpperCase()}
                             </Badge>
                             <span className="text-sm text-gray-500">
                               {format(new Date(backup.created_at), "MMM dd, yyyy HH:mm")}

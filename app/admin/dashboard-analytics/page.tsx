@@ -78,6 +78,7 @@ export default async function AdminDashboardAnalyticsPage() {
           .select(`
             id,
             date,
+            status,
             completed_at,
             assigned_to,
             checklist_templates(id, name),
@@ -127,7 +128,7 @@ export default async function AdminDashboardAnalyticsPage() {
         id: d.id,
         template_name: d.checklist_templates?.name || "Unknown Template",
         user_name: d.assigned_to_profile?.full_name || d.assigned_to_profile?.email || "Unknown User",
-        status: d.completed_at ? "completed" : "pending",
+        status: d.status,
         completed_at: d.completed_at,
         type: "daily" as const,
       })),

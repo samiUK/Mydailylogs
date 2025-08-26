@@ -69,7 +69,8 @@ export default async function AdminDashboardAnalyticsPage() {
           `)
           .eq("organization_id", profile.organization_id)
           .order("created_at", { ascending: false })
-          .limit(100),
+          .limit(100)
+          .then((result) => result),
       () =>
         supabase
           .from("daily_checklists")
@@ -83,7 +84,8 @@ export default async function AdminDashboardAnalyticsPage() {
           `)
           .eq("organization_id", profile.organization_id)
           .order("date", { ascending: false })
-          .limit(100),
+          .limit(100)
+          .then((result) => result),
     ])
 
     if (batchResult.error) {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -18,15 +18,31 @@ interface Template {
   recurrence_type: string | null
 }
 
-interface StaffNewReportPageProps {
-  templates: Template[]
-  user: any
-  profile: any
-}
-
-export default function StaffNewReportPage({ templates, user, profile }: StaffNewReportPageProps) {
+export default function StaffNewReportPage() {
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState<string | null>(null)
   const router = useRouter()
+
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        const response = await fetch("/api/staff/templates")
+        if (response.ok) {
+          const data = await response.json()
+          setTemplates(data.templates || [])
+        } else {
+          console.error("Failed to fetch templates")
+        }
+      } catch (error) {
+        console.error("Error fetching templates:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchTemplates()
+  }, [])
 
   const handleStartReport = async (templateId: string) => {
     setIsCreating(templateId)
@@ -61,6 +77,19 @@ export default function StaffNewReportPage({ templates, user, profile }: StaffNe
     } finally {
       setIsCreating(null)
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Create New Report</h1>
+            <p className="text-muted-foreground">Loading available templates...</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

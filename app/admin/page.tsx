@@ -317,17 +317,42 @@ export default function AdminDashboard() {
       const supabase = createClient()
 
       try {
-        const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
+        const masterAdminImpersonation = document.cookie
+          .split("; ")
+          .find((row) => row.startsWith("masterAdminImpersonation="))
+          ?.split("=")[1]
 
-        // Check if this is a valid impersonation session
+        const impersonatedUserEmail = document.cookie
+          .split("; ")
+          .find((row) => row.startsWith("impersonatedUserEmail="))
+          ?.split("=")[1]
+
+        // If master admin is impersonating, use the impersonated user's data
+        if (masterAdminImpersonation === "true" && impersonatedUserEmail) {
+          console.log("[v0] Master admin impersonation detected, loading impersonated user:", impersonatedUserEmail)
+
+          const { data: targetProfile } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("email", decodeURIComponent(impersonatedUserEmail))
+            .single()
+
+          if (targetProfile) {
+            setUser({ email: decodeURIComponent(impersonatedUserEmail), id: targetProfile.id })
+            setProfile(targetProfile)
+            setIsImpersonating(true)
+            setImpersonationData({ targetUserEmail: decodeURIComponent(impersonatedUserEmail) })
+            return
+          }
+        }
+
+        // Check sessionStorage for impersonation context (fallback)
+        const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
         if (impersonationContext) {
           const impersonationData = JSON.parse(impersonationContext)
-
-          // Always honor valid impersonation context for master admin
           setIsImpersonating(true)
           setImpersonationData(impersonationData)
 
-          // Fetch the target user's profile data
           const { data: targetProfile } = await supabase
             .from("profiles")
             .select("*")
@@ -348,7 +373,8 @@ export default function AdminDashboard() {
         } = await supabase.auth.getUser()
 
         if (userError || !user) {
-          console.error("Error getting user:", userError)
+          console.log("[v0] Auth session missing!")
+          window.location.href = "/auth/login"
           return
         }
 
@@ -368,6 +394,7 @@ export default function AdminDashboard() {
         setProfile(profile)
       } catch (error) {
         console.error("Error loading user data:", error)
+        window.location.href = "/auth/login"
       }
     }
 

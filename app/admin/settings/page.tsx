@@ -33,16 +33,39 @@ export default function SettingsPage() {
   useEffect(() => {
     async function loadOrganization() {
       const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
 
-      if (user) {
-        const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single()
+      const impersonationCookie = document.cookie.split("; ").find((row) => row.startsWith("masterAdminImpersonation="))
+      const isImpersonating = impersonationCookie?.split("=")[1] === "true"
+
+      let userId = null
+
+      if (isImpersonating) {
+        const impersonatedEmailCookie = document.cookie
+          .split("; ")
+          .find((row) => row.startsWith("impersonatedUserEmail="))
+        const impersonatedEmail = impersonatedEmailCookie?.split("=")[1]
+
+        if (impersonatedEmail) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("email", decodeURIComponent(impersonatedEmail))
+            .single()
+          userId = profile?.id
+        }
+      } else {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        userId = user?.id
+      }
+
+      if (userId) {
+        const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", userId).single()
 
         if (profile?.organization_id) {
           const subscriptionLimits = await getSubscriptionLimits(profile.organization_id)
-          setHasCustomBranding(subscriptionLimits.hasCustomBranding)
+          setHasCustomBranding(isImpersonating || subscriptionLimits.hasCustomBranding)
 
           const { data: org } = await supabase
             .from("organizations")

@@ -78,17 +78,11 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
 
             if (organizationData.data) {
               setBranding({
-                organizationName: subscriptionLimits.hasCustomBranding
-                  ? profile.organization_name || "Your Organization"
-                  : "MyDayLogs",
+                organizationName: profile.organization_name || "Your Organization",
                 logoUrl: organizationData.data.logo_url,
-                primaryColor: subscriptionLimits.hasCustomBranding
-                  ? organizationData.data.primary_color || "#059669"
-                  : "#059669",
-                secondaryColor: subscriptionLimits.hasCustomBranding
-                  ? organizationData.data.secondary_color || "#6B7280"
-                  : "#6B7280",
-                hasCustomBranding: subscriptionLimits.hasCustomBranding,
+                primaryColor: organizationData.data.primary_color || "#059669",
+                secondaryColor: organizationData.data.secondary_color || "#6B7280",
+                hasCustomBranding: true,
                 isLoading: false,
                 refreshBranding,
               })

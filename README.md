@@ -12,9 +12,9 @@ Any changes you make to your deployed app will be automatically pushed to this r
 
 ## Deployment
 
-Sami's project is live at:
+Your project is live at:
 
-**[https://vercel.com/sami-rahmans-projects-6298d14a/mydaylogs](https://vercel.com/sami-rahmans-projects-6298d14a/mydaylogs)**
+**[https://vercel.com/sami-rahmans-projects-6298d14a/v0-daily-brand-check](https://vercel.com/sami-rahmans-projects-6298d14a/v0-daily-brand-check)**
 
 ## Build your app
 

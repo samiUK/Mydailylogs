@@ -14,15 +14,32 @@ export async function updateSession(request: NextRequest) {
   const sessionId = request.nextUrl.searchParams.get("session") || "default"
   const sessionPrefix = sessionId !== "default" ? `${sessionId}_` : ""
 
-  const isMasterAdminImpersonating = request.cookies.get(`${sessionPrefix}masterAdminImpersonation`)?.value === "true"
+  const isMasterAdminImpersonating =
+    request.cookies.get(`${sessionPrefix}masterAdminImpersonation`)?.value === "true" ||
+    request.cookies.get("masterAdminImpersonation")?.value === "true"
 
   console.log("[v0] Middleware - Path:", request.nextUrl.pathname)
   console.log("[v0] Middleware - Session ID:", sessionId)
   console.log(
     "[v0] Middleware - masterAdminImpersonation cookie:",
-    request.cookies.get(`${sessionPrefix}masterAdminImpersonation`)?.value,
+    request.cookies.get(`${sessionPrefix}masterAdminImpersonation`)?.value ||
+      request.cookies.get("masterAdminImpersonation")?.value,
   )
   console.log("[v0] Middleware - isMasterAdminImpersonating:", isMasterAdminImpersonating)
+
+  if (request.nextUrl.pathname.startsWith("/masterdashboard")) {
+    if (!isMasterAdminImpersonating) {
+      console.log("[v0] Middleware - No master admin authentication, redirecting to masterlogin")
+      const url = request.nextUrl.clone()
+      url.pathname = "/masterlogin"
+      if (sessionId !== "default") {
+        url.searchParams.set("session", sessionId)
+      }
+      return NextResponse.redirect(url)
+    }
+    console.log("[v0] Middleware - Master admin authenticated, allowing access to masterdashboard")
+    return supabaseResponse
+  }
 
   // Master admin routes - only accessible during impersonation or master login
   if (request.nextUrl.pathname.startsWith("/master-admin/")) {
@@ -190,18 +207,6 @@ export async function updateSession(request: NextRequest) {
   }
 
   console.log("[v0] Middleware - User exists:", !!user)
-
-  if (request.nextUrl.pathname.startsWith("/masterdashboard")) {
-    if (!isMasterAdminImpersonating && user) {
-      console.log("[v0] Middleware - Blocking regular user from masterdashboard, redirecting to admin")
-      const url = request.nextUrl.clone()
-      url.pathname = "/admin"
-      if (sessionId !== "default") {
-        url.searchParams.set("session", sessionId)
-      }
-      return NextResponse.redirect(url)
-    }
-  }
 
   if (
     request.nextUrl.pathname !== "/" &&

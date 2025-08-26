@@ -38,14 +38,10 @@ export default function MasterLoginPage() {
         return
       }
 
-      // Set authentication cookies and localStorage
-      localStorage.setItem("masterAdminAuth", "true")
-      localStorage.setItem("masterAdminEmail", email)
-      localStorage.setItem("userType", data.userType) // 'master_admin' or 'superuser'
-
-      document.cookie = `masterAdminImpersonation=true; path=/; max-age=86400`
-      document.cookie = `masterAdminEmail=${email}; path=/; max-age=86400`
-      document.cookie = `userType=${data.userType}; path=/; max-age=86400`
+      document.cookie = `masterAdminImpersonation=true; path=/; max-age=86400; SameSite=Lax`
+      document.cookie = `masterAdminEmail=${email}; path=/; max-age=86400; SameSite=Lax`
+      document.cookie = `userType=${data.userType}; path=/; max-age=86400; SameSite=Lax`
+      document.cookie = `masterAdminType=${data.userType}; path=/; max-age=86400; SameSite=Lax`
       console.log("[v0] Set master admin authentication cookies")
 
       await new Promise((resolve) => setTimeout(resolve, 1000))

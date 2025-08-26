@@ -161,28 +161,19 @@ export default function MasterDashboardPage() {
     try {
       console.log("[v0] Starting master admin impersonation for:", userEmail, "Role:", userRole)
 
-      const impersonationData = {
-        masterAdminEmail: "arsami.uk@gmail.com",
-        targetUserEmail: userEmail.trim(),
-        targetUserRole: userRole,
-        impersonatedAt: new Date().toISOString(),
-      }
-
-      sessionStorage.setItem("masterAdminImpersonation", JSON.stringify(impersonationData))
-      console.log("[v0] Set sessionStorage impersonation data")
-
-      // Set cookie for middleware to detect impersonation
-      document.cookie = `masterAdminImpersonation=true; path=/; max-age=3600` // 1 hour expiry
-      document.cookie = `impersonatedUserEmail=${userEmail.trim()}; path=/; max-age=3600`
-      document.cookie = `impersonatedUserRole=${userRole}; path=/; max-age=3600`
-      console.log("[v0] Set impersonation cookies")
+      // Set cookies for middleware to detect impersonation with consistent 24-hour expiry
+      document.cookie = `masterAdminImpersonation=true; path=/; max-age=86400; SameSite=Lax`
+      document.cookie = `impersonatedUserEmail=${userEmail.trim()}; path=/; max-age=86400; SameSite=Lax`
+      document.cookie = `impersonatedUserRole=${userRole}; path=/; max-age=86400; SameSite=Lax`
+      document.cookie = `masterAdminEmail=${localStorage.getItem("masterAdminEmail") || "arsami.uk@gmail.com"}; path=/; max-age=86400; SameSite=Lax`
+      console.log("[v0] Set impersonation cookies with 24-hour expiry")
 
       setTimeout(() => {
         const targetUrl = userRole === "admin" ? `/admin` : `/staff`
         console.log("[v0] Redirecting to:", targetUrl)
         console.log("[v0] Current cookies:", document.cookie)
         window.location.href = targetUrl
-      }, 500) // Increased delay to 500ms to ensure cookies are processed
+      }, 500)
     } catch (error) {
       console.error("Error setting up impersonation:", error)
       alert("Failed to login as user")
@@ -307,8 +298,18 @@ export default function MasterDashboardPage() {
   }
 
   const checkAuthAndLoadData = async () => {
-    const isAuthenticated = localStorage.getItem("masterAdminAuth")
-    const adminEmail = localStorage.getItem("masterAdminEmail")
+    const masterAdminCookie =
+      document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("masterAdminImpersonation="))
+        ?.split("=")[1] === "true"
+
+    const isAuthenticated = masterAdminCookie || localStorage.getItem("masterAdminAuth")
+    const adminEmail =
+      document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("masterAdminEmail="))
+        ?.split("=")[1] || localStorage.getItem("masterAdminEmail")
 
     const isMasterAdmin = adminEmail === "arsami.uk@gmail.com"
     const isSuperuser = !isMasterAdmin && isAuthenticated
@@ -485,6 +486,13 @@ export default function MasterDashboardPage() {
   }, [])
 
   const handleSignOut = async () => {
+    document.cookie = "masterAdminImpersonation=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+    document.cookie = "masterAdminEmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+    document.cookie = "userType=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+    document.cookie = "masterAdminType=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+    document.cookie = "impersonatedUserEmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+    document.cookie = "impersonatedUserRole=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+
     localStorage.removeItem("masterAdminAuth")
     localStorage.removeItem("masterAdminEmail")
     router.push("/masterlogin")
@@ -1795,9 +1803,7 @@ export default function MasterDashboardPage() {
               variant="outline"
               size="sm"
               onClick={() => {
-                localStorage.removeItem("masterAdminAuth")
-                localStorage.removeItem("masterAdminEmail")
-                router.push("/masterlogin")
+                handleSignOut()
               }}
             >
               <LogOut className="w-4 h-4 mr-2" />

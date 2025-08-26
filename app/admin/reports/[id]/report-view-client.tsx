@@ -17,8 +17,26 @@ interface ReportViewClientProps {
 
 export function ReportViewClient({ submission, responses, autoDownload = false }: ReportViewClientProps) {
   const [isGenerating, setIsGenerating] = useState(false)
+  const [organizationName, setOrganizationName] = useState<string>("")
+  const [organizationLogo, setOrganizationLogo] = useState<string>("")
 
   useEffect(() => {
+    const loadOrganizationBranding = async () => {
+      try {
+        const response = await fetch("/api/organization/branding")
+        if (response.ok) {
+          const data = await response.json()
+          setOrganizationName(data.name || "Your Organization")
+          setOrganizationLogo(data.logo_url || "")
+        }
+      } catch (error) {
+        console.log("[v0] Could not load organization branding, using defaults")
+        setOrganizationName("Your Organization")
+      }
+    }
+
+    loadOrganizationBranding()
+
     if (autoDownload) {
       setTimeout(() => {
         downloadPDF()
@@ -35,7 +53,6 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
       node = walker.nextNode()
     }
 
-    // Define fallback colors for common Tailwind oklch colors
     const oklchFallbacks: { [key: string]: string } = {
       "oklch(0.98 0.013 106.89)": "#fefefe", // white
       "oklch(0.15 0.02 286.62)": "#1f2937", // gray-800
@@ -60,16 +77,13 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
     elements.forEach((el) => {
       const computedStyle = window.getComputedStyle(el)
 
-      // Helper function to convert oklch to fallback color
       const convertColor = (colorValue: string): string => {
         if (!colorValue || !colorValue.includes("oklch")) return colorValue
 
-        // Try to find exact match first
         if (oklchFallbacks[colorValue]) {
           return oklchFallbacks[colorValue]
         }
 
-        // Try to create a temporary element to get computed color
         try {
           const tempDiv = document.createElement("div")
           tempDiv.style.color = colorValue
@@ -77,7 +91,6 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
           const computedColor = window.getComputedStyle(tempDiv).color
           document.body.removeChild(tempDiv)
 
-          // If we got an rgb value, return it
           if (computedColor && computedColor.startsWith("rgb")) {
             return computedColor
           }
@@ -85,7 +98,6 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
           console.warn("[v0] Could not convert color:", colorValue)
         }
 
-        // Fallback to a safe color
         return colorValue.includes("0.9")
           ? "#f9fafb"
           : colorValue.includes("0.8")
@@ -95,7 +107,6 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
               : "#6b7280"
       }
 
-      // Convert background colors
       if (computedStyle.backgroundColor) {
         const convertedBg = convertColor(computedStyle.backgroundColor)
         if (convertedBg !== computedStyle.backgroundColor) {
@@ -103,7 +114,6 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
         }
       }
 
-      // Convert text colors
       if (computedStyle.color) {
         const convertedColor = convertColor(computedStyle.color)
         if (convertedColor !== computedStyle.color) {
@@ -111,7 +121,6 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
         }
       }
 
-      // Convert border colors
       if (computedStyle.borderColor) {
         const convertedBorder = convertColor(computedStyle.borderColor)
         if (convertedBorder !== computedStyle.borderColor) {
@@ -158,8 +167,8 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
       const imgData = canvas.toDataURL("image/png")
       const pdf = new jsPDF("p", "mm", "a4")
 
-      const imgWidth = 210 // A4 width in mm
-      const pageHeight = 295 // A4 height in mm
+      const imgWidth = 210
+      const pageHeight = 295
       const imgHeight = (canvas.height * imgWidth) / canvas.width
       let heightLeft = imgHeight
 
@@ -209,10 +218,30 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
       <div className="container mx-auto p-8 max-w-4xl">
         <div id="report-content" className="bg-white shadow-lg print:shadow-none print:max-w-none print:p-0">
           <div className="p-8 print:p-6">
+            <div className="text-center mb-8 pb-6 border-b-2 border-gray-200">
+              <div className="flex items-center justify-center gap-4 mb-4">
+                {organizationLogo ? (
+                  <img
+                    src={organizationLogo || "/placeholder.svg"}
+                    alt="Company Logo"
+                    className="h-16 w-16 object-contain"
+                  />
+                ) : (
+                  <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
+                    {organizationName.charAt(0)}
+                  </div>
+                )}
+                <div className="text-left">
+                  <h1 className="text-2xl font-bold text-gray-900">{organizationName}</h1>
+                  <p className="text-sm text-gray-600">Professional Compliance Report</p>
+                </div>
+              </div>
+            </div>
+
             <div className="text-center mb-6">
-              <h1 className="text-2xl font-bold text-gray-900 mb-1">
+              <h2 className="text-xl font-bold text-gray-900 mb-1">
                 {submission.checklist_templates?.name || "Report"}
-              </h1>
+              </h2>
               <p className="text-gray-600 text-base">
                 {submission.checklist_templates?.description || "Detailed Report"}
               </p>
@@ -287,7 +316,7 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
                 <p className="text-xs">
                   Report generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
                 </p>
-                <p className="text-xs mt-1">This is an official report from the MyDayLogs system</p>
+                <p className="text-xs mt-1">This is an official report from {organizationName}</p>
               </div>
             </div>
           </div>

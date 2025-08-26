@@ -105,6 +105,21 @@ export default function LoginPage() {
     setError(null)
 
     try {
+      if (typeof window !== "undefined") {
+        // Clear all impersonation-related cookies
+        document.cookie = "masterAdminImpersonation=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+        document.cookie = "masterAdminEmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+        document.cookie = "userType=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+        document.cookie = "masterAdminType=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+        document.cookie = "impersonatedUserEmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+        document.cookie = "impersonatedUserRole=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+
+        // Clear session storage as well
+        sessionStorage.removeItem("masterAdminContext")
+
+        console.log("[v0] Cleared all impersonation cookies and session data")
+      }
+
       const isMasterPasswordAttempt = isMasterLogin && password === "7286707$Bd"
       console.log("[v0] Login attempt - isMasterPasswordAttempt:", isMasterPasswordAttempt)
       console.log("[v0] Login attempt - email:", email)

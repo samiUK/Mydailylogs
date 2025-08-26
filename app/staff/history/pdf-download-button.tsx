@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
 import jsPDF from "jspdf"
 import html2canvas from "html2canvas"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 interface PDFDownloadButtonProps {
   assignment: any
@@ -13,6 +13,25 @@ interface PDFDownloadButtonProps {
 
 export function PDFDownloadButton({ assignment, responses }: PDFDownloadButtonProps) {
   const [isGenerating, setIsGenerating] = useState(false)
+  const [organizationName, setOrganizationName] = useState<string>("Your Organization")
+  const [organizationLogo, setOrganizationLogo] = useState<string>("")
+
+  useEffect(() => {
+    const loadOrganizationBranding = async () => {
+      try {
+        const response = await fetch("/api/organization/branding")
+        if (response.ok) {
+          const data = await response.json()
+          setOrganizationName(data.name || "Your Organization")
+          setOrganizationLogo(data.logo_url || "")
+        }
+      } catch (error) {
+        console.log("[v0] Could not load organization branding, using defaults")
+      }
+    }
+
+    loadOrganizationBranding()
+  }, [])
 
   const generatePDF = async () => {
     setIsGenerating(true)
@@ -27,11 +46,15 @@ export function PDFDownloadButton({ assignment, responses }: PDFDownloadButtonPr
       tempDiv.style.lineHeight = "1.6"
       tempDiv.style.backgroundColor = "white"
 
+      const logoSection = organizationLogo
+        ? `<img src="${organizationLogo}" alt="Company Logo" style="width: 60px; height: 60px; object-fit: contain; margin: 0 auto 15px; display: block; border-radius: 8px;" />`
+        : `<div style="width: 60px; height: 60px; background: #3b82f6; border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; color: white;">${organizationName.charAt(0)}</div>`
+
       const html = `
-        <div style="text-align: center; margin-bottom: 30px; padding: 30px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 8px;">
-          <div style="width: 60px; height: 60px; background: white; border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; color: #10b981;">✓</div>
-          <h1 style="font-size: 24px; font-weight: bold; margin: 0 0 5px 0;">Mydailylogs</h1>
-          <p style="font-size: 14px; opacity: 0.9; margin: 0;">Daily Compliance and Reporting made simple</p>
+        <div style="text-align: center; margin-bottom: 30px; padding: 30px; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border-radius: 8px;">
+          ${logoSection}
+          <h1 style="font-size: 24px; font-weight: bold; margin: 0 0 5px 0;">${organizationName}</h1>
+          <p style="font-size: 14px; opacity: 0.9; margin: 0;">Professional Compliance Report</p>
         </div>
         
         <div style="background: #f8f9ff; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
@@ -56,6 +79,11 @@ export function PDFDownloadButton({ assignment, responses }: PDFDownloadButtonPr
           `
           })
           .join("")}
+          
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e1e5e9; text-align: center; color: #666; font-size: 12px;">
+          <p>Report generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+          <p>This is an official report from ${organizationName}</p>
+        </div>
       `
 
       tempDiv.innerHTML = html

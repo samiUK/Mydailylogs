@@ -152,6 +152,12 @@ export default function MasterDashboardPage() {
   const [editingSuperuser, setEditingSuperuser] = useState<Superuser | null>(null)
   const [userType, setUserType] = useState<string>("Master Admin")
 
+  const [impersonatedOrgBranding, setImpersonatedOrgBranding] = useState<{
+    name: string
+    logoUrl: string | null
+    primaryColor: string
+  } | null>(null)
+
   const loginAsUser = async (userEmail: string, userRole: string) => {
     if (!userEmail.trim()) {
       alert("Please enter a valid email address")
@@ -160,6 +166,28 @@ export default function MasterDashboardPage() {
 
     try {
       console.log("[v0] Starting master admin impersonation for:", userEmail, "Role:", userRole)
+
+      const supabase = createClient()
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select(`
+          organization_name,
+          organizations!inner(
+            name,
+            logo_url,
+            primary_color
+          )
+        `)
+        .eq("email", userEmail.trim())
+        .single()
+
+      if (profileData?.organizations) {
+        setImpersonatedOrgBranding({
+          name: profileData.organizations.name || profileData.organization_name || "Organization",
+          logoUrl: profileData.organizations.logo_url,
+          primaryColor: profileData.organizations.primary_color || "#dc2626",
+        })
+      }
 
       // Set cookies for middleware to detect impersonation with consistent 24-hour expiry
       document.cookie = `masterAdminImpersonation=true; path=/; max-age=86400; SameSite=Lax`
@@ -184,6 +212,7 @@ export default function MasterDashboardPage() {
     // Clear local state
     setImpersonatedUser(null)
     setImpersonatedUserData(null)
+    setImpersonatedOrgBranding(null) // Clear organization branding
     setActiveTab("overview")
 
     // Clear all impersonation cookies
@@ -834,13 +863,40 @@ export default function MasterDashboardPage() {
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
-              <Users className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">MyDayLogs Master Dashboard</h1>
-              <p className="text-sm text-gray-500">System monitoring and customer support</p>
-            </div>
+            {impersonatedOrgBranding ? (
+              <>
+                {impersonatedOrgBranding.logoUrl ? (
+                  <div className="w-8 h-8 rounded-lg overflow-hidden bg-white flex items-center justify-center shadow-sm">
+                    <img
+                      src={impersonatedOrgBranding.logoUrl || "/placeholder.svg"}
+                      alt="Organization Logo"
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center"
+                    style={{ backgroundColor: impersonatedOrgBranding.primaryColor }}
+                  >
+                    <Users className="w-5 h-5 text-white" />
+                  </div>
+                )}
+                <div>
+                  <h1 className="text-xl font-semibold text-gray-900">{impersonatedOrgBranding.name}</h1>
+                  <p className="text-sm text-gray-500">Impersonating organization view</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center">
+                  <Users className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-semibold text-gray-900">System Dashboard</h1>
+                  <p className="text-sm text-gray-500">Master admin control panel</p>
+                </div>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-4">
             <Badge variant="destructive">Master Admin</Badge>

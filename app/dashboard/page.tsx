@@ -59,7 +59,7 @@ export default async function DashboardPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Welcome back, {profile?.full_name || user.email}</h1>
-          <p className="text-gray-600 mt-2">Mydailylogs Dashboard</p>
+          <p className="text-gray-600 mt-2">Dashboard</p> {/* Removed hardcoded Mydailylogs text */}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -82,7 +82,8 @@ export default async function DashboardPage() {
             <h2 className="text-xl font-semibold text-gray-900">Getting Started</h2>
           </div>
           <div className="p-6">
-            <p className="text-gray-600 mb-4">Welcome to Mydailylogs! Here&apos;s what you can do next:</p>
+            <p className="text-gray-600 mb-4">Welcome to your dashboard! Here&apos;s what you can do next:</p>{" "}
+            {/* Removed hardcoded Mydailylogs text */}
             <ul className="space-y-2 text-gray-600">
               <li>• Create your first checklist template</li>
               <li>• Invite team members to your organization</li>

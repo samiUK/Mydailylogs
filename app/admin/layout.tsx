@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { BrandingProvider } from "@/components/branding-provider"
 import { AdminNavigation } from "@/components/admin-navigation"
-import { Footer } from "@/components/footer"
 import { FeedbackModal } from "@/components/feedback-modal"
 import { FeedbackBanner } from "@/components/feedback-banner"
 import { cookies } from "next/headers"
@@ -69,7 +68,7 @@ async function AdminLayout({ children }: { children: React.ReactNode }) {
     .single()
 
   const brandingData = {
-    organizationName: organization?.name || "Mydailylogs",
+    organizationName: organization?.name || profile.organization_name || "Your Organization", // Removed hardcoded Mydailylogs fallback
     logoUrl: organization?.logo_url || null,
     primaryColor: organization?.primary_color || "#059669",
     secondaryColor: organization?.secondary_color || "#6B7280",
@@ -85,12 +84,17 @@ async function AdminLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <BrandingProvider initialBranding={brandingData}>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 flex flex-col">
         <FeedbackBanner />
         <AdminNavigation user={profile} onSignOut={handleSignOut} />
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">{children}</main>
+        <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">{children}</main>
 
-        <Footer />
+        <footer className="mt-auto bg-white border-t border-gray-200 py-4">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <p className="text-center text-sm text-gray-500">© 2025 Mydaylogs. All rights reserved.</p>
+          </div>
+        </footer>
+
         <FeedbackModal autoTrigger={true} />
       </div>
     </BrandingProvider>

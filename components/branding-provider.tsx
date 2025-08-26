@@ -15,12 +15,12 @@ interface BrandingContextType {
 }
 
 const BrandingContext = createContext<BrandingContextType>({
-  organizationName: "MyDayLogs",
+  organizationName: "Your Organization",
   logoUrl: null,
   primaryColor: "#059669",
   secondaryColor: "#6B7280",
   hasCustomBranding: false,
-  isLoading: true,
+  isLoading: false, // Set default loading to false for better performance
   refreshBranding: async () => {},
 })
 
@@ -31,6 +31,9 @@ interface BrandingProviderProps {
   initialBranding?: Partial<BrandingContextType>
 }
 
+const brandingCache = new Map<string, { data: BrandingContextType; timestamp: number }>()
+const CACHE_DURATION = 10 * 60 * 1000 // 10 minutes
+
 export function BrandingProvider({ children, initialBranding }: BrandingProviderProps) {
   const [branding, setBranding] = useState<BrandingContextType>({
     organizationName: initialBranding?.organizationName || "Your Organization",
@@ -38,7 +41,7 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
     primaryColor: initialBranding?.primaryColor || "#059669",
     secondaryColor: initialBranding?.secondaryColor || "#6B7280",
     hasCustomBranding: initialBranding?.hasCustomBranding || true,
-    isLoading: false,
+    isLoading: false, // Start with false loading state
     refreshBranding: async () => {},
   })
 
@@ -46,59 +49,55 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
     const supabase = createClient()
 
     try {
+      const cacheKey = document.cookie.includes("masterAdminImpersonation=true")
+        ? `impersonated_${document.cookie.split("impersonatedUserEmail=")[1]?.split(";")[0] || "unknown"}`
+        : "current_user"
+
+      const cached = brandingCache.get(cacheKey)
+      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        setBranding(cached.data)
+        return
+      }
+
       // Check for impersonation context from cookies only
       const impersonationCookie = document.cookie.split("; ").find((row) => row.startsWith("masterAdminImpersonation="))
-
       const isImpersonating = impersonationCookie?.split("=")[1] === "true"
 
       if (isImpersonating) {
         const impersonatedEmailCookie = document.cookie
           .split("; ")
           .find((row) => row.startsWith("impersonatedUserEmail="))
-
         const impersonatedEmail = impersonatedEmailCookie?.split("=")[1]
 
         if (impersonatedEmail) {
           const { data: profile } = await supabase
             .from("profiles")
-            .select("organization_id, organization_name")
+            .select(`
+              organization_id, 
+              organization_name,
+              organizations!inner(logo_url, primary_color, secondary_color)
+            `)
             .eq("email", decodeURIComponent(impersonatedEmail))
             .single()
 
           if (profile) {
-            setBranding({
+            const newBranding = {
               organizationName: profile.organization_name || "Your Organization",
-              logoUrl: null,
-              primaryColor: "#059669",
-              secondaryColor: "#6B7280",
+              logoUrl: profile.organizations?.logo_url || null,
+              primaryColor: profile.organizations?.primary_color || "#059669",
+              secondaryColor: profile.organizations?.secondary_color || "#6B7280",
               hasCustomBranding: true,
               isLoading: false,
               refreshBranding,
-            })
-
-            // Try to get organization data if organization_id exists
-            if (profile.organization_id) {
-              const { data: organizationData } = await supabase
-                .from("organizations")
-                .select("logo_url, primary_color, secondary_color")
-                .eq("id", profile.organization_id)
-                .single()
-
-              if (organizationData) {
-                setBranding((prev) => ({
-                  ...prev,
-                  logoUrl: organizationData.logo_url,
-                  primaryColor: organizationData.primary_color || "#059669",
-                  secondaryColor: organizationData.secondary_color || "#6B7280",
-                }))
-              }
             }
+
+            setBranding(newBranding)
+            brandingCache.set(cacheKey, { data: newBranding, timestamp: Date.now() })
           }
         }
         return
       }
 
-      // Regular user authentication
       const {
         data: { user },
       } = await supabase.auth.getUser()
@@ -106,41 +105,29 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("organization_id, organization_name")
+        .select(`
+          organization_id, 
+          organization_name,
+          organizations(logo_url, primary_color, secondary_color)
+        `)
         .eq("id", user.id)
         .single()
 
       if (profile) {
-        setBranding({
+        const newBranding = {
           organizationName: profile.organization_name || "Your Organization",
-          logoUrl: null,
-          primaryColor: "#059669",
-          secondaryColor: "#6B7280",
+          logoUrl: profile.organizations?.logo_url || null,
+          primaryColor: profile.organizations?.primary_color || "#059669",
+          secondaryColor: profile.organizations?.secondary_color || "#6B7280",
           hasCustomBranding: true,
           isLoading: false,
           refreshBranding,
-        })
-
-        // Try to get organization data if organization_id exists
-        if (profile.organization_id) {
-          const { data: organizationData } = await supabase
-            .from("organizations")
-            .select("logo_url, primary_color, secondary_color")
-            .eq("id", profile.organization_id)
-            .single()
-
-          if (organizationData) {
-            setBranding((prev) => ({
-              ...prev,
-              logoUrl: organizationData.logo_url,
-              primaryColor: organizationData.primary_color || "#059669",
-              secondaryColor: organizationData.secondary_color || "#6B7280",
-            }))
-          }
         }
+
+        setBranding(newBranding)
+        brandingCache.set(cacheKey, { data: newBranding, timestamp: Date.now() })
       }
     } catch (error) {
-      console.error("[v0] Error refreshing branding:", error)
       setBranding((prev) => ({
         ...prev,
         isLoading: false,

@@ -347,6 +347,21 @@ export default async function HomePage() {
                   </CardDescription>
                 </CardHeader>
               </Card>
+
+              <Card className="relative opacity-75">
+                <div className="absolute top-4 right-4">
+                  <Badge variant="outline" className="text-xs">
+                    Coming Soon
+                  </Badge>
+                </div>
+                <CardHeader>
+                  <Users className="w-8 h-8 text-muted-foreground mb-3" />
+                  <CardTitle className="text-lg">Link Share</CardTitle>
+                  <CardDescription className="text-sm">
+                    Share forms with external contractors and vendors without requiring account creation or team access
+                  </CardDescription>
+                </CardHeader>
+              </Card>
             </div>
           </div>
         </div>

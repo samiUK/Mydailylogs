@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import Link from "next/link"
 import { FeedbackBanner } from "@/components/feedback-banner"
+import { getEffectiveClientUser, getImpersonationBannerData, exitImpersonation } from "@/lib/impersonation-utils"
 
 export const dynamic = "force-dynamic"
 
@@ -61,8 +62,7 @@ export default function AdminDashboard() {
 
   const [allNotifications, setAllNotifications] = useState<any[]>([])
 
-  const [isImpersonating, setIsImpersonating] = useState(false)
-  const [impersonationData, setImpersonationData] = useState<any>(null)
+  const [impersonationBanner, setImpersonationBanner] = useState<any>(null)
 
   const checkMissedTasks = async () => {
     if (!profile?.organization_id) return
@@ -314,84 +314,20 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const loadUser = async () => {
-      const supabase = createClient()
-
       try {
-        const masterAdminImpersonation = document.cookie
-          .split("; ")
-          .find((row) => row.startsWith("masterAdminImpersonation="))
-          ?.split("=")[1]
+        const effectiveUser = await getEffectiveClientUser()
 
-        const impersonatedUserEmail = document.cookie
-          .split("; ")
-          .find((row) => row.startsWith("impersonatedUserEmail="))
-          ?.split("=")[1]
+        if (effectiveUser) {
+          setUser({ email: effectiveUser.email, id: effectiveUser.id })
+          setProfile(effectiveUser.profile)
 
-        // If master admin is impersonating, use the impersonated user's data
-        if (masterAdminImpersonation === "true" && impersonatedUserEmail) {
-          console.log("[v0] Master admin impersonation detected, loading impersonated user:", impersonatedUserEmail)
-
-          const { data: targetProfile } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("email", decodeURIComponent(impersonatedUserEmail))
-            .single()
-
-          if (targetProfile) {
-            setUser({ email: decodeURIComponent(impersonatedUserEmail), id: targetProfile.id })
-            setProfile(targetProfile)
-            setIsImpersonating(true)
-            setImpersonationData({ targetUserEmail: decodeURIComponent(impersonatedUserEmail) })
-            return
-          }
-        }
-
-        // Check sessionStorage for impersonation context (fallback)
-        const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
-        if (impersonationContext) {
-          const impersonationData = JSON.parse(impersonationContext)
-          setIsImpersonating(true)
-          setImpersonationData(impersonationData)
-
-          const { data: targetProfile } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("email", impersonationData.targetUserEmail)
-            .single()
-
-          if (targetProfile) {
-            setUser({ email: impersonationData.targetUserEmail, id: targetProfile.id })
-            setProfile(targetProfile)
-            return
-          }
-        }
-
-        // Normal user authentication flow
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser()
-
-        if (userError || !user) {
+          const bannerData = getImpersonationBannerData()
+          setImpersonationBanner(bannerData)
+        } else {
           console.log("[v0] Auth session missing!")
           window.location.href = "/auth/login"
           return
         }
-
-        setUser(user)
-
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id)
-          .single()
-
-        if (profileError) {
-          console.error("Error getting profile:", profileError)
-          return
-        }
-
-        setProfile(profile)
       } catch (error) {
         console.error("Error loading user data:", error)
         window.location.href = "/auth/login"
@@ -535,20 +471,17 @@ export default function AdminDashboard() {
     <div className="space-y-8">
       <FeedbackBanner />
 
-      {isImpersonating && impersonationData && (
+      {impersonationBanner?.show && (
         <div className="bg-orange-100 border-l-4 border-orange-500 px-3 py-2 rounded-md text-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-orange-600" />
-              <span className="text-orange-700">Viewing as {impersonationData.targetUserEmail}</span>
+              <span className="text-orange-700">Viewing as {impersonationBanner.userEmail}</span>
             </div>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => {
-                sessionStorage.removeItem("masterAdminImpersonation")
-                window.location.href = "/masterdashboard"
-              }}
+              onClick={() => exitImpersonation()}
               className="text-orange-700 hover:text-orange-900 h-6 px-2 text-xs"
             >
               Exit
@@ -880,51 +813,55 @@ export default function AdminDashboard() {
                 <div className="text-sm text-muted-foreground text-center py-4">No new notifications</div>
               ) : (
                 allNotifications.map((notification) => (
-                  <div
+                  <Link
                     key={notification.id}
-                    className={`flex items-start justify-between p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
+                    href="/admin/dashboard-analytics"
+                    className={`block p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
                       notification.type === "submission" ? "bg-green-50 border-green-200" : "bg-blue-50 border-blue-200"
                     }`}
                     onClick={() => markNotificationAsRead(notification.id)}
                   >
-                    <div className="flex items-start gap-3 flex-1">
-                      {notification.type === "submission" ? (
-                        <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                      ) : (
-                        <Bell className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">{notification.title}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{notification.message}</p>
-                        <p className="text-xs text-blue-600 font-medium">
-                          {new Date(notification.timestamp).toLocaleString()}
-                        </p>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3 flex-1">
+                        {notification.type === "submission" ? (
+                          <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                        ) : (
+                          <Bell className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground">{notification.title}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{notification.message}</p>
+                          <p className="text-xs text-blue-600 font-medium">
+                            {new Date(notification.timestamp).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className={
+                            notification.type === "submission"
+                              ? "bg-green-100 text-green-800 border-green-300"
+                              : "bg-blue-100 text-blue-800 border-blue-300"
+                          }
+                        >
+                          {notification.type === "submission" ? "Completed" : "Assigned"}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            e.preventDefault()
+                            markNotificationAsRead(notification.id)
+                          }}
+                          className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600"
+                        >
+                          ×
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant="outline"
-                        className={
-                          notification.type === "submission"
-                            ? "bg-green-100 text-green-800 border-green-300"
-                            : "bg-blue-100 text-blue-800 border-blue-300"
-                        }
-                      >
-                        {notification.type === "submission" ? "Completed" : "Assigned"}
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          markNotificationAsRead(notification.id)
-                        }}
-                        className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600"
-                      >
-                        ×
-                      </Button>
-                    </div>
-                  </div>
+                  </Link>
                 ))
               )}
             </div>

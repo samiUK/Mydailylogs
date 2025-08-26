@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Clock, Bell, AlertTriangle, ArrowLeft, History } from "lucide-react"
 import { useState, useEffect } from "react"
+import { getEffectiveClientUser, exitImpersonation } from "@/lib/impersonation-utils"
 
 export default function StaffDashboard() {
   const [user, setUser] = useState<any>(null)
@@ -17,67 +18,115 @@ export default function StaffDashboard() {
   const [completedReports, setCompletedReports] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  const [isImpersonating, setIsImpersonating] = useState(false)
-  const [impersonationData, setImpersonationData] = useState<any>(null)
+  const [impersonationBanner, setImpersonationBanner] = useState<any>(null)
 
   useEffect(() => {
     const loadUser = async () => {
       const supabase = createClient()
 
       try {
-        const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
+        const effectiveUser = await getEffectiveClientUser()
 
-        if (impersonationContext) {
-          const impersonationData = JSON.parse(impersonationContext)
-
-          // Always honor valid impersonation context for master admin
-          setIsImpersonating(true)
-          setImpersonationData(impersonationData)
-
-          const { data: targetProfile } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("email", impersonationData.targetUserEmail)
-            .single()
-
-          if (targetProfile) {
-            setUser({ email: impersonationData.targetUserEmail, id: targetProfile.id })
-            setProfile(targetProfile)
-            return
-          }
-        }
-
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser()
-
-        if (userError || !user) {
-          console.error("Error getting user:", userError)
+        if (effectiveUser) {
+          setUser({ email: effectiveUser.email, id: effectiveUser.id })
+          setProfile(effectiveUser.profile)
+        } else {
+          console.error("Error getting user")
           return
         }
 
-        setUser(user)
+        const { data: assignedTemplatesData, error: assignedError } = await supabase
+          .from("template_assignments")
+          .select(`
+            *,
+            checklist_templates:template_id(
+              id,
+              name,
+              description,
+              frequency,
+              schedule_type,
+              deadline_date,
+              specific_date,
+              schedule_time
+            )
+          `)
+          .eq("assigned_to", user.id)
+          .eq("is_active", true)
+          .order("assigned_at", { ascending: false })
 
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
+        if (assignedError) {
+          console.error("[v0] Error fetching assigned templates:", assignedError)
+        }
+
+        console.log("[v0] Raw assigned templates query result:", {
+          data: assignedTemplatesData,
+          error: assignedError,
+          userIdUsedInQuery: user.id,
+        })
+
+        const { data: allAssignmentsData, error: allAssignmentsError } = await supabase
+          .from("template_assignments")
           .select("*")
-          .eq("id", user.id)
-          .single()
+          .eq("assigned_to", user.id)
 
-        if (profileError) {
-          console.error("Error getting profile:", profileError)
-          return
-        }
+        console.log("[v0] All assignments for user (any status):", {
+          data: allAssignmentsData,
+          error: allAssignmentsError,
+          count: allAssignmentsData?.length || 0,
+        })
 
-        setProfile(profile)
+        const { data: completedReportsData } = await supabase
+          .from("template_assignments")
+          .select(`
+            *,
+            checklist_templates:template_id(
+              id,
+              name,
+              description
+            ),
+            profiles:assigned_to(
+              full_name,
+              email
+            )
+          `)
+          .eq("assigned_to", user.id)
+          .eq("status", "completed")
+          .not("completed_at", "is", null)
+          .order("completed_at", { ascending: false })
+          .limit(10)
+
+        const { data: notificationsData } = await supabase
+          .from("notifications")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("is_read", false)
+          .eq("type", "missed_task")
+          .order("created_at", { ascending: false })
+
+        setAssignedTemplates(assignedTemplatesData || [])
+        setCompletedReports(completedReportsData || [])
+        setNotifications(notificationsData || [])
+
+        console.log(
+          "[v0] All assigned templates:",
+          assignedTemplatesData?.map((a) => ({
+            name: a.checklist_templates?.name,
+            status: a.status,
+            completed_at: a.completed_at,
+            assigned_at: a.assigned_at,
+          })),
+        )
+
+        console.log("[v0] Completed reports:", completedReportsData?.length || 0)
       } catch (error) {
-        console.error("Error loading user data:", error)
+        console.error("Error fetching dashboard data:", error)
+      } finally {
+        setLoading(false)
       }
     }
 
     loadUser()
-  }, [])
+  }, [user])
 
   useEffect(() => {
     const loadData = async () => {
@@ -514,21 +563,17 @@ export default function StaffDashboard() {
         </div>
       )}
 
-      {isImpersonating && impersonationData && (
+      {impersonationBanner?.show && (
         <div className="bg-orange-50 border border-orange-200 text-orange-800 px-3 py-2 rounded-md text-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4" />
-              <span className="text-xs">Viewing as {impersonationData.targetUserEmail}</span>
+              <span className="text-xs">Viewing as {impersonationBanner.userEmail}</span>
             </div>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => {
-                sessionStorage.removeItem("masterAdminImpersonation")
-                document.cookie = "masterAdminImpersonation=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-                window.location.href = "/masterdashboard"
-              }}
+              onClick={() => exitImpersonation()}
               className="h-6 px-2 text-xs text-orange-700 hover:bg-orange-100"
             >
               <ArrowLeft className="w-3 h-3 mr-1" />

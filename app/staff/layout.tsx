@@ -4,7 +4,6 @@ import { redirect } from "next/navigation"
 import { BrandingProvider } from "@/components/branding-provider"
 import { StaffNavigation } from "@/components/staff-navigation"
 import { cookies } from "next/headers"
-import { Footer } from "@/components/footer"
 import { FeedbackModal } from "@/components/feedback-modal"
 import { FeedbackBanner } from "@/components/feedback-banner"
 
@@ -83,11 +82,17 @@ async function StaffLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <BrandingProvider>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 flex flex-col">
         <FeedbackBanner />
         <StaffNavigation user={profile} onSignOut={handleSignOut} subscriptionStatus={subscription?.status || null} />
-        <main className="w-full max-w-4xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">{children}</main>
-        <Footer />
+        <main className="flex-1 w-full max-w-4xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">{children}</main>
+
+        <footer className="mt-auto bg-white border-t border-gray-200 py-4">
+          <div className="max-w-4xl mx-auto px-3 sm:px-4 lg:px-6">
+            <p className="text-center text-sm text-gray-500">© 2025 Mydaylogs. All rights reserved.</p>
+          </div>
+        </footer>
+
         <FeedbackModal autoTrigger={true} />
       </div>
     </BrandingProvider>

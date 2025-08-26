@@ -17,8 +17,26 @@ interface ReportViewClientProps {
 
 export function ReportViewClient({ submission, responses, autoDownload = false }: ReportViewClientProps) {
   const [isGenerating, setIsGenerating] = useState(false)
+  const [organizationName, setOrganizationName] = useState<string>("")
+  const [organizationLogo, setOrganizationLogo] = useState<string>("")
 
   useEffect(() => {
+    const loadOrganizationBranding = async () => {
+      try {
+        const response = await fetch("/api/organization/branding")
+        if (response.ok) {
+          const data = await response.json()
+          setOrganizationName(data.name || "Your Organization")
+          setOrganizationLogo(data.logo_url || "")
+        }
+      } catch (error) {
+        console.log("[v0] Could not load organization branding, using defaults")
+        setOrganizationName("Your Organization")
+      }
+    }
+
+    loadOrganizationBranding()
+
     if (autoDownload) {
       setTimeout(() => {
         downloadPDF()
@@ -225,10 +243,30 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
       <div className="container mx-auto p-8 max-w-4xl">
         <div id="report-content" className="bg-white shadow-lg print:shadow-none print:max-w-none print:p-0">
           <div className="p-8 print:p-6">
+            <div className="text-center mb-8 pb-6 border-b-2 border-gray-200">
+              <div className="flex items-center justify-center gap-4 mb-4">
+                {organizationLogo ? (
+                  <img
+                    src={organizationLogo || "/placeholder.svg"}
+                    alt="Company Logo"
+                    className="h-16 w-16 object-contain"
+                  />
+                ) : (
+                  <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
+                    {organizationName.charAt(0)}
+                  </div>
+                )}
+                <div className="text-left">
+                  <h1 className="text-2xl font-bold text-gray-900">{organizationName}</h1>
+                  <p className="text-sm text-gray-600">Professional Compliance Report</p>
+                </div>
+              </div>
+            </div>
+
             <div className="text-center mb-6">
-              <h1 className="text-2xl font-bold text-gray-900 mb-1">
+              <h2 className="text-xl font-bold text-gray-900 mb-1">
                 {submission.checklist_templates?.name || "Report"}
-              </h1>
+              </h2>
               <p className="text-gray-600 text-base">
                 {submission.checklist_templates?.description || "Detailed Report"}
               </p>
@@ -303,7 +341,7 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
                 <p className="text-xs">
                   Report generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
                 </p>
-                <p className="text-xs mt-1">This is an official report from the MyDayLogs system</p>
+                <p className="text-xs mt-1">This is an official report from {organizationName}</p>
               </div>
             </div>
           </div>

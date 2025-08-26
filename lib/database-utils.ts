@@ -16,9 +16,8 @@ export class DatabaseError extends Error {
   }
 }
 
-// Profile cache to reduce repetitive queries
 const profileCache = new Map<string, { data: any; timestamp: number }>()
-const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+const CACHE_DURATION = 15 * 60 * 1000 // 15 minutes for better performance
 
 export async function getUserProfile(userId: string, useCache = true): Promise<DatabaseResult<any>> {
   try {
@@ -34,7 +33,6 @@ export async function getUserProfile(userId: string, useCache = true): Promise<D
     const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
 
     if (error) {
-      console.error("[v0] Database error fetching profile:", error)
       return { data: null, error: error.message, loading: false }
     }
 
@@ -45,7 +43,6 @@ export async function getUserProfile(userId: string, useCache = true): Promise<D
 
     return { data, error: null, loading: false }
   } catch (error) {
-    console.error("[v0] Exception in getUserProfile:", error)
     return { data: null, error: "Failed to fetch user profile", loading: false }
   }
 }
@@ -58,18 +55,15 @@ export async function executeQuery<T>(
     const { data, error } = await queryFn()
 
     if (error) {
-      console.error("[v0] Database error:", error)
       return { data: null, error: error.message || errorMessage, loading: false }
     }
 
     return { data, error: null, loading: false }
   } catch (error) {
-    console.error("[v0] Exception in database query:", error)
     return { data: null, error: errorMessage, loading: false }
   }
 }
 
-// Batch query utility to prevent N+1 problems
 export async function batchQuery<T>(
   queries: Array<() => Promise<{ data: T | null; error: any }>>,
   errorMessage = "Batch query failed",
@@ -93,13 +87,22 @@ export async function batchQuery<T>(
     })
 
     if (errors.length > 0) {
-      console.error("[v0] Batch query errors:", errors)
       return { data, error: errors.join("; "), loading: false }
     }
 
     return { data, error: null, loading: false }
   } catch (error) {
-    console.error("[v0] Exception in batch query:", error)
     return { data: [], error: errorMessage, loading: false }
   }
 }
+
+export function clearExpiredCache() {
+  const now = Date.now()
+  for (const [key, value] of profileCache.entries()) {
+    if (now - value.timestamp > CACHE_DURATION) {
+      profileCache.delete(key)
+    }
+  }
+}
+
+setInterval(clearExpiredCache, 30 * 60 * 1000)

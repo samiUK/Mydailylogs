@@ -111,7 +111,8 @@ export default async function AdminDashboardAnalyticsPage() {
       )
     }
 
-    const [assignments, dailyChecklists] = batchResult.data
+    const assignments = batchResult.data?.[0] || []
+    const dailyChecklists = batchResult.data?.[1] || []
     console.log("[v0] Admin Dashboard Analytics page - Assignments found:", assignments?.length || 0)
     console.log("[v0] Admin Dashboard Analytics page - Daily checklists found:", dailyChecklists?.length || 0)
 

@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
@@ -568,25 +567,38 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
     switch (task.task_type) {
       case "boolean":
         return (
-          <div className="space-y-3">
-            <Select
-              value={currentValue}
-              onValueChange={(value) => {
-                setLocalInputValues((prev) => ({ ...prev, [task.id]: value }))
-                handleTaskResponse(task.id, value)
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select Yes or No" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">Yes</SelectItem>
-                <SelectItem value="false">No</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                type="button"
+                variant={currentValue === "true" ? "default" : "outline"}
+                size="lg"
+                className="h-14 text-lg font-semibold shadow-md border-2"
+                onClick={() => {
+                  setLocalInputValues((prev) => ({ ...prev, [task.id]: "true" }))
+                  handleTaskResponse(task.id, "true")
+                }}
+              >
+                <Check className="w-6 h-6 mr-2" />
+                Yes
+              </Button>
+              <Button
+                type="button"
+                variant={currentValue === "false" ? "default" : "outline"}
+                size="lg"
+                className="h-14 text-lg font-semibold shadow-md border-2"
+                onClick={() => {
+                  setLocalInputValues((prev) => ({ ...prev, [task.id]: "false" }))
+                  handleTaskResponse(task.id, "false")
+                }}
+              >
+                <X className="w-6 h-6 mr-2" />
+                No
+              </Button>
+            </div>
             {currentValue && (
-              <Badge variant={currentValue === "true" ? "default" : "secondary"} className="text-xs">
-                {currentValue === "true" ? "Yes" : "No"}
+              <Badge variant={currentValue === "true" ? "default" : "secondary"} className="text-sm px-3 py-1">
+                {currentValue === "true" ? "✓ Yes" : "✗ No"}
               </Badge>
             )}
           </div>
@@ -595,7 +607,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
       case "numeric":
         const validation = task.validation_rules || {}
         return (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Input
               type="number"
               placeholder={`Enter number${validation.min ? ` (min: ${validation.min})` : ""}${validation.max ? ` (max: ${validation.max})` : ""}`}
@@ -611,11 +623,14 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
                   handleTaskResponse(task.id, currentValue, true)
                 }
               }}
+              className="h-14 text-lg border-2 shadow-md focus:ring-4 focus:ring-blue-200"
             />
             {validation.min && validation.max && (
-              <p className="text-xs text-muted-foreground">
-                Range: {validation.min} - {validation.max}
-              </p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm font-medium text-blue-800">
+                  Valid range: {validation.min} - {validation.max}
+                </p>
+              </div>
             )}
           </div>
         )
@@ -623,7 +638,7 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
       case "text":
         const textValidation = task.validation_rules || {}
         return (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Textarea
               placeholder={`Enter text${textValidation.maxLength ? ` (max ${textValidation.maxLength} characters)` : ""}`}
               value={currentValue}
@@ -633,30 +648,31 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
                 setLocalInputValues((prev) => ({ ...prev, [task.id]: value }))
                 handleTaskResponse(task.id, value, !!value)
               }}
-              rows={3}
+              rows={4}
+              className="text-lg border-2 shadow-md focus:ring-4 focus:ring-blue-200 min-h-[100px]"
             />
             {textValidation.maxLength && (
-              <p className="text-xs text-muted-foreground">
-                {currentValue.length}/{textValidation.maxLength} characters
-              </p>
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <p className="text-sm font-medium text-gray-700">
+                  {currentValue.length}/{textValidation.maxLength} characters
+                </p>
+              </div>
             )}
           </div>
         )
 
       case "photo":
         return (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex items-center justify-center w-full">
               <label
                 htmlFor={`photo-${task.id}`}
-                className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
+                className="flex flex-col items-center justify-center w-full h-40 border-3 border-blue-300 border-dashed rounded-xl cursor-pointer bg-blue-50 hover:bg-blue-100 shadow-lg transition-all duration-200"
               >
-                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                  <Camera className="w-8 h-8 mb-2 text-gray-400" />
-                  <p className="mb-2 text-sm text-gray-500">
-                    <span className="font-semibold">Click to upload photos</span>
-                  </p>
-                  <p className="text-xs text-gray-500">PNG, JPG, JPEG (Auto-compressed to ~15KB)</p>
+                <div className="flex flex-col items-center justify-center pt-6 pb-6">
+                  <Camera className="w-12 h-12 mb-3 text-blue-500" />
+                  <p className="mb-2 text-lg font-semibold text-blue-700">Tap to Take Photo</p>
+                  <p className="text-sm text-blue-600">Photos auto-compressed for faster upload</p>
                 </div>
                 <input
                   id={`photo-${task.id}`}
@@ -671,30 +687,40 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
             </div>
 
             {uploadedFiles[task.id] && uploadedFiles[task.id].length > 0 && (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {uploadedFiles[task.id].map((file, index) => (
-                  <div key={index} className="relative">
+                  <div key={index} className="relative bg-white rounded-lg border-2 border-gray-200 shadow-md">
                     <img
                       src={URL.createObjectURL(file) || "/placeholder.svg"}
                       alt={`Upload ${index + 1}`}
-                      className="w-full h-24 object-cover rounded-lg border"
+                      className="w-full h-32 object-cover rounded-t-lg"
                     />
                     <button
                       type="button"
                       onClick={() => removeFile(task.id, index)}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 shadow-lg"
                     >
-                      <X className="w-3 h-3" />
+                      <X className="w-4 h-4" />
                     </button>
-                    <p className="text-xs text-gray-500 mt-1 truncate">{file.name}</p>
+                    <div className="p-2">
+                      <p className="text-sm font-medium text-gray-700 truncate">{file.name}</p>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
 
-            {uploading[task.id] && <div className="text-sm text-blue-600">Compressing photos...</div>}
+            {uploading[task.id] && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="text-lg font-medium text-blue-700">📸 Processing photos...</div>
+              </div>
+            )}
             {currentValue && (
-              <p className="text-xs text-green-600">Photos uploaded: {currentValue.split(",").length} file(s)</p>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <p className="text-sm font-medium text-green-700">
+                  ✓ {currentValue.split(",").length} photo(s) uploaded
+                </p>
+              </div>
             )}
           </div>
         )
@@ -922,70 +948,72 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
                 const hasValue = !!localInputValues[task.id]
 
                 return (
-                  <Card key={task.id} className={`${isCompleted ? "bg-green-50 border-green-200" : ""} shadow-sm`}>
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start space-x-3">
-                        <div className="mt-1 flex-shrink-0">{getTaskIcon(task.task_type)}</div>
+                  <Card
+                    key={task.id}
+                    className={`${isCompleted ? "bg-green-50 border-green-300 shadow-lg" : "bg-white border-gray-300 shadow-md"} border-2 transition-all duration-200`}
+                  >
+                    <CardHeader className="pb-4">
+                      <div className="flex items-start space-x-4">
+                        <div className="mt-1 flex-shrink-0 p-2 rounded-full bg-gray-100">
+                          {getTaskIcon(task.task_type)}
+                        </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <div className="flex flex-wrap items-center gap-3 mb-2">
                             <CardTitle
-                              className={`text-base md:text-lg ${isCompleted ? "line-through text-muted-foreground" : ""}`}
+                              className={`text-lg md:text-xl font-bold ${isCompleted ? "line-through text-gray-500" : "text-gray-900"}`}
                             >
                               {task.name}
                             </CardTitle>
                             {task.is_required && (
-                              <Badge variant="destructive" className="text-xs">
+                              <Badge variant="destructive" className="text-sm px-3 py-1 font-semibold">
                                 Required
                               </Badge>
                             )}
-                            <Badge variant="outline" className="text-xs">
-                              {task.task_type}
-                            </Badge>
                           </div>
                           <CardDescription
-                            className={`text-sm ${isCompleted ? "line-through text-muted-foreground" : ""}`}
+                            className={`text-base ${isCompleted ? "line-through text-gray-500" : "text-gray-700"}`}
                           >
                             {task.description}
                           </CardDescription>
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-6">
                       <div>{renderTaskInput(task)}</div>
 
-                      <div>
-                        <Label htmlFor={`notes-${task.id}`} className="text-sm font-medium">
-                          Notes (optional)
+                      <div className="space-y-2">
+                        <Label htmlFor={`notes-${task.id}`} className="text-base font-semibold text-gray-900">
+                          Additional Notes (optional)
                         </Label>
                         <Textarea
                           id={`notes-${task.id}`}
                           placeholder="Add any notes or observations..."
                           value={localNotes[task.id] || ""}
                           onChange={(e) => handleTaskNotes(task.id, e.target.value)}
-                          className="mt-1"
-                          rows={2}
+                          className="text-lg border-2 shadow-md focus:ring-4 focus:ring-blue-200 min-h-[80px]"
+                          rows={3}
                         />
                       </div>
 
-                      <div className="flex justify-between items-center pt-2 border-t">
+                      <div className="flex justify-between items-center pt-4 border-t-2 border-gray-200">
                         <div className="flex items-center gap-2">
                           {isCompleted && (
-                            <Badge variant="default" className="text-xs">
-                              <Check className="w-3 h-3 mr-1" />
+                            <Badge variant="default" className="text-sm px-4 py-2 font-semibold bg-green-600">
+                              <Check className="w-4 h-4 mr-2" />
                               Completed
                             </Badge>
                           )}
                         </div>
                         <Button
-                          size="sm"
+                          size="lg"
                           variant={isCompleted ? "outline" : "default"}
                           onClick={() => {
                             console.log("[v0] Mark completed button clicked for task:", task.id)
                             handleMarkCompleted(task.id)
                           }}
-                          className="text-xs"
+                          className="h-12 px-6 text-base font-semibold shadow-md border-2"
                         >
-                          {isCompleted ? "Completed ✓" : "Mark as Completed"}
+                          {isCompleted ? "✓ Completed" : "Mark Complete"}
                         </Button>
                       </div>
                     </CardContent>
@@ -998,13 +1026,24 @@ export default function ChecklistPage({ params }: { params: { id: string } }) {
       </div>
 
       {progress === 100 && (
-        <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t">
-          <Button onClick={handleCompleteChecklist} disabled={isSaving} size="lg" className="flex-1">
-            {isSaving ? "Submitting..." : "Submit Report"}
-          </Button>
-          <Button variant="outline" onClick={() => router.push("/staff")} size="lg" className="flex-1 sm:flex-none">
-            Back to Tasks
-          </Button>
+        <div className="sticky bottom-4 z-10">
+          <Card className="bg-green-50 border-green-300 border-2 shadow-xl">
+            <CardContent className="pt-6">
+              <div className="text-center space-y-4">
+                <div className="text-lg font-semibold text-green-800">
+                  🎉 All tasks completed! Ready to submit your report.
+                </div>
+                <Button
+                  onClick={handleCompleteChecklist}
+                  disabled={isSaving}
+                  size="lg"
+                  className="w-full h-16 text-xl font-bold shadow-lg bg-green-600 hover:bg-green-700"
+                >
+                  {isSaving ? "Submitting Report..." : "Submit Report"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 

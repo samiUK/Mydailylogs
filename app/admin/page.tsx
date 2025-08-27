@@ -403,7 +403,7 @@ export default function AdminDashboard() {
             .or(
               `status.neq.completed,and(status.eq.completed,checklist_templates.schedule_type.in.(daily,weekly,monthly,recurring))`,
             )
-            .order("completed_at", { ascending: false, nullsLast: true })
+            .order("completed_at", { ascending: false, nullsFirst: false })
             .order("assigned_at", { ascending: false })
             .limit(20),
         ])

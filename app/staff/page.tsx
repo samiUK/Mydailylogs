@@ -20,6 +20,25 @@ export default function StaffDashboard() {
 
   const [impersonationBanner, setImpersonationBanner] = useState<any>(null)
 
+  const markNotificationAsRead = async (notificationId: string) => {
+    try {
+      const supabase = createClient()
+
+      // Update the notification in the database to mark as read
+      const { error } = await supabase.from("notifications").update({ is_read: true }).eq("id", notificationId)
+
+      if (error) {
+        console.error("[v0] Error marking notification as read:", error)
+        return
+      }
+
+      // Remove from local state after successful database update
+      setNotifications((prev) => prev.filter((n) => n.id !== notificationId))
+    } catch (error) {
+      console.error("[v0] Error updating notification:", error)
+    }
+  }
+
   useEffect(() => {
     const loadUser = async () => {
       const supabase = createClient()
@@ -343,7 +362,7 @@ export default function StaffDashboard() {
           </h2>
 
           {notifications?.map((notification) => (
-            <Alert key={notification.id}>
+            <Alert key={notification.id} onClick={() => markNotificationAsRead(notification.id)}>
               <Bell className="h-4 w-4" />
               <AlertTitle>Report Reminder</AlertTitle>
               <AlertDescription>{notification.message}</AlertDescription>

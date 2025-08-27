@@ -66,47 +66,60 @@ export default function AdminTemplatesPage() {
       console.log("[v0] Admin Templates page - Master admin impersonating:", isMasterAdminImpersonating)
       console.log("[v0] Admin Templates page - Impersonated user email:", impersonatedUserEmail)
 
-      let user: any = null
+      const supabase = createClient()
+
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser()
+
+      console.log("[v0] Admin Templates page - Authenticated user ID:", authUser?.id)
+
+      if (!authUser) {
+        console.log("[v0] Admin Templates page - No authenticated user found, redirecting to login")
+        window.location.href = "/auth/login"
+        return
+      }
+
+      let user: any = authUser
       let profileData: any = null
 
       if (isMasterAdminImpersonating && impersonatedUserEmail) {
-        // Master admin is impersonating - get the impersonated user's data
-        const supabase = createClient()
-
-        const { data: impersonatedProfile, error: impersonatedError } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("email", impersonatedUserEmail)
+        const { data: masterAdminCheck } = await supabase
+          .from("superusers")
+          .select("email")
+          .eq("email", authUser.email)
+          .eq("is_active", true)
           .single()
 
-        console.log("[v0] Admin Templates page - Impersonated profile error:", impersonatedError)
-        console.log("[v0] Admin Templates page - Impersonated profile found:", impersonatedProfile?.id)
+        if (masterAdminCheck) {
+          const { data: impersonatedProfile, error: impersonatedError } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("email", impersonatedUserEmail)
+            .single()
 
-        if (impersonatedProfile) {
-          user = { id: impersonatedProfile.id }
-          profileData = impersonatedProfile
+          console.log("[v0] Admin Templates page - Impersonated profile error:", impersonatedError)
+          console.log("[v0] Admin Templates page - Impersonated profile found:", impersonatedProfile?.id)
+
+          if (impersonatedProfile) {
+            user = { id: impersonatedProfile.id }
+            profileData = impersonatedProfile
+          }
+        } else {
+          console.log("[v0] Admin Templates page - Invalid master admin session, clearing impersonation")
+          localStorage.removeItem("masterAdminImpersonation")
+          localStorage.removeItem("impersonatedUserEmail")
+          localStorage.removeItem("impersonatedUserRole")
+          localStorage.removeItem("impersonatedOrganizationId")
+          localStorage.removeItem("masterAdminType")
         }
-      } else {
-        // Regular authentication flow
-        const supabase = createClient()
-        const {
-          data: { user: authUser },
-        } = await supabase.auth.getUser()
+      }
 
-        console.log("[v0] Admin Templates page - Regular user ID:", authUser?.id)
-
-        if (!authUser) {
-          console.log("[v0] Admin Templates page - No user found, redirecting to login")
-          window.location.href = "/auth/login"
-          return
-        }
-
-        user = authUser
-
+      if (!profileData) {
         const { data: regularProfile, error: profileError } = await supabase
           .from("profiles")
-          .select("organization_id")
-          .eq("id", user.id)
+          .select("*")
+          .eq("id", authUser.id)
           .single()
 
         console.log("[v0] Admin Templates page - Profile query error:", profileError)
@@ -119,6 +132,7 @@ export default function AdminTemplatesPage() {
         }
 
         profileData = regularProfile
+        user = authUser
       }
 
       if (!user || !profileData) {
@@ -129,16 +143,28 @@ export default function AdminTemplatesPage() {
 
       setProfile(profileData)
 
-      const supabase = createClient()
-
       const { data: templatesData, error: templatesError } = await supabase
         .from("checklist_templates")
-        .select("*, profiles!checklist_templates_created_by_fkey(full_name)")
+        .select("*")
         .eq("organization_id", profileData.organization_id)
         .order("created_at", { ascending: false })
 
       console.log("[v0] Admin Templates page - Templates query error:", templatesError)
       console.log("[v0] Admin Templates page - Templates found:", templatesData?.length || 0)
+      console.log("[v0] Admin Templates page - Organization ID used:", profileData.organization_id)
+
+      let templatesWithCreators = templatesData || []
+      if (templatesData && templatesData.length > 0) {
+        const creatorIds = [...new Set(templatesData.map((t) => t.created_by).filter(Boolean))]
+        if (creatorIds.length > 0) {
+          const { data: creators } = await supabase.from("profiles").select("id, full_name").in("id", creatorIds)
+
+          templatesWithCreators = templatesData.map((template) => ({
+            ...template,
+            profiles: creators?.find((c) => c.id === template.created_by) || null,
+          }))
+        }
+      }
 
       const { data: teamMembersData, error: teamError } = await supabase
         .from("profiles")
@@ -150,7 +176,7 @@ export default function AdminTemplatesPage() {
       console.log("[v0] Admin Templates page - Team members query error:", teamError)
       console.log("[v0] Admin Templates page - Team members found:", teamMembersData?.length || 0)
 
-      setTemplates(templatesData || [])
+      setTemplates(templatesWithCreators)
       setTeamMembers(teamMembersData || [])
     }
 

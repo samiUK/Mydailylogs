@@ -93,7 +93,8 @@ export default async function AdminHistoryPage() {
     console.log("[v0] Admin History page - Profile found, organization_id:", profile.organization_id)
 
     // Get all report submissions for the organization
-    const { data: submissions, error: submissionsError } = await createClient()
+    const supabaseClient = await createClient()
+    const { data: submissions, error: submissionsError } = await supabaseClient
       .from("template_assignments")
       .select(`
         *,

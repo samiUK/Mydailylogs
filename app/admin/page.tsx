@@ -238,11 +238,45 @@ export default function AdminDashboard() {
   }
 
   const markNotificationAsRead = async (notificationId: string) => {
-    setAllNotifications((prev) => prev.filter((n) => n.id !== notificationId))
+    try {
+      const supabase = createClient()
+
+      // Update the notification in the database to mark as read
+      const { error } = await supabase.from("notifications").update({ is_read: true }).eq("id", notificationId)
+
+      if (error) {
+        console.error("[v0] Error marking notification as read:", error)
+        return
+      }
+
+      // Remove from local state after successful database update
+      setAllNotifications((prev) => prev.filter((n) => n.id !== notificationId))
+    } catch (error) {
+      console.error("[v0] Error updating notification:", error)
+    }
   }
 
-  const markAllNotificationsAsRead = () => {
-    setAllNotifications([])
+  const markAllNotificationsAsRead = async () => {
+    try {
+      const supabase = createClient()
+
+      // Get all notification IDs that need to be marked as read
+      const notificationIds = allNotifications.map((n) => n.id)
+
+      if (notificationIds.length > 0) {
+        const { error } = await supabase.from("notifications").update({ is_read: true }).in("id", notificationIds)
+
+        if (error) {
+          console.error("[v0] Error marking all notifications as read:", error)
+          return
+        }
+      }
+
+      // Clear local state after successful database update
+      setAllNotifications([])
+    } catch (error) {
+      console.error("[v0] Error updating notifications:", error)
+    }
   }
 
   const commonRoles = [

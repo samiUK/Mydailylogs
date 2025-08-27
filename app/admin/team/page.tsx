@@ -164,7 +164,7 @@ function OrganizationalChart({ members }: { members: TeamMember[] }) {
 export default async function AdminTeamPage() {
   console.log("[v0] Admin Team page - Component function called")
 
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const supabase = createServerClient(cookieStore)
 
   const {

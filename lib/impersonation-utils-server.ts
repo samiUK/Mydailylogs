@@ -20,7 +20,7 @@ export interface EffectiveUser {
 
 // Server-side impersonation detection using cookies
 export async function getServerImpersonationContext(): Promise<ImpersonationContext> {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const isMasterAdminImpersonating = cookieStore.get("masterAdminImpersonation")?.value === "true"
   const impersonatedUserEmail = cookieStore.get("impersonatedUserEmail")?.value
   const impersonatedUserRole = cookieStore.get("impersonatedUserRole")?.value

@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic"
 export default async function StaffNewReportServerWrapper() {
   console.log("[v0] Staff New Report page - Component function called")
 
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const isMasterAdminImpersonating = cookieStore.get("masterAdminImpersonation")?.value === "true"
   const impersonatedUserEmail = cookieStore.get("impersonatedUserEmail")?.value
 

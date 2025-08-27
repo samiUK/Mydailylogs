@@ -138,10 +138,10 @@ export default function AdminReportsAnalyticsPage() {
             date: report.assigned_at,
             completed_at: report.completed_at,
             assignee:
-              report.profiles?.full_name ||
-              `${report.profiles?.first_name} ${report.profiles?.last_name}` ||
+              report.profiles?.[0]?.full_name ||
+              `${report.profiles?.[0]?.first_name} ${report.profiles?.[0]?.last_name}` ||
               "Unknown User",
-            assignee_email: report.profiles?.email,
+            assignee_email: report.profiles?.[0]?.email,
           })),
           ...(dailyReports || []).map((report) => ({
             id: report.id,
@@ -153,10 +153,10 @@ export default function AdminReportsAnalyticsPage() {
             date: report.date,
             completed_at: report.completed_at,
             assignee:
-              report.profiles?.full_name ||
-              `${report.profiles?.first_name} ${report.profiles?.last_name}` ||
+              report.profiles?.[0]?.full_name ||
+              `${report.profiles?.[0]?.first_name} ${report.profiles?.[0]?.last_name}` ||
               "Unknown User",
-            assignee_email: report.profiles?.email,
+            assignee_email: report.profiles?.[0]?.email,
           })),
           ...(externalReports || []).map((report) => ({
             id: report.id,

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 
 export async function GET() {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const today = new Date().toISOString().split("T")[0]
 
     console.log(`[v0] Testing daily task recreation for ${today}`)

@@ -331,12 +331,20 @@ export default function AssignTemplatePage({ params }: { params: Promise<{ id: s
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <div className="flex items-center space-x-2">
-                  <Checkbox id="exclude-holidays" checked={excludeHolidays} onCheckedChange={setExcludeHolidays} />
+                  <Checkbox
+                    id="exclude-holidays"
+                    checked={excludeHolidays}
+                    onCheckedChange={(checked) => setExcludeHolidays(checked === true)}
+                  />
                   <Label htmlFor="exclude-holidays">Skip organization holidays</Label>
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <Checkbox id="exclude-weekends" checked={excludeWeekends} onCheckedChange={setExcludeWeekends} />
+                  <Checkbox
+                    id="exclude-weekends"
+                    checked={excludeWeekends}
+                    onCheckedChange={(checked) => setExcludeWeekends(checked === true)}
+                  />
                   <Label htmlFor="exclude-weekends">Skip weekends</Label>
                 </div>
 

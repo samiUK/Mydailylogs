@@ -14,7 +14,7 @@ export default async function StaffReportViewPage({ params, searchParams }: Page
   const resolvedParams = await params
   const resolvedSearchParams = await searchParams
 
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const isMasterAdminImpersonating = cookieStore.get("masterAdminImpersonation")?.value === "true"
   const impersonatedUserEmail = cookieStore.get("impersonatedUserEmail")?.value
 

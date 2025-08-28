@@ -2,14 +2,13 @@ import { createServerClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 import { redirect, notFound } from "next/navigation"
 import { ReportViewClient } from "./report-view-client"
-import type React from "react"
 
 interface ReportViewServerProps {
   reportId: string
   autoDownload?: boolean // Added autoDownload prop for MVP download functionality
 }
 
-const ReportViewServer: React.FC<ReportViewServerProps> = async ({ reportId, autoDownload = false }) => {
+async function ReportViewServer({ reportId, autoDownload = false }: ReportViewServerProps) {
   console.log("[v0] ReportViewServer - Loading report ID:", reportId)
 
   const cookieStore = await cookies()

@@ -151,7 +151,7 @@ function OrganizationalChart({ members }: { members: TeamMember[] }) {
 export default async function StaffTeamPage() {
   console.log("[v0] Staff Team page - Component function called")
 
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const isMasterAdminImpersonating = cookieStore.get("masterAdminImpersonation")?.value === "true"
   const impersonatedUserEmail = cookieStore.get("impersonatedUserEmail")?.value
 

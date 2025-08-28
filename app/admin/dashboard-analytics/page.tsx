@@ -18,7 +18,7 @@ export default async function AdminDashboardAnalyticsPage() {
   console.log("[v0] Admin Dashboard Analytics page - Component function called")
 
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies() // Added await before cookies() for Next.js 15 compatibility
     const supabase = createServerClient(cookieStore)
 
     const {

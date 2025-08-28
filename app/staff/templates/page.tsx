@@ -14,7 +14,7 @@ export default async function StaffTemplatesPage() {
   console.log("[v0] Staff Templates page - Component function called")
 
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const isMasterAdminImpersonating = cookieStore.get("masterAdminImpersonation")?.value === "true"
     const impersonatedUserEmail = cookieStore.get("impersonatedUserEmail")?.value
 

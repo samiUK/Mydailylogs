@@ -24,6 +24,14 @@ interface Profile {
   reports_to: string | null
 }
 
+interface AdminProfile {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  full_name: string | null
+  email: string
+}
+
 interface EditTeamMemberClientProps {
   memberId: string
 }
@@ -33,7 +41,7 @@ export function EditTeamMemberClient({ memberId }: EditTeamMemberClientProps) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [member, setMember] = useState<Profile | null>(null)
-  const [admins, setAdmins] = useState<Profile[]>([])
+  const [admins, setAdmins] = useState<AdminProfile[]>([])
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",

@@ -8,7 +8,7 @@ interface ReportViewServerProps {
   autoDownload?: boolean // Added autoDownload prop for MVP download functionality
 }
 
-export async function ReportViewServer({ reportId, autoDownload = false }: ReportViewServerProps) {
+export default async function ReportViewServer({ reportId, autoDownload = false }: ReportViewServerProps) {
   console.log("[v0] ReportViewServer - Loading report ID:", reportId)
 
   const cookieStore = await cookies()

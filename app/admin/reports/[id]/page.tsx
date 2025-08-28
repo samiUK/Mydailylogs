@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic"
 
-import { ReportViewServer } from "./report-view-server"
+import ReportViewServer from "./report-view-server"
 
 interface ReportViewPageProps {
   params: Promise<{

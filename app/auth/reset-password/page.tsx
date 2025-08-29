@@ -70,7 +70,7 @@ export default function ResetPasswordPage() {
       }, 2000)
     } catch (error) {
       console.error("Error updating password:", error)
-      setMessage(`Error: ${error.message}`)
+      setMessage(`Error: ${error instanceof Error ? error.message : "An unexpected error occurred"}`)
     } finally {
       setLoading(false)
     }

@@ -202,9 +202,10 @@ export default function ExternalFormClient({ organization, template, items, temp
         [itemId]: [...(prev[itemId] || []), ...compressedFiles],
       }))
 
-      // Store file references in responses
       const fileNames = compressedFiles.map((file) => file.name)
-      handleResponseChange(itemId, [...(responses[itemId] || []), ...fileNames])
+      const currentResponse = responses[itemId]
+      const existingFiles = Array.isArray(currentResponse) ? currentResponse : []
+      handleResponseChange(itemId, [...existingFiles, ...fileNames])
     } catch (error) {
       console.error("[v0] Error handling file upload:", error)
       setError("Error uploading files. Please try again.")
@@ -220,7 +221,8 @@ export default function ExternalFormClient({ organization, template, items, temp
       return { ...prev, [itemId]: newFiles }
     })
 
-    const currentResponses = responses[itemId] || []
+    const currentResponse = responses[itemId]
+    const currentResponses = Array.isArray(currentResponse) ? currentResponse : []
     const newResponses = [...currentResponses]
     newResponses.splice(fileIndex, 1)
     handleResponseChange(itemId, newResponses)

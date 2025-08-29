@@ -46,7 +46,7 @@ export default function SignUpPage() {
       })
 
       if (result.success) {
-        setSuccess(result.message)
+        setSuccess(result.message || "Account created successfully!")
         setTimeout(() => {
           router.push("/auth/login")
         }, 2000)

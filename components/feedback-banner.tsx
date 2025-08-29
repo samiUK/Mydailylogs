@@ -8,7 +8,7 @@ import { createBrowserClient } from "@supabase/ssr"
 
 export function FeedbackBanner() {
   const [isVisible, setIsVisible] = useState(true)
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
 
   useEffect(() => {
     const supabase = createBrowserClient(

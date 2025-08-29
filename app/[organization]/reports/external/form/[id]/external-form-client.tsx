@@ -50,7 +50,7 @@ export default function ExternalFormClient({ organization, template, items, temp
   })
 
   const supabase = createClient()
-  const [responses, setResponses] = useState<Record<string, any>>({})
+  const [responses, setResponses] = useState<Record<string, string | boolean | string[]>>({})
   const [submitterName, setSubmitterName] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -121,7 +121,7 @@ export default function ExternalFormClient({ organization, template, items, temp
     })
   }
 
-  const handleResponseChange = (itemId: string, value: any) => {
+  const handleResponseChange = (itemId: string, value: string | boolean | string[]) => {
     setResponses((prev) => ({
       ...prev,
       [itemId]: value,

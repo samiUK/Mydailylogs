@@ -13,7 +13,10 @@ interface SubscriptionBrandingNoticeProps {
 }
 
 export function SubscriptionBrandingNotice({ organizationId }: SubscriptionBrandingNoticeProps) {
-  const [subscriptionLimits, setSubscriptionLimits] = useState<any>(null)
+  const [subscriptionLimits, setSubscriptionLimits] = useState<{
+    hasCustomBranding: boolean
+    planName: string
+  } | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {

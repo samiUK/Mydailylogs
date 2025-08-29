@@ -14,8 +14,15 @@ interface UsageLimitsCardProps {
 }
 
 export function UsageLimitsCard({ organizationId }: UsageLimitsCardProps) {
-  const [limits, setLimits] = useState<any>(null)
-  const [usage, setUsage] = useState<any>(null)
+  const [limits, setLimits] = useState<{
+    maxTemplates: number
+    maxTeamMembers: number
+    planName: string
+  } | null>(null)
+  const [usage, setUsage] = useState<{
+    templateCount: number
+    teamMemberCount: number
+  } | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {

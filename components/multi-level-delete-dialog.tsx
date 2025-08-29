@@ -258,7 +258,7 @@ export function MultiLevelDeleteDialog({
                 <Checkbox
                   id="acknowledgeRisk"
                   checked={acknowledgeRisk}
-                  onCheckedChange={(checked) => setAcknowledgeRisk(checked as boolean)}
+                  onCheckedChange={(checked) => setAcknowledgeRisk(checked === true)}
                 />
                 <Label htmlFor="acknowledgeRisk" className="text-sm leading-relaxed">
                   I understand that this action is <strong>irreversible</strong> and will permanently remove this

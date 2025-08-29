@@ -37,9 +37,9 @@ export async function GET() {
     // Transform the data to include organization info with role
     const organizations =
       profiles?.map((profile) => ({
-        id: profile.organizations.id,
-        name: profile.organizations.name,
-        slug: profile.organizations.slug,
+        id: profile.organizations[0].id,
+        name: profile.organizations[0].name,
+        slug: profile.organizations[0].slug,
         role: profile.role,
         profileId: profile.id,
         isActive: profile.id === user.id, // Current active profile

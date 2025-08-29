@@ -294,7 +294,7 @@ export default function ExternalFormClient({ organization, template, items, temp
 
                     {item.type === "text" && (
                       <Input
-                        value={responses[item.id] || ""}
+                        value={typeof responses[item.id] === "boolean" ? "" : (responses[item.id] as string) || ""}
                         onChange={(e) => handleResponseChange(item.id, e.target.value)}
                         required={item.is_required}
                       />
@@ -302,7 +302,7 @@ export default function ExternalFormClient({ organization, template, items, temp
 
                     {item.type === "textarea" && (
                       <Textarea
-                        value={responses[item.id] || ""}
+                        value={typeof responses[item.id] === "boolean" ? "" : (responses[item.id] as string) || ""}
                         onChange={(e) => handleResponseChange(item.id, e.target.value)}
                         required={item.is_required}
                         rows={3}
@@ -311,7 +311,7 @@ export default function ExternalFormClient({ organization, template, items, temp
 
                     {item.type === "radio" && item.options && (
                       <RadioGroup
-                        value={responses[item.id] || ""}
+                        value={typeof responses[item.id] === "boolean" ? "" : (responses[item.id] as string) || ""}
                         onValueChange={(value) => handleResponseChange(item.id, value)}
                         required={item.is_required}
                       >

@@ -51,7 +51,7 @@ export default function SignUpPage() {
           router.push("/auth/login")
         }, 2000)
       } else {
-        setError(result.error)
+        setError(result.error || "An error occurred during sign up")
       }
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred")

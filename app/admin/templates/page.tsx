@@ -21,7 +21,7 @@ import {
 import { MultiLevelDeleteDialog } from "@/components/multi-level-delete-dialog"
 import { reportSecurity } from "@/lib/report-security"
 import Link from "next/link"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { toast } from "sonner"
 
 export const dynamic = "force-dynamic"
@@ -35,6 +35,7 @@ interface Template {
   frequency: string
   is_active: boolean
   created_at: string
+  created_by: string
   profiles?: {
     full_name: string
   }
@@ -57,6 +58,17 @@ export default function AdminTemplatesPage() {
   const [assigningTemplate, setAssigningTemplate] = useState<string | null>(null)
   const [selectedMembers, setSelectedMembers] = useState<{ [key: string]: string[] }>({})
   const [assignConfirmOpen, setAssignConfirmOpen] = useState<string | null>(null)
+
+  const activeTemplatesCount = useMemo(() => {
+    return templates.filter((t) => t.is_active).length
+  }, [templates])
+
+  const templatesByStatus = useMemo(() => {
+    return {
+      active: templates.filter((t) => t.is_active),
+      inactive: templates.filter((t) => !t.is_active),
+    }
+  }, [templates])
 
   useEffect(() => {
     const loadData = async () => {
@@ -143,80 +155,106 @@ export default function AdminTemplatesPage() {
 
       setProfile(profileData)
 
-      const { data: templatesData, error: templatesError } = await supabase
-        .from("checklist_templates")
-        .select("*")
-        .eq("organization_id", profileData.organization_id)
-        .order("created_at", { ascending: false })
+      const [templatesRes, teamMembersRes] = await Promise.all([
+        supabase
+          .from("checklist_templates")
+          .select("id, name, description, frequency, is_active, created_at, created_by")
+          .eq("organization_id", profileData.organization_id)
+          .order("created_at", { ascending: false })
+          .limit(20),
+        supabase
+          .from("profiles")
+          .select("id, first_name, last_name, full_name, role")
+          .eq("organization_id", profileData.organization_id)
+          .neq("id", user.id)
+          .order("first_name")
+          .limit(50),
+      ])
 
-      console.log("[v0] Admin Templates page - Templates query error:", templatesError)
-      console.log("[v0] Admin Templates page - Templates found:", templatesData?.length || 0)
-      console.log("[v0] Admin Templates page - Organization ID used:", profileData.organization_id)
-
-      let templatesWithCreators = templatesData || []
-      if (templatesData && templatesData.length > 0) {
-        const creatorIds = [...new Set(templatesData.map((t) => t.created_by).filter(Boolean))]
+      let templatesWithCreators = templatesRes.data || []
+      if (templatesRes.data?.length > 0) {
+        const creatorIds = [...new Set(templatesRes.data.map((t) => t.created_by).filter(Boolean))]
         if (creatorIds.length > 0) {
-          const { data: creators } = await supabase.from("profiles").select("id, full_name").in("id", creatorIds)
+          const { data: creators } = await supabase
+            .from("profiles")
+            .select("id, full_name")
+            .in("id", creatorIds)
+            .limit(20)
 
-          templatesWithCreators = templatesData.map((template) => ({
+          const creatorsMap = new Map(creators?.map((c) => [c.id, c]) || [])
+          templatesWithCreators = templatesRes.data.map((template) => ({
             ...template,
-            profiles: creators?.find((c) => c.id === template.created_by) || null,
+            profiles: creatorsMap.get(template.created_by) || null,
           }))
         }
       }
 
-      const { data: teamMembersData, error: teamError } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, full_name, role")
-        .eq("organization_id", profileData.organization_id)
-        .neq("id", user.id)
-        .order("first_name")
-
-      console.log("[v0] Admin Templates page - Team members query error:", teamError)
-      console.log("[v0] Admin Templates page - Team members found:", teamMembersData?.length || 0)
-
       setTemplates(templatesWithCreators)
-      setTeamMembers(teamMembersData || [])
+      setTeamMembers(teamMembersRes.data || [])
     }
 
     loadData()
   }, [])
 
-  const handleAssign = async (templateId: string, memberIds: string[]) => {
-    if (memberIds.length === 0) return
+  const handleAssign = useCallback(
+    async (templateId: string, memberIds: string[]) => {
+      if (memberIds.length === 0) return
 
-    setAssigningTemplate(templateId)
+      setAssigningTemplate(templateId)
 
-    try {
-      await reportSecurity.logReportAccess(templateId, "submitted_report", "create", {
-        action: "template_assignment",
-        assigned_to: memberIds,
-        assigned_count: memberIds.length,
-      })
+      try {
+        await reportSecurity.logReportAccess(templateId, "submitted_report", "create", {
+          action: "template_assignment",
+          assigned_to: memberIds,
+          assigned_count: memberIds.length,
+        })
 
-      const response = await fetch("/api/admin/assign-template", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          templateId,
-          memberIds,
-          organizationId: profile?.organization_id,
-        }),
-      })
+        const response = await fetch("/api/admin/assign-template", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            templateId,
+            memberIds,
+            organizationId: profile?.organization_id,
+          }),
+        })
 
-      if (!response.ok) throw new Error("Failed to assign template")
+        if (!response.ok) throw new Error("Failed to assign template")
 
-      setSelectedMembers((prev) => ({ ...prev, [templateId]: [] }))
-      setAssignConfirmOpen(null)
-      toast.success("Template assigned successfully!")
-    } catch (error) {
-      console.error("Error assigning template:", error)
-      toast.error("Failed to assign template")
-    } finally {
-      setAssigningTemplate(null)
-    }
-  }
+        setSelectedMembers((prev) => ({ ...prev, [templateId]: [] }))
+        setAssignConfirmOpen(null)
+        toast.success("Template assigned successfully!")
+      } catch (error) {
+        console.error("Error assigning template:", error)
+        toast.error("Failed to assign template")
+      } finally {
+        setAssigningTemplate(null)
+      }
+    },
+    [profile?.organization_id],
+  )
+
+  const toggleMember = useCallback((templateId: string, memberId: string) => {
+    setSelectedMembers((prev) => {
+      const current = prev[templateId] || []
+      const updated = current.includes(memberId) ? current.filter((id) => id !== memberId) : [...current, memberId]
+      return { ...prev, [templateId]: updated }
+    })
+  }, [])
+
+  const selectAllMembers = useCallback(
+    (templateId: string) => {
+      setSelectedMembers((prev) => ({
+        ...prev,
+        [templateId]: teamMembers.map((member) => member.id),
+      }))
+    },
+    [teamMembers],
+  )
+
+  const clearSelection = useCallback((templateId: string) => {
+    setSelectedMembers((prev) => ({ ...prev, [templateId]: [] }))
+  }, [])
 
   const handleAssignConfirm = (templateId: string) => {
     const memberIds = selectedMembers[templateId] || []
@@ -254,25 +292,6 @@ export default function AdminTemplatesPage() {
       console.error("Error deleting template:", error)
       toast.error("Failed to delete template")
     }
-  }
-
-  const toggleMember = (templateId: string, memberId: string) => {
-    setSelectedMembers((prev) => {
-      const current = prev[templateId] || []
-      const updated = current.includes(memberId) ? current.filter((id) => id !== memberId) : [...current, memberId]
-      return { ...prev, [templateId]: updated }
-    })
-  }
-
-  const selectAllMembers = (templateId: string) => {
-    setSelectedMembers((prev) => ({
-      ...prev,
-      [templateId]: teamMembers.map((member) => member.id),
-    }))
-  }
-
-  const clearSelection = (templateId: string) => {
-    setSelectedMembers((prev) => ({ ...prev, [templateId]: [] }))
   }
 
   return (

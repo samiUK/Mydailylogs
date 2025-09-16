@@ -48,6 +48,7 @@ export default function NewTemplatePage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
+  const [organizationName, setOrganizationName] = useState<string | null>(null)
   const [canCreateTemplate, setCanCreateTemplate] = useState(true)
   const [limitCheckResult, setLimitCheckResult] = useState<any>(null)
   const [subscriptionLimits, setSubscriptionLimits] = useState<any>(null)
@@ -68,24 +69,77 @@ export default function NewTemplatePage() {
 
   useEffect(() => {
     async function checkLimitsAndGetProfile() {
-      const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (user) {
-        const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single()
+      try {
+        console.log("[v0] Starting authentication check...")
+        const supabase = createClient()
+
+        const authPromise = supabase.auth.getUser()
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Authentication timeout")), 10000),
+        )
+
+        const result = (await Promise.race([authPromise, timeoutPromise])) as any
+        const {
+          data: { user },
+          error: userError,
+        } = result
+
+        console.log("[v0] User authentication result:", { user: user?.id, userError })
+
+        if (userError) {
+          console.log("[v0] Authentication error:", userError)
+          setError("Authentication failed. Please try refreshing the page.")
+          return
+        }
+
+        if (!user) {
+          console.log("[v0] No authenticated user found, redirecting to login")
+          setError("Please log in to create templates")
+          return
+        }
+
+        console.log("[v0] User authenticated, fetching profile...")
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("organization_id, organization_name")
+          .eq("id", user.id)
+          .single()
+
+        console.log("[v0] Profile query result:", { profile, profileError })
+
+        if (profileError) {
+          console.log("[v0] Profile error:", profileError)
+          setError("Failed to load user profile")
+          return
+        }
+
         if (profile?.organization_id) {
+          console.log("[v0] Setting organization ID:", profile.organization_id)
           setOrganizationId(profile.organization_id)
+          setOrganizationName(profile.organization_name)
 
           const [limitCheck, limits] = await Promise.all([
             checkCanCreateTemplate(profile.organization_id),
             getSubscriptionLimits(profile.organization_id),
           ])
 
+          console.log("[v0] Limit check results:", { limitCheck, limits })
           setLimitCheckResult(limitCheck)
           setSubscriptionLimits(limits)
           setCanCreateTemplate(limitCheck.canCreate)
+
+          if (!limitCheck.canCreate) {
+            console.log("[v0] Cannot create template:", limitCheck.reason)
+          } else {
+            console.log("[v0] Can create template - ready to go!")
+          }
+        } else {
+          console.log("[v0] No organization_id found in profile")
+          setError("No organization found for user")
         }
+      } catch (error) {
+        console.log("[v0] Error in authentication check:", error)
+        setError("Failed to load page. Please try refreshing.")
       }
     }
     checkLimitsAndGetProfile()
@@ -186,14 +240,24 @@ export default function NewTemplatePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!organizationId || !canCreateTemplate) return
+    console.log("[v0] Form submitted - starting template creation process")
+    console.log("[v0] Current state:", { organizationId, canCreateTemplate, name, tasks: tasks.length })
+
+    if (!organizationId || !canCreateTemplate) {
+      console.log("[v0] Cannot proceed - missing org ID or cannot create template")
+      return
+    }
 
     if (!validateDates()) {
+      console.log("[v0] Date validation failed")
       return
     }
 
     const limitCheck = await checkCanCreateTemplate(organizationId)
+    console.log("[v0] Final limit check before creation:", limitCheck)
+
     if (!limitCheck.canCreate) {
+      console.log("[v0] Final limit check failed:", limitCheck.reason)
       setError(limitCheck.reason || "Cannot create template due to plan limits")
       return
     }
@@ -204,9 +268,16 @@ export default function NewTemplatePage() {
 
     try {
       const supabase = createClient()
+
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser()
+
+      if (authError) {
+        console.log("[v0] Auth error during submission:", authError)
+        throw new Error("Authentication failed. Please refresh and try again.")
+      }
 
       if (!user) throw new Error("Not authenticated")
 
@@ -398,7 +469,6 @@ export default function NewTemplatePage() {
                         <SelectItem value="daily">Daily</SelectItem>
                         <SelectItem value="weekly">Weekly</SelectItem>
                         <SelectItem value="monthly">Monthly</SelectItem>
-                        <SelectItem value="custom">Custom</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

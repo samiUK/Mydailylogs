@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 
 interface BrandingContextType {
@@ -20,7 +20,7 @@ const BrandingContext = createContext<BrandingContextType>({
   primaryColor: "#059669",
   secondaryColor: "#6B7280",
   hasCustomBranding: false,
-  isLoading: false, // Set default loading to false for better performance
+  isLoading: false,
   refreshBranding: async () => {},
 })
 
@@ -31,8 +31,7 @@ interface BrandingProviderProps {
   initialBranding?: Partial<BrandingContextType>
 }
 
-const brandingCache = new Map<string, { data: BrandingContextType; timestamp: number }>()
-const CACHE_DURATION = 10 * 60 * 1000 // 10 minutes
+let cachedBranding: BrandingContextType | null = null
 
 export function BrandingProvider({ children, initialBranding }: BrandingProviderProps) {
   const [branding, setBranding] = useState<BrandingContextType>({
@@ -41,120 +40,108 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
     primaryColor: initialBranding?.primaryColor || "#059669",
     secondaryColor: initialBranding?.secondaryColor || "#6B7280",
     hasCustomBranding: initialBranding?.hasCustomBranding || true,
-    isLoading: false, // Start with false loading state
+    isLoading: false,
     refreshBranding: async () => {},
   })
 
-  const refreshBranding = async () => {
+  const refreshBranding = useCallback(async () => {
+    if (branding.isLoading) return // Prevent multiple simultaneous calls
+
     const supabase = createClient()
+    setBranding((prev) => ({ ...prev, isLoading: true }))
 
     try {
-      const cacheKey = document.cookie.includes("masterAdminImpersonation=true")
-        ? `impersonated_${document.cookie.split("impersonatedUserEmail=")[1]?.split(";")[0] || "unknown"}`
-        : "current_user"
-
-      const cached = brandingCache.get(cacheKey)
-      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-        setBranding(cached.data)
-        return
-      }
-
-      // Check for impersonation context from cookies only
-      const impersonationCookie = document.cookie.split("; ").find((row) => row.startsWith("masterAdminImpersonation="))
-      const isImpersonating = impersonationCookie?.split("=")[1] === "true"
+      const isImpersonating = document.cookie.includes("masterAdminImpersonation=true")
 
       if (isImpersonating) {
-        const impersonatedEmailCookie = document.cookie
-          .split("; ")
-          .find((row) => row.startsWith("impersonatedUserEmail="))
-        const impersonatedEmail = impersonatedEmailCookie?.split("=")[1]
+        const impersonatedEmail = document.cookie.split("impersonatedUserEmail=")[1]?.split(";")[0]
 
         if (impersonatedEmail) {
           const { data: profile } = await supabase
             .from("profiles")
             .select(`
-              organization_id, 
               organization_name,
               organizations!inner(logo_url, primary_color, secondary_color)
             `)
             .eq("email", decodeURIComponent(impersonatedEmail))
             .single()
 
-          if (profile) {
+          if (profile?.organizations) {
             const newBranding = {
               organizationName: profile.organization_name || "Your Organization",
-              logoUrl: profile.organizations?.logo_url || null,
-              primaryColor: profile.organizations?.primary_color || "#059669",
-              secondaryColor: profile.organizations?.secondary_color || "#6B7280",
+              logoUrl: profile.organizations.logo_url,
+              primaryColor: profile.organizations.primary_color || "#059669",
+              secondaryColor: profile.organizations.secondary_color || "#6B7280",
               hasCustomBranding: true,
               isLoading: false,
               refreshBranding,
             }
-
             setBranding(newBranding)
-            brandingCache.set(cacheKey, { data: newBranding, timestamp: Date.now() })
+            cachedBranding = newBranding
+            return
           }
         }
-        return
       }
 
       const {
         data: { user },
       } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) {
+        setBranding((prev) => ({ ...prev, isLoading: false }))
+        return
+      }
 
       const { data: profile } = await supabase
         .from("profiles")
         .select(`
-          organization_id, 
           organization_name,
-          organizations(logo_url, primary_color, secondary_color)
+          organizations!inner(logo_url, primary_color, secondary_color)
         `)
         .eq("id", user.id)
         .single()
 
-      if (profile) {
+      if (profile?.organizations) {
         const newBranding = {
           organizationName: profile.organization_name || "Your Organization",
-          logoUrl: profile.organizations?.logo_url || null,
-          primaryColor: profile.organizations?.primary_color || "#059669",
-          secondaryColor: profile.organizations?.secondary_color || "#6B7280",
+          logoUrl: profile.organizations.logo_url,
+          primaryColor: profile.organizations.primary_color || "#059669",
+          secondaryColor: profile.organizations.secondary_color || "#6B7280",
           hasCustomBranding: true,
           isLoading: false,
           refreshBranding,
         }
-
         setBranding(newBranding)
-        brandingCache.set(cacheKey, { data: newBranding, timestamp: Date.now() })
+        cachedBranding = newBranding
       }
     } catch (error) {
-      setBranding((prev) => ({
-        ...prev,
-        isLoading: false,
-        refreshBranding,
-      }))
+      setBranding((prev) => ({ ...prev, isLoading: false }))
     }
-  }
+  }, [branding.isLoading])
 
   useEffect(() => {
-    if (!initialBranding) {
+    if (!initialBranding && !cachedBranding) {
       refreshBranding()
-    } else {
-      setBranding((prev) => ({ ...prev, isLoading: false, refreshBranding }))
+    } else if (cachedBranding) {
+      setBranding({ ...cachedBranding, refreshBranding })
     }
-
-    const handleBrandingRefresh = () => {
-      refreshBranding()
-    }
-
-    window.addEventListener("brandingRefresh", handleBrandingRefresh)
-    return () => window.removeEventListener("brandingRefresh", handleBrandingRefresh)
-  }, [initialBranding])
+  }, [])
 
   useEffect(() => {
-    document.documentElement.style.setProperty("--brand-primary", branding.primaryColor)
-    document.documentElement.style.setProperty("--brand-secondary", branding.secondaryColor)
+    const handleRefresh = () => refreshBranding()
+    window.addEventListener("brandingRefresh", handleRefresh)
+    return () => window.removeEventListener("brandingRefresh", handleRefresh)
+  }, [])
+
+  useEffect(() => {
+    const root = document.documentElement
+    root.style.setProperty("--brand-primary", branding.primaryColor)
+    root.style.setProperty("--brand-secondary", branding.secondaryColor)
   }, [branding.primaryColor, branding.secondaryColor])
 
-  return <BrandingContext.Provider value={branding}>{children}</BrandingContext.Provider>
+  const contextValue = {
+    ...branding,
+    refreshBranding,
+  }
+
+  return <BrandingContext.Provider value={contextValue}>{children}</BrandingContext.Provider>
 }

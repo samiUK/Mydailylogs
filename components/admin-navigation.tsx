@@ -51,6 +51,9 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                       src={logoUrl || "/placeholder.svg"}
                       alt={organizationName}
                       className="max-w-full max-h-full object-contain"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none"
+                      }}
                     />
                   </div>
                 ) : (
@@ -74,7 +77,7 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                 className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
                 style={{ "--hover-color": primaryColor } as React.CSSProperties}
               >
-                Report Templates
+                Log Templates
               </Link>
               <Link
                 href="/admin/team"
@@ -103,7 +106,7 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                 className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1"
                 style={{ "--hover-color": primaryColor } as React.CSSProperties}
               >
-                <Crown className="w-3 h-3 text-amber-500" />
+                <Database className="w-3 h-3" />
                 Backup & Recovery
               </Link>
             </div>
@@ -132,7 +135,7 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                     className="text-muted-foreground hover:text-indigo-600 px-4 py-4 rounded-md text-base font-medium border-b min-h-12 flex items-center"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Report Templates
+                    Log Templates
                   </Link>
                   <Link
                     href="/admin/team"

@@ -8,11 +8,39 @@ import { BarChart3, FileText, TrendingUp, Users, Eye, Download } from "lucide-re
 import { redirect } from "next/navigation"
 import { batchQuery, getUserProfile } from "@/lib/database-utils"
 import { ErrorDisplay } from "@/components/error-display"
+import { createBrowserClient } from "@supabase/ssr"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 300 // Cache for 5 minutes to improve performance
 
 console.log("[v0] Admin Dashboard Analytics page - File loaded and parsing")
+
+async function clearSubmissionNotifications(userId: string, organizationId: string) {
+  try {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    )
+
+    console.log("[v0] Auto-clearing submission notifications for reports page visit")
+
+    // Mark all submission-related notifications as read
+    const { error } = await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", userId)
+      .in("type", ["submission", "report_submitted", "daily_log_submitted"])
+      .eq("is_read", false)
+
+    if (error) {
+      console.error("[v0] Error auto-clearing submission notifications:", error)
+    } else {
+      console.log("[v0] Successfully auto-cleared submission notifications")
+    }
+  } catch (error) {
+    console.error("[v0] Error in clearSubmissionNotifications:", error)
+  }
+}
 
 export default async function AdminDashboardAnalyticsPage() {
   console.log("[v0] Admin Dashboard Analytics page - Component function called")
@@ -54,6 +82,11 @@ export default async function AdminDashboardAnalyticsPage() {
 
     const profile = profileResult.data
     console.log("[v0] Admin Dashboard Analytics page - Organization ID:", profile.organization_id)
+
+    if (typeof window !== "undefined") {
+      // Only run on client side
+      setTimeout(() => clearSubmissionNotifications(user.id, profile.organization_id), 100)
+    }
 
     const batchResult = await batchQuery([
       async () => {

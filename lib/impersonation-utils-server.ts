@@ -1,5 +1,6 @@
 import { createClient as createServerClient } from "@/lib/supabase/server"
-import { cookies } from "next/headers"
+import { cookies, headers } from "next/headers"
+import { extractUserFromUrl } from "@/lib/url-session-utils"
 
 // Types for impersonation context
 export interface ImpersonationContext {
@@ -18,8 +19,23 @@ export interface EffectiveUser {
   impersonationContext?: ImpersonationContext
 }
 
-// Server-side impersonation detection using cookies
 export async function getServerImpersonationContext(): Promise<ImpersonationContext> {
+  const headersList = await headers()
+  const pathname = headersList.get("x-pathname") || headersList.get("x-url") || ""
+
+  // First check URL for user-specific routes
+  const { userEmail, role } = extractUserFromUrl(pathname)
+
+  if (userEmail && role) {
+    return {
+      isImpersonating: true,
+      impersonatedUserEmail: userEmail,
+      impersonatedUserRole: role,
+      masterAdminType: "master_admin", // Default for URL-based sessions
+    }
+  }
+
+  // Fallback to cookies for backward compatibility
   const cookieStore = await cookies()
   const isMasterAdminImpersonating = cookieStore.get("masterAdminImpersonation")?.value === "true"
   const impersonatedUserEmail = cookieStore.get("impersonatedUserEmail")?.value
@@ -29,14 +45,13 @@ export async function getServerImpersonationContext(): Promise<ImpersonationCont
 
   return {
     isImpersonating: isMasterAdminImpersonating,
-    impersonatedUserEmail,
+    impersonatedUserEmail: impersonatedUserEmail ? decodeURIComponent(impersonatedUserEmail) : undefined,
     impersonatedUserRole,
     impersonatedOrganizationId,
     masterAdminType,
   }
 }
 
-// Get effective user for server components
 export async function getEffectiveServerUser(): Promise<EffectiveUser | null> {
   const impersonationContext = await getServerImpersonationContext()
   const supabase = await createServerClient()

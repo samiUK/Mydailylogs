@@ -14,7 +14,6 @@ export async function POST(request: NextRequest) {
 
     console.log("[v0] Authenticating superuser:", email)
 
-    // Check hardcoded master admin first
     const MASTER_EMAIL = "arsami.uk@gmail.com"
     const MASTER_PASSWORD = "7286707$Bd"
 
@@ -27,10 +26,9 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Check superusers table
     const { data: superuser, error } = await supabase
       .from("superusers")
-      .select("*")
+      .select("id, email, password_hash, is_active")
       .eq("email", email)
       .eq("is_active", true)
       .single()
@@ -45,7 +43,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    // Verify password
     const isValidPassword = await bcrypt.compare(password, superuser.password_hash)
 
     if (!isValidPassword) {
@@ -53,8 +50,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    // Update last login
-    await supabase.from("superusers").update({ last_login: new Date().toISOString() }).eq("id", superuser.id)
+    supabase.from("superusers").update({ last_login: new Date().toISOString() }).eq("id", superuser.id)
 
     console.log("[v0] Superuser authenticated successfully:", email)
     return NextResponse.json({

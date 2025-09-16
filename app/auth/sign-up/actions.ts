@@ -24,7 +24,7 @@ export async function createUserWithProfile(formData: {
     if (existingUser) {
       const { data: existingAdminProfile } = await adminSupabase
         .from("profiles")
-        .select("id, organization_id, organizations(name)")
+        .select("id, organization_id, organization_name")
         .eq("email", email)
         .eq("role", "admin")
         .single()
@@ -32,8 +32,8 @@ export async function createUserWithProfile(formData: {
       if (existingAdminProfile) {
         const { data: existingOrg } = await adminSupabase
           .from("organizations")
-          .select("name")
-          .eq("name", organizationName)
+          .select("organization_name")
+          .eq("organization_name", organizationName)
           .single()
 
         if (existingOrg) {
@@ -71,8 +71,8 @@ export async function createUserWithProfile(formData: {
 
     const { data: existingOrg } = await adminSupabase
       .from("organizations")
-      .select("id, name")
-      .eq("name", organizationName)
+      .select("organization_id, organization_name")
+      .eq("organization_name", organizationName)
       .single()
 
     let orgData
@@ -82,7 +82,7 @@ export async function createUserWithProfile(formData: {
       const { data: newOrgData, error: orgError } = await adminSupabase
         .from("organizations")
         .insert({
-          name: organizationName,
+          organization_name: organizationName,
           slug: organizationName
             .toLowerCase()
             .replace(/\s+/g, "-")
@@ -102,7 +102,7 @@ export async function createUserWithProfile(formData: {
 
     const { error: profileError } = await adminSupabase.from("profiles").insert({
       id: authUserId,
-      organization_id: orgData.id,
+      organization_id: orgData.organization_id,
       organization_name: organizationName, // Store organization name directly in profiles
       first_name: firstName,
       last_name: lastName,
@@ -115,7 +115,7 @@ export async function createUserWithProfile(formData: {
       if (isNewUser) {
         await adminSupabase.auth.admin.deleteUser(authUserId)
       }
-      await adminSupabase.from("organizations").delete().eq("id", orgData.id)
+      await adminSupabase.from("organizations").delete().eq("organization_id", orgData.organization_id)
       throw new Error(`Profile creation failed: ${profileError.message}`)
     }
 

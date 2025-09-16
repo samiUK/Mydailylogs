@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useBranding } from "@/components/branding-provider"
@@ -26,8 +26,18 @@ interface StaffNavigationProps {
 export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNavigationProps) {
   const { organizationName, logoUrl, primaryColor } = useBranding()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [logoKey, setLogoKey] = useState(0)
 
   const hasPaidSubscription = subscriptionStatus === "active"
+
+  useEffect(() => {
+    const handleBrandingRefresh = () => {
+      setLogoKey((prev) => prev + 1)
+    }
+
+    window.addEventListener("brandingRefresh", handleBrandingRefresh)
+    return () => window.removeEventListener("brandingRefresh", handleBrandingRefresh)
+  }, [])
 
   return (
     <nav className="bg-white shadow-sm border-b">
@@ -39,19 +49,24 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
                 {logoUrl ? (
                   <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
                     <img
+                      key={`${logoKey}-${logoUrl}`}
                       src={logoUrl || "/placeholder.svg"}
                       alt={`${organizationName} logo`}
                       className="max-w-full max-h-full object-contain"
                       onError={(e) => {
-                        // Fallback if logo fails to load
-                        e.currentTarget.style.display = "none"
-                        e.currentTarget.parentElement!.innerHTML = `
-                          <div class="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
-                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                            </svg>
-                          </div>
-                        `
+                        const target = e.currentTarget
+                        const parent = target.parentElement
+                        if (parent) {
+                          target.style.display = "none"
+                          if (!parent.querySelector(".fallback-logo")) {
+                            const fallback = document.createElement("div")
+                            fallback.className =
+                              "w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center fallback-logo"
+                            fallback.innerHTML =
+                              '<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>'
+                            parent.appendChild(fallback)
+                          }
+                        }
                       }}
                     />
                   </div>
@@ -77,7 +92,7 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
                   className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
                   style={{ "--hover-color": primaryColor } as React.CSSProperties}
                 >
-                  New Report
+                  New Log
                 </Link>
               )}
               <Link
@@ -114,7 +129,7 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
                       className="text-muted-foreground hover:text-indigo-600 px-4 py-4 rounded-md text-base font-medium border-b min-h-12 flex items-center"
                       onClick={() => setMobileMenuOpen(false)}
                     >
-                      New Report
+                      New Log
                     </Link>
                   )}
                   <Link

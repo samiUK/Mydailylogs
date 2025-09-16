@@ -2,10 +2,8 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { JetBrains_Mono } from "next/font/google"
-import { Analytics } from "@vercel/analytics/react"
-import { SpeedInsights } from "@vercel/speed-insights/next"
-import { Suspense } from "react"
 import "./globals.css"
+import { BrandingProvider } from "@/components/branding-provider"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -20,7 +18,7 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "MyDayLogs", // Updated from "Mydailylogs" to "MyDayLogs"
+  title: "MyDayLogs",
   description: "Professional compliance checklist platform for businesses",
   generator: "v0.app",
   icons: {
@@ -38,9 +36,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <body className="font-sans antialiased">
-        <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
-        <Analytics />
-        <SpeedInsights />
+        <BrandingProvider>{children}</BrandingProvider>
       </body>
     </html>
   )

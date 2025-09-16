@@ -49,94 +49,100 @@ export default function StaffDashboard() {
         if (effectiveUser) {
           setUser({ email: effectiveUser.email, id: effectiveUser.id })
           setProfile(effectiveUser.profile)
+
+          console.log("[v0] Loading data for user:", {
+            userId: effectiveUser.id,
+            userEmail: effectiveUser.email,
+            profileId: effectiveUser.profile?.id,
+          })
+
+          const { data: assignedTemplatesData, error: assignedError } = await supabase
+            .from("template_assignments")
+            .select(`
+              *,
+              checklist_templates:template_id(
+                id,
+                name,
+                description,
+                frequency,
+                schedule_type,
+                deadline_date,
+                specific_date,
+                schedule_time
+              )
+            `)
+            .eq("assigned_to", effectiveUser.id)
+            .eq("is_active", true)
+            .order("assigned_at", { ascending: false })
+
+          if (assignedError) {
+            console.error("[v0] Error fetching assigned templates:", assignedError)
+          }
+
+          console.log("[v0] Raw assigned templates query result:", {
+            data: assignedTemplatesData,
+            error: assignedError,
+            userIdUsedInQuery: effectiveUser.id,
+          })
+
+          const { data: allAssignmentsData, error: allAssignmentsError } = await supabase
+            .from("template_assignments")
+            .select("*")
+            .eq("assigned_to", effectiveUser.id)
+
+          console.log("[v0] All assignments for user (any status):", {
+            data: allAssignmentsData,
+            error: allAssignmentsError,
+            count: allAssignmentsData?.length || 0,
+          })
+
+          const { data: completedReportsData } = await supabase
+            .from("template_assignments")
+            .select(`
+              *,
+              checklist_templates:template_id(
+                id,
+                name,
+                description
+              ),
+              profiles:assigned_to(
+                full_name,
+                email
+              )
+            `)
+            .eq("assigned_to", effectiveUser.id)
+            .eq("status", "completed")
+            .not("completed_at", "is", null)
+            .order("completed_at", { ascending: false })
+            .limit(10)
+
+          const { data: notificationsData } = await supabase
+            .from("notifications")
+            .select("*")
+            .eq("user_id", effectiveUser.id)
+            .eq("is_read", false)
+            .eq("type", "missed_task")
+            .order("created_at", { ascending: false })
+
+          setAssignedTemplates(assignedTemplatesData || [])
+          setCompletedReports(completedReportsData || [])
+          setNotifications(notificationsData || [])
+
+          console.log(
+            "[v0] All assigned templates:",
+            assignedTemplatesData?.map((a) => ({
+              name: a.checklist_templates?.name,
+              status: a.status,
+              completed_at: a.completed_at,
+              assigned_at: a.assigned_at,
+            })),
+          )
+
+          console.log("[v0] Completed reports:", completedReportsData?.length || 0)
         } else {
           console.error("Error getting user")
           return
         }
-
-        const { data: assignedTemplatesData, error: assignedError } = await supabase
-          .from("template_assignments")
-          .select(`
-            *,
-            checklist_templates:template_id(
-              id,
-              name,
-              description,
-              frequency,
-              schedule_type,
-              deadline_date,
-              specific_date,
-              schedule_time
-            )
-          `)
-          .eq("assigned_to", user.id)
-          .eq("is_active", true)
-          .order("assigned_at", { ascending: false })
-
-        if (assignedError) {
-          console.error("[v0] Error fetching assigned templates:", assignedError)
-        }
-
-        console.log("[v0] Raw assigned templates query result:", {
-          data: assignedTemplatesData,
-          error: assignedError,
-          userIdUsedInQuery: user.id,
-        })
-
-        const { data: allAssignmentsData, error: allAssignmentsError } = await supabase
-          .from("template_assignments")
-          .select("*")
-          .eq("assigned_to", user.id)
-
-        console.log("[v0] All assignments for user (any status):", {
-          data: allAssignmentsData,
-          error: allAssignmentsError,
-          count: allAssignmentsData?.length || 0,
-        })
-
-        const { data: completedReportsData } = await supabase
-          .from("template_assignments")
-          .select(`
-            *,
-            checklist_templates:template_id(
-              id,
-              name,
-              description
-            ),
-            profiles:assigned_to(
-              full_name,
-              email
-            )
-          `)
-          .eq("assigned_to", user.id)
-          .eq("status", "completed")
-          .not("completed_at", "is", null)
-          .order("completed_at", { ascending: false })
-          .limit(10)
-
-        const { data: notificationsData } = await supabase
-          .from("notifications")
-          .select("*")
-          .eq("user_id", user.id)
-          .eq("is_read", false)
-          .eq("type", "missed_task")
-          .order("created_at", { ascending: false })
-
-        setAssignedTemplates(assignedTemplatesData || [])
-        setCompletedReports(completedReportsData || [])
-        setNotifications(notificationsData || [])
-
-        console.log(
-          "[v0] All assigned templates:",
-          assignedTemplatesData?.map((a) => ({
-            name: a.checklist_templates?.name,
-            status: a.status,
-            completed_at: a.completed_at,
-            assigned_at: a.assigned_at,
-          })),
-        )
-
-        console.log("[v0] Completed reports:", completedReportsData?.length || 0)
       } catch (error) {
         console.error("Error fetching dashboard data:", error)
       } finally {
@@ -145,115 +151,13 @@ export default function StaffDashboard() {
     }
 
     loadUser()
-  }, [user])
-
-  useEffect(() => {
-    const loadData = async () => {
-      if (!user || !profile) return
-
-      try {
-        const supabase = createClient()
-
-        console.log("[v0] Loading data for user:", { userId: user.id, userEmail: user.email, profileId: profile.id })
-
-        const { data: assignedTemplatesData, error: assignedError } = await supabase
-          .from("template_assignments")
-          .select(`
-            *,
-            checklist_templates:template_id(
-              id,
-              name,
-              description,
-              frequency,
-              schedule_type,
-              deadline_date,
-              specific_date,
-              schedule_time
-            )
-          `)
-          .eq("assigned_to", user.id)
-          .eq("is_active", true)
-          .order("assigned_at", { ascending: false })
-
-        if (assignedError) {
-          console.error("[v0] Error fetching assigned templates:", assignedError)
-        }
-
-        console.log("[v0] Raw assigned templates query result:", {
-          data: assignedTemplatesData,
-          error: assignedError,
-          userIdUsedInQuery: user.id,
-        })
-
-        const { data: allAssignmentsData, error: allAssignmentsError } = await supabase
-          .from("template_assignments")
-          .select("*")
-          .eq("assigned_to", user.id)
-
-        console.log("[v0] All assignments for user (any status):", {
-          data: allAssignmentsData,
-          error: allAssignmentsError,
-          count: allAssignmentsData?.length || 0,
-        })
-
-        const { data: completedReportsData } = await supabase
-          .from("template_assignments")
-          .select(`
-            *,
-            checklist_templates:template_id(
-              id,
-              name,
-              description
-            ),
-            profiles:assigned_to(
-              full_name,
-              email
-            )
-          `)
-          .eq("assigned_to", user.id)
-          .eq("status", "completed")
-          .not("completed_at", "is", null)
-          .order("completed_at", { ascending: false })
-          .limit(10)
-
-        const { data: notificationsData } = await supabase
-          .from("notifications")
-          .select("*")
-          .eq("user_id", user.id)
-          .eq("is_read", false)
-          .eq("type", "missed_task")
-          .order("created_at", { ascending: false })
-
-        setAssignedTemplates(assignedTemplatesData || [])
-        setCompletedReports(completedReportsData || [])
-        setNotifications(notificationsData || [])
-
-        console.log(
-          "[v0] All assigned templates:",
-          assignedTemplatesData?.map((a) => ({
-            name: a.checklist_templates?.name,
-            status: a.status,
-            completed_at: a.completed_at,
-            assigned_at: a.assigned_at,
-          })),
-        )
-
-        console.log("[v0] Completed reports:", completedReportsData?.length || 0)
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadData()
-  }, [user, profile])
+  }, []) // Remove user dependency to prevent infinite loop
 
   if (loading) {
     return (
       <div className="space-y-8">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">My Assigned Reports</h1>
+          <h1 className="text-3xl font-bold text-foreground">My Assigned Logs</h1>
           <p className="text-muted-foreground mt-2">Loading...</p>
         </div>
       </div>
@@ -301,8 +205,20 @@ export default function StaffDashboard() {
       template.deadline_date ||
       template.specific_date
     ) {
+      // These are one-off reports with specific deadlines
       upcomingReports.push({ ...assignment, dueDate, template })
+    } else if (
+      template.schedule_type === "daily" ||
+      template.schedule_type === "weekly" ||
+      template.schedule_type === "monthly" ||
+      template.frequency === "daily" ||
+      template.frequency === "weekly" ||
+      template.frequency === "monthly"
+    ) {
+      // These are recurring regular reports
+      regularReports.push({ ...assignment, dueDate, template })
     } else {
+      // Default to regular reports for any other cases
       regularReports.push({ ...assignment, dueDate, template })
     }
   })
@@ -350,7 +266,7 @@ export default function StaffDashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">My Assigned Reports</h1>
+        <h1 className="text-3xl font-bold text-foreground">My Assigned Logs</h1>
         <p className="text-muted-foreground mt-2">Complete your assigned compliance checklists</p>
       </div>
 
@@ -364,7 +280,7 @@ export default function StaffDashboard() {
           {notifications?.map((notification) => (
             <Alert key={notification.id} onClick={() => markNotificationAsRead(notification.id)}>
               <Bell className="h-4 w-4" />
-              <AlertTitle>Report Reminder</AlertTitle>
+              <AlertTitle>Log Reminder</AlertTitle>
               <AlertDescription>{notification.message}</AlertDescription>
             </Alert>
           ))}
@@ -374,11 +290,11 @@ export default function StaffDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Assigned Reports</CardTitle>
+            <CardTitle className="text-sm font-medium">Assigned Logs</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalAssigned}</div>
-            <p className="text-xs text-muted-foreground">Total reports</p>
+            <p className="text-xs text-muted-foreground">Total logs</p>
           </CardContent>
         </Card>
 
@@ -394,7 +310,7 @@ export default function StaffDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Reports</CardTitle>
+            <CardTitle className="text-sm font-medium">Active Logs</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-600">{activeTemplates}</div>
@@ -417,7 +333,7 @@ export default function StaffDashboard() {
         <div className="space-y-4">
           <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
             <Clock className="w-5 h-5" />
-            Upcoming Reports ({upcomingReports.length})
+            Upcoming Logs ({upcomingReports.length})
           </h2>
           <div className="space-y-4">
             {upcomingReports.map((report) => {
@@ -464,7 +380,7 @@ export default function StaffDashboard() {
                       </div>
                       <Link href={`/staff/checklist/${report.template.id}`}>
                         <Button size="sm" variant={isOverdue ? "destructive" : "default"}>
-                          {isOverdue ? "Start Now" : "Start Report"}
+                          {isOverdue ? "Start Now" : "Start Log"}
                         </Button>
                       </Link>
                     </div>
@@ -478,48 +394,48 @@ export default function StaffDashboard() {
 
       {regularReports.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-foreground">Regular Reports ({regularReports.length})</h2>
+          <h2 className="text-xl font-semibold text-foreground">Regular Logs ({regularReports.length})</h2>
+          <p className="text-sm text-muted-foreground">Your logs that need to be completed regularly</p>
+
           <div className="space-y-4">
-            {regularReports.map((report) => {
-              return (
-                <Card key={report.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-lg">{report.template.name}</CardTitle>
-                        <CardDescription className="mt-1">{report.template.description}</CardDescription>
-                        <div className="flex items-center gap-2 mt-2">
-                          <Badge variant="outline" className="text-xs capitalize">
-                            {report.template.frequency}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            Assigned: {new Date(report.assigned_at).toLocaleDateString()}
+            {regularReports.map((report) => (
+              <Card key={report.id} className="hover:shadow-md transition-shadow">
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="text-lg">{report.template.name}</CardTitle>
+                      <CardDescription className="mt-1">{report.template.description}</CardDescription>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {report.template.frequency}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          Assigned: {new Date(report.assigned_at).toLocaleDateString()}
+                        </span>
+                        {report.completed_at && (
+                          <span className="text-xs text-green-600">
+                            Last completed: {new Date(report.completed_at).toLocaleDateString()}
                           </span>
-                          {report.completed_at && (
-                            <span className="text-xs text-green-600">
-                              Last completed: {new Date(report.completed_at).toLocaleDateString()}
-                            </span>
-                          )}
-                        </div>
+                        )}
                       </div>
-                      <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-                        Active
-                      </Badge>
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex justify-between items-center">
-                      <div className="text-sm text-muted-foreground">
-                        <p>Status: Ready to start</p>
-                      </div>
-                      <Link href={`/staff/checklist/${report.template.id}`}>
-                        <Button size="sm">Start Report</Button>
-                      </Link>
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                      Active
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex justify-between items-center">
+                    <div className="text-sm text-muted-foreground">
+                      <p>Status: Ready to start</p>
                     </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
+                    <Link href={`/staff/checklist/${report.template.id}`}>
+                      <Button size="sm">Start Log</Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </div>
       )}
@@ -529,12 +445,12 @@ export default function StaffDashboard() {
           <CardContent className="text-center py-12">
             <h3 className="text-lg font-semibold text-foreground mb-2">
               {assignedTemplates && assignedTemplates.length > 0
-                ? "All reports completed for today! Great job!"
-                : "No reports assigned"}
+                ? "All logs completed for today! Great job!"
+                : "No logs assigned"}
             </h3>
             <p className="text-muted-foreground">
               {assignedTemplates && assignedTemplates.length > 0
-                ? "Your assigned reports will reappear tomorrow for the next day's work."
+                ? "Your assigned logs will reappear tomorrow for the next day's work."
                 : "Contact your administrator to get assigned compliance checklists."}
             </p>
           </CardContent>
@@ -545,9 +461,9 @@ export default function StaffDashboard() {
         <div className="space-y-4">
           <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
             <History className="w-5 h-5" />
-            Report History ({completedReports.length})
+            Log History ({completedReports.length})
           </h2>
-          <p className="text-sm text-muted-foreground">Your completed reports</p>
+          <p className="text-sm text-muted-foreground">Your completed logs</p>
 
           <div className="space-y-4">
             {completedReports.map((report) => (
@@ -556,7 +472,7 @@ export default function StaffDashboard() {
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <h3 className="text-lg font-semibold text-foreground mb-1">
-                        {report.checklist_templates?.name || "Unknown Report"}
+                        {report.checklist_templates?.name || "Unknown Log"}
                       </h3>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
                         <span>

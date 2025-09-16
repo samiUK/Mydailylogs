@@ -1,11 +1,12 @@
 "use client"
 
 import type React from "react"
+import { useBranding } from "@/components/branding-provider"
 
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,6 +64,14 @@ export default function AdminDashboard() {
   const [allNotifications, setAllNotifications] = useState<any[]>([])
 
   const [impersonationBanner, setImpersonationBanner] = useState<any>(null)
+
+  const [reportCounts, setReportCounts] = useState({
+    total: 0,
+    completed: 0,
+    pending: 0,
+  })
+
+  const { organizationName, logoUrl } = useBranding()
 
   const checkMissedTasks = async () => {
     if (!profile?.organization_id) return
@@ -237,48 +246,6 @@ export default function AdminDashboard() {
     setSelectedMembers((prev) => ({ ...prev, [templateId]: [] }))
   }
 
-  const markNotificationAsRead = async (notificationId: string) => {
-    try {
-      const supabase = createClient()
-
-      // Update the notification in the database to mark as read
-      const { error } = await supabase.from("notifications").update({ is_read: true }).eq("id", notificationId)
-
-      if (error) {
-        console.error("[v0] Error marking notification as read:", error)
-        return
-      }
-
-      // Remove from local state after successful database update
-      setAllNotifications((prev) => prev.filter((n) => n.id !== notificationId))
-    } catch (error) {
-      console.error("[v0] Error updating notification:", error)
-    }
-  }
-
-  const markAllNotificationsAsRead = async () => {
-    try {
-      const supabase = createClient()
-
-      // Get all notification IDs that need to be marked as read
-      const notificationIds = allNotifications.map((n) => n.id)
-
-      if (notificationIds.length > 0) {
-        const { error } = await supabase.from("notifications").update({ is_read: true }).in("id", notificationIds)
-
-        if (error) {
-          console.error("[v0] Error marking all notifications as read:", error)
-          return
-        }
-      }
-
-      // Clear local state after successful database update
-      setAllNotifications([])
-    } catch (error) {
-      console.error("[v0] Error updating notifications:", error)
-    }
-  }
-
   const commonRoles = [
     "Manager",
     "Supervisor",
@@ -346,6 +313,203 @@ export default function AdminDashboard() {
     }
   }
 
+  const reportStats = useMemo(() => {
+    const total = reportCounts.total
+    const completed = reportCounts.completed
+    const pending = total - completed
+    return { total, completed, pending }
+  }, [reportCounts])
+
+  const pendingAssignments = useMemo(() => {
+    return todayChecklists?.filter((assignment) => assignment.status !== "completed") || []
+  }, [todayChecklists])
+
+  const completionStats = useMemo(() => {
+    const completedToday =
+      todayChecklists?.filter((c) => {
+        if (c.status !== "completed" || !c.completed_at) return false
+        const completedDate = new Date(c.completed_at).toDateString()
+        const today = new Date().toDateString()
+        return completedDate === today
+      }).length || 0
+
+    const totalCompleted = todayChecklists?.filter((c) => c.status === "completed").length || 0
+    const inProgressToday = todayChecklists?.filter((c) => c.status === "active" || !c.status).length || 0
+
+    return { completedToday, totalCompleted, inProgressToday }
+  }, [todayChecklists])
+
+  const loadReportCounts = useCallback(async () => {
+    if (!profile?.organization_id) return
+
+    try {
+      const supabase = createClient()
+      const { data: assignments, error } = await supabase
+        .from("template_assignments")
+        .select("id, status")
+        .eq("organization_id", profile.organization_id)
+        .limit(100) // Add limit
+
+      if (error) {
+        console.error("[v0] Error loading report counts:", error)
+        return
+      }
+
+      const total = assignments?.length || 0
+      const completed = assignments?.filter((a) => a.status === "completed").length || 0
+      const pending = total - completed
+
+      setReportCounts({ total, completed, pending })
+    } catch (error) {
+      console.error("[v0] Error calculating report counts:", error)
+    }
+  }, [profile?.organization_id])
+
+  const loadNotifications = useCallback(async () => {
+    if (!user?.id) return
+
+    try {
+      const supabase = createClient()
+      const { data: notifications, error } = await supabase
+        .from("notifications")
+        .select("id, type, message, created_at, is_read, user_id, template_id")
+        .eq("user_id", user.id)
+        .eq("is_read", false)
+        .order("created_at", { ascending: false })
+        .limit(5) // Reduced limit
+
+      if (error) {
+        console.error("[v0] Error fetching notifications:", error)
+        setAllNotifications([])
+        return
+      }
+
+      const templateIds = [...new Set(notifications?.map((n) => n.template_id).filter(Boolean) || [])]
+      const userIds = [...new Set(notifications?.map((n) => n.user_id).filter(Boolean) || [])]
+
+      const [templatesData, usersData] = await Promise.all([
+        templateIds.length > 0
+          ? supabase.from("checklist_templates").select("id, name").in("id", templateIds).limit(20)
+          : { data: [] },
+        userIds.length > 0
+          ? supabase.from("profiles").select("id, full_name").in("id", userIds).limit(20)
+          : { data: [] },
+      ])
+
+      const templatesMap = new Map(templatesData.data?.map((t) => [t.id, t]) || [])
+      const usersMap = new Map(usersData.data?.map((u) => [u.id, u]) || [])
+
+      const transformedNotifications = (notifications || []).map((notification) => ({
+        id: notification.id,
+        type: notification.type,
+        title: notification.message,
+        message: `${usersMap.get(notification.user_id)?.full_name || "Team Member"} - ${templatesMap.get(notification.template_id)?.name || "Notification"}`,
+        timestamp: notification.created_at,
+        isRead: notification.is_read,
+      }))
+
+      setAllNotifications(transformedNotifications)
+    } catch (error) {
+      console.error("[v0] Error loading notifications:", error)
+      setAllNotifications([])
+    }
+  }, [user?.id])
+
+  const markNotificationAsRead = useCallback(async (notificationId: string) => {
+    try {
+      const response = await fetch("/api/notifications/mark-read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notificationId }),
+      })
+
+      if (response.ok) {
+        setAllNotifications((prev) => prev.filter((n) => n.id !== notificationId))
+      }
+    } catch (error) {
+      console.error("[v0] Error marking notification as read:", error)
+    }
+  }, [])
+
+  const clearAllNotifications = useCallback(async () => {
+    if (allNotifications.length === 0) return
+
+    try {
+      const notificationIds = allNotifications.map((n) => n.id)
+      const response = await fetch("/api/notifications/clear-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notificationIds }),
+      })
+
+      if (response.ok) {
+        setAllNotifications([])
+      }
+    } catch (error) {
+      console.error("[v0] Error clearing notifications:", error)
+    }
+  }, [allNotifications])
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (!user || !profile) return
+
+      try {
+        const supabase = createClient()
+
+        const [templatesRes, activeTemplatesRes, teamMembersRes, assignmentsRes] = await Promise.all([
+          supabase
+            .from("checklist_templates")
+            .select("id, name, description, is_active, created_at")
+            .eq("organization_id", profile.organization_id)
+            .limit(10),
+          supabase
+            .from("checklist_templates")
+            .select("id, name, description")
+            .eq("organization_id", profile.organization_id)
+            .eq("is_active", true)
+            .order("name")
+            .limit(5),
+          supabase
+            .from("profiles")
+            .select("id, first_name, last_name, full_name, role")
+            .eq("organization_id", profile.organization_id)
+            .neq("id", user.id)
+            .order("first_name")
+            .limit(25),
+          supabase
+            .from("template_assignments")
+            .select(`
+              id,
+              status,
+              assigned_at,
+              completed_at,
+              template_id,
+              assigned_to,
+              checklist_templates:template_id(name),
+              profiles:assigned_to(full_name)
+            `)
+            .eq("organization_id", profile.organization_id)
+            .order("assigned_at", { ascending: false })
+            .limit(10),
+        ])
+
+        setTemplates(templatesRes.data || [])
+        setActiveTemplates(activeTemplatesRes.data || [])
+        setTeamMembers(teamMembersRes.data || [])
+        setTodayChecklists(assignmentsRes.data || [])
+
+        await Promise.all([loadReportCounts(), loadNotifications()])
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadData()
+  }, [user, profile])
+
   useEffect(() => {
     const loadUser = async () => {
       try {
@@ -371,112 +535,6 @@ export default function AdminDashboard() {
     loadUser()
   }, [])
 
-  useEffect(() => {
-    const loadData = async () => {
-      if (!user || !profile) return
-
-      try {
-        const supabase = createClient()
-
-        const [templatesRes, activeTemplatesRes, teamMembersRes, assignmentsRes] = await Promise.all([
-          supabase.from("checklist_templates").select("*").eq("organization_id", profile.organization_id),
-          supabase
-            .from("checklist_templates")
-            .select("id, name, description")
-            .eq("organization_id", profile.organization_id)
-            .eq("is_active", true)
-            .order("name"),
-          supabase
-            .from("profiles")
-            .select("id, first_name, last_name, full_name, role")
-            .eq("organization_id", profile.organization_id)
-            .neq("id", user.id)
-            .order("first_name"),
-          supabase
-            .from("template_assignments")
-            .select(`
-              *,
-              checklist_templates:template_id(name, schedule_type),
-              profiles:assigned_to(first_name, last_name, full_name)
-            `)
-            .eq("organization_id", profile.organization_id)
-            .or(
-              `status.neq.completed,and(status.eq.completed,checklist_templates.schedule_type.in.(daily,weekly,monthly,recurring))`,
-            )
-            .order("completed_at", { ascending: false, nullsFirst: false })
-            .order("assigned_at", { ascending: false })
-            .limit(20),
-        ])
-
-        setTemplates(templatesRes.data || [])
-        setActiveTemplates(activeTemplatesRes.data || [])
-        setTeamMembers(teamMembersRes.data || [])
-        setTodayChecklists(assignmentsRes.data || [])
-
-        await checkMissedTasks()
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadData()
-  }, [user, profile])
-
-  useEffect(() => {
-    if (profile?.organization_id) {
-      loadAdmins()
-    }
-  }, [profile])
-
-  useEffect(() => {
-    const loadNotifications = async () => {
-      if (!user || !profile) return
-
-      try {
-        const supabase = createClient()
-
-        const { data: notifications, error: notificationsError } = await supabase
-          .from("template_assignments")
-          .select(`
-            *,
-            checklist_templates!inner(name),
-            assigned_to_profile:profiles!template_assignments_assigned_to_fkey(first_name, last_name, full_name),
-            assigned_by_profile:profiles!template_assignments_assigned_by_fkey(first_name, last_name, full_name)
-          `)
-          .eq("organization_id", profile.organization_id)
-          .or("status.eq.completed,status.eq.active")
-          .order("updated_at", { ascending: false })
-          .limit(15)
-
-        if (notificationsError) {
-          console.error("Error fetching notifications:", notificationsError)
-        } else {
-          const transformedNotifications =
-            notifications?.map((assignment) => ({
-              id: assignment.id,
-              type: assignment.status === "completed" ? "submission" : "assignment",
-              title:
-                assignment.status === "completed"
-                  ? `${assignment.assigned_to_profile?.full_name || `${assignment.assigned_to_profile?.first_name} ${assignment.assigned_to_profile?.last_name}`} submitted a report`
-                  : `New task assigned to ${assignment.assigned_to_profile?.full_name || `${assignment.assigned_to_profile?.first_name} ${assignment.assigned_to_profile?.last_name}`}`,
-              message: assignment.checklist_templates?.name || "Checklist",
-              timestamp: assignment.status === "completed" ? assignment.completed_at : assignment.assigned_at,
-              isRead: false,
-              data: assignment,
-            })) || []
-
-          setAllNotifications(transformedNotifications)
-        }
-      } catch (error) {
-        console.error("Error loading notifications:", error)
-      }
-    }
-
-    loadNotifications()
-  }, [user, profile])
-
   if (loading) {
     return (
       <div className="space-y-8">
@@ -489,17 +547,6 @@ export default function AdminDashboard() {
   }
 
   if (!user) return null
-
-  const completedToday =
-    todayChecklists?.filter((c) => {
-      if (c.status !== "completed" || !c.completed_at) return false
-      const completedDate = new Date(c.completed_at).toDateString()
-      const today = new Date().toDateString()
-      return completedDate === today
-    }).length || 0
-
-  const totalCompleted = todayChecklists?.filter((c) => c.status === "completed").length || 0
-  const inProgressToday = todayChecklists?.filter((c) => c.status === "active" || !c.status).length || 0
 
   return (
     <div className="space-y-8">
@@ -526,9 +573,7 @@ export default function AdminDashboard() {
 
       <div>
         <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
-        <p className="text-muted-foreground mt-2">
-          Manage your organization&apos;s compliance checklists and team members
-        </p>
+        <p className="text-muted-foreground mt-2">Manage your organization's compliance checklists and team members</p>
       </div>
 
       {missedTasks.length > 0 && (
@@ -566,43 +611,46 @@ export default function AdminDashboard() {
             <CardDescription className="text-base">Report templates awaiting completion</CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="grid grid-cols-3 gap-4 mb-4 p-3 bg-gray-50 rounded-lg">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{reportStats.total}</div>
+                <div className="text-xs text-muted-foreground">Total Reports</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{reportStats.completed}</div>
+                <div className="text-xs text-muted-foreground">Completed</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600">{reportStats.pending}</div>
+                <div className="text-xs text-muted-foreground">Pending</div>
+              </div>
+            </div>
+
             <div className="space-y-3 max-h-48 overflow-y-auto text-left">
-              {todayChecklists?.filter((assignment) => assignment.status !== "completed").length === 0 ? (
+              {pendingAssignments.length === 0 ? (
                 <div className="text-base text-muted-foreground text-left py-4">No pending reports</div>
               ) : (
-                todayChecklists
-                  ?.filter((assignment) => assignment.status !== "completed")
-                  .slice(0, 5)
-                  .map((assignment) => (
-                    <div key={assignment.id} className="flex items-center justify-between p-2 border rounded-lg">
-                      <div className="flex-1 text-left">
-                        <h5 className="text-base font-medium text-foreground">
-                          {assignment.checklist_templates?.name || "Template"}
-                        </h5>
-                        <p className="text-sm text-muted-foreground">
-                          Assigned to:{" "}
-                          {assignment.profiles?.full_name ||
-                            `${assignment.profiles?.first_name} ${assignment.profiles?.last_name}` ||
-                            "Team Member"}
-                        </p>
-                        <p className="text-sm text-blue-600">
-                          Assigned: {new Date(assignment.assigned_at).toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
-                          Pending
-                        </Badge>
-                      </div>
+                pendingAssignments.slice(0, 5).map((assignment) => (
+                  <div key={assignment.id} className="flex items-center justify-between p-2 border rounded-lg">
+                    <div className="flex-1 text-left">
+                      <h5 className="text-base font-medium text-foreground">
+                        {assignment.checklist_templates?.name || "Template"}
+                      </h5>
+                      <p className="text-sm text-muted-foreground">
+                        Assigned to: {assignment.profiles?.full_name || "Team Member"}
+                      </p>
+                      <p className="text-sm text-blue-600">
+                        Assigned: {new Date(assignment.assigned_at).toLocaleString()}
+                      </p>
                     </div>
-                  ))
+                    <div className="text-right">
+                      <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
+                        Pending
+                      </Badge>
+                    </div>
+                  </div>
+                ))
               )}
-            </div>
-            <div className="mt-3 pt-3 border-t text-left">
-              <p className="text-sm text-muted-foreground">
-                Pending: {todayChecklists?.filter((assignment) => assignment.status !== "completed").length || 0} •
-                Total Reports: {todayChecklists?.length || 0} • Completed: {totalCompleted}
-              </p>
             </div>
           </CardContent>
         </Card>
@@ -837,7 +885,7 @@ export default function AdminDashboard() {
                   <span className="text-xs text-muted-foreground">
                     {allNotifications.length} notification{allNotifications.length > 1 ? "s" : ""}
                   </span>
-                  <Button variant="ghost" size="sm" onClick={markAllNotificationsAsRead} className="text-xs h-6 px-2">
+                  <Button variant="ghost" size="sm" onClick={clearAllNotifications} className="text-xs h-6 px-2">
                     Clear All
                   </Button>
                 </div>

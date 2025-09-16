@@ -12,14 +12,16 @@ import { useRouter } from "next/navigation"
 import { getSubscriptionLimits } from "@/lib/subscription-limits"
 
 interface Organization {
-  id: string
-  name: string
+  organization_id: string
+  organization_name: string
   logo_url: string | null
   primary_color: string | null
+  slug: string // Added slug to interface
 }
 
 export default function SettingsPage() {
   const [organization, setOrganization] = useState<Organization | null>(null)
+  const [profile, setProfile] = useState<any>(null) // Added profile state to check user role
   const [name, setName] = useState("")
   const [primaryColor, setPrimaryColor] = useState("#10b981")
   const [logoFile, setLogoFile] = useState<File | null>(null)
@@ -48,16 +50,22 @@ export default function SettingsPage() {
         if (impersonatedEmail) {
           const { data: profile } = await supabase
             .from("profiles")
-            .select("id")
+            .select("*") // Select all profile data to check role
             .eq("email", decodeURIComponent(impersonatedEmail))
             .single()
           userId = profile?.id
+          setProfile(profile) // Set profile state
         }
       } else {
         const {
           data: { user },
         } = await supabase.auth.getUser()
         userId = user?.id
+
+        if (userId) {
+          const { data: userProfile } = await supabase.from("profiles").select("*").eq("id", userId).single()
+          setProfile(userProfile)
+        }
       }
 
       if (userId) {
@@ -70,12 +78,12 @@ export default function SettingsPage() {
           const { data: org } = await supabase
             .from("organizations")
             .select("*")
-            .eq("id", profile.organization_id)
+            .eq("organization_id", profile.organization_id)
             .single()
 
           if (org) {
             setOrganization(org)
-            setName(org.name || "")
+            setName(org.organization_name || "")
             setPrimaryColor(org.primary_color || "#10b981")
             setLogoPreview(org.logo_url)
           }
@@ -90,6 +98,20 @@ export default function SettingsPage() {
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      const maxSize = 5 * 1024 * 1024 // 5MB
+      const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
+
+      if (file.size > maxSize) {
+        setError("Logo file must be smaller than 5MB")
+        return
+      }
+
+      if (!allowedTypes.includes(file.type)) {
+        setError("Logo must be a valid image file (JPG, PNG, GIF, or WebP)")
+        return
+      }
+
+      setError(null)
       setLogoFile(file)
       const reader = new FileReader()
       reader.onload = (e) => {
@@ -99,8 +121,33 @@ export default function SettingsPage() {
     }
   }
 
+  const generateSlug = (name: string): string => {
+    if (!name || typeof name !== "string") {
+      return `org-${Date.now()}`
+    }
+
+    const baseSlug = name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, "") // Remove special characters
+      .replace(/\s+/g, "-") // Replace spaces with hyphens
+      .replace(/-+/g, "-") // Replace multiple hyphens with single hyphen
+      .replace(/^-|-$/g, "") // Remove leading/trailing hyphens
+
+    // If slug is empty after processing, use a fallback
+    const finalSlug = baseSlug || `org-${Date.now()}`
+
+    // Ensure slug is not empty and has minimum length
+    return finalSlug.length > 0 ? finalSlug : `org-${Date.now()}`
+  }
+
   const handleSave = async () => {
     if (!organization) return
+
+    if (!name.trim()) {
+      setError("Organization name is required")
+      return
+    }
 
     setIsSaving(true)
     setError(null)
@@ -110,41 +157,73 @@ export default function SettingsPage() {
       let logoUrl = organization.logo_url
 
       if (logoFile) {
-        const fileExt = logoFile.name.split(".").pop()
-        const fileName = `${organization.id}/logo.${fileExt}`
+        const fileExt = logoFile.name.split(".").pop()?.toLowerCase()
+        const timestamp = Date.now()
+        const fileName = `${organization.organization_id}/logo-${timestamp}.${fileExt}`
 
-        const { error: uploadError } = await supabase.storage.from("organization-assets").upload(fileName, logoFile, {
-          upsert: true,
-        })
+        // Delete old logo if it exists
+        if (organization.logo_url) {
+          const oldFileName = organization.logo_url.split("/").pop()
+          if (oldFileName && oldFileName.startsWith("logo")) {
+            await supabase.storage
+              .from("organization-assets")
+              .remove([`${organization.organization_id}/${oldFileName}`])
+          }
+        }
+
+        const { error: uploadError, data: uploadData } = await supabase.storage
+          .from("organization-assets")
+          .upload(fileName, logoFile, {
+            upsert: false, // Don't overwrite, use unique filename
+            contentType: logoFile.type,
+          })
 
         if (uploadError) {
-          throw new Error("Failed to upload logo")
+          console.error("Upload error:", uploadError)
+          throw new Error(`Failed to upload logo: ${uploadError.message}`)
         }
 
         const {
           data: { publicUrl },
         } = supabase.storage.from("organization-assets").getPublicUrl(fileName)
-        logoUrl = publicUrl
+
+        logoUrl = `${publicUrl}?v=${timestamp}`
       }
+
+      const slug = generateSlug(name)
+
+      if (!slug || slug.trim().length === 0) {
+        throw new Error("Failed to generate valid slug")
+      }
+
+      console.log("[v0] Generated slug:", slug, "from name:", name)
+
+      const updateData = {
+        organization_name: name.trim(),
+        slug: slug,
+        logo_url: logoUrl,
+        primary_color: primaryColor,
+        updated_at: new Date().toISOString(),
+      }
+
+      console.log("[v0] Update data:", updateData)
 
       const { error: updateError } = await supabase
         .from("organizations")
-        .update({
-          name,
-          logo_url: logoUrl,
-          primary_color: primaryColor,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", organization.id)
+        .update(updateData)
+        .eq("organization_id", organization.organization_id)
 
-      if (updateError) throw updateError
+      if (updateError) {
+        console.log("[v0] Update error:", updateError)
+        throw updateError
+      }
 
       const { error: profileUpdateError } = await supabase
         .from("profiles")
         .update({
           organization_name: name,
         })
-        .eq("organization_id", organization.id)
+        .eq("organization_id", organization.organization_id)
 
       if (profileUpdateError) throw profileUpdateError
 
@@ -152,26 +231,38 @@ export default function SettingsPage() {
         prev
           ? {
               ...prev,
-              name,
+              organization_name: name,
+              slug: slug,
               logo_url: logoUrl,
               primary_color: primaryColor,
             }
           : null,
       )
 
+      const brandingCache = (window as any).brandingCache
+      if (brandingCache) {
+        brandingCache.clear()
+      }
+
       window.dispatchEvent(new CustomEvent("brandingRefresh"))
+
+      setLogoPreview(logoUrl)
 
       alert("Settings saved successfully!")
 
       setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("brandingRefresh"))
         window.location.reload()
-      }, 500)
+      }, 300)
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred")
+      console.error("Save error:", error)
+      setError(error instanceof Error ? error.message : "An error occurred while saving settings")
     } finally {
       setIsSaving(false)
     }
   }
+
+  const canEditOrganizationName = profile?.role === "admin" || profile?.role === "master_admin"
 
   if (isLoading) {
     return (
@@ -205,6 +296,13 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Organization Settings</h1>
         <p className="text-gray-600 mt-2">Customize your organization&apos;s branding and identity</p>
+        {!canEditOrganizationName && (
+          <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-sm text-amber-800">
+              <strong>Note:</strong> Only administrators and master administrators can modify organization settings.
+            </p>
+          </div>
+        )}
       </div>
 
       <Card>
@@ -223,7 +321,11 @@ export default function SettingsPage() {
               onChange={(e) => setName(e.target.value)}
               placeholder="Your Organization Name"
               required
+              disabled={!canEditOrganizationName} // Disable input for non-admin users
             />
+            {canEditOrganizationName && (
+              <p className="text-xs text-gray-500">This name will appear throughout the platform and in reports.</p>
+            )}
           </div>
 
           <div className="grid gap-2">
@@ -235,12 +337,32 @@ export default function SettingsPage() {
                     src={logoPreview || "/placeholder.svg"}
                     alt="Logo preview"
                     className="max-w-full max-h-full object-contain"
+                    onError={(e) => {
+                      console.error("Logo preview failed to load")
+                      setError("Logo preview failed to load. Please try a different image.")
+                    }}
                   />
                 </div>
               )}
-              <div>
-                <Input id="logo" type="file" accept="image/*" onChange={handleLogoChange} className="mb-2" />
-                <p className="text-xs text-gray-500">Recommended: Square format (200x200px), PNG or JPG</p>
+              <div className="flex-1">
+                <Input
+                  id="logo"
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  onChange={handleLogoChange}
+                  className="mb-2"
+                />
+                <p className="text-xs text-gray-500">
+                  Recommended: Square format (200x200px), PNG or JPG. Max size: 5MB
+                </p>
+                {isSaving && logoFile && (
+                  <div className="mt-2">
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: "60%" }}></div>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">Uploading logo...</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -284,7 +406,7 @@ export default function SettingsPage() {
 
           {error && <p className="text-sm text-red-500">{error}</p>}
 
-          <Button onClick={handleSave} disabled={isSaving}>
+          <Button onClick={handleSave} disabled={isSaving || !canEditOrganizationName}>
             {isSaving ? "Saving..." : "Save Settings"}
           </Button>
         </CardContent>

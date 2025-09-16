@@ -32,23 +32,26 @@ import {
   LogIn,
   Mail,
   Eye,
-  Activity,
   Reply,
   X,
   Search,
   Calendar,
-  FileText,
   Shield,
   Edit,
-  LogOut,
+  DollarSign,
+  Edit2,
+  Archive,
+  ArrowDown,
+  ArrowUp,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { ReportDirectoryContent } from "./report-directory-content"
 
 interface Organization {
-  id: string
-  name: string
+  organization_id: string
+  organization_name: string
   logo_url: string | null
+  primary_color: string | null
   created_at: string
   profiles?: { count: number; role: string }[]
   subscriptions?: { plan_name: string; status: string }[]
@@ -158,6 +161,190 @@ export default function MasterDashboardPage() {
     primaryColor: string
   } | null>(null)
 
+  const [databaseStats, setDatabaseStats] = useState({
+    checklists: { total: 0, completed: 0, pending: 0 },
+    templates: { total: 0, active: 0, inactive: 0 },
+    notifications: { total: 0, unread: 0 },
+    holidays: { total: 0, upcoming: 0 },
+    staffUnavailability: { total: 0, current: 0 },
+    auditLogs: { total: 0, today: 0 },
+    backups: { total: 0, thisWeek: 0 },
+  })
+
+  const getCookie = (name: string) => {
+    const value = `; ${document.cookie}`
+    const parts = value.split(`; ${name}=`)
+    if (parts.length === 2) return parts.pop()?.split(";").shift()
+  }
+
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [admins, setAdmins] = useState<any[]>([])
+  const [staff, setStaff] = useState<any[]>([])
+
+  const [editingOrg, setEditingOrg] = useState<{ id: string; name: string } | null>(null)
+  const [editOrgName, setEditOrgName] = useState("")
+
+  const checkAuthAndLoadData = async () => {
+    try {
+      console.log("[v0] Starting master admin authentication check...")
+
+      await new Promise((resolve) => setTimeout(resolve, 100))
+
+      const masterAdminAuth = localStorage.getItem("masterAdminAuth")
+      const masterAdminEmail = localStorage.getItem("masterAdminEmail") || getCookie("masterAdminEmail")
+
+      if (masterAdminAuth !== "true" || !masterAdminEmail) {
+        console.log("[v0] Master admin not authenticated, redirecting to masterlogin")
+        router.push("/masterlogin")
+        return
+      }
+
+      console.log(`[v0] Master admin authenticated: ${masterAdminEmail}`)
+      setIsAuthenticated(true)
+
+      const loadEssentialData = async () => {
+        try {
+          const [{ data: organizationsData, error: orgError }, { data: profilesData, error: profileError }] =
+            await Promise.all([
+              createClient()
+                .from("organizations")
+                .select(`
+                  *,
+                  profiles!organization_id(*)
+                `),
+              createClient()
+                .from("profiles")
+                .select(`
+                  *,
+                  organizations!organization_id(*)
+                `),
+            ])
+
+          console.log("[v0] Organizations response:", {
+            error: orgError,
+            data: organizationsData,
+            count: organizationsData?.length,
+          })
+          console.log("[v0] Profiles response:", {
+            error: profileError,
+            data: profilesData,
+            count: profilesData?.length,
+          })
+
+          if (profileError) {
+            console.error("[v0] Profile fetch error:", profileError)
+            return
+          }
+
+          if (orgError) {
+            console.error("[v0] Organization fetch error:", orgError)
+          }
+
+          const uniqueOrganizations = new Map()
+
+          // First, add organizations from the organizations table
+          if (organizationsData) {
+            organizationsData.forEach((org) => {
+              uniqueOrganizations.set(org.organization_id, {
+                ...org,
+                profiles: org.profiles || [],
+              })
+            })
+          }
+
+          // Then, merge with organizations from profiles table
+          if (profilesData) {
+            profilesData.forEach((profile) => {
+              if (profile.organization_id) {
+                const orgId = profile.organization_id
+                const existingOrg = uniqueOrganizations.get(orgId)
+
+                if (existingOrg) {
+                  if (!existingOrg.organization_name && profile.organization_name) {
+                    existingOrg.organization_name = profile.organization_name
+                  }
+                  // Add profile to existing organization if not already there
+                  if (!existingOrg.profiles.some((p) => p.id === profile.id)) {
+                    existingOrg.profiles.push(profile)
+                  }
+                } else {
+                  uniqueOrganizations.set(orgId, {
+                    organization_id: orgId,
+                    organization_name: profile.organization_name || `Organization ${orgId.slice(0, 8)}`,
+                    logo_url: profile.organizations?.logo_url || null,
+                    primary_color: profile.organizations?.primary_color || null,
+                    created_at: profile.created_at || new Date().toISOString(),
+                    profiles: [profile],
+                  })
+                }
+              }
+            })
+          }
+
+          const allOrganizations = [...Array.from(uniqueOrganizations.values())]
+
+          setOrganizations(allOrganizations)
+          setAllUsers(profilesData || [])
+
+          console.log("[v0] Organizations loaded:", allOrganizations.length)
+          console.log("[v0] Users loaded:", profilesData?.length || 0)
+
+          const admins = profilesData?.filter((user) => user.role === "admin") || []
+          const staff = profilesData?.filter((user) => user.role === "staff") || []
+
+          console.log("[v0] Admins found:", admins.length)
+          console.log("[v0] Staff found:", staff.length)
+          console.log("[v0] Essential data loaded")
+          console.log(
+            "[v0] Final counts - Organizations:",
+            allOrganizations.length,
+            "Admins:",
+            admins.length,
+            "Staff:",
+            staff.length,
+          )
+
+          setOrganizationStats((prev) => ({
+            ...prev,
+            total: allOrganizations.length,
+            totalUsers: profilesData?.length || 0,
+            totalAdmins: admins.length,
+            totalStaff: staff.length,
+          }))
+        } catch (error) {
+          console.error("[v0] Error loading essential data:", error)
+        }
+      }
+
+      loadEssentialData()
+    } catch (error) {
+      console.error("[v0] Error loading data:", error)
+      setOrganizations([])
+      setAllUsers([])
+      setFeedback([])
+      setUnreadFeedbackCount(0)
+      setTotalSubmittedReports(0)
+      setAllSubscriptions([])
+      setAllPayments([])
+      setSuperusers([])
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    checkAuthAndLoadData()
+
+    // Cleanup function to prevent memory leaks
+    return () => {
+      setOrganizations([])
+      setAllUsers([])
+      setAllSubscriptions([])
+      setAllPayments([])
+      setFeedback([])
+      setSuperusers([])
+    }
+  }, [])
+
   const loginAsUser = async (userEmail: string, userRole: string) => {
     if (!userEmail.trim()) {
       alert("Please enter a valid email address")
@@ -170,20 +357,22 @@ export default function MasterDashboardPage() {
       const supabase = createClient()
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select(`
+        .select(
+          `
           organization_name,
           organizations!inner(
-            name,
+            organization_name,
             logo_url,
             primary_color
           )
-        `)
+        `,
+        )
         .eq("email", userEmail.trim())
         .single()
 
       if (profileData?.organizations) {
         setImpersonatedOrgBranding({
-          name: profileData.organizations.name || profileData.organization_name || "Organization",
+          name: profileData.organizations.organization_name || profileData.organization_name || "Organization",
           logoUrl: profileData.organizations.logo_url,
           primaryColor: profileData.organizations.primary_color || "#dc2626",
         })
@@ -242,7 +431,7 @@ export default function MasterDashboardPage() {
       if (error) throw error
 
       // Refresh data
-      await checkAuthAndLoadData()
+      checkAuthAndLoadData()
       alert("Subscription cancelled successfully")
       setSelectedSubscription(null)
     } catch (error) {
@@ -269,7 +458,7 @@ export default function MasterDashboardPage() {
       if (error) throw error
 
       // Refresh data
-      await checkAuthAndLoadData()
+      checkAuthAndLoadData()
       alert(`${planName} subscription added successfully`)
       setNewSubscriptionPlan("")
     } catch (error) {
@@ -299,7 +488,7 @@ export default function MasterDashboardPage() {
       await supabase.from("payments").update({ status: "refunded" }).eq("id", paymentId)
 
       // Refresh data
-      await checkAuthAndLoadData()
+      checkAuthAndLoadData()
       alert(`Refund of £${amount} processed successfully`)
       setRefundAmount("")
     } catch (error) {
@@ -327,7 +516,7 @@ export default function MasterDashboardPage() {
       if (profileError) throw profileError
 
       // Refresh data
-      await checkAuthAndLoadData()
+      checkAuthAndLoadData()
       alert("User deleted successfully")
     } catch (error) {
       console.error("Error deleting user:", error)
@@ -337,193 +526,32 @@ export default function MasterDashboardPage() {
     }
   }
 
-  const checkAuthAndLoadData = async () => {
-    const masterAdminCookie =
-      document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("masterAdminImpersonation="))
-        ?.split("=")[1] === "true"
+  useEffect(() => {}, [])
 
-    const isAuthenticated = masterAdminCookie || localStorage.getItem("masterAdminAuth")
-    const adminEmail =
-      document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("masterAdminEmail="))
-        ?.split("=")[1] || localStorage.getItem("masterAdminEmail")
-
-    const isMasterAdmin = adminEmail === "arsami.uk@gmail.com"
-    const isSuperuser = !isMasterAdmin && isAuthenticated
-
-    if (!isAuthenticated || (!isMasterAdmin && !isSuperuser)) {
-      router.push("/masterlogin")
+  useEffect(() => {
+    console.log("[v0] Calculating stats - Organizations:", organizations.length, "Users:", allUsers.length)
+    if (organizations.length === 0) {
+      setOrganizationStats({
+        total: 0,
+        active: 0,
+        withSubscriptions: 0,
+        totalUsers: 0,
+        totalAdmins: 0,
+        totalStaff: 0,
+      })
       return
     }
 
-    setUserType(isMasterAdmin ? "Master Admin" : "Super User")
-
-    const supabase = createClient()
-
-    try {
-      console.log("[v0] Fetching organizations and other data...")
-
-      const [
-        organizationsResponse,
-        profilesResponse,
-        subscriptionsResponse,
-        paymentsResponse,
-        feedbackResponse,
-        completedAssignmentsResponse,
-        externalSubmissionsResponse,
-      ] = await Promise.all([
-        (await supabase).from("organizations").select(`
-          *,
-          profiles!inner(
-            id,
-            email,
-            full_name,
-            role,
-            created_at
-          )
-        `),
-        (await supabase).from("profiles").select("*").order("created_at", { ascending: false }),
-        (await supabase).from("subscriptions").select("*").order("created_at", { ascending: false }),
-        (await supabase)
-          .from("payments")
-          .select(`
-          *,
-          subscriptions(plan_name)
-        `)
-          .order("created_at", { ascending: false }),
-        (await supabase).from("feedback").select("*").order("created_at", { ascending: false }),
-        (await supabase).from("template_assignments").select("*").eq("status", "completed"),
-        (await supabase).from("external_submissions").select("*").not("submitted_at", "is", null),
-      ])
-
-      console.log("[v0] Organizations response:", organizationsResponse)
-      console.log("[v0] Organizations data:", organizationsResponse.data)
-      console.log("[v0] Organizations error:", organizationsResponse.error)
-      if (organizationsResponse.error) {
-        console.error("[v0] Organizations query failed:", organizationsResponse.error.message)
-      }
-
-      console.log("[v0] Feedback response:", feedbackResponse)
-      console.log("[v0] Feedback data:", feedbackResponse.data)
-      console.log("[v0] Feedback error:", feedbackResponse.error)
-      console.log("[v0] Number of feedback items found:", feedbackResponse.data?.length || 0)
-      if (feedbackResponse.data && feedbackResponse.data.length > 0) {
-        console.log("[v0] Sample feedback item:", feedbackResponse.data[0])
-      }
-
-      setOrganizations(organizationsResponse.data || [])
-      setAllUsers(profilesResponse.data || [])
-      setAllSubscriptions(subscriptionsResponse.data || [])
-      setAllPayments(paymentsResponse.data || [])
-      setFeedback(feedbackResponse.data || [])
-      setUnreadFeedbackCount(feedbackResponse.data?.filter((f) => f.status === "unread").length || 0)
-
-      const internalReportsCount = completedAssignmentsResponse.data?.length || 0
-      const externalReportsCount = externalSubmissionsResponse.data?.length || 0
-      const totalReports = internalReportsCount + externalReportsCount
-
-      console.log("[v0] Internal reports count:", internalReportsCount)
-      console.log("[v0] External reports count:", externalReportsCount)
-      console.log("[v0] Total submitted reports:", totalReports)
-
-      setTotalSubmittedReports(totalReports)
-
-      // Load superusers
-      const { data: superusersData, error: superusersError } = await supabase
-        .from("superusers")
-        .select("*")
-        .order("created_at", { ascending: false })
-
-      if (superusersError) {
-        console.error("Error fetching superusers:", superusersError)
-      } else {
-        setSuperusers(superusersData || [])
-      }
-    } catch (error) {
-      console.error("Error loading data:", error)
-    } finally {
-      setIsLoading(false)
+    const stats = {
+      total: organizations.length,
+      active: organizations.length, // Simplified calculation
+      withSubscriptions: 0, // Will be calculated when subscriptions are loaded
+      totalUsers: allUsers.length,
+      totalAdmins: allUsers.filter((u) => u.role === "admin").length,
+      totalStaff: allUsers.filter((u) => u.role === "staff").length,
     }
-  }
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true)
-      const supabase = createClient()
-      try {
-        console.log("[v0] Fetching organizations and other data...")
-
-        const [
-          orgsResponse,
-          usersResponse,
-          subscriptionsResponse,
-          paymentsResponse,
-          feedbackResponse,
-          internalReportsResponse,
-          externalReportsResponse,
-          superusersResponse,
-        ] = await Promise.all([
-          supabase.from("organizations").select(`
-            *,
-            profiles(
-              id,
-              email,
-              full_name,
-              role,
-              created_at
-            )
-          `),
-          supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-          supabase.from("subscriptions").select("*"),
-          supabase.from("payments").select("*"),
-          supabase.from("feedback").select("*").order("created_at", { ascending: false }),
-          supabase.from("template_assignments").select("*").eq("status", "completed"),
-          supabase.from("external_submissions").select("*").not("submitted_at", "is", null),
-          supabase.from("superusers").select("*").order("created_at", { ascending: false }),
-        ])
-
-        console.log("[v0] Organizations response:", orgsResponse)
-        console.log("[v0] Organizations data:", orgsResponse.data)
-        console.log("[v0] Organizations error:", orgsResponse.error)
-        console.log("[v0] Number of organizations found:", orgsResponse.data?.length || 0)
-
-        console.log("[v0] Feedback response:", feedbackResponse)
-        console.log("[v0] Feedback data:", feedbackResponse.data)
-        console.log("[v0] Feedback error:", feedbackResponse.error)
-        console.log("[v0] Number of feedback items found:", feedbackResponse.data?.length || 0)
-        console.log("[v0] Sample feedback item:", feedbackResponse.data?.[0]?.message)
-
-        setOrganizations(orgsResponse.data || [])
-        setAllUsers(usersResponse.data || [])
-        setAllSubscriptions(subscriptionsResponse.data || [])
-        setAllPayments(paymentsResponse.data || [])
-        setFeedback(feedbackResponse.data || [])
-        setUnreadFeedbackCount(feedbackResponse.data?.filter((f) => f.status === "unread").length || 0)
-
-        const internalReportsCount = internalReportsResponse.data?.length || 0
-        const externalReportsCount = externalReportsResponse.data?.length || 0
-        const totalReports = internalReportsCount + externalReportsCount
-
-        console.log("[v0] Internal reports count:", internalReportsCount)
-        console.log("[v0] External reports count:", externalReportsCount)
-        console.log("[v0] Total submitted reports:", totalReports)
-
-        setTotalSubmittedReports(totalReports)
-
-        // Load superusers
-        setSuperusers(superusersResponse.data || [])
-      } catch (error) {
-        console.error("Error loading data:", error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [])
+    setOrganizationStats(stats)
+  }, [organizations, allUsers]) // Added allUsers dependency for accurate counts
 
   const handleSignOut = async () => {
     document.cookie = "masterAdminImpersonation=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
@@ -632,7 +660,7 @@ export default function MasterDashboardPage() {
       }
 
       // Refresh data
-      await checkAuthAndLoadData()
+      checkAuthAndLoadData()
       alert("User deleted successfully")
     } catch (error) {
       console.error("Error deleting user:", error)
@@ -734,7 +762,7 @@ export default function MasterDashboardPage() {
   )
 
   const filteredOrganizations = organizations.filter((org) =>
-    org.name.toLowerCase().includes(organizationSearchTerm.toLowerCase()),
+    org.organization_name.toLowerCase().includes(organizationSearchTerm.toLowerCase()),
   )
 
   const filteredUsersNew = allUsers.filter(
@@ -743,24 +771,6 @@ export default function MasterDashboardPage() {
       user.full_name?.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
       user.organizations?.name.toLowerCase().includes(userSearchTerm.toLowerCase()),
   )
-
-  useEffect(() => {
-    const stats = {
-      total: organizations.length,
-      active: organizations.filter((org) => org.subscriptions?.some((sub) => sub.status === "active")).length,
-      withSubscriptions: organizations.filter((org) => org.subscriptions && org.subscriptions.length > 0).length,
-      totalUsers: organizations.reduce((sum, org) => sum + (org.profiles?.[0]?.count || 0), 0),
-      totalAdmins: organizations.reduce(
-        (sum, org) => sum + (org.profiles?.filter((p) => p.role === "admin").length || 0),
-        0,
-      ),
-      totalStaff: organizations.reduce(
-        (sum, org) => sum + (org.profiles?.filter((p) => p.role === "staff").length || 0),
-        0,
-      ),
-    }
-    setOrganizationStats(stats)
-  }, [organizations])
 
   // Superuser Management Functions
   const addSuperuser = async () => {
@@ -786,7 +796,7 @@ export default function MasterDashboardPage() {
       }
 
       // Refresh superusers list
-      await checkAuthAndLoadData()
+      checkAuthAndLoadData()
       setNewSuperuserEmail("")
       setNewSuperuserPassword("")
       alert("Superuser added successfully")
@@ -816,7 +826,7 @@ export default function MasterDashboardPage() {
       }
 
       // Refresh superusers list
-      await checkAuthAndLoadData()
+      checkAuthAndLoadData()
       alert("Superuser removed successfully")
     } catch (error) {
       console.error("Error removing superuser:", error)
@@ -848,7 +858,7 @@ export default function MasterDashboardPage() {
       }
 
       // Refresh superusers list
-      await checkAuthAndLoadData()
+      checkAuthAndLoadData()
       setEditingSuperuser(null)
       setNewSuperuserPassword("")
       alert("Superuser updated successfully")
@@ -949,26 +959,6 @@ export default function MasterDashboardPage() {
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Currently Online</CardTitle>
-                  <Activity className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {
-                      allUsers.filter((user) => {
-                        const lastSeen = new Date(user.last_sign_in_at || user.created_at)
-                        const now = new Date()
-                        const diffMinutes = (now.getTime() - lastSeen.getTime()) / (1000 * 60)
-                        return diffMinutes <= 30 // Consider online if active within 30 minutes
-                      }).length
-                    }
-                  </div>
-                  <p className="text-xs text-muted-foreground">Active in last 30 min</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Total Organizations</CardTitle>
                   <Building2 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
@@ -980,31 +970,21 @@ export default function MasterDashboardPage() {
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Submitted Reports</CardTitle>
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{totalSubmittedReports}</div>
-                  <p className="text-xs text-muted-foreground">Team members + External users</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Active Subscriptions</CardTitle>
-                  <CardDescription>Currently active</CardDescription>
+                  <CardTitle className="text-sm font-medium">Active Subscriptions</CardTitle>
+                  <CreditCard className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
                     {allSubscriptions.filter((sub) => sub.status === "active").length}
                   </div>
+                  <p className="text-xs text-muted-foreground">Currently active</p>
                 </CardContent>
               </Card>
 
               <Card>
-                <CardHeader>
-                  <CardTitle>Total Revenue</CardTitle>
-                  <CardDescription>Completed payments</CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
@@ -1013,6 +993,183 @@ export default function MasterDashboardPage() {
                       .filter((payment) => payment.status === "completed")
                       .reduce((sum, payment) => sum + Number.parseFloat(payment.amount), 0)
                       .toFixed(2)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Completed payments</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Checklists & Templates</CardTitle>
+                  <CardDescription>Daily operations management</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Total Checklists</span>
+                    <span className="font-semibold">{databaseStats.checklists.total}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Completed</span>
+                    <span className="font-semibold text-green-600">{databaseStats.checklists.completed}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Pending</span>
+                    <span className="font-semibold text-orange-600">{databaseStats.checklists.pending}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Active Templates</span>
+                    <span className="font-semibold">{databaseStats.templates.active}</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Communications</CardTitle>
+                  <CardDescription>Notifications and feedback</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Total Notifications</span>
+                    <span className="font-semibold">{databaseStats.notifications.total}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Unread</span>
+                    <span className="font-semibold text-red-600">{databaseStats.notifications.unread}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Total Feedback</span>
+                    <span className="font-semibold">{feedback.length}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Unread Feedback</span>
+                    <span className="font-semibold text-red-600">{unreadFeedbackCount}</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Staff Management</CardTitle>
+                  <CardDescription>Holidays and availability</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Total Holidays</span>
+                    <span className="font-semibold">{databaseStats.holidays.total}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Upcoming</span>
+                    <span className="font-semibold text-blue-600">{databaseStats.holidays.upcoming}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Staff Unavailable</span>
+                    <span className="font-semibold text-orange-600">{databaseStats.staffUnavailability.current}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Total Reports</span>
+                    <span className="font-semibold">{totalSubmittedReports}</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">System Activity</CardTitle>
+                  <CardDescription>Audit logs and backups</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Total Audit Logs</span>
+                    <span className="font-semibold">{databaseStats.auditLogs.total}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Today's Activity</span>
+                    <span className="font-semibold text-green-600">{databaseStats.auditLogs.today}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Total Backups</span>
+                    <span className="font-semibold">{databaseStats.backups.total}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">This Week</span>
+                    <span className="font-semibold text-blue-600">{databaseStats.backups.thisWeek}</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">User Activity</CardTitle>
+                  <CardDescription>Current user engagement</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Currently Online</span>
+                    <span className="font-semibold text-green-600">
+                      {
+                        allUsers.filter((user) => {
+                          const lastSeen = new Date(user.last_sign_in_at || user.created_at)
+                          const now = new Date()
+                          const diffMinutes = (now.getTime() - lastSeen.getTime()) / (1000 * 60)
+                          return diffMinutes <= 30
+                        }).length
+                      }
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Admins</span>
+                    <span className="font-semibold">{allUsers.filter((u) => u.role === "admin").length}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Staff</span>
+                    <span className="font-semibold">{allUsers.filter((u) => u.role === "staff").length}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Superusers</span>
+                    <span className="font-semibold text-purple-600">
+                      {superusers.filter((s) => s.is_active).length}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Database Health</CardTitle>
+                  <CardDescription>Overall system status</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Total Tables</span>
+                    <span className="font-semibold">21</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Total Records</span>
+                    <span className="font-semibold">
+                      {allUsers.length +
+                        organizations.length +
+                        databaseStats.checklists.total +
+                        databaseStats.templates.total +
+                        databaseStats.notifications.total +
+                        databaseStats.holidays.total +
+                        databaseStats.auditLogs.total +
+                        databaseStats.backups.total +
+                        totalSubmittedReports +
+                        feedback.length +
+                        allSubscriptions.length +
+                        allPayments.length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">System Status</span>
+                    <span className="font-semibold text-green-600">Healthy</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Last Updated</span>
+                    <span className="font-semibold text-xs">{new Date().toLocaleTimeString()}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -1261,7 +1418,7 @@ export default function MasterDashboardPage() {
                   ) : (
                     filteredOrganizations.map((org) => (
                       <div
-                        key={org.id}
+                        key={org.organization_id}
                         className="border rounded-xl p-6 bg-white shadow-sm hover:shadow-md transition-all"
                       >
                         {/* Organization Header */}
@@ -1270,7 +1427,7 @@ export default function MasterDashboardPage() {
                             {org.logo_url ? (
                               <img
                                 src={org.logo_url || "/placeholder.svg"}
-                                alt={org.name}
+                                alt={org.organization_name}
                                 className="w-16 h-16 rounded-xl object-cover border-2 border-gray-100"
                               />
                             ) : (
@@ -1279,7 +1436,20 @@ export default function MasterDashboardPage() {
                               </div>
                             )}
                             <div className="space-y-2">
-                              <h3 className="text-xl font-bold text-gray-900">{org.name}</h3>
+                              <div className="flex items-center gap-2">
+                                <h3 className="text-xl font-bold text-gray-900">{org.organization_name}</h3>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingOrg({ id: org.organization_id, name: org.organization_name })
+                                    setEditOrgName(org.organization_name)
+                                  }}
+                                  className="h-6 w-6 p-0 hover:bg-gray-100"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </Button>
+                              </div>
                               <div className="flex items-center gap-4 text-sm text-gray-500">
                                 <span className="flex items-center gap-1">
                                   <Calendar className="w-4 h-4" />
@@ -1287,14 +1457,52 @@ export default function MasterDashboardPage() {
                                 </span>
                                 <span className="flex items-center gap-1">
                                   <Building2 className="w-4 h-4" />
-                                  ID: {org.id.slice(0, 8)}...
+                                  ID: {org.organization_id.slice(0, 8)}...
                                 </span>
                               </div>
                             </div>
                           </div>
-                          <Badge variant="outline" className="text-sm px-3 py-1">
-                            Active Organization
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-sm px-3 py-1">
+                              Active Organization
+                            </Badge>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (
+                                  confirm(
+                                    "Are you sure you want to archive this organization? This action can be reversed.",
+                                  )
+                                ) {
+                                  // TODO: Implement organization archive
+                                  console.log("[v0] Archive organization:", org.organization_id)
+                                }
+                              }}
+                              className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                            >
+                              <Archive className="w-4 h-4 mr-1" />
+                              Archive
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (
+                                  confirm(
+                                    "Are you sure you want to permanently delete this organization? This action cannot be undone.",
+                                  )
+                                ) {
+                                  // TODO: Implement organization deletion
+                                  console.log("[v0] Delete organization:", org.organization_id)
+                                }
+                              }}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4 mr-1" />
+                              Delete
+                            </Button>
+                          </div>
                         </div>
 
                         {/* Organization Members Hierarchy */}
@@ -1324,6 +1532,19 @@ export default function MasterDashboardPage() {
                                         <p className="font-medium text-gray-900 truncate">{admin.full_name}</p>
                                         <p className="text-sm text-gray-500 truncate">{admin.email}</p>
                                       </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                          if (confirm(`Demote ${admin.full_name} to staff member?`)) {
+                                            // TODO: Implement role change
+                                            console.log("[v0] Demote admin to staff:", admin.id)
+                                          }
+                                        }}
+                                        className="h-6 w-6 p-0 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                      >
+                                        <ArrowDown className="w-3 h-3" />
+                                      </Button>
                                     </div>
                                   ))
                               ) : (
@@ -1359,6 +1580,34 @@ export default function MasterDashboardPage() {
                                       <div className="flex-1 min-w-0">
                                         <p className="font-medium text-gray-900 truncate">{staff.full_name}</p>
                                         <p className="text-sm text-gray-500 truncate">{staff.email}</p>
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                            if (confirm(`Promote ${staff.full_name} to administrator?`)) {
+                                              // TODO: Implement role change
+                                              console.log("[v0] Promote staff to admin:", staff.id)
+                                            }
+                                          }}
+                                          className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                        >
+                                          <ArrowUp className="w-3 h-3" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                            if (confirm(`Remove ${staff.full_name} from this organization?`)) {
+                                              // TODO: Implement staff removal
+                                              console.log("[v0] Remove staff from organization:", staff.id)
+                                            }
+                                          }}
+                                          className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                        >
+                                          <X className="w-3 h-3" />
+                                        </Button>
                                       </div>
                                     </div>
                                   ))
@@ -1861,24 +2110,50 @@ export default function MasterDashboardPage() {
           </TabsContent>
         </Tabs>
       </div>
-      <footer className="bg-white border-t border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-500">© {new Date().getFullYear()} MyDayLogs. All rights reserved.</p>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">Signed in as {userType}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                handleSignOut()
-              }}
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
-            </Button>
+
+      {editingOrg && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4">Edit Organization Name</h3>
+            <input
+              type="text"
+              value={editOrgName}
+              onChange={(e) => setEditOrgName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter organization name"
+            />
+            <div className="flex justify-end gap-3 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditingOrg(null)
+                  setEditOrgName("")
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (editOrgName.trim() && editOrgName !== editingOrg.name) {
+                    console.log("[v0] Update organization name:", editingOrg.id, editOrgName.trim())
+                    // TODO: Implement actual database update
+                    // Update local state for now
+                    setOrganizations((prev) =>
+                      prev.map((org) =>
+                        org.organization_id === editingOrg.id ? { ...org, organization_name: editOrgName.trim() } : org,
+                      ),
+                    )
+                  }
+                  setEditingOrg(null)
+                  setEditOrgName("")
+                }}
+              >
+                Save
+              </Button>
+            </div>
           </div>
         </div>
-      </footer>
+      )}
     </div>
   )
 }

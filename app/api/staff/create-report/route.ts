@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
         console.log("[v0] Create Report API - Daily checklist already exists for today")
         return NextResponse.json({
           reportId: existingDaily.id,
-          message: "A new Report has been added to your Staff Dashboard",
+          message: "A new Log has been added to your Staff Dashboard",
           type: "daily",
         })
       }
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       console.log("[v0] Create Report API - Daily checklist created:", dailyChecklist.id)
       return NextResponse.json({
         reportId: dailyChecklist.id,
-        message: "A new Report has been added to your Staff Dashboard",
+        message: "A new Log has been added to your Staff Dashboard",
         type: "daily",
       })
     } else {
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       console.log("[v0] Create Report API - Assignment created:", assignment.id)
       return NextResponse.json({
         reportId: assignment.id,
-        message: "A new Report has been added to your Staff Dashboard",
+        message: "A new Log has been added to your Staff Dashboard",
         type: "regular",
       })
     }

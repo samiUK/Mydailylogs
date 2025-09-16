@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client"
+import { generateUserSpecificUrl, extractUserFromUrl } from "@/lib/url-session-utils"
 
 // Types for impersonation context
 export interface ImpersonationContext {
@@ -17,13 +18,24 @@ export interface EffectiveUser {
   impersonationContext?: ImpersonationContext
 }
 
-// Client-side impersonation detection using cookies
 export function getClientImpersonationContext(): ImpersonationContext {
   if (typeof window === "undefined") {
     return { isImpersonating: false }
   }
 
-  // Use only cookies for session management
+  // First check URL for user-specific routes
+  const { userEmail, role } = extractUserFromUrl(window.location.pathname)
+
+  if (userEmail && role) {
+    return {
+      isImpersonating: true,
+      impersonatedUserEmail: userEmail,
+      impersonatedUserRole: role,
+      masterAdminType: "master_admin", // Default for URL-based sessions
+    }
+  }
+
+  // Fallback to cookies for backward compatibility
   const isImpersonating =
     document.cookie
       .split("; ")
@@ -106,24 +118,26 @@ export async function getEffectiveClientUser(): Promise<EffectiveUser | null> {
   }
 }
 
-// Start impersonation session (client-side)
 export function startImpersonation(
   targetUserEmail: string,
   targetUserRole: string,
   targetOrganizationId: string,
   masterAdminType: "master_admin" | "superuser" = "master_admin",
 ) {
-  // Set cookies for server-side detection only
+  // Set cookies for backward compatibility and server-side detection
   document.cookie = `masterAdminImpersonation=true; path=/; max-age=86400; SameSite=Lax`
   document.cookie = `impersonatedUserEmail=${encodeURIComponent(targetUserEmail)}; path=/; max-age=86400; SameSite=Lax`
   document.cookie = `impersonatedUserRole=${targetUserRole}; path=/; max-age=86400; SameSite=Lax`
   document.cookie = `impersonatedOrganizationId=${targetOrganizationId}; path=/; max-age=86400; SameSite=Lax`
   document.cookie = `masterAdminType=${masterAdminType}; path=/; max-age=86400; SameSite=Lax`
+
+  // Navigate to user-specific URL for session isolation
+  const userSpecificUrl = generateUserSpecificUrl(targetUserEmail, targetUserRole as "admin" | "staff")
+  window.location.href = userSpecificUrl
 }
 
-// Exit impersonation session (client-side)
 export function exitImpersonation() {
-  // Clear cookies only
+  // Clear cookies
   document.cookie = "masterAdminImpersonation=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
   document.cookie = "impersonatedUserEmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
   document.cookie = "impersonatedUserRole=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
@@ -134,9 +148,11 @@ export function exitImpersonation() {
   window.location.href = "/masterdashboard"
 }
 
-// Check if current session is impersonated (client-side only)
 export function isCurrentlyImpersonating(): boolean {
   if (typeof window !== "undefined") {
+    const { userEmail } = extractUserFromUrl(window.location.pathname)
+    if (userEmail) return true
+
     const context = getClientImpersonationContext()
     return context.isImpersonating
   }

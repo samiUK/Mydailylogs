@@ -22,8 +22,8 @@ export async function GET() {
         role,
         organization_id,
         organizations!inner(
-          id,
-          name,
+          organization_id,
+          organization_name,
           slug
         )
       `)
@@ -37,8 +37,8 @@ export async function GET() {
     // Transform the data to include organization info with role
     const organizations =
       profiles?.map((profile) => ({
-        id: profile.organizations[0].id,
-        name: profile.organizations[0].name,
+        id: profile.organizations[0].organization_id,
+        name: profile.organizations[0].organization_name,
         slug: profile.organizations[0].slug,
         role: profile.role,
         profileId: profile.id,

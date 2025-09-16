@@ -11,15 +11,29 @@ export function FeedbackBanner() {
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
 
   useEffect(() => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    )
+    const initializeAuth = async () => {
+      try {
+        const supabase = createBrowserClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        )
 
-    // Get current user
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user)
-    })
+        // Get current user with error handling
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser()
+        if (error) {
+          console.log("[v0] Auth error in feedback banner (non-critical):", error.message)
+          return
+        }
+        setUser(user)
+      } catch (error) {
+        console.log("[v0] Failed to initialize auth in feedback banner (non-critical):", error)
+      }
+    }
+
+    initializeAuth()
 
     // Check if banner was previously closed
     const bannerClosed = localStorage.getItem("feedback-banner-closed")

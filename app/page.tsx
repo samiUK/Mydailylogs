@@ -13,21 +13,21 @@ import { redirect } from "next/navigation"
 export const dynamic = "force-dynamic"
 
 export default async function HomePage() {
+  let user = null
+  let profile = null
+
   const supabase = await createClient()
   const {
-    data: { user },
+    data: { user: authUser },
   } = await supabase.auth.getUser()
 
-  console.log("[v0] Landing page - User object:", user ? { id: user.id, email: user.email } : null)
-  console.log("[v0] Landing page - User exists:", !!user)
+  user = authUser
 
   if (user) {
     // Fetch user profile to determine role
-    const { data: profile } = await supabase.from("profiles").select("role").eq("email", user.email).single()
+    const { data: userProfile } = await supabase.from("profiles").select("role").eq("email", user.email).single()
+    profile = userProfile
 
-    console.log("[v0] Landing page - User profile:", profile)
-
-    // Redirect based on role
     if (profile?.role === "admin") {
       redirect("/admin")
     } else if (profile?.role === "staff") {

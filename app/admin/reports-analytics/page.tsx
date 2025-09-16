@@ -75,6 +75,20 @@ export default function AdminReportsAnalyticsPage() {
         setProfile(profile)
         console.log("[v0] Admin Reports Analytics page - Profile loaded, org:", profile.organization_id)
 
+        console.log("[v0] Auto-clearing submission notifications for reports page visit")
+        const { error: clearError } = await supabase
+          .from("notifications")
+          .update({ is_read: true })
+          .eq("user_id", user.id)
+          .in("type", ["submission", "report_submitted", "daily_log_submitted"])
+          .eq("is_read", false)
+
+        if (clearError) {
+          console.error("[v0] Error auto-clearing submission notifications:", clearError)
+        } else {
+          console.log("[v0] Successfully auto-cleared submission notifications")
+        }
+
         const { data: members } = await supabase
           .from("profiles")
           .select("id, full_name, first_name, last_name, email, role")

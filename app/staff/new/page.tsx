@@ -84,7 +84,7 @@ export default function StaffNewReportPage() {
       <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Create New Report</h1>
+            <h1 className="text-3xl font-bold">Create New Log</h1>
             <p className="text-muted-foreground">Loading available templates...</p>
           </div>
         </div>
@@ -96,8 +96,8 @@ export default function StaffNewReportPage() {
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Create New Report</h1>
-          <p className="text-muted-foreground">Choose from available report templates to create a new report</p>
+          <h1 className="text-3xl font-bold">Create New Log</h1>
+          <p className="text-muted-foreground">Choose from available log templates to create a new log</p>
         </div>
       </div>
 
@@ -138,7 +138,7 @@ export default function StaffNewReportPage() {
                   className="w-full"
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  {isCreating === template.id ? "Creating..." : "Start Report"}
+                  {isCreating === template.id ? "Creating..." : "Start Log"}
                 </Button>
               </CardContent>
             </Card>
@@ -150,9 +150,9 @@ export default function StaffNewReportPage() {
             <div className="text-center space-y-4">
               <FileText className="h-12 w-12 text-muted-foreground mx-auto" />
               <div>
-                <h3 className="text-lg font-semibold">No Report Templates Available</h3>
+                <h3 className="text-lg font-semibold">No Log Templates Available</h3>
                 <p className="text-muted-foreground">
-                  No active report templates found. Contact your administrator to create report templates.
+                  No active log templates found. Contact your administrator to create log templates.
                 </p>
               </div>
             </div>

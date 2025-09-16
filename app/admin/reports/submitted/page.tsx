@@ -41,12 +41,34 @@ export default function SubmittedReportsPage() {
     try {
       const {
         data: { user },
+        error: authError,
       } = await supabase.auth.getUser()
-      if (!user) return
 
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single()
+      if (authError) {
+        console.error("[v0] Auth error in submitted reports:", authError)
+        setError("Authentication error. Please refresh the page.")
+        setLoading(false)
+        return
+      }
 
-      if (!profile) return
+      if (!user) {
+        setError("Please log in to view reports.")
+        setLoading(false)
+        return
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("id", user.id)
+        .single()
+
+      if (profileError || !profile) {
+        console.error("[v0] Profile error in submitted reports:", profileError)
+        setError("Unable to load user profile.")
+        setLoading(false)
+        return
+      }
 
       const { data, error } = await supabase
         .from("submitted_reports")

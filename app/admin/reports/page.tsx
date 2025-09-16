@@ -64,8 +64,8 @@ export default function ReportsPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Reports</h1>
-        <p>Loading reports data...</p>
+        <h1 className="text-3xl font-bold">Logs</h1>
+        <p>Loading logs data...</p>
       </div>
     )
   }
@@ -74,7 +74,7 @@ export default function ReportsPage() {
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold">Authentication Required</h1>
-        <p>Please log in to view reports.</p>
+        <p>Please log in to view logs.</p>
         <Button onClick={() => (window.location.href = "/auth/login")}>Go to Login</Button>
       </div>
     )
@@ -83,8 +83,8 @@ export default function ReportsPage() {
   if (error) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Error Loading Reports</h1>
-        <p>There was an error loading the reports data.</p>
+        <h1 className="text-3xl font-bold">Error Loading Logs</h1>
+        <p>There was an error loading the logs data.</p>
         <Button onClick={loadReportsData}>Try Again</Button>
       </div>
     )
@@ -93,8 +93,8 @@ export default function ReportsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Reports</h1>
-        <p className="text-muted-foreground mt-2">Comprehensive analytics and reporting dashboard</p>
+        <h1 className="text-3xl font-bold text-foreground">Logs</h1>
+        <p className="text-muted-foreground mt-2">Comprehensive analytics and logging dashboard</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -150,7 +150,7 @@ export default function ReportsPage() {
               <span className="text-sm text-muted-foreground">Download all submission data</span>
             </Button>
             <Button variant="outline" className="h-auto p-4 flex flex-col items-start bg-transparent">
-              <span className="font-semibold">Generate PDF Report</span>
+              <span className="font-semibold">Generate PDF Log</span>
               <span className="text-sm text-muted-foreground">Create comprehensive report</span>
             </Button>
             <Button variant="outline" className="h-auto p-4 flex flex-col items-start bg-transparent">

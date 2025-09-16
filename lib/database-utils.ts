@@ -105,4 +105,16 @@ export function clearExpiredCache() {
   }
 }
 
-setInterval(clearExpiredCache, 30 * 60 * 1000)
+let cacheCleanupInterval: NodeJS.Timeout | null = null
+
+export function startCacheCleanup() {
+  if (cacheCleanupInterval) return // Already running
+  cacheCleanupInterval = setInterval(clearExpiredCache, 30 * 60 * 1000)
+}
+
+export function stopCacheCleanup() {
+  if (cacheCleanupInterval) {
+    clearInterval(cacheCleanupInterval)
+    cacheCleanupInterval = null
+  }
+}

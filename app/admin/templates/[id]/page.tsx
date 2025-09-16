@@ -84,23 +84,40 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
   useEffect(() => {
     if (!templateId) return
 
-    if (templateId === "new") {
-      router.replace("/admin/templates/new")
-      return
-    }
     loadTemplate()
     loadTeamMembers()
   }, [templateId])
 
   const loadTemplate = async () => {
     try {
+      console.log("[v0] Loading template with ID:", templateId)
+
+      if (templateId === "new") {
+        console.log("[v0] Redirecting to new template page")
+        router.replace("/admin/templates/new")
+        setLoading(false)
+        return
+      }
+
       const { data: templateData, error: templateError } = await supabase
         .from("checklist_templates")
         .select("*")
         .eq("id", templateId)
         .single()
 
-      if (templateError) throw templateError
+      console.log("[v0] Template query result:", { templateData, templateError })
+
+      if (templateError) {
+        console.log("[v0] Template error:", templateError)
+        throw templateError
+      }
+
+      if (!templateData) {
+        console.log("[v0] No template found")
+        setError("Template not found")
+        setLoading(false)
+        return
+      }
 
       const { data: tasksData, error: tasksError } = await supabase
         .from("checklist_items")
@@ -108,7 +125,13 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
         .eq("template_id", templateId)
         .order("order_index")
 
-      if (tasksError) throw tasksError
+      console.log("[v0] Tasks query result:", { tasksData, tasksError })
+
+      if (tasksError) {
+        console.log("[v0] Tasks error:", tasksError)
+        // Don't throw error for tasks, just log it and continue with empty tasks
+        console.warn("Failed to load tasks, continuing with empty tasks array")
+      }
 
       setTemplate(templateData)
       setFormData({
@@ -118,7 +141,7 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
         is_active: templateData.is_active ?? true,
       })
 
-      const formattedTasks: Task[] = tasksData.map((task) => ({
+      const formattedTasks: Task[] = (tasksData || []).map((task) => ({
         id: task.id,
         name: task.name || "",
         type: task.task_type || "boolean",
@@ -134,10 +157,12 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
       }))
 
       setTasks(formattedTasks)
+      console.log("[v0] Template loaded successfully:", { templateData, tasksCount: formattedTasks.length })
     } catch (error) {
-      console.error("Error loading template:", error)
-      setError("Failed to load template")
+      console.error("[v0] Error loading template:", error)
+      setError(`Failed to load template: ${error instanceof Error ? error.message : "Unknown error"}`)
     } finally {
+      console.log("[v0] Setting loading to false")
       setLoading(false)
     }
   }
@@ -276,6 +301,7 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto"></div>
           <p className="text-muted-foreground mt-2">Loading template...</p>
+          <p className="text-xs text-muted-foreground mt-1">Template ID: {templateId}</p>
         </div>
       </div>
     )
@@ -360,7 +386,6 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
                       <SelectItem value="daily">Daily</SelectItem>
                       <SelectItem value="weekly">Weekly</SelectItem>
                       <SelectItem value="monthly">Monthly</SelectItem>
-                      <SelectItem value="custom">Custom</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

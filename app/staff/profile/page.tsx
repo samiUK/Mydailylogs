@@ -30,8 +30,8 @@ interface Profile {
 }
 
 interface Organization {
-  id: string
-  name: string
+  organization_id: string
+  organization_name: string
 }
 
 export default function StaffProfilePage() {
@@ -99,8 +99,8 @@ export default function StaffProfilePage() {
         if (profile && profile.organization_id) {
           const { data: orgData, error: orgError } = await supabase
             .from("organizations")
-            .select("id, name")
-            .eq("id", profile.organization_id)
+            .select("organization_id, organization_name")
+            .eq("organization_id", profile.organization_id)
             .single()
 
           if (!orgError && orgData) {
@@ -358,7 +358,7 @@ export default function StaffProfilePage() {
                 <Input
                   id="organizationName"
                   name="organizationName"
-                  value={organization?.name || ""}
+                  value={organization?.organization_name || ""}
                   disabled
                   className="bg-gray-50 text-gray-600"
                 />

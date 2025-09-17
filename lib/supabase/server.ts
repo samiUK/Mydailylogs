@@ -14,6 +14,12 @@ export async function createClient() {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: false,
+          flowType: "pkce",
+        },
         cookies: {
           getAll() {
             return cookieStore.getAll()
@@ -42,6 +48,12 @@ export function createServerClient(cookieStore: any) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: false,
+          flowType: "pkce",
+        },
         cookies: {
           get(name: string) {
             return cookieStore.get(name)?.value

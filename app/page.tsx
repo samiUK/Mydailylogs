@@ -385,7 +385,7 @@ export default async function HomePage() {
                 <CardDescription>Perfect for micro-businesses and startups</CardDescription>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-3 mb-6">
+                <ul className="space-y-3 mb-8">
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2" />3 Templates
                   </li>
@@ -394,20 +394,29 @@ export default async function HomePage() {
                     Up to 5 Team Members
                   </li>
                   <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2" />1 Admin Account
+                  </li>
+                  <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2" />
                     Basic reporting
                   </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2" />
+                    Manual Task Monitoring
+                  </li>
                 </ul>
                 <Link href="/auth/sign-up">
-                  <Button className="w-full bg-transparent" variant="outline">
-                    Get Started
+                  <Button className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-accent to-accent/90 hover:from-accent/90 hover:to-accent text-accent-foreground shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105">
+                    🚀 Get Started FREE
                   </Button>
                 </Link>
               </CardContent>
             </Card>
 
-            <Card className="relative border-accent">
-              <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-accent">Best for SMEs</Badge>
+            <Card className="relative border-accent border-2 shadow-xl">
+              <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-accent text-accent-foreground px-4 py-1">
+                Best for SMEs
+              </Badge>
               <CardHeader>
                 <CardTitle className="text-2xl">Growth</CardTitle>
                 <div className="text-3xl font-bold">
@@ -416,7 +425,7 @@ export default async function HomePage() {
                 <CardDescription>Ideal for growing small-medium businesses</CardDescription>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-3 mb-6">
+                <ul className="space-y-3 mb-8">
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2" />
                     10 Templates
@@ -427,20 +436,45 @@ export default async function HomePage() {
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2" />
+                    Up to 3 Admin Accounts
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2" />
                     Advanced Reporting
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2" />
                     Priority Email Support
                   </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2" />
+                    <span className="flex items-center">
+                      🤖 AI Task Monitoring
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        NEW
+                      </Badge>
+                    </span>
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2" />
+                    <span className="flex items-center">
+                      🔔 Smart Notifications
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        NEW
+                      </Badge>
+                    </span>
+                  </li>
                 </ul>
-                <Link href="/auth/sign-up">
-                  <Button className="w-full bg-accent hover:bg-accent/90">Get Started</Button>
-                </Link>
+                <Button
+                  disabled
+                  className="w-full h-12 text-lg font-semibold bg-muted text-muted-foreground cursor-not-allowed"
+                >
+                  Coming Soon
+                </Button>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="relative">
               <CardHeader>
                 <CardTitle className="text-2xl">Scale</CardTitle>
                 <div className="text-3xl font-bold">
@@ -449,7 +483,7 @@ export default async function HomePage() {
                 <CardDescription>For established SMEs ready to scale</CardDescription>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-3 mb-6">
+                <ul className="space-y-3 mb-8">
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2" />
                     30 Templates
@@ -460,18 +494,50 @@ export default async function HomePage() {
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2" />
+                    Up to 10 Admin Accounts
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2" />
                     Advanced Analytics
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2" />
                     Dedicated Account Manager
                   </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2" />
+                    <span className="flex items-center">
+                      🤖 Advanced AI Monitoring
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        NEW
+                      </Badge>
+                    </span>
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2" />
+                    <span className="flex items-center">
+                      🔔 Predictive Notifications
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        NEW
+                      </Badge>
+                    </span>
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2" />
+                    <span className="flex items-center">
+                      📊 AI Performance Insights
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        NEW
+                      </Badge>
+                    </span>
+                  </li>
                 </ul>
-                <Link href="/auth/sign-up">
-                  <Button className="w-full bg-transparent" variant="outline">
-                    Get Started
-                  </Button>
-                </Link>
+                <Button
+                  disabled
+                  className="w-full h-12 text-lg font-semibold bg-muted text-muted-foreground cursor-not-allowed"
+                >
+                  Coming Soon
+                </Button>
               </CardContent>
             </Card>
           </div>

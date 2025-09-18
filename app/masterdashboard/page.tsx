@@ -188,10 +188,24 @@ export default function MasterDashboardPage() {
     try {
       console.log("[v0] Starting master admin authentication check...")
 
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await new Promise((resolve) => setTimeout(resolve, 500))
 
-      const masterAdminAuth = localStorage.getItem("masterAdminAuth")
-      const masterAdminEmail = localStorage.getItem("masterAdminEmail") || getCookie("masterAdminEmail")
+      let masterAdminAuth = localStorage.getItem("masterAdminAuth")
+      let masterAdminEmail = localStorage.getItem("masterAdminEmail")
+
+      // If localStorage is not available, try cookies
+      if (!masterAdminAuth || !masterAdminEmail) {
+        masterAdminEmail = getCookie("masterAdminEmail")
+        const cookieAuth = getCookie("masterAdminImpersonation")
+        if (cookieAuth === "true" && masterAdminEmail) {
+          masterAdminAuth = "true"
+          // Set localStorage from cookies for future use
+          localStorage.setItem("masterAdminAuth", "true")
+          localStorage.setItem("masterAdminEmail", masterAdminEmail)
+        }
+      }
+
+      console.log("[v0] Auth check results:", { masterAdminAuth, masterAdminEmail })
 
       if (masterAdminAuth !== "true" || !masterAdminEmail) {
         console.log("[v0] Master admin not authenticated, redirecting to masterlogin")
@@ -295,24 +309,13 @@ export default function MasterDashboardPage() {
           console.log("[v0] Admins found:", admins.length)
           console.log("[v0] Staff found:", staff.length)
           console.log("[v0] Essential data loaded")
-          console.log(
-            "[v0] Final counts - Organizations:",
-            allOrganizations.length,
-            "Admins:",
-            admins.length,
-            "Staff:",
-            staff.length,
-          )
-
-          setOrganizationStats((prev) => ({
-            ...prev,
-            total: allOrganizations.length,
-            totalUsers: profilesData?.length || 0,
-            totalAdmins: admins.length,
-            totalStaff: staff.length,
-          }))
+          console.log("[v0] Setting isLoading to false - dashboard should now render")
+          setIsLoading(false)
+          console.log("[v0] Current isLoading state:", false)
         } catch (error) {
           console.error("[v0] Error loading essential data:", error)
+          console.log("[v0] Setting isLoading to false due to error")
+          setIsLoading(false)
         }
       }
 
@@ -866,6 +869,17 @@ export default function MasterDashboardPage() {
       console.error("Error updating superuser:", error)
       alert("Failed to update superuser")
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading master dashboard...</p>
+        </div>
+      </div>
+    )
   }
 
   return (

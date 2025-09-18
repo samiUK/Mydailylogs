@@ -43,6 +43,8 @@ import {
   Archive,
   ArrowDown,
   ArrowUp,
+  AlertCircle,
+  Info,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { ReportDirectoryContent } from "./report-directory-content"
@@ -183,6 +185,132 @@ export default function MasterDashboardPage() {
 
   const [editingOrg, setEditingOrg] = useState<{ id: string; name: string } | null>(null)
   const [editOrgName, setEditOrgName] = useState("")
+
+  const [notification, setNotification] = useState<{
+    type: "success" | "error" | "warning" | "info"
+    message: string
+    show: boolean
+  }>({
+    type: "info",
+    message: "",
+    show: false,
+  })
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    show: boolean
+    title: string
+    message: string
+    onConfirm: () => void
+    onCancel: () => void
+    type: "warning" | "danger"
+  }>({
+    show: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+    onCancel: () => {},
+    type: "warning",
+  })
+
+  const showConfirmDialog = (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    type: "warning" | "danger" = "warning",
+  ) => {
+    setConfirmDialog({
+      show: true,
+      title,
+      message,
+      onConfirm,
+      onCancel: () => setConfirmDialog((prev) => ({ ...prev, show: false })),
+      type,
+    })
+  }
+
+  const showNotification = (type: "success" | "error" | "warning" | "info", message: string) => {
+    setNotification({ type, message, show: true })
+    setTimeout(() => {
+      setNotification((prev) => ({ ...prev, show: false }))
+    }, 5000)
+  }
+
+  const syncData = async () => {
+    setIsProcessing(true)
+    try {
+      await checkAuthAndLoadData()
+      showNotification("success", "Data synchronized successfully!")
+    } catch (error) {
+      console.error("Sync error:", error)
+      showNotification("error", "Failed to sync data. Please try again.")
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const archiveOrganization = async (orgId: string, orgName: string) => {
+    if (
+      !confirm(`Are you sure you want to archive "${orgName}"? This will mark it as archived but keep all data intact.`)
+    ) {
+      return
+    }
+
+    try {
+      const response = await fetch("/api/admin/archive-organization", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgId }),
+      })
+
+      if (response.ok) {
+        showNotification("success", `Organization "${orgName}" has been archived successfully.`)
+        await checkAuthAndLoadData() // Refresh data
+      } else {
+        const error = await response.text()
+        showNotification("error", `Failed to archive organization: ${error}`)
+      }
+    } catch (error) {
+      console.error("Archive organization error:", error)
+      showNotification("error", "Failed to archive organization. Please try again.")
+    }
+  }
+
+  const deleteOrganization = async (orgId: string, orgName: string) => {
+    showConfirmDialog(
+      "⚠️ DANGER: Permanent Deletion",
+      `Are you sure you want to PERMANENTLY DELETE "${orgName}"? This action cannot be undone and will remove all associated data including users, reports, and settings.`,
+      () => {
+        // Second confirmation
+        showConfirmDialog(
+          "⚠️ FINAL WARNING",
+          `This will PERMANENTLY DELETE "${orgName}" and ALL its data. This action is irreversible.`,
+          async () => {
+            try {
+              const response = await fetch("/api/admin/delete-organization", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ orgId }),
+              })
+
+              if (response.ok) {
+                showNotification("success", `Organization "${orgName}" has been permanently deleted.`)
+                await checkAuthAndLoadData() // Refresh data
+              } else {
+                const error = await response.text()
+                showNotification("error", `Failed to delete organization: ${error}`)
+              }
+            } catch (error) {
+              console.error("Delete organization error:", error)
+              showNotification("error", "Failed to delete organization. Please try again.")
+            }
+            setConfirmDialog((prev) => ({ ...prev, show: false }))
+          },
+          "danger",
+        )
+      },
+      "danger",
+    )
+  }
 
   const checkAuthAndLoadData = async () => {
     try {
@@ -350,7 +478,7 @@ export default function MasterDashboardPage() {
 
   const loginAsUser = async (userEmail: string, userRole: string) => {
     if (!userEmail.trim()) {
-      alert("Please enter a valid email address")
+      showNotification("error", "Please enter a valid email address")
       return
     }
 
@@ -396,7 +524,7 @@ export default function MasterDashboardPage() {
       }, 500)
     } catch (error) {
       console.error("Error setting up impersonation:", error)
-      alert("Failed to login as user")
+      showNotification("error", "Failed to login as user")
     }
   }
 
@@ -435,11 +563,11 @@ export default function MasterDashboardPage() {
 
       // Refresh data
       checkAuthAndLoadData()
-      alert("Subscription cancelled successfully")
+      showNotification("success", "Subscription cancelled successfully")
       setSelectedSubscription(null)
     } catch (error) {
       console.error("Error cancelling subscription:", error)
-      alert("Failed to cancel subscription")
+      showNotification("error", "Failed to cancel subscription")
     } finally {
       setIsProcessing(false)
     }
@@ -462,11 +590,11 @@ export default function MasterDashboardPage() {
 
       // Refresh data
       checkAuthAndLoadData()
-      alert(`${planName} subscription added successfully`)
+      showNotification("success", `${planName} subscription added successfully`)
       setNewSubscriptionPlan("")
     } catch (error) {
       console.error("Error adding subscription:", error)
-      alert("Failed to add subscription")
+      showNotification("error", "Failed to add subscription")
     } finally {
       setIsProcessing(false)
     }
@@ -884,6 +1012,68 @@ export default function MasterDashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {confirmDialog.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-center mb-4">
+              <AlertTriangle
+                className={`w-6 h-6 mr-3 ${confirmDialog.type === "danger" ? "text-red-500" : "text-yellow-500"}`}
+              />
+              <h3 className="text-lg font-semibold text-gray-900">{confirmDialog.title}</h3>
+            </div>
+            <p className="text-gray-600 mb-6">{confirmDialog.message}</p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={confirmDialog.onCancel}
+                className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDialog.onConfirm}
+                className={`px-4 py-2 text-white rounded-lg transition-colors ${
+                  confirmDialog.type === "danger" ? "bg-red-600 hover:bg-red-700" : "bg-yellow-600 hover:bg-yellow-700"
+                }`}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {notification.show && (
+        <div
+          className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg border-l-4 max-w-md ${
+            notification.type === "success"
+              ? "bg-green-50 border-green-500 text-green-800"
+              : notification.type === "error"
+                ? "bg-red-50 border-red-500 text-red-800"
+                : notification.type === "warning"
+                  ? "bg-yellow-50 border-yellow-500 text-yellow-800"
+                  : "bg-blue-50 border-blue-500 text-blue-800"
+          }`}
+        >
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              {notification.type === "success" && <CheckCircle className="w-5 h-5 text-green-500" />}
+              {notification.type === "error" && <AlertCircle className="w-5 h-5 text-red-500" />}
+              {notification.type === "warning" && <AlertTriangle className="w-5 h-5 text-yellow-500" />}
+              {notification.type === "info" && <Info className="w-5 h-5 text-blue-500" />}
+            </div>
+            <div className="ml-3 flex-1">
+              <p className="text-sm font-medium">{notification.message}</p>
+            </div>
+            <button
+              onClick={() => setNotification((prev) => ({ ...prev, show: false }))}
+              className="ml-4 flex-shrink-0"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -923,6 +1113,16 @@ export default function MasterDashboardPage() {
             )}
           </div>
           <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={syncData}
+              disabled={isProcessing}
+              className="flex items-center gap-2 bg-transparent"
+            >
+              <RefreshCw className={`w-4 h-4 ${isProcessing ? "animate-spin" : ""}`} />
+              Sync Data
+            </Button>
             <Badge variant="destructive">Master Admin</Badge>
             <Button variant="outline" onClick={handleSignOut}>
               Sign Out
@@ -1483,17 +1683,9 @@ export default function MasterDashboardPage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => {
-                                if (
-                                  confirm(
-                                    "Are you sure you want to archive this organization? This action can be reversed.",
-                                  )
-                                ) {
-                                  // TODO: Implement organization archive
-                                  console.log("[v0] Archive organization:", org.organization_id)
-                                }
-                              }}
+                              onClick={() => archiveOrganization(org.organization_id, org.organization_name)}
                               className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                              disabled={isProcessing}
                             >
                               <Archive className="w-4 h-4 mr-1" />
                               Archive
@@ -1501,17 +1693,9 @@ export default function MasterDashboardPage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => {
-                                if (
-                                  confirm(
-                                    "Are you sure you want to permanently delete this organization? This action cannot be undone.",
-                                  )
-                                ) {
-                                  // TODO: Implement organization deletion
-                                  console.log("[v0] Delete organization:", org.organization_id)
-                                }
-                              }}
+                              onClick={() => deleteOrganization(org.organization_id, org.organization_name)}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              disabled={isProcessing}
                             >
                               <Trash2 className="w-4 h-4 mr-1" />
                               Delete

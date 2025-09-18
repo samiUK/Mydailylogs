@@ -1,4 +1,5 @@
 import { createServerClient as supabaseCreateServerClient } from "@supabase/ssr"
+import { createClient as supabaseCreateClient } from "@supabase/supabase-js"
 
 /**
  * Especially important if using Fluid compute: Don't put this client in a
@@ -82,5 +83,19 @@ export function createServerClient(cookieStore: any) {
   } catch (error) {
     console.error("[v0] Error creating server client:", error)
     throw new Error("Failed to create server database connection")
+  }
+}
+
+export function createAdminClient() {
+  try {
+    return supabaseCreateClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
+  } catch (error) {
+    console.error("[v0] Error creating admin Supabase client:", error)
+    throw new Error("Failed to create admin database connection")
   }
 }

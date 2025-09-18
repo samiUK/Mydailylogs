@@ -57,6 +57,8 @@ interface Organization {
   created_at: string
   profiles?: { count: number; role: string }[]
   subscriptions?: { plan_name: string; status: string }[]
+  updated_at?: string
+  templateCount?: number
 }
 
 interface UserProfile {
@@ -68,6 +70,9 @@ interface UserProfile {
   created_at: string
   organizations?: { name: string; logo_url: string | null }
   last_sign_in_at?: string | null
+  organization_id?: string
+  organization_name?: string
+  updated_at?: string
 }
 
 interface Subscription {
@@ -238,41 +243,79 @@ export default function MasterDashboardPage() {
   const syncData = async () => {
     setIsProcessing(true)
     try {
+      console.log("[v0] Starting comprehensive sync...")
+
+      const response = await fetch("/api/admin/comprehensive-sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+
+      console.log("[v0] Sync response status:", response.status)
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.log("[v0] Sync error response:", errorData)
+        throw new Error(errorData.error || "Sync failed")
+      }
+
+      const result = await response.json()
+      console.log("[v0] Comprehensive sync result:", result.message)
+
+      if (result.totalActions > 0) {
+        showNotification(
+          "success",
+          `Comprehensive sync completed successfully! ${result.totalActions} actions performed across all data structures.`,
+        )
+      }
+
+      console.log("[v0] Refreshing all UI data after comprehensive sync...")
+      setIsLoading(true)
+
+      // Clear current state
+      setOrganizations([])
+      setAllUsers([])
+
+      // Reload all data with fresh queries
       await checkAuthAndLoadData()
-      showNotification("success", "Data synchronized successfully!")
     } catch (error) {
-      console.error("Sync error:", error)
-      showNotification("error", "Failed to sync data. Please try again.")
+      console.error("[v0] Sync error:", error)
+      showNotification("error", `Sync failed: ${error.message}`)
     } finally {
       setIsProcessing(false)
     }
   }
 
   const archiveOrganization = async (orgId: string, orgName: string) => {
-    if (
-      !confirm(`Are you sure you want to archive "${orgName}"? This will mark it as archived but keep all data intact.`)
-    ) {
-      return
-    }
+    showConfirmDialog(
+      "Archive Organization",
+      `Are you sure you want to archive "${orgName}"? This will hide the organization and all its users from active lists.`,
+      async () => {
+        try {
+          console.log("[v0] Attempting to archive organization:", orgId)
+          const response = await fetch("/api/admin/archive-organization", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ organization_id: orgId }),
+          })
 
-    try {
-      const response = await fetch("/api/admin/archive-organization", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgId }),
-      })
-
-      if (response.ok) {
-        showNotification("success", `Organization "${orgName}" has been archived successfully.`)
-        await checkAuthAndLoadData() // Refresh data
-      } else {
-        const error = await response.text()
-        showNotification("error", `Failed to archive organization: ${error}`)
-      }
-    } catch (error) {
-      console.error("Archive organization error:", error)
-      showNotification("error", "Failed to archive organization. Please try again.")
-    }
+          if (response.ok) {
+            showNotification("success", `Organization "${orgName}" has been archived successfully.`)
+            await checkAuthAndLoadData() // Refresh data
+          } else {
+            const error = await response.text()
+            showNotification("error", `Failed to archive organization: ${error}`)
+          }
+        } catch (error) {
+          console.error("Archive organization error:", error)
+          showNotification("error", "Failed to archive organization. Please try again.")
+        } finally {
+          setConfirmDialog((prev) => ({ ...prev, show: false }))
+        }
+      },
+      () => setConfirmDialog((prev) => ({ ...prev, show: false })),
+    )
   }
 
   const deleteOrganization = async (orgId: string, orgName: string) => {
@@ -286,26 +329,29 @@ export default function MasterDashboardPage() {
           `This will PERMANENTLY DELETE "${orgName}" and ALL its data. This action is irreversible.`,
           async () => {
             try {
+              console.log("[v0] Attempting to delete organization:", orgId)
               const response = await fetch("/api/admin/delete-organization", {
                 method: "DELETE",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ orgId }),
+                body: JSON.stringify({ organization_id: orgId }),
               })
 
+              const responseText = await response.text()
+              console.log("[v0] Delete response:", response.status, responseText)
+
               if (response.ok) {
+                // Remove from frontend state immediately
+                setOrganizations((prev) => prev.filter((org) => org.organization_id !== orgId))
+                setAllUsers((prev) => prev.filter((user) => user.organization_id !== orgId))
                 showNotification("success", `Organization "${orgName}" has been permanently deleted.`)
-                await checkAuthAndLoadData() // Refresh data
               } else {
-                const error = await response.text()
-                showNotification("error", `Failed to delete organization: ${error}`)
+                showNotification("error", `Failed to delete organization: ${responseText}`)
               }
             } catch (error) {
               console.error("Delete organization error:", error)
               showNotification("error", "Failed to delete organization. Please try again.")
             }
-            setConfirmDialog((prev) => ({ ...prev, show: false }))
           },
-          "danger",
         )
       },
       "danger",
@@ -346,118 +392,115 @@ export default function MasterDashboardPage() {
 
       const loadEssentialData = async () => {
         try {
-          const [{ data: organizationsData, error: orgError }, { data: profilesData, error: profileError }] =
-            await Promise.all([
-              createClient()
-                .from("organizations")
-                .select(`
-                  *,
-                  profiles!organization_id(*)
-                `),
-              createClient()
-                .from("profiles")
-                .select(`
-                  *,
-                  organizations!organization_id(*)
-                `),
-            ])
+          const timestamp = Date.now()
+          console.log("[v0] Loading fresh data with timestamp:", timestamp)
 
-          console.log("[v0] Organizations response:", {
-            error: orgError,
-            data: organizationsData,
-            count: organizationsData?.length,
-          })
-          console.log("[v0] Profiles response:", {
-            error: profileError,
-            data: profilesData,
-            count: profilesData?.length,
+          const [
+            { data: organizationsData, error: orgError },
+            { data: profilesData, error: profileError },
+            { data: superusersData, error: superusersError },
+            { data: templatesData, error: templatesError },
+          ] = await Promise.all([
+            createClient().from("organizations").select("*"),
+            createClient().from("profiles").select("*"),
+            createClient().from("superusers").select("*"),
+            createClient().from("checklist_templates").select("id, name, organization_id, is_active").limit(100),
+          ])
+
+          console.log("[v0] Data fetch results:", {
+            organizations: { error: orgError, count: organizationsData?.length },
+            profiles: { error: profileError, count: profilesData?.length },
+            superusers: { error: superusersError, count: superusersData?.length },
+            templates: { error: templatesError, count: templatesData?.length },
           })
 
           if (profileError) {
             console.error("[v0] Profile fetch error:", profileError)
-            return
+            // Don't return, continue with other data
           }
 
           if (orgError) {
             console.error("[v0] Organization fetch error:", orgError)
+            // Don't return, continue with other data
           }
 
-          const uniqueOrganizations = new Map()
+          if (superusersError) {
+            console.error("[v0] Superusers fetch error:", superusersError)
+            setSuperusers([]) // Set empty array instead of failing
+          } else if (superusersData) {
+            setSuperusers(superusersData)
+          }
 
-          // First, add organizations from the organizations table
+          // Create organization map with profiles
+          const organizationMap = new Map()
+
+          // Initialize organizations from organizations table
           if (organizationsData) {
             organizationsData.forEach((org) => {
-              uniqueOrganizations.set(org.organization_id, {
+              organizationMap.set(org.organization_id, {
                 ...org,
-                profiles: org.profiles || [],
+                profiles: [],
+                templateCount: templatesData?.filter((t) => t.organization_id === org.organization_id)?.length || 0,
               })
             })
           }
 
-          // Then, merge with organizations from profiles table
+          // Add profiles to their respective organizations
           if (profilesData) {
             profilesData.forEach((profile) => {
               if (profile.organization_id) {
-                const orgId = profile.organization_id
-                const existingOrg = uniqueOrganizations.get(orgId)
-
-                if (existingOrg) {
-                  if (!existingOrg.organization_name && profile.organization_name) {
-                    existingOrg.organization_name = profile.organization_name
-                  }
-                  // Add profile to existing organization if not already there
-                  if (!existingOrg.profiles.some((p) => p.id === profile.id)) {
-                    existingOrg.profiles.push(profile)
-                  }
+                const org = organizationMap.get(profile.organization_id)
+                if (org) {
+                  org.profiles.push(profile)
                 } else {
-                  uniqueOrganizations.set(orgId, {
-                    organization_id: orgId,
-                    organization_name: profile.organization_name || `Organization ${orgId.slice(0, 8)}`,
-                    logo_url: profile.organizations?.logo_url || null,
-                    primary_color: profile.organizations?.primary_color || null,
+                  // Create organization from profile data if not in organizations table
+                  organizationMap.set(profile.organization_id, {
+                    organization_id: profile.organization_id,
+                    organization_name:
+                      profile.organization_name || `Organization ${profile.organization_id.slice(0, 8)}`,
+                    logo_url: null,
+                    primary_color: null,
+                    secondary_color: null,
+                    slug: null,
                     created_at: profile.created_at || new Date().toISOString(),
+                    updated_at: profile.updated_at || new Date().toISOString(),
                     profiles: [profile],
+                    templateCount:
+                      templatesData?.filter((t) => t.organization_id === profile.organization_id)?.length || 0,
                   })
                 }
               }
             })
           }
 
-          const allOrganizations = [...Array.from(uniqueOrganizations.values())]
+          const allOrganizations = [...Array.from(organizationMap.values())]
 
           setOrganizations(allOrganizations)
           setAllUsers(profilesData || [])
 
-          console.log("[v0] Organizations loaded:", allOrganizations.length)
-          console.log("[v0] Users loaded:", profilesData?.length || 0)
+          console.log("[v0] Enhanced data loaded:", {
+            organizations: allOrganizations.length,
+            users: profilesData?.length || 0,
+            superusers: superusersData?.length || 0,
+            templates: templatesData?.length || 0,
+          })
 
           const admins = profilesData?.filter((user) => user.role === "admin") || []
           const staff = profilesData?.filter((user) => user.role === "staff") || []
 
-          console.log("[v0] Admins found:", admins.length)
-          console.log("[v0] Staff found:", staff.length)
-          console.log("[v0] Essential data loaded")
-          console.log("[v0] Setting isLoading to false - dashboard should now render")
+          console.log("[v0] User roles:", { admins: admins.length, staff: staff.length })
+          console.log("[v0] Essential data loaded successfully")
+
           setIsLoading(false)
-          console.log("[v0] Current isLoading state:", false)
         } catch (error) {
           console.error("[v0] Error loading essential data:", error)
-          console.log("[v0] Setting isLoading to false due to error")
           setIsLoading(false)
         }
       }
 
       loadEssentialData()
     } catch (error) {
-      console.error("[v0] Error loading data:", error)
-      setOrganizations([])
-      setAllUsers([])
-      setFeedback([])
-      setUnreadFeedbackCount(0)
-      setTotalSubmittedReports(0)
-      setAllSubscriptions([])
-      setAllPayments([])
-      setSuperusers([])
+      console.error("[v0] Auth and data loading error:", error)
       setIsLoading(false)
     }
   }
@@ -796,6 +839,8 @@ export default function MasterDashboardPage() {
     } catch (error) {
       console.error("Error deleting user:", error)
       alert("Failed to delete user")
+    } finally {
+      setIsProcessing(false)
     }
   }
 
@@ -999,6 +1044,46 @@ export default function MasterDashboardPage() {
     }
   }
 
+  const updateOrganizationName = async (organizationId: string, newName: string) => {
+    try {
+      console.log("[v0] Updating organization name in database:", organizationId, newName)
+
+      const response = await fetch("/api/admin/update-organization", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          organization_id: organizationId,
+          organization_name: newName,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        if (response.status === 409) {
+          throw new Error(`The organization name "${newName}" is already taken. Please choose a different name.`)
+        }
+        throw new Error(errorData.error || "Failed to update organization")
+      }
+
+      console.log("[v0] Organization name updated successfully in database")
+      showNotification("success", `Organization name updated to "${newName}"`)
+
+      // Update local state
+      setOrganizations((prev) =>
+        prev.map((org) =>
+          org.organization_id === organizationId
+            ? { ...org, organization_name: newName, updated_at: new Date().toISOString() }
+            : org,
+        ),
+      )
+    } catch (error) {
+      console.error("[v0] Error updating organization name:", error)
+      showNotification("error", `Failed to update organization name: ${error.message}`)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -1113,15 +1198,17 @@ export default function MasterDashboardPage() {
             )}
           </div>
           <div className="flex items-center gap-4">
+            {/* Updated sync button with enhanced tooltip and status */}
             <Button
               variant="outline"
               size="sm"
               onClick={syncData}
               disabled={isProcessing}
               className="flex items-center gap-2 bg-transparent"
+              title="Comprehensive sync: Organizations, Users, Roles, Templates, Checklists, and Data Consistency"
             >
               <RefreshCw className={`w-4 h-4 ${isProcessing ? "animate-spin" : ""}`} />
-              Sync Data
+              {isProcessing ? "Syncing..." : "Comprehensive Sync"}
             </Button>
             <Badge variant="destructive">Master Admin</Badge>
             <Button variant="outline" onClick={handleSignOut}>
@@ -1672,6 +1759,10 @@ export default function MasterDashboardPage() {
                                 <span className="flex items-center gap-1">
                                   <Building2 className="w-4 h-4" />
                                   ID: {org.organization_id.slice(0, 8)}...
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Building2 className="w-4 h-4" />
+                                  Templates: {org.templateCount}
                                 </span>
                               </div>
                             </div>
@@ -2331,16 +2422,10 @@ export default function MasterDashboardPage() {
                 Cancel
               </Button>
               <Button
-                onClick={() => {
+                onClick={async () => {
                   if (editOrgName.trim() && editOrgName !== editingOrg.name) {
                     console.log("[v0] Update organization name:", editingOrg.id, editOrgName.trim())
-                    // TODO: Implement actual database update
-                    // Update local state for now
-                    setOrganizations((prev) =>
-                      prev.map((org) =>
-                        org.organization_id === editingOrg.id ? { ...org, organization_name: editOrgName.trim() } : org,
-                      ),
-                    )
+                    await updateOrganizationName(editingOrg.id, editOrgName.trim())
                   }
                   setEditingOrg(null)
                   setEditOrgName("")

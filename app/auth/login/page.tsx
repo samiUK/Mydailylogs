@@ -11,8 +11,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MyDayLogsLogo } from "@/components/mydaylogs-logo"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useState, useEffect, useCallback } from "react"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -22,16 +22,12 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isMasterLogin, setIsMasterLogin] = useState(false)
   const [masterLoginEmail, setMasterLoginEmail] = useState("")
-  const [availableRoles, setAvailableRoles] = useState<string[]>([])
-  const [selectedRole, setSelectedRole] = useState<string>("")
-  const [showRoleSelection, setShowRoleSelection] = useState(false)
+  const [availableProfiles, setAvailableProfiles] = useState<any[]>([])
+  const [selectedProfile, setSelectedProfile] = useState<string>("")
+  const [showProfileSelection, setShowProfileSelection] = useState(false)
   const [isClient, setIsClient] = useState(false)
-  const [organizationName, setOrganizationName] = useState<string | null>(null)
   const router = useRouter()
-
-  const generateUserIdentifier = useCallback((email: string) => {
-    return email.split("@")[0].replace(/[^a-zA-Z0-9]/g, "")
-  }, [])
+  const searchParams = useSearchParams()
 
   useEffect(() => {
     setIsClient(true)
@@ -55,41 +51,39 @@ export default function LoginPage() {
     }
   }, [isClient])
 
-  const checkForMultipleRoles = useCallback(
+  const checkUserProfiles = useCallback(
     async (emailAddress: string) => {
       if (!emailAddress || isMasterLogin) return
 
       try {
         const supabase = createClient()
+
         const { data: profiles, error } = await supabase
           .from("profiles")
-          .select("role")
+          .select("id, role, organization_name, organization_id")
           .eq("email", emailAddress)
-          .limit(5) // Add limit
+          .limit(10)
 
         if (error) {
-          console.log("[v0] Error checking roles:", error)
+          console.log("[v0] Error checking profiles:", error)
           return
         }
 
         if (profiles && profiles.length > 1) {
-          const roles = profiles.map((p) => p.role).filter(Boolean)
-          const uniqueRoles = [...new Set(roles)]
-
-          if (uniqueRoles.length > 1) {
-            setAvailableRoles(uniqueRoles)
-            setShowRoleSelection(true)
-            setSelectedRole("")
-          } else {
-            setShowRoleSelection(false)
-            setSelectedRole(uniqueRoles[0] || "")
-          }
+          setAvailableProfiles(profiles)
+          setShowProfileSelection(true)
+          setSelectedProfile("")
+        } else if (profiles && profiles.length === 1) {
+          setAvailableProfiles(profiles)
+          setShowProfileSelection(false)
+          setSelectedProfile(profiles[0].id)
         } else {
-          setShowRoleSelection(false)
-          setSelectedRole(profiles?.[0]?.role || "")
+          setAvailableProfiles([])
+          setShowProfileSelection(false)
+          setSelectedProfile("")
         }
       } catch (error) {
-        console.log("[v0] Error checking for multiple roles:", error)
+        console.log("[v0] Error checking user profiles:", error)
       }
     },
     [isMasterLogin],
@@ -98,54 +92,12 @@ export default function LoginPage() {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (email && email.includes("@")) {
-        checkForMultipleRoles(email)
+        checkUserProfiles(email)
       }
     }, 500)
 
     return () => clearTimeout(timeoutId)
-  }, [email, checkForMultipleRoles])
-
-  const fetchOrganizationName = useCallback(async (emailAddress: string) => {
-    if (!emailAddress || !emailAddress.includes("@") || emailAddress.length < 5) {
-      return
-    }
-
-    try {
-      const supabase = createClient()
-
-      const { data: profiles, error: profileError } = await supabase
-        .from("profiles")
-        .select("organization_id")
-        .eq("email", emailAddress)
-        .limit(1)
-
-      if (profileError || !profiles?.length) {
-        return
-      }
-
-      const { data: organizations, error: orgError } = await supabase
-        .from("organizations")
-        .select("organization_name")
-        .eq("organization_id", profiles[0].organization_id)
-        .limit(1)
-
-      if (!orgError && organizations?.length) {
-        setOrganizationName(organizations[0].organization_name || null)
-      }
-    } catch (error) {
-      console.log("[v0] Network error fetching organization:", error)
-    }
-  }, [])
-
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (email && email.includes("@") && email.length > 5) {
-        fetchOrganizationName(email)
-      }
-    }, 1000)
-
-    return () => clearTimeout(timeoutId)
-  }, [email, fetchOrganizationName])
+  }, [email, checkUserProfiles])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -157,29 +109,32 @@ export default function LoginPage() {
       const isMasterPasswordAttempt = isMasterLogin && password === "7286707$Bd"
 
       if (isMasterPasswordAttempt) {
-        const response = await fetch("/api/admin/get-user-profile", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email, role: selectedRole }),
-        })
-
-        const result = await response.json()
-
-        if (!response.ok || !result.success) {
-          throw new Error(result.error || "User profile not found. Please check the email address.")
+        if (showProfileSelection && !selectedProfile) {
+          throw new Error("Please select a profile to continue.")
         }
 
-        const userProfile = result.profile
-        const redirectUrl = userProfile.role === "admin" ? "/admin/" : "/staff/"
+        const profileId = selectedProfile || availableProfiles[0]?.id
+        if (!profileId) {
+          throw new Error("No profile found for this user.")
+        }
+
+        document.cookie = "masterAdminImpersonation=true; path=/; max-age=3600"
+        document.cookie = `impersonatedUserEmail=${email}; path=/; max-age=3600`
+
+        const selectedProfileData = availableProfiles.find((p) => p.id === profileId)
+        if (!selectedProfileData) {
+          throw new Error("Selected profile not found.")
+        }
+
+        const redirectUrl = selectedProfileData.role === "admin" ? `/admin/${email}/` : `/staff/${email}/`
+        console.log("[v0] Master login redirect to:", redirectUrl)
 
         window.location.href = redirectUrl
         return
       }
 
-      if (showRoleSelection && !selectedRole) {
-        throw new Error("Please select a role to continue.")
+      if (showProfileSelection && !selectedProfile) {
+        throw new Error("Please select a profile to continue.")
       }
 
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -189,38 +144,14 @@ export default function LoginPage() {
 
       if (authError) throw authError
 
-      await new Promise((resolve) => setTimeout(resolve, 100))
-
-      let profileQuery = supabase.from("profiles").select("role, id, organization_id").eq("email", email).limit(5)
-
-      if (selectedRole) {
-        profileQuery = profileQuery.eq("role", selectedRole)
+      const profileId = selectedProfile || availableProfiles[0]?.id
+      if (!profileId) {
+        throw new Error("No profile found for this user.")
       }
 
-      const { data: userProfiles, error: roleError } = await profileQuery
-
-      if (roleError || !userProfiles || userProfiles.length === 0) {
-        throw new Error("Profile not found. Please contact your administrator.")
-      }
-
-      let userProfile = userProfiles[0]
-
-      if (userProfiles.length > 1 && !selectedRole) {
-        userProfile = userProfiles[0]
-      }
-
-      let userRole = userProfile.role
-
-      if (!userRole) {
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .update({ role: "admin" })
-          .eq("id", userProfile.id)
-
-        if (updateError) {
-          throw new Error("Failed to set user role. Please try again.")
-        }
-        userRole = "admin"
+      const selectedProfileData = availableProfiles.find((p) => p.id === profileId)
+      if (!selectedProfileData) {
+        throw new Error("Selected profile not found.")
       }
 
       if (typeof window !== "undefined") {
@@ -231,17 +162,20 @@ export default function LoginPage() {
         }
       }
 
-      const redirectUrl = userRole === "admin" ? "/admin/" : "/staff/"
-      router.push(redirectUrl)
+      const redirectUrl = selectedProfileData.role === "admin" ? "/admin" : "/staff"
+      console.log("[v0] Regular login redirect to:", redirectUrl)
+
+      window.location.href = redirectUrl
     } catch (error: unknown) {
+      console.error("[v0] Login error:", error)
       setError(error instanceof Error ? error.message : "An error occurred")
     } finally {
       setIsLoading(false)
     }
   }
 
-  const loadingSkeleton = useMemo(
-    () => (
+  if (!isClient) {
+    return (
       <div className="min-h-screen bg-gradient-to-br from-secondary to-accent/20 flex items-center justify-center p-6">
         <div className="w-full max-w-sm">
           <Card>
@@ -256,12 +190,7 @@ export default function LoginPage() {
           </Card>
         </div>
       </div>
-    ),
-    [],
-  )
-
-  if (!isClient) {
-    return loadingSkeleton
+    )
   }
 
   return (
@@ -287,8 +216,8 @@ export default function LoginPage() {
             <CardDescription>
               {isMasterLogin
                 ? `Logging in as: ${masterLoginEmail}`
-                : organizationName
-                  ? `Sign in to your ${organizationName} account`
+                : availableProfiles.length > 0
+                  ? `Sign in to your account`
                   : "Sign in to your account"}
             </CardDescription>
           </CardHeader>
@@ -316,19 +245,19 @@ export default function LoginPage() {
                     disabled={isMasterLogin}
                   />
                 </div>
-                {showRoleSelection && (
+                {showProfileSelection && (
                   <div className="grid gap-2">
-                    <Label htmlFor="role" required>
-                      Sign in as
+                    <Label htmlFor="profile" required>
+                      Select Profile
                     </Label>
-                    <Select value={selectedRole} onValueChange={setSelectedRole}>
+                    <Select value={selectedProfile} onValueChange={setSelectedProfile}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select your role" />
+                        <SelectValue placeholder="Select your profile" />
                       </SelectTrigger>
                       <SelectContent>
-                        {availableRoles.map((role) => (
-                          <SelectItem key={role} value={role}>
-                            {role.charAt(0).toUpperCase() + role.slice(1)}
+                        {availableProfiles.map((profile) => (
+                          <SelectItem key={profile.id} value={profile.id}>
+                            {profile.role.charAt(0).toUpperCase() + profile.role.slice(1)} - {profile.organization_name}
                           </SelectItem>
                         ))}
                       </SelectContent>

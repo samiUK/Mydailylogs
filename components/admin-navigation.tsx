@@ -14,19 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import {
-  ChevronDownIcon,
-  UserIcon,
-  SettingsIcon,
-  LogOutIcon,
-  MenuIcon,
-  Check,
-  CreditCard,
-  MessageSquare,
-  Shield,
-  Database,
-  Crown,
-} from "lucide-react"
+import { ChevronDownIcon, UserIcon, SettingsIcon, LogOutIcon, MenuIcon, Check, CreditCard, MessageSquare, Shield, Database, Crown } from 'lucide-react'
 import { FeedbackModal } from "@/components/feedback-modal"
 
 interface AdminNavigationProps {

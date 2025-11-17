@@ -142,7 +142,7 @@ export default async function StaffNewReportServerWrapper() {
               Upgrade Now
             </Button>
             <Button variant="outline" size="lg" asChild>
-              <Link href="/staff">Back to Dashboard</Link>
+              <Link href={`/${profile.id}/staff`}>Back to Dashboard</Link>
             </Button>
           </div>
         </div>

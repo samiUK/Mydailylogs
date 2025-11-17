@@ -5,34 +5,26 @@ import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { CreditCard, CheckCircle, Calendar, AlertCircle, Crown } from "lucide-react"
+import { CreditCard, CheckCircle, Calendar, AlertCircle, Crown, Sparkles } from "lucide-react"
 import { useRouter } from "next/navigation"
-
-interface SubscriptionPlan {
-  id: string
-  name: string
-  price_monthly: number
-  max_templates: number
-  max_team_members: number
-  features: any
-}
+import { SUBSCRIPTION_PRODUCTS, formatPrice } from "@/lib/subscription-products"
+import StripeCheckout from "@/components/stripe-checkout"
 
 interface Subscription {
   id: string
-  plan_id: string
+  plan_name: string
   status: string
   current_period_start: string
   current_period_end: string
-  cancel_at_period_end: boolean
-  subscription_plans: SubscriptionPlan
 }
 
 export const dynamic = "force-dynamic"
 
 export default function BillingPage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null)
-  const [plans, setPlans] = useState<SubscriptionPlan[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
+  const [showCheckout, setShowCheckout] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -40,7 +32,6 @@ export default function BillingPage() {
       const supabase = createClient()
 
       try {
-        // Get current user
         const {
           data: { user },
         } = await supabase.auth.getUser()
@@ -49,7 +40,6 @@ export default function BillingPage() {
           return
         }
 
-        // Get user's organization
         const { data: profileData } = await supabase
           .from("profiles")
           .select("organization_id")
@@ -58,23 +48,11 @@ export default function BillingPage() {
 
         if (!profileData) return
 
-        // Load subscription plans
-        const { data: plansData } = await supabase
-          .from("subscription_plans")
-          .select("*")
-          .eq("is_active", true)
-          .order("price_monthly")
-
-        if (plansData) setPlans(plansData)
-
-        // Load current subscription (including inactive ones to show expired subscriptions)
-        const { data: subscriptionData, error } = await supabase
+        const { data: subscriptionData } = await supabase
           .from("subscriptions")
-          .select(`
-            *,
-            subscription_plans (*)
-          `)
+          .select("*")
           .eq("organization_id", profileData.organization_id)
+          .eq("status", "active")
           .order("created_at", { ascending: false })
           .limit(1)
           .single()
@@ -82,8 +60,6 @@ export default function BillingPage() {
         if (subscriptionData) {
           console.log("[v0] Subscription data loaded:", subscriptionData)
           setSubscription(subscriptionData)
-        } else if (error) {
-          console.log("[v0] No subscription found:", error.message)
         }
       } catch (error) {
         console.error("Error loading billing data:", error)
@@ -95,11 +71,17 @@ export default function BillingPage() {
     loadBillingData()
   }, [router])
 
+  const handleUpgrade = (planId: string) => {
+    setSelectedPlanId(planId)
+    setShowCheckout(true)
+  }
+
   if (loading) {
     return <div className="flex justify-center py-8">Loading billing information...</div>
   }
 
-  const currentPlan = subscription?.subscription_plans
+  const currentPlanName = subscription?.plan_name || "Free"
+  const currentProduct = SUBSCRIPTION_PRODUCTS.find((p) => p.name === currentPlanName)
   const isSubscriptionActive =
     subscription?.status === "active" &&
     subscription?.current_period_end &&
@@ -121,19 +103,21 @@ export default function BillingPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {currentPlan ? (
+          {currentProduct ? (
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  {currentPlan.name !== "Free" && <Crown className="w-6 h-6 text-yellow-500" />}
-                  <h3 className="text-2xl font-bold">{currentPlan.name}</h3>
-                  <Badge variant={isSubscriptionActive ? "default" : "destructive"}>
-                    {isSubscriptionActive ? "Active" : "Expired"}
+                  {currentProduct.name !== "Free" && <Crown className="w-6 h-6 text-yellow-500" />}
+                  <h3 className="text-2xl font-bold">{currentProduct.name}</h3>
+                  <Badge variant={isSubscriptionActive ? "default" : "secondary"}>
+                    {subscription?.status || "free"}
                   </Badge>
                 </div>
                 <p className="text-muted-foreground mb-4">
-                  £{currentPlan.price_monthly}/month • {currentPlan.max_templates} templates •{" "}
-                  {currentPlan.max_team_members} team members
+                  {formatPrice(currentProduct.priceMonthly)}/month •
+                  {currentProduct.maxTemplates === -1 ? " Unlimited" : ` ${currentProduct.maxTemplates}`} templates •
+                  {currentProduct.maxTeamMembers === -1 ? " Unlimited" : ` ${currentProduct.maxTeamMembers}`} team
+                  members
                 </p>
                 {subscription?.current_period_end && (
                   <div className="space-y-2">
@@ -149,9 +133,9 @@ export default function BillingPage() {
                     )}
                   </div>
                 )}
-                {isSubscriptionActive && currentPlan.name !== "Free" && (
-                  <div className="mt-4 p-3 bg-accent/10 rounded-lg border border-accent/20">
-                    <p className="text-sm text-accent font-medium">✨ Premium Features Enabled</p>
+                {isSubscriptionActive && currentProduct.name !== "Free" && (
+                  <div className="mt-4 p-3 bg-primary/10 rounded-lg border border-primary/20">
+                    <p className="text-sm text-primary font-medium">✨ Premium Features Enabled</p>
                     <p className="text-xs text-muted-foreground mt-1">
                       Custom branding, unlimited templates, and priority support are now available.
                     </p>
@@ -173,18 +157,18 @@ export default function BillingPage() {
       <Card>
         <CardHeader>
           <CardTitle>Available Plans</CardTitle>
-          <CardDescription>View subscription plan options (Payment integration coming soon)</CardDescription>
+          <CardDescription>Choose the plan that fits your needs</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-3 gap-6">
-            {plans.map((plan) => {
-              const isCurrent = currentPlan?.id === plan.id && isSubscriptionActive
-              const isFreePlan = plan.name === "Free"
+            {SUBSCRIPTION_PRODUCTS.map((plan) => {
+              const isCurrent = currentProduct?.id === plan.id && isSubscriptionActive
+              const isFreePlan = plan.id === "free"
 
               return (
                 <div
                   key={plan.id}
-                  className={`border rounded-lg p-6 ${isCurrent ? "border-accent bg-accent/5" : "border-border"}`}
+                  className={`border rounded-lg p-6 ${isCurrent ? "border-primary bg-primary/5" : "border-border"}`}
                 >
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xl font-bold">{plan.name}</h3>
@@ -192,48 +176,67 @@ export default function BillingPage() {
                   </div>
 
                   <div className="text-3xl font-bold mb-2">
-                    £{plan.price_monthly}
+                    {formatPrice(plan.priceMonthly)}
                     <span className="text-lg font-normal text-muted-foreground">/month</span>
                   </div>
 
+                  <p className="text-sm text-muted-foreground mb-4">{plan.description}</p>
+
                   <ul className="space-y-2 mb-6">
                     <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-accent" />
-                      {plan.max_templates} Templates
+                      <CheckCircle className="w-4 h-4 text-primary" />
+                      <span className="text-sm">
+                        {plan.maxTemplates === -1 ? "Unlimited" : plan.maxTemplates} Templates
+                      </span>
                     </li>
                     <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-accent" />
-                      {plan.max_team_members} Team Members
+                      <CheckCircle className="w-4 h-4 text-primary" />
+                      <span className="text-sm">
+                        {plan.maxTeamMembers === -1 ? "Unlimited" : plan.maxTeamMembers} Team Members
+                      </span>
                     </li>
-                    {plan.features?.reports_branding === "custom" && (
+                    {plan.features.customBranding && (
                       <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-accent" />
-                        Custom Branding
+                        <CheckCircle className="w-4 h-4 text-primary" />
+                        <span className="text-sm">Custom Branding</span>
                       </li>
                     )}
-                    {plan.features?.priority_support && (
+                    {plan.features.prioritySupport && (
                       <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-accent" />
-                        Priority Support
+                        <CheckCircle className="w-4 h-4 text-primary" />
+                        <span className="text-sm">Priority Support</span>
                       </li>
                     )}
-                    {plan.features?.advanced_analytics && (
+                    {plan.features.advancedAnalytics && (
                       <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-accent" />
-                        Advanced Analytics
+                        <CheckCircle className="w-4 h-4 text-primary" />
+                        <span className="text-sm">Advanced Analytics</span>
+                      </li>
+                    )}
+                    {plan.features.apiAccess && (
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-primary" />
+                        <span className="text-sm">API Access</span>
                       </li>
                     )}
                   </ul>
 
                   {!isCurrent && !isFreePlan && (
-                    <Button variant="outline" className="w-full bg-transparent" disabled>
-                      Coming Soon
+                    <Button className="w-full" onClick={() => handleUpgrade(plan.id)}>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Upgrade to {plan.name}
                     </Button>
                   )}
 
-                  {isFreePlan && !isCurrent && (
+                  {isCurrent && !isFreePlan && (
                     <Button variant="outline" className="w-full bg-transparent" disabled>
                       Current Plan
+                    </Button>
+                  )}
+
+                  {isFreePlan && (
+                    <Button variant="outline" className="w-full bg-transparent" disabled>
+                      {isCurrent ? "Current Plan" : "Downgrade"}
                     </Button>
                   )}
                 </div>
@@ -242,6 +245,16 @@ export default function BillingPage() {
           </div>
         </CardContent>
       </Card>
+
+      {showCheckout && selectedPlanId && (
+        <StripeCheckout
+          productId={selectedPlanId}
+          onClose={() => {
+            setShowCheckout(false)
+            setSelectedPlanId(null)
+          }}
+        />
+      )}
     </div>
   )
 }

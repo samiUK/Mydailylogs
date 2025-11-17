@@ -8,14 +8,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from 'next/navigation'
 import { getSubscriptionLimits } from "@/lib/subscription-limits"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface Organization {
   organization_id: string
   organization_name: string
   logo_url: string | null
   primary_color: string | null
+  secondary_color: string | null
   slug: string // Added slug to interface
 }
 
@@ -31,64 +33,105 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [hasCustomBranding, setHasCustomBranding] = useState(false)
   const router = useRouter()
+  const [isImpersonating, setIsImpersonating] = useState(false)
+  const [impersonatedEmail, setImpersonatedEmail] = useState("")
 
   useEffect(() => {
     async function loadOrganization() {
       const supabase = createClient()
+      
+      console.log("[v0] Loading organization settings...")
 
-      const impersonationCookie = document.cookie.split("; ").find((row) => row.startsWith("masterAdminImpersonation="))
-      const isImpersonating = impersonationCookie?.split("=")[1] === "true"
+      const masterAdminImpersonation = localStorage.getItem("masterAdminImpersonation") === "true"
+      const impersonatedUserEmail = localStorage.getItem("impersonatedUserEmail")
+      
+      console.log("[v0] Impersonation check:", { masterAdminImpersonation, impersonatedUserEmail })
 
-      let userId = null
+      let userProfile: any = null
+      let profileError: any = null
 
-      if (isImpersonating) {
-        const impersonatedEmailCookie = document.cookie
-          .split("; ")
-          .find((row) => row.startsWith("impersonatedUserEmail="))
-        const impersonatedEmail = impersonatedEmailCookie?.split("=")[1]
-
-        if (impersonatedEmail) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("*") // Select all profile data to check role
-            .eq("email", decodeURIComponent(impersonatedEmail))
-            .single()
-          userId = profile?.id
-          setProfile(profile) // Set profile state
-        }
+      if (masterAdminImpersonation && impersonatedUserEmail) {
+        setIsImpersonating(true)
+        setImpersonatedEmail(impersonatedUserEmail)
+        
+        console.log("[v0] Loading impersonated user profile:", impersonatedUserEmail)
+        
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*, organizations!inner(organization_id, organization_name, logo_url, primary_color, secondary_color)")
+          .eq("email", impersonatedUserEmail)
+          .single()
+        
+        userProfile = data
+        profileError = error
       } else {
         const {
           data: { user },
         } = await supabase.auth.getUser()
-        userId = user?.id
+        
+        console.log("[v0] Current user:", user?.id)
 
-        if (userId) {
-          const { data: userProfile } = await supabase.from("profiles").select("*").eq("id", userId).single()
-          setProfile(userProfile)
+        if (!user) {
+          console.error("[v0] No authenticated user found")
+          setError("User not authenticated. Please log in again.")
+          setIsLoading(false)
+          return
         }
+
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*, organizations!inner(organization_id, organization_name, logo_url, primary_color, secondary_color)")
+          .eq("id", user.id)
+          .single()
+        
+        userProfile = data
+        profileError = error
       }
 
-      if (userId) {
-        const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", userId).single()
+      console.log("[v0] Profile data:", userProfile)
+      console.log("[v0] Profile error:", profileError)
 
-        if (profile?.organization_id) {
-          const subscriptionLimits = await getSubscriptionLimits(profile.organization_id)
-          setHasCustomBranding(isImpersonating || subscriptionLimits.hasCustomBranding)
-
-          const { data: org } = await supabase
-            .from("organizations")
-            .select("*")
-            .eq("organization_id", profile.organization_id)
-            .single()
-
-          if (org) {
-            setOrganization(org)
-            setName(org.organization_name || "")
-            setPrimaryColor(org.primary_color || "#10b981")
-            setLogoPreview(org.logo_url)
-          }
-        }
+      if (profileError || !userProfile) {
+        console.error("[v0] Failed to load user profile:", profileError)
+        setError("User settings could not be found. Please contact support.")
+        setIsLoading(false)
+        return
       }
+
+      setProfile(userProfile)
+
+      if (!userProfile.organization_id) {
+        console.error("[v0] User has no organization assigned")
+        setError("No organization assigned to this user. Please contact support.")
+        setIsLoading(false)
+        return
+      }
+
+      const subscriptionLimits = await getSubscriptionLimits(userProfile.organization_id)
+      setHasCustomBranding(subscriptionLimits.hasCustomBranding)
+
+      const { data: org, error: orgError } = await supabase
+        .from("organizations")
+        .select("*")
+        .eq("organization_id", userProfile.organization_id)
+        .single()
+
+      console.log("[v0] Organization data:", org)
+      console.log("[v0] Organization error:", orgError)
+
+      if (orgError || !org) {
+        console.error("[v0] Failed to load organization:", orgError)
+        setError("Organization settings could not be loaded. Please contact support.")
+        setIsLoading(false)
+        return
+      }
+
+      setOrganization(org)
+      setName(org.organization_name || "")
+      setPrimaryColor(org.primary_color || "#10b981")
+      setLogoPreview(org.logo_url)
+      
+      console.log("[v0] Successfully loaded organization settings")
       setIsLoading(false)
     }
 
@@ -134,10 +177,7 @@ export default function SettingsPage() {
       .replace(/-+/g, "-") // Replace multiple hyphens with single hyphen
       .replace(/^-|-$/g, "") // Remove leading/trailing hyphens
 
-    // If slug is empty after processing, use a fallback
     const finalSlug = baseSlug || `org-${Date.now()}`
-
-    // Ensure slug is not empty and has minimum length
     return finalSlug.length > 0 ? finalSlug : `org-${Date.now()}`
   }
 
@@ -161,7 +201,6 @@ export default function SettingsPage() {
         const timestamp = Date.now()
         const fileName = `${organization.organization_id}/logo-${timestamp}.${fileExt}`
 
-        // Delete old logo if it exists
         if (organization.logo_url) {
           const oldFileName = organization.logo_url.split("/").pop()
           if (oldFileName && oldFileName.startsWith("logo")) {
@@ -174,7 +213,7 @@ export default function SettingsPage() {
         const { error: uploadError, data: uploadData } = await supabase.storage
           .from("organization-assets")
           .upload(fileName, logoFile, {
-            upsert: false, // Don't overwrite, use unique filename
+            upsert: false,
             contentType: logoFile.type,
           })
 
@@ -291,8 +330,44 @@ export default function SettingsPage() {
     )
   }
 
+  if (error && !organization) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Organization Settings</h1>
+          <p className="text-gray-600 mt-2">Customize your organization&apos;s branding and identity</p>
+        </div>
+        <Card>
+          <CardContent className="py-12">
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-red-100 mx-auto flex items-center justify-center">
+                <span className="text-3xl">⚠️</span>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900">Settings Not Found</h3>
+              <p className="text-gray-600 max-w-md mx-auto">{error}</p>
+              <Button onClick={() => router.push("/admin")}>Return to Dashboard</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-8">
+      {isImpersonating && (
+        <Alert className="bg-red-50 border-red-200">
+          <AlertDescription>
+            <div>
+              <strong className="text-red-900">IMPERSONATION MODE</strong>
+              <span className="text-red-700 ml-2">
+                Viewing settings for: {impersonatedEmail}
+              </span>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Organization Settings</h1>
         <p className="text-gray-600 mt-2">Customize your organization&apos;s branding and identity</p>
@@ -321,7 +396,7 @@ export default function SettingsPage() {
               onChange={(e) => setName(e.target.value)}
               placeholder="Your Organization Name"
               required
-              disabled={!canEditOrganizationName} // Disable input for non-admin users
+              disabled={!canEditOrganizationName}
             />
             {canEditOrganizationName && (
               <p className="text-xs text-gray-500">This name will appear throughout the platform and in reports.</p>

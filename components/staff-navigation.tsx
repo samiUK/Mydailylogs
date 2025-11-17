@@ -14,13 +14,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { ChevronDownIcon, UserIcon, LogOutIcon, MenuIcon, Check, MessageSquare } from "lucide-react"
+import { ChevronDownIcon, UserIcon, LogOutIcon, MenuIcon, Check, MessageSquare } from 'lucide-react'
 import { FeedbackModal } from "@/components/feedback-modal"
 
 interface StaffNavigationProps {
   user: any
   onSignOut: () => void
   subscriptionStatus?: string | null
+  profileId?: string // Deprecated but kept for backward compatibility
 }
 
 export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNavigationProps) {

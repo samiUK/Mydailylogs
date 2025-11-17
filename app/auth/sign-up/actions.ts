@@ -83,10 +83,6 @@ export async function createUserWithProfile(formData: {
         .from("organizations")
         .insert({
           organization_name: organizationName,
-          slug: organizationName
-            .toLowerCase()
-            .replace(/\s+/g, "-")
-            .replace(/[^a-z0-9-]/g, ""),
         })
         .select()
         .single()

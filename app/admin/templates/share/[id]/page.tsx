@@ -19,17 +19,10 @@ interface Template {
   is_active: boolean
 }
 
-interface Organization {
-  id: string
-  name: string
-  slug: string
-}
-
 export default function ShareTemplatePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
   const supabase = createClient()
   const [template, setTemplate] = useState<Template | null>(null)
-  const [organization, setOrganization] = useState<Organization | null>(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
   const [shareableLink, setShareableLink] = useState("")
@@ -46,7 +39,6 @@ export default function ShareTemplatePage({ params }: { params: Promise<{ id: st
   useEffect(() => {
     if (templateId) {
       loadTemplate()
-      loadOrganization()
     }
   }, [templateId])
 
@@ -60,6 +52,8 @@ export default function ShareTemplatePage({ params }: { params: Promise<{ id: st
 
       if (error) throw error
       setTemplate(templateData)
+
+      generateShareableLink()
     } catch (error) {
       console.error("Error loading template:", error)
     } finally {
@@ -67,36 +61,9 @@ export default function ShareTemplatePage({ params }: { params: Promise<{ id: st
     }
   }
 
-  const loadOrganization = async () => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single()
-
-      if (profile?.organization_id) {
-        const { data: orgData } = await supabase
-          .from("organizations")
-          .select("id, name, slug")
-          .eq("id", profile.organization_id)
-          .single()
-
-        if (orgData) {
-          setOrganization(orgData)
-          generateShareableLink(orgData.slug)
-        }
-      }
-    } catch (error) {
-      console.error("Error loading organization:", error)
-    }
-  }
-
-  const generateShareableLink = (orgSlug?: string) => {
+  const generateShareableLink = () => {
     const baseUrl = window.location.origin
-    const slug = orgSlug || organization?.slug || "organization"
-    const link = `${baseUrl}/${slug}/reports/external/form/${templateId}`
+    const link = `${baseUrl}/external/form/${templateId}`
     setShareableLink(link)
   }
 

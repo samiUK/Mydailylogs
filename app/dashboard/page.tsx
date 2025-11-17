@@ -1,4 +1,4 @@
-import { createServerClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
@@ -7,22 +7,7 @@ export const dynamic = "force-dynamic"
 export default async function DashboardPage() {
   const cookieStore = await cookies()
 
-  const supabase = createServerClient({
-    cookies: {
-      getAll() {
-        return cookieStore.getAll()
-      },
-      setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
-        try {
-          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
-        } catch {
-          // The `setAll` method was called from a Server Component.
-          // This can be ignored if you have middleware refreshing
-          // user sessions.
-        }
-      },
-    },
-  })
+  const supabase = await createClient()
 
   const {
     data: { user },
@@ -33,26 +18,30 @@ export default async function DashboardPage() {
     redirect("/auth/login")
   }
 
-  const { data: profile, error: profileError } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+  const { data: profiles, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, role, organization_name")
+    .eq("email", user.email)
+    .limit(1)
 
-  console.log("[v0] Profile query result:", profile)
+  console.log("[v0] Profile query result:", profiles)
   console.log("[v0] Profile error:", profileError)
 
   // If no profile found, redirect to login with error
-  if (!profile) {
+  if (!profiles || profiles.length === 0) {
     console.log("[v0] No profile found, redirecting to login")
     redirect("/auth/login?error=profile_not_found")
   }
 
+  const profile = profiles[0]
   console.log("[v0] User role:", profile?.role)
 
-  // Redirect based on role
   if (profile?.role === "admin") {
-    console.log("[v0] Redirecting to admin dashboard")
-    redirect("/admin")
+    console.log("[v0] Redirecting to original admin dashboard")
+    redirect(`/admin`)
   } else {
-    console.log("[v0] Redirecting to staff dashboard")
-    redirect("/staff")
+    console.log("[v0] Redirecting to original staff dashboard")
+    redirect(`/staff`)
   }
 
   // The rest of the code remains unchanged

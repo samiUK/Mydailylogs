@@ -14,7 +14,6 @@ export const config = {
      * - favicon.ico (favicon file)
      * - images - .svg, .png, .jpg, .jpeg, .gif, .webp
      * - _vercel (Vercel internal routes like analytics)
-     * Feel free to modify this pattern to include more paths.
      */
     "/((?!_next/static|_next/image|favicon.ico|_vercel|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],

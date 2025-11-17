@@ -1,78 +1,46 @@
 import type React from "react"
 import { createClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
-import { BrandingProvider } from "@/components/branding-provider"
+import { redirect } from 'next/navigation'
 import { AdminNavigation } from "@/components/admin-navigation"
-import { FeedbackModal } from "@/components/feedback-modal"
-import { FeedbackBanner } from "@/components/feedback-banner"
-import { cookies } from "next/headers"
+import { BrandingProvider } from "@/components/branding-provider"
+import { DashboardFooter } from "@/components/dashboard-footer"
 
-export const dynamic = "force-dynamic"
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const supabase = await createClient()
+  
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const cookieStore = await cookies()
-  const isMasterAdminImpersonating = cookieStore.get("masterAdminImpersonation")?.value === "true"
-  const impersonatedUserEmail = cookieStore.get("impersonatedUserEmail")?.value
-
-  let user: any = null
-  let profile: any = null
-
-  if (isMasterAdminImpersonating && impersonatedUserEmail) {
-    const supabase = await createClient()
-    const { data: impersonatedProfile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("email", impersonatedUserEmail)
-      .single()
-
-    if (impersonatedProfile) {
-      user = { email: impersonatedUserEmail }
-      profile = impersonatedProfile
-    } else {
-      redirect("/auth/login?error=impersonated_user_not_found")
-    }
-  } else {
-    const supabase = await createClient()
-    const {
-      data: { user: authUser },
-      error,
-    } = await supabase.auth.getUser()
-
-    if (error || !authUser) {
-      redirect("/auth/login")
-    }
-
-    const { data: userProfile, error: profileError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", authUser.id)
-      .single()
-
-    if (profileError || !userProfile) {
-      redirect("/auth/login?error=profile_not_found")
-    }
-
-    if (userProfile.role !== "admin") {
-      redirect("/staff")
-    }
-
-    user = authUser
-    profile = userProfile
+  if (!user) {
+    redirect("/auth/login")
   }
 
-  const supabase = await createClient()
-  const { data: organization } = await supabase
-    .from("organizations")
-    .select("name, logo_url, primary_color, secondary_color")
-    .eq("id", profile.organization_id)
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select(`
+      id,
+      role,
+      full_name,
+      first_name,
+      avatar_url,
+      email,
+      organization_name,
+      organizations(
+        organization_id,
+        organization_name,
+        logo_url,
+        primary_color,
+        secondary_color
+      )
+    `)
+    .eq("id", user.id)
     .single()
 
-  const brandingData = {
-    organizationName: organization?.name || profile.organization_name || "Your Organization", // Removed hardcoded Mydailylogs fallback
-    logoUrl: organization?.logo_url || null,
-    primaryColor: organization?.primary_color || "#059669",
-    secondaryColor: organization?.secondary_color || "#6B7280",
-    isLoading: false,
+  if (!profile) {
+    redirect("/auth/login")
+  }
+
+  if (profile.role !== "admin" && profile.role !== "master_admin") {
+    redirect("/unauthorized")
   }
 
   const handleSignOut = async () => {
@@ -82,23 +50,21 @@ async function AdminLayout({ children }: { children: React.ReactNode }) {
     redirect("/auth/login")
   }
 
+  const brandingData = {
+    organizationName: profile.organizations?.organization_name || profile.organization_name || "Your Organization",
+    logoUrl: profile.organizations?.logo_url || null,
+    primaryColor: profile.organizations?.primary_color || "#059669",
+    secondaryColor: profile.organizations?.secondary_color || "#6B7280",
+    hasCustomBranding: true,
+  }
+
   return (
     <BrandingProvider initialBranding={brandingData}>
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <FeedbackBanner />
         <AdminNavigation user={profile} onSignOut={handleSignOut} />
-        <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">{children}</main>
-
-        <footer className="mt-auto bg-white border-t border-gray-200 py-4">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <p className="text-center text-sm text-gray-500">© 2025 Mydaylogs. All rights reserved.</p>
-          </div>
-        </footer>
-
-        <FeedbackModal autoTrigger={true} />
+        <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">{children}</main>
+        <DashboardFooter />
       </div>
     </BrandingProvider>
   )
 }
-
-export default AdminLayout

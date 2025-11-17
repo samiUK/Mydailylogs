@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, AlertTriangle } from "lucide-react"
 
-import StaffDashboard from "../page"
+import StaffDashboard from "@/app/staff/page"
 
 interface User {
   id: string

@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { useRouter } from 'next/navigation'
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -17,35 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Users,
-  Building2,
-  TrendingUp,
-  CheckCircle,
-  Key,
-  CreditCard,
-  RefreshCw,
-  Plus,
-  Trash2,
-  AlertTriangle,
-  User,
-  LogIn,
-  Mail,
-  Eye,
-  Reply,
-  X,
-  Search,
-  Calendar,
-  Shield,
-  Edit,
-  DollarSign,
-  Edit2,
-  Archive,
-  ArrowDown,
-  ArrowUp,
-  AlertCircle,
-  Info,
-} from "lucide-react"
+import { Users, Building2, TrendingUp, CheckCircle, Key, CreditCard, RefreshCw, Plus, Trash2, AlertTriangle, User, LogIn, Mail, Eye, Reply, X, Search, Calendar, Shield, Edit, DollarSign, Edit2, Archive, ArrowDown, ArrowUp, AlertCircle, Info } from 'lucide-react'
 import { useEffect, useState } from "react"
 import { ReportDirectoryContent } from "./report-directory-content"
 
@@ -59,6 +31,7 @@ interface Organization {
   subscriptions?: { plan_name: string; status: string }[]
   updated_at?: string
   templateCount?: number
+  slug?: string | null // Added slug field
 }
 
 interface UserProfile {
@@ -68,7 +41,7 @@ interface UserProfile {
   avatar_url: string | null
   role: string
   created_at: string
-  organizations?: { name: string; logo_url: string | null }
+  organizations?: { name: string; logo_url: string | null; slug: string } // Added slug
   last_sign_in_at?: string | null
   organization_id?: string
   organization_name?: string
@@ -81,7 +54,7 @@ interface Subscription {
   status: string
   current_period_end: string
   created_at: string
-  organizations?: { name: string; logo_url: string | null }
+  organizations?: { name: string; logo_url: string | null; slug: string } // Added slug
 }
 
 interface Payment {
@@ -91,7 +64,7 @@ interface Payment {
   created_at: string
   subscriptions?: {
     plan_name: string
-    organizations?: { name: string }
+    organizations?: { name: string; slug: string } // Added slug
   }
 }
 
@@ -112,6 +85,8 @@ interface Superuser {
   id: string
   email: string
   created_at: string
+  is_active?: boolean // Added is_active field
+  role?: 'masteradmin' | 'support'
 }
 
 export default function MasterDashboardPage() {
@@ -160,7 +135,7 @@ export default function MasterDashboardPage() {
   const [newSuperuserEmail, setNewSuperuserEmail] = useState("")
   const [newSuperuserPassword, setNewSuperuserPassword] = useState("")
   const [editingSuperuser, setEditingSuperuser] = useState<Superuser | null>(null)
-  const [userType, setUserType] = useState<string>("Master Admin")
+  const [currentUserRole, setCurrentUserRole] = useState<'masteradmin' | 'support'>('support')
 
   const [impersonatedOrgBranding, setImpersonatedOrgBranding] = useState<{
     name: string
@@ -177,6 +152,10 @@ export default function MasterDashboardPage() {
     auditLogs: { total: 0, today: 0 },
     backups: { total: 0, thisWeek: 0 },
   })
+
+  // New state and modal control for impersonation link
+  const [showImpersonationModal, setShowImpersonationModal] = useState(false)
+  const [impersonationUrl, setImpersonationUrl] = useState("")
 
   const getCookie = (name: string) => {
     const value = `; ${document.cookie}`
@@ -390,6 +369,8 @@ export default function MasterDashboardPage() {
       console.log(`[v0] Master admin authenticated: ${masterAdminEmail}`)
       setIsAuthenticated(true)
 
+      // Don't set role here - it will be fetched in fetchCurrentUserRole()
+
       const loadEssentialData = async () => {
         try {
           const timestamp = Date.now()
@@ -400,11 +381,27 @@ export default function MasterDashboardPage() {
             { data: profilesData, error: profileError },
             { data: superusersData, error: superusersError },
             { data: templatesData, error: templatesError },
+            { data: subscriptionsData, error: subscriptionsError }, // Fetch subscriptions
+            { data: paymentsData, error: paymentsError }, // Fetch payments
+            { data: feedbackData, error: feedbackError }, // Fetch feedback
+            { data: reportsData, error: reportsError }, // Fetch reports
           ] = await Promise.all([
             createClient().from("organizations").select("*"),
             createClient().from("profiles").select("*"),
             createClient().from("superusers").select("*"),
             createClient().from("checklist_templates").select("id, name, organization_id, is_active").limit(100),
+            createClient()
+              .from("subscriptions")
+              .select(`*, organizations(*)`), // Select organization details for subscriptions
+            createClient()
+              .from("payments")
+              .select(`*, subscriptions(*, organizations(*))`), // Select subscription and organization details for payments
+            createClient()
+              .from("feedback")
+              .select("*"), // Fetch feedback
+            createClient()
+              .from("submitted_reports")
+              .select("*"), // Fetch submitted reports
           ])
 
           console.log("[v0] Data fetch results:", {
@@ -412,23 +409,54 @@ export default function MasterDashboardPage() {
             profiles: { error: profileError, count: profilesData?.length },
             superusers: { error: superusersError, count: superusersData?.length },
             templates: { error: templatesError, count: templatesData?.length },
+            subscriptions: { error: subscriptionsError, count: subscriptionsData?.length },
+            payments: { error: paymentsError, count: paymentsData?.length },
+            feedback: { error: feedbackError, count: feedbackData?.length },
+            reports: { error: reportsError, count: reportsData?.length },
           })
 
           if (profileError) {
             console.error("[v0] Profile fetch error:", profileError)
-            // Don't return, continue with other data
           }
 
           if (orgError) {
             console.error("[v0] Organization fetch error:", orgError)
-            // Don't return, continue with other data
           }
 
           if (superusersError) {
             console.error("[v0] Superusers fetch error:", superusersError)
-            setSuperusers([]) // Set empty array instead of failing
+            setSuperusers([])
           } else if (superusersData) {
             setSuperusers(superusersData)
+          }
+
+          if (subscriptionsError) {
+            console.error("[v0] Subscriptions fetch error:", subscriptionsError)
+            setAllSubscriptions([])
+          } else {
+            setAllSubscriptions(subscriptionsData || [])
+          }
+
+          if (paymentsError) {
+            console.error("[v0] Payments fetch error:", paymentsError)
+            setAllPayments([])
+          } else {
+            setAllPayments(paymentsData || [])
+          }
+
+          if (feedbackError) {
+            console.error("[v0] Feedback fetch error:", feedbackError)
+            setFeedback([])
+          } else {
+            setFeedback(feedbackData || [])
+            setUnreadFeedbackCount(feedbackData?.filter((f) => f.status === "unread").length || 0)
+          }
+
+          if (reportsError) {
+            console.error("[v0] Reports fetch error:", reportsError)
+            setTotalSubmittedReports(0)
+          } else {
+            setTotalSubmittedReports(reportsData?.length || 0)
           }
 
           // Create organization map with profiles
@@ -473,7 +501,7 @@ export default function MasterDashboardPage() {
             })
           }
 
-          const allOrganizations = [...Array.from(organizationMap.values())]
+          const allOrganizations = Array.from(organizationMap.values())
 
           setOrganizations(allOrganizations)
           setAllUsers(profilesData || [])
@@ -483,6 +511,10 @@ export default function MasterDashboardPage() {
             users: profilesData?.length || 0,
             superusers: superusersData?.length || 0,
             templates: templatesData?.length || 0,
+            subscriptions: subscriptionsData?.length || 0,
+            payments: paymentsData?.length || 0,
+            feedback: feedbackData?.length || 0,
+            reports: reportsData?.length || 0,
           })
 
           const admins = profilesData?.filter((user) => user.role === "admin") || []
@@ -505,6 +537,58 @@ export default function MasterDashboardPage() {
     }
   }
 
+  // Fetch current user role from database
+  useEffect(() => {
+    const fetchCurrentUserRole = async () => {
+      const masterAdminEmail = localStorage.getItem("masterAdminEmail") || getCookie("masterAdminEmail")
+      // Check if masterAdminAuth is true and masterAdminEmail is available
+      const masterAdminAuth = localStorage.getItem("masterAdminAuth") === "true" || getCookie("masterAdminImpersonation") === "true"
+      
+      if (!masterAdminAuth || !masterAdminEmail) { 
+        setCurrentUserRole('support')
+        console.log("[v0] Master admin not authenticated or email missing, defaulting to support")
+        return
+      }
+
+      if (masterAdminEmail === "arsami.uk@gmail.com") {
+        setCurrentUserRole('masteradmin')
+        console.log("[v0] Hardcoded master admin role for arsami.uk@gmail.com")
+        return
+      }
+
+      try {
+        const supabase = createClient()
+        
+        const { data, error } = await supabase
+          .from("superusers")
+          .select('role')
+          .eq("email", masterAdminEmail)
+          .eq("is_active", true)
+
+        if (error) {
+          console.error("[v0] Error fetching current user role:", error.message)
+          setCurrentUserRole('support')
+          console.log("[v0] Error fetching role, defaulting to support")
+          return
+        }
+
+        if (data && data.length > 0 && data[0].role) {
+          setCurrentUserRole(data[0].role)
+          console.log("[v0] Current user role from database:", data[0].role)
+        } else {
+          setCurrentUserRole('support')
+          console.log("[v0] No superuser record found, defaulting to support")
+        }
+      } catch (error) {
+        console.error("[v0] Error in fetchCurrentUserRole:", error)
+        setCurrentUserRole("support")
+        console.log("[v0] Exception in role fetch, defaulting to support")
+      }
+    }
+
+    fetchCurrentUserRole()
+  }, [getCookie, localStorage, createClient]) // Added dependencies
+
   useEffect(() => {
     checkAuthAndLoadData()
 
@@ -520,54 +604,52 @@ export default function MasterDashboardPage() {
   }, [])
 
   const loginAsUser = async (userEmail: string, userRole: string) => {
-    if (!userEmail.trim()) {
-      showNotification("error", "Please enter a valid email address")
-      return
-    }
-
     try {
-      console.log("[v0] Starting master admin impersonation for:", userEmail, "Role:", userRole)
-
+      console.log(`[v0] Starting master admin impersonation for: ${userEmail} Role: ${userRole}`)
+      
       const supabase = createClient()
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select(
-          `
-          organization_name,
-          organizations!inner(
-            organization_name,
-            logo_url,
-            primary_color
-          )
-        `,
-        )
+        .select("*, organizations(organization_id, organization_name, logo_url, primary_color, secondary_color)")
         .eq("email", userEmail.trim())
-        .single()
+        .single() // This .single() is potentially problematic if multiple users have the same email
 
-      if (profileData?.organizations) {
-        setImpersonatedOrgBranding({
-          name: profileData.organizations.organization_name || profileData.organization_name || "Organization",
-          logoUrl: profileData.organizations.logo_url,
-          primaryColor: profileData.organizations.primary_color || "#dc2626",
-        })
+      if (profileError || !profileData) {
+        console.error("[v0] Profile fetch error:", profileError)
+        showNotification("error", "User profile not found.")
+        return
       }
 
-      // Set cookies for middleware to detect impersonation with consistent 24-hour expiry
-      document.cookie = `masterAdminImpersonation=true; path=/; max-age=86400; SameSite=Lax`
-      document.cookie = `impersonatedUserEmail=${userEmail.trim()}; path=/; max-age=86400; SameSite=Lax`
-      document.cookie = `impersonatedUserRole=${userRole}; path=/; max-age=86400; SameSite=Lax`
-      document.cookie = `masterAdminEmail=${localStorage.getItem("masterAdminEmail") || "arsami.uk@gmail.com"}; path=/; max-age=86400; SameSite=Lax`
-      console.log("[v0] Set impersonation cookies with 24-hour expiry")
+      console.log("[v0] Profile data fetched:", profileData)
 
-      setTimeout(() => {
-        const targetUrl = userRole === "admin" ? `/admin` : `/staff`
-        console.log("[v0] Redirecting to:", targetUrl)
-        console.log("[v0] Current cookies:", document.cookie)
-        window.location.href = targetUrl
-      }, 500)
+      const organization = profileData.organizations || {}
+      const impersonationData = {
+        userEmail: userEmail.trim(),
+        userId: profileData.id,
+        userRole: userRole,
+        organizationId: profileData.organization_id || null,
+        organizationName: organization.organization_name || "No Organization",
+        logoUrl: organization.logo_url || null,
+        primaryColor: organization.primary_color || "#dc2626",
+        masterAdminEmail: localStorage.getItem("masterAdminEmail") || "arsami.uk@gmail.com",
+        timestamp: Date.now(),
+      }
+
+      console.log("[v0] Impersonation data prepared:", impersonationData)
+
+      const token = btoa(JSON.stringify(impersonationData))
+      const impersonationUrl = `${window.location.origin}/${userRole}?impersonate=${token}`
+      
+      console.log("[v0] Generated impersonation URL:", impersonationUrl)
+      
+      // Set the impersonation URL in state to show the modal
+      setImpersonationUrl(impersonationUrl)
+      setShowImpersonationModal(true)
+      
+      showNotification("success", "Impersonation link generated! Copy it to an incognito window.")
     } catch (error) {
-      console.error("Error setting up impersonation:", error)
-      showNotification("error", "Failed to login as user")
+      console.error("[v0] Error setting up impersonation:", error)
+      showNotification("error", "Failed to generate impersonation link")
     }
   }
 
@@ -582,6 +664,8 @@ export default function MasterDashboardPage() {
     document.cookie = "masterAdminImpersonation=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
     document.cookie = "impersonatedUserEmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
     document.cookie = "impersonatedUserRole=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+    document.cookie = "impersonatedOrganizationId=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+    document.cookie = "impersonatedOrganizationSlug=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
 
     console.log("[v0] Cleared all impersonation cookies")
 
@@ -721,8 +805,8 @@ export default function MasterDashboardPage() {
       active: organizations.length, // Simplified calculation
       withSubscriptions: 0, // Will be calculated when subscriptions are loaded
       totalUsers: allUsers.length,
-      totalAdmins: allUsers.filter((u) => u.role === "admin").length,
-      totalStaff: allUsers.filter((u) => u.role === "staff").length,
+      totalAdmins: allUsers.filter((user) => user.role === "admin").length,
+      totalStaff: allUsers.filter((user) => user.role === "staff").length,
     }
     setOrganizationStats(stats)
   }, [organizations, allUsers]) // Added allUsers dependency for accurate counts
@@ -734,6 +818,8 @@ export default function MasterDashboardPage() {
     document.cookie = "masterAdminType=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
     document.cookie = "impersonatedUserEmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
     document.cookie = "impersonatedUserRole=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+    document.cookie = "impersonatedOrganizationId=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+    document.cookie = "impersonatedOrganizationSlug=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
 
     localStorage.removeItem("masterAdminAuth")
     localStorage.removeItem("masterAdminEmail")
@@ -804,10 +890,16 @@ export default function MasterDashboardPage() {
         return
       }
 
-      // Show the temporary password to master admin
-      alert(
-        `Password reset successful!\n\nUser: ${data.userEmail}\nTemporary Password: ${data.tempPassword}\n\nPlease provide this to the user and ask them to change it immediately.`,
-      )
+      const message = [
+        "Password reset successful!",
+        "",
+        `User: ${data.userEmail}`,
+        `Temporary Password: ${data.tempPassword}`,
+        "",
+        "Please provide this to the user and ask them to change it immediately."
+      ].join("\n")
+      
+      alert(message)
     } catch (error) {
       console.error("[v0] Password reset error:", error)
       alert("Failed to reset password: " + error.message)
@@ -950,6 +1042,11 @@ export default function MasterDashboardPage() {
 
   // Superuser Management Functions
   const addSuperuser = async () => {
+    if (currentUserRole !== "masteradmin") {
+      alert("Only master admins can add superusers")
+      return
+    }
+
     if (!newSuperuserEmail || !newSuperuserPassword) {
       alert("Please enter both email and password")
       return
@@ -983,6 +1080,11 @@ export default function MasterDashboardPage() {
   }
 
   const removeSuperuser = async (superuserId: string) => {
+    if (currentUserRole !== "masteradmin") {
+      alert("Only master admins can remove superusers")
+      return
+    }
+
     if (!confirm("Are you sure you want to remove this superuser?")) return
 
     try {
@@ -1210,7 +1312,9 @@ export default function MasterDashboardPage() {
               <RefreshCw className={`w-4 h-4 ${isProcessing ? "animate-spin" : ""}`} />
               {isProcessing ? "Syncing..." : "Comprehensive Sync"}
             </Button>
-            <Badge variant="destructive">Master Admin</Badge>
+            <Badge variant={currentUserRole === 'masteradmin' ? "destructive" : "secondary"}>
+              {currentUserRole === 'masteradmin' ? 'Master Admin' : 'Superuser'}
+            </Badge>
             <Button variant="outline" onClick={handleSignOut}>
               Sign Out
             </Button>
@@ -1235,7 +1339,8 @@ export default function MasterDashboardPage() {
             <TabsTrigger value="subscriptions">Subscriptions</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="reports">Report Directory</TabsTrigger>
-            {userType === "Master Admin" && (
+            {/* Conditionally render Superuser Tools tab only if user is masteradmin */}
+            {currentUserRole === 'masteradmin' && (
               <TabsTrigger
                 value="login-as"
                 className="text-red-600 border-red-200 data-[state=active]:bg-red-50 data-[state=active]:text-red-700"
@@ -2193,7 +2298,8 @@ export default function MasterDashboardPage() {
             </div>
           )}
 
-          {userType === "Master Admin" && (
+          {/* Superuser Tools Tab Content */}
+          {currentUserRole === 'masteradmin' && (
             <TabsContent value="login-as" className="space-y-6">
               <div className="space-y-6">
                 <Tabs defaultValue="password-reset" className="w-full">
@@ -2399,6 +2505,50 @@ export default function MasterDashboardPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Impersonation Modal */}
+      {showImpersonationModal && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-5"
+          onClick={() => setShowImpersonationModal(false)}
+        >
+          <div
+            className="bg-white rounded-lg p-5 max-w-2xl w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-4">Impersonation Link Generated</h3>
+            <p className="text-sm text-gray-600 mb-3">
+              Copy this URL and paste it into an incognito/private window to impersonate the user:
+            </p>
+            <div className="bg-gray-100 p-3 rounded mb-4 break-all font-mono text-xs">
+              {impersonationUrl}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(impersonationUrl)
+                  showNotification("success", "Copied to clipboard!")
+                }}
+                className="flex-1 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+              >
+                Copy to Clipboard
+              </button>
+              <button
+                onClick={() => window.open(impersonationUrl, '_blank')}
+                className="flex-1 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
+              >
+                Open in New Tab
+              </button>
+              <button
+                onClick={() => setShowImpersonationModal(false)}
+                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 text-sm"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editingOrg && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

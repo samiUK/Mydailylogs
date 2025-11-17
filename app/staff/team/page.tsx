@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { User } from "lucide-react"
+import { User } from 'lucide-react'
 import { cookies } from "next/headers"
 
 console.log("[v0] Staff Team page - File loaded and parsing")
@@ -151,56 +151,26 @@ function OrganizationalChart({ members }: { members: TeamMember[] }) {
 export default async function StaffTeamPage() {
   console.log("[v0] Staff Team page - Component function called")
 
-  const cookieStore = await cookies()
-  const isMasterAdminImpersonating = cookieStore.get("masterAdminImpersonation")?.value === "true"
-  const impersonatedUserEmail = cookieStore.get("impersonatedUserEmail")?.value
-
-  let user: any = null
-  let profile: any = null
   const supabase = await createClient()
+  
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  if (isMasterAdminImpersonating && impersonatedUserEmail) {
-    // Master admin is impersonating - get the impersonated user's data
-    const { data: impersonatedProfile, error: impersonatedError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("email", impersonatedUserEmail)
-      .single()
+  if (!user) {
+    console.log("[v0] Staff Team page - No user found, returning null")
+    return null
+  }
 
-    if (impersonatedProfile) {
-      user = { id: impersonatedProfile.id }
-      profile = impersonatedProfile
-    } else {
-      console.log("[v0] Staff Team page - No user found, returning null")
-      return null
-    }
-  } else {
-    // Regular authentication flow
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("organization_id")
+    .eq("id", user.id)
+    .single()
 
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
-
-    if (!authUser) {
-      console.log("[v0] Staff Team page - No user found, returning null")
-      return null
-    }
-
-    user = authUser
-
-    // Get user's organization
-    const { data: regularProfile } = await supabase
-      .from("profiles")
-      .select("organization_id")
-      .eq("id", user.id)
-      .single()
-
-    if (!regularProfile) {
-      console.log("[v0] Staff Team page - No profile found, returning null")
-      return null
-    }
-
-    profile = regularProfile
+  if (!profile) {
+    console.log("[v0] Staff Team page - No profile found, returning null")
+    return null
   }
 
   console.log("[v0] Staff Team page - User found:", user.id)
@@ -209,7 +179,16 @@ export default async function StaffTeamPage() {
   const { data: members, error: membersError } = await supabase
     .from("profiles")
     .select(`
-      *,
+      id,
+      email,
+      full_name,
+      first_name,
+      last_name,
+      role,
+      position,
+      avatar_url,
+      created_at,
+      reports_to,
       supervisor:reports_to(id, first_name, last_name, full_name, email),
       template_assignments!template_assignments_assigned_to_fkey(
         id,
@@ -218,7 +197,7 @@ export default async function StaffTeamPage() {
       )
     `)
     .eq("organization_id", profile.organization_id)
-    .order("role", { ascending: false }) // Admins first
+    .order("role", { ascending: false })
     .order("created_at", { ascending: false })
 
   if (membersError || !members) {

@@ -9,21 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  User,
-  Mail,
-  Camera,
-  Phone,
-  MapPin,
-  Briefcase,
-  Building,
-  ArrowRightLeft,
-  Lock,
-  Eye,
-  EyeOff,
-  Shield,
-} from "lucide-react"
+import { User, Mail, Camera, Phone, MapPin, Briefcase, Lock, Eye, EyeOff, Shield } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 interface Profile {
@@ -42,23 +28,11 @@ interface Profile {
   country: string | null
 }
 
-interface UserOrganization {
-  id: string
-  name: string
-  slug: string
-  role: string
-  profileId: string
-  isActive: boolean
-}
-
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [organizations, setOrganizations] = useState<UserOrganization[]>([])
-  const [currentOrganization, setCurrentOrganization] = useState<UserOrganization | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [switching, setSwitching] = useState(false)
   const [message, setMessage] = useState("")
   const [isImpersonated, setIsImpersonated] = useState(false)
   const [impersonatedBy, setImpersonatedBy] = useState("")
@@ -120,17 +94,6 @@ export default function ProfilePage() {
           if (error) throw error
           setProfile(profileData)
         }
-
-        const response = await fetch("/api/user/organizations")
-        if (response.ok) {
-          const { organizations: userOrgs } = await response.json()
-          setOrganizations(userOrgs)
-
-          const activeOrg = userOrgs.find((org: UserOrganization) => org.isActive)
-          if (activeOrg) {
-            setCurrentOrganization(activeOrg)
-          }
-        }
       } catch (error) {
         console.error("Error loading profile:", error)
         setMessage("Error loading profile")
@@ -141,41 +104,6 @@ export default function ProfilePage() {
 
     loadProfile()
   }, [supabase, router])
-
-  async function handleOrganizationSwitch(organizationValue: string) {
-    const selectedOrg = organizations.find((org) => `${org.id}-${org.role}` === organizationValue)
-    if (!selectedOrg || switching) return
-
-    setSwitching(true)
-    setMessage("")
-
-    try {
-      const response = await fetch("/api/user/switch-organization", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ profileId: selectedOrg.profileId }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to switch organization")
-      }
-
-      const { profile: newProfile, redirectPath } = await response.json()
-
-      setMessage(`Switching to ${selectedOrg.name} as ${selectedOrg.role}...`)
-
-      setTimeout(() => {
-        window.location.href = redirectPath
-      }, 1500)
-    } catch (error) {
-      console.error("Error switching organization:", error)
-      setMessage("Error switching organization. Please try again.")
-    } finally {
-      setSwitching(false)
-    }
-  }
 
   async function handlePhotoUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -282,7 +210,7 @@ export default function ProfilePage() {
 
       setMessage("Profile updated successfully!")
       setTimeout(() => {
-        router.push("/admin")
+        router.push(`/${profile.id}/admin`)
       }, 1500)
     } catch (error) {
       console.error("Error updating profile:", error)
@@ -439,53 +367,6 @@ export default function ProfilePage() {
           <p className="text-muted-foreground mt-2">Manage your personal information and preferences</p>
         </div>
 
-        {organizations.length > 1 && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ArrowRightLeft className="h-5 w-5" />
-                Organization Access
-              </CardTitle>
-              <CardDescription>Switch between organizations you have access to</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="organizationSwitch" className="flex items-center gap-2">
-                    <Building className="h-4 w-4" />
-                    Switch Organization
-                  </Label>
-                  <Select
-                    value={currentOrganization ? `${currentOrganization.id}-${currentOrganization.role}` : ""}
-                    onValueChange={handleOrganizationSwitch}
-                    disabled={switching}
-                  >
-                    <SelectTrigger className="bg-white">
-                      <SelectValue placeholder="Select organization..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {organizations.map((org) => (
-                        <SelectItem key={`${org.id}-${org.role}`} value={`${org.id}-${org.role}`}>
-                          <div className="flex items-center justify-between w-full">
-                            <span>{org.name}</span>
-                            <span className="ml-2 text-xs bg-gray-100 px-2 py-1 rounded capitalize">{org.role}</span>
-                            {org.isActive && (
-                              <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
-                                Current
-                              </span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {switching && <p className="text-sm text-blue-600">Switching organization...</p>}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -496,21 +377,6 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
-              {currentOrganization && (
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Building className="h-4 w-4" />
-                    Current Organization
-                  </Label>
-                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-md">
-                    <span className="font-medium">{currentOrganization.name}</span>
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded capitalize">
-                      {currentOrganization.role}
-                    </span>
-                  </div>
-                </div>
-              )}
-
               <div className="flex items-center gap-4">
                 <div className="relative">
                   <Avatar className="h-20 w-20">

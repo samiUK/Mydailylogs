@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { User, Mail, Camera, Phone, MapPin, Briefcase, Building } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { User, Mail, Camera, Phone, MapPin, Briefcase, Building } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 interface Profile {
   id: string
@@ -41,66 +41,32 @@ export default function StaffProfilePage() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState("")
-  const [isImpersonated, setIsImpersonated] = useState(false)
-  const [impersonatedBy, setImpersonatedBy] = useState("")
   const router = useRouter()
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    const checkImpersonation = () => {
-      const isImpersonating = localStorage.getItem("masterAdminImpersonation") === "true"
-      const impersonatedEmail = localStorage.getItem("impersonatedUserEmail") || ""
-      setIsImpersonated(isImpersonating)
-      setImpersonatedBy(impersonatedEmail)
-    }
-
-    checkImpersonation()
-
     async function loadProfile() {
       try {
-        const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
-        let currentUser: any = null
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
 
-        if (impersonationContext) {
-          const impersonationData = JSON.parse(impersonationContext)
-
-          const { data: targetProfile } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("email", impersonationData.targetUserEmail)
-            .single()
-
-          if (targetProfile) {
-            currentUser = { id: targetProfile.id, email: impersonationData.targetUserEmail }
-            setProfile(targetProfile)
-          }
+        if (!user) {
+          router.push("/auth/login")
+          return
         }
 
-        if (!currentUser) {
-          // Regular authentication flow
-          const {
-            data: { user },
-          } = await supabase.auth.getUser()
+        const { data: profileData, error } = await supabase.from("profiles").select("*").eq("id", user.id).single()
 
-          if (!user) {
-            router.push("/auth/login")
-            return
-          }
+        if (error) throw error
+        setProfile(profileData)
 
-          currentUser = user
-
-          const { data: profileData, error } = await supabase.from("profiles").select("*").eq("id", user.id).single()
-
-          if (error) throw error
-          setProfile(profileData)
-        }
-
-        if (profile && profile.organization_id) {
+        if (profileData && profileData.organization_id) {
           const { data: orgData, error: orgError } = await supabase
             .from("organizations")
             .select("organization_id, organization_name")
-            .eq("organization_id", profile.organization_id)
+            .eq("organization_id", profileData.organization_id)
             .single()
 
           if (!orgError && orgData) {
@@ -263,41 +229,6 @@ export default function StaffProfilePage() {
   return (
     <div className="container mx-auto py-8">
       <div className="max-w-2xl mx-auto">
-        {isImpersonated && (
-          <div className="bg-orange-100 border-l-4 border-orange-500 p-4 rounded-md mb-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-orange-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path
-                      fillRule="evenodd"
-                      d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-orange-700">
-                    <strong>IMPERSONATED SESSION</strong> - You are viewing this profile as: {impersonatedBy}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  localStorage.removeItem("masterAdminImpersonation")
-                  localStorage.removeItem("impersonatedUserEmail")
-                  localStorage.removeItem("impersonatedUserRole")
-                  localStorage.removeItem("impersonatedOrganizationId")
-                  window.location.href = "/masterdashboard"
-                }}
-                className="text-orange-700 hover:text-orange-900 text-sm font-medium"
-              >
-                Exit Impersonation
-              </button>
-            </div>
-          </div>
-        )}
-
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-foreground">Profile Settings</h1>
           <p className="text-muted-foreground mt-2">Manage your personal information and preferences</p>

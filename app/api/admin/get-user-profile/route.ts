@@ -4,17 +4,14 @@ import { createClient } from "@supabase/supabase-js"
 export async function POST(request: NextRequest) {
   try {
     console.log("[v0] API: get-user-profile called")
-    const { email, role } = await request.json()
+    const { email, profileId } = await request.json()
     console.log("[v0] API: Requested email:", email)
-    console.log("[v0] API: Requested role:", role)
+    console.log("[v0] API: Requested profileId:", profileId)
 
     if (!email) {
       console.log("[v0] API: No email provided")
       return NextResponse.json({ error: "Email is required" }, { status: 400 })
     }
-
-    console.log("[v0] API: SUPABASE_URL exists:", !!process.env.NEXT_PUBLIC_SUPABASE_URL)
-    console.log("[v0] API: SERVICE_ROLE_KEY exists:", !!process.env.SUPABASE_SERVICE_ROLE_KEY)
 
     const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
       auth: {
@@ -25,11 +22,13 @@ export async function POST(request: NextRequest) {
 
     console.log("[v0] API: Supabase client created, querying profiles...")
 
-    let profileQuery = supabase.from("profiles").select("role, id, organization_id, email").eq("email", email)
+    let profileQuery = supabase
+      .from("profiles")
+      .select("role, id, organization_id, email, organization_name")
+      .eq("email", email)
 
-    // If role is specified, filter by role to get the specific profile
-    if (role) {
-      profileQuery = profileQuery.eq("role", role)
+    if (profileId) {
+      profileQuery = profileQuery.eq("id", profileId)
     }
 
     const { data: userProfiles, error: profileError } = await profileQuery

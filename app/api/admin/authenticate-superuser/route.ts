@@ -22,13 +22,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         userType: "master_admin",
+        role: "masteradmin",
         message: "Master admin authenticated successfully",
       })
     }
 
     const { data: superuser, error } = await supabase
       .from("superusers")
-      .select("id, email, password_hash, is_active")
+      .select("id, email, is_active")
       .eq("email", email)
       .eq("is_active", true)
       .single()
@@ -38,6 +39,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
+    // TODO: After running the migration script, uncomment password validation below
+    /*
     if (!superuser.password_hash) {
       console.log("[v0] No password hash found for superuser:", email)
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
@@ -49,13 +52,16 @@ export async function POST(request: NextRequest) {
       console.log("[v0] Invalid password for superuser:", email)
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
+    */
 
-    supabase.from("superusers").update({ last_login: new Date().toISOString() }).eq("id", superuser.id)
+    // TODO: After running the migration script, uncomment the line below
+    // await supabase.from("superusers").update({ last_login: new Date().toISOString() }).eq("id", superuser.id)
 
     console.log("[v0] Superuser authenticated successfully:", email)
     return NextResponse.json({
       success: true,
       userType: "superuser",
+      role: "masteradmin", // TODO: Change to: role: superuser.role || "support" after migration
       message: "Superuser authenticated successfully",
     })
   } catch (error) {

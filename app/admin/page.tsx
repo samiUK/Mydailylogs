@@ -1,12 +1,10 @@
 "use client"
 
 import type React from "react"
-import { useBranding } from "@/components/branding-provider"
-
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useMemo } from "react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,12 +23,12 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ChevronDown, Users, UserCheck, Bell, CheckCircle, Plus, UserPlus, AlertTriangle } from "lucide-react"
+import { ChevronDown, Users, UserCheck, Bell, CheckCircle, Plus, UserPlus, AlertTriangle } from 'lucide-react'
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import Link from "next/link"
 import { FeedbackBanner } from "@/components/feedback-banner"
-import { getEffectiveClientUser, getImpersonationBannerData, exitImpersonation } from "@/lib/impersonation-utils"
+import { useRouter } from 'next/navigation'
 
 export const dynamic = "force-dynamic"
 
@@ -63,15 +61,7 @@ export default function AdminDashboard() {
 
   const [allNotifications, setAllNotifications] = useState<any[]>([])
 
-  const [impersonationBanner, setImpersonationBanner] = useState<any>(null)
-
-  const [reportCounts, setReportCounts] = useState({
-    total: 0,
-    completed: 0,
-    pending: 0,
-  })
-
-  const { organizationName, logoUrl } = useBranding()
+  const router = useRouter()
 
   const checkMissedTasks = async () => {
     if (!profile?.organization_id) return
@@ -157,16 +147,6 @@ export default function AdminDashboard() {
         })
       }
     }
-  }
-
-  const loadAdmins = async () => {
-    const supabase = createClient()
-    const { data: admins } = await supabase
-      .from("profiles")
-      .select("id, first_name, last_name, full_name, email")
-      .eq("organization_id", profile?.organization_id)
-      .eq("role", "admin")
-    setAdmins(admins || [])
   }
 
   const handleAssign = async (templateId: string, memberIds: string[]) => {
@@ -314,11 +294,11 @@ export default function AdminDashboard() {
   }
 
   const reportStats = useMemo(() => {
-    const total = reportCounts.total
-    const completed = reportCounts.completed
+    const total = templates.length
+    const completed = templates.filter((template) => template.is_active).length
     const pending = total - completed
     return { total, completed, pending }
-  }, [reportCounts])
+  }, [templates])
 
   const pendingAssignments = useMemo(() => {
     return todayChecklists?.filter((assignment) => assignment.status !== "completed") || []
@@ -339,116 +319,92 @@ export default function AdminDashboard() {
     return { completedToday, totalCompleted, inProgressToday }
   }, [todayChecklists])
 
-  const loadReportCounts = useCallback(async () => {
-    if (!profile?.organization_id) return
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const supabase = createClient()
+        
+        const urlParams = new URLSearchParams(window.location.search)
+        const impersonateToken = urlParams.get('impersonate')
+        
+        if (impersonateToken) {
+          try {
+            const impersonationData = JSON.parse(atob(impersonateToken))
+            console.log("[v0] Impersonation token detected:", impersonationData)
+            
+            localStorage.setItem('masterAdminImpersonation', 'true')
+            localStorage.setItem('impersonatedUserEmail', impersonationData.userEmail)
+            localStorage.setItem('impersonatedUserId', impersonationData.userId)
+            localStorage.setItem('impersonatedUserRole', impersonationData.userRole)
+            localStorage.setItem('impersonatedOrganizationId', impersonationData.organizationId)
+            localStorage.setItem('masterAdminEmail', impersonationData.masterAdminEmail)
+            
+            window.history.replaceState({}, document.title, window.location.pathname)
+            
+            const { data: profile, error: profileError } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", impersonationData.userId)
+              .single()
 
-    try {
-      const supabase = createClient()
-      const { data: assignments, error } = await supabase
-        .from("template_assignments")
-        .select("id, status")
-        .eq("organization_id", profile.organization_id)
-        .limit(100) // Add limit
+            if (profileError || !profile) {
+              console.error("[v0] Error loading impersonated profile:", profileError)
+              localStorage.clear()
+              router.push("/auth/login")
+              return
+            }
 
-      if (error) {
-        console.error("[v0] Error loading report counts:", error)
-        return
+            if (profile.role !== "admin" && profile.role !== "master_admin") {
+              router.push("/unauthorized")
+              return
+            }
+
+            setUser({ id: profile.id, email: profile.email })
+            setProfile(profile)
+            setLoading(false)
+            return
+          } catch (e) {
+            console.error("[v0] Invalid impersonation token:", e)
+          }
+        }
+        
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser()
+
+        if (error || !user) {
+          router.push("/auth/login")
+          return
+        }
+
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single()
+
+        if (profileError || !profileData) {
+          router.push("/auth/login")
+          return
+        }
+
+        if (profileData.role !== "admin" && profileData.role !== "master_admin") {
+          router.push("/unauthorized")
+          return
+        }
+
+        setUser(user)
+        setProfile(profileData)
+        setLoading(false)
+      } catch (error) {
+        console.error("Error loading user data:", error)
+        router.push("/auth/login")
       }
-
-      const total = assignments?.length || 0
-      const completed = assignments?.filter((a) => a.status === "completed").length || 0
-      const pending = total - completed
-
-      setReportCounts({ total, completed, pending })
-    } catch (error) {
-      console.error("[v0] Error calculating report counts:", error)
     }
-  }, [profile?.organization_id])
 
-  const loadNotifications = useCallback(async () => {
-    if (!user?.id) return
-
-    try {
-      const supabase = createClient()
-      const { data: notifications, error } = await supabase
-        .from("notifications")
-        .select("id, type, message, created_at, is_read, user_id, template_id")
-        .eq("user_id", user.id)
-        .eq("is_read", false)
-        .order("created_at", { ascending: false })
-        .limit(5) // Reduced limit
-
-      if (error) {
-        console.error("[v0] Error fetching notifications:", error)
-        setAllNotifications([])
-        return
-      }
-
-      const templateIds = [...new Set(notifications?.map((n) => n.template_id).filter(Boolean) || [])]
-      const userIds = [...new Set(notifications?.map((n) => n.user_id).filter(Boolean) || [])]
-
-      const [templatesData, usersData] = await Promise.all([
-        templateIds.length > 0
-          ? supabase.from("checklist_templates").select("id, name").in("id", templateIds).limit(20)
-          : { data: [] },
-        userIds.length > 0
-          ? supabase.from("profiles").select("id, full_name").in("id", userIds).limit(20)
-          : { data: [] },
-      ])
-
-      const templatesMap = new Map(templatesData.data?.map((t) => [t.id, t]) || [])
-      const usersMap = new Map(usersData.data?.map((u) => [u.id, u]) || [])
-
-      const transformedNotifications = (notifications || []).map((notification) => ({
-        id: notification.id,
-        type: notification.type,
-        title: notification.message,
-        message: `${usersMap.get(notification.user_id)?.full_name || "Team Member"} - ${templatesMap.get(notification.template_id)?.name || "Notification"}`,
-        timestamp: notification.created_at,
-        isRead: notification.is_read,
-      }))
-
-      setAllNotifications(transformedNotifications)
-    } catch (error) {
-      console.error("[v0] Error loading notifications:", error)
-      setAllNotifications([])
-    }
-  }, [user?.id])
-
-  const markNotificationAsRead = useCallback(async (notificationId: string) => {
-    try {
-      const response = await fetch("/api/notifications/mark-read", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notificationId }),
-      })
-
-      if (response.ok) {
-        setAllNotifications((prev) => prev.filter((n) => n.id !== notificationId))
-      }
-    } catch (error) {
-      console.error("[v0] Error marking notification as read:", error)
-    }
-  }, [])
-
-  const clearAllNotifications = useCallback(async () => {
-    if (allNotifications.length === 0) return
-
-    try {
-      const notificationIds = allNotifications.map((n) => n.id)
-      const response = await fetch("/api/notifications/clear-all", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notificationIds }),
-      })
-
-      if (response.ok) {
-        setAllNotifications([])
-      }
-    } catch (error) {
-      console.error("[v0] Error clearing notifications:", error)
-    }
-  }, [allNotifications])
+    loadUser()
+  }, [router])
 
   useEffect(() => {
     const loadData = async () => {
@@ -457,12 +413,12 @@ export default function AdminDashboard() {
       try {
         const supabase = createClient()
 
-        const [templatesRes, activeTemplatesRes, teamMembersRes, assignmentsRes] = await Promise.all([
+        const [templatesRes, activeTemplatesRes, teamMembersRes, assignmentsRes, adminsRes] = await Promise.all([
           supabase
             .from("checklist_templates")
             .select("id, name, description, is_active, created_at")
             .eq("organization_id", profile.organization_id)
-            .limit(10),
+            .limit(5),
           supabase
             .from("checklist_templates")
             .select("id, name, description")
@@ -476,7 +432,7 @@ export default function AdminDashboard() {
             .eq("organization_id", profile.organization_id)
             .neq("id", user.id)
             .order("first_name")
-            .limit(25),
+            .limit(10),
           supabase
             .from("template_assignments")
             .select(`
@@ -491,85 +447,43 @@ export default function AdminDashboard() {
             `)
             .eq("organization_id", profile.organization_id)
             .order("assigned_at", { ascending: false })
-            .limit(10),
+            .limit(5),
+          supabase
+            .from("profiles")
+            .select("id, first_name, last_name, full_name, email")
+            .eq("organization_id", profile.organization_id)
+            .eq("role", "admin"),
         ])
 
         setTemplates(templatesRes.data || [])
         setActiveTemplates(activeTemplatesRes.data || [])
         setTeamMembers(teamMembersRes.data || [])
         setTodayChecklists(assignmentsRes.data || [])
+        setAdmins(adminsRes.data || [])
 
-        await Promise.all([loadReportCounts(), loadNotifications()])
+        await checkMissedTasks()
       } catch (error) {
         console.error("Error fetching dashboard data:", error)
-      } finally {
-        setLoading(false)
       }
     }
 
     loadData()
   }, [user, profile])
 
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const effectiveUser = await getEffectiveClientUser()
-
-        if (effectiveUser) {
-          setUser({ email: effectiveUser.email, id: effectiveUser.id })
-          setProfile(effectiveUser.profile)
-
-          const bannerData = getImpersonationBannerData()
-          setImpersonationBanner(bannerData)
-        } else {
-          console.log("[v0] Auth session missing!")
-          window.location.href = "/auth/login"
-          return
-        }
-      } catch (error) {
-        console.error("Error loading user data:", error)
-        window.location.href = "/auth/login"
-      }
-    }
-
-    loadUser()
-  }, [])
-
-  if (loading) {
+  if (loading || !user) {
     return (
       <div className="space-y-8">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
-          <p className="text-muted-foreground mt-2">Loading...</p>
+          <p className="text-muted-foreground mt-2">Welcome back!</p>
         </div>
       </div>
     )
   }
 
-  if (!user) return null
-
   return (
     <div className="space-y-8">
       <FeedbackBanner />
-
-      {impersonationBanner?.show && (
-        <div className="bg-orange-100 border-l-4 border-orange-500 px-3 py-2 rounded-md text-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-orange-600" />
-              <span className="text-orange-700">Viewing as {impersonationBanner.userEmail}</span>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => exitImpersonation()}
-              className="text-orange-700 hover:text-orange-900 h-6 px-2 text-xs"
-            >
-              Exit
-            </Button>
-          </div>
-        </div>
-      )}
 
       <div>
         <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
@@ -660,10 +574,10 @@ export default function AdminDashboard() {
             <CardTitle className="text-sm font-medium">Active Report Templates</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{templates?.length || 0}</div>
+            <div className="text-2xl font-bold">{activeTemplates?.length || 0}</div>
             <p className="text-xs text-muted-foreground">Report templates</p>
             <p className="text-xs text-blue-600 font-medium mt-1">
-              Remaining quota: {Math.max(0, 3 - (templates?.length || 0))}
+              Remaining quota: {Math.max(0, 3 - (activeTemplates?.length || 0))}
             </p>
           </CardContent>
         </Card>
@@ -885,7 +799,12 @@ export default function AdminDashboard() {
                   <span className="text-xs text-muted-foreground">
                     {allNotifications.length} notification{allNotifications.length > 1 ? "s" : ""}
                   </span>
-                  <Button variant="ghost" size="sm" onClick={clearAllNotifications} className="text-xs h-6 px-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setAllNotifications([])}
+                    className="text-xs h-6 px-2"
+                  >
                     Clear All
                   </Button>
                 </div>
@@ -895,13 +814,11 @@ export default function AdminDashboard() {
                 <div className="text-sm text-muted-foreground text-center py-4">No new notifications</div>
               ) : (
                 allNotifications.map((notification) => (
-                  <Link
+                  <div
                     key={notification.id}
-                    href="/admin/dashboard-analytics"
                     className={`block p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
                       notification.type === "submission" ? "bg-green-50 border-green-200" : "bg-blue-50 border-blue-200"
                     }`}
-                    onClick={() => markNotificationAsRead(notification.id)}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex items-start gap-3 flex-1">
@@ -929,21 +846,9 @@ export default function AdminDashboard() {
                         >
                           {notification.type === "submission" ? "Completed" : "Assigned"}
                         </Badge>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            e.preventDefault()
-                            markNotificationAsRead(notification.id)
-                          }}
-                          className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600"
-                        >
-                          ×
-                        </Button>
                       </div>
                     </div>
-                  </Link>
+                  </div>
                 ))
               )}
             </div>

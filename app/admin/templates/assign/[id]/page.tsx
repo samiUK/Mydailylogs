@@ -8,10 +8,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Calendar } from "@/components/ui/calendar"
 import { Label } from "@/components/ui/label"
-import { ArrowLeft, Users, CalendarIcon, X } from "lucide-react"
+import { ArrowLeft, Users, CalendarIcon, X } from 'lucide-react'
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from 'next/navigation'
 import {
   Dialog,
   DialogContent,
@@ -84,7 +84,11 @@ export default function AssignTemplatePage({ params }: { params: Promise<{ id: s
       } = await supabase.auth.getUser()
       if (!user) throw new Error("Not authenticated")
 
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single()
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, organization_id")
+        .eq("email", user.email)
+        .single()
 
       if (!profile) throw new Error("Profile not found")
 
@@ -189,7 +193,11 @@ export default function AssignTemplatePage({ params }: { params: Promise<{ id: s
       } = await supabase.auth.getUser()
       if (!user) throw new Error("Not authenticated")
 
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single()
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, organization_id")
+        .eq("email", user.email)
+        .single()
 
       if (!profile) throw new Error("Profile not found")
 
@@ -242,7 +250,7 @@ export default function AssignTemplatePage({ params }: { params: Promise<{ id: s
 
       setConfirmDialogOpen(false)
       alert("Template assignments updated successfully!")
-      router.push("/admin")
+      router.push(`/admin`)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update assignments")
     } finally {

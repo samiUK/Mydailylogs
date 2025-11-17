@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client"
-import { generateUserSpecificUrl, extractUserFromUrl } from "@/lib/url-session-utils"
+import { extractUserFromUrl } from "@/lib/url-session-utils"
 
 // Types for impersonation context
 export interface ImpersonationContext {
@@ -7,6 +7,7 @@ export interface ImpersonationContext {
   impersonatedUserEmail?: string
   impersonatedUserRole?: string
   impersonatedOrganizationId?: string
+  impersonatedOrganizationSlug?: string // Added organization slug for tenant-aware routing
   masterAdminType?: "master_admin" | "superuser"
 }
 
@@ -57,6 +58,11 @@ export function getClientImpersonationContext(): ImpersonationContext {
     .find((row) => row.startsWith("impersonatedOrganizationId="))
     ?.split("=")[1]
 
+  const impersonatedOrganizationSlug = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith("impersonatedOrganizationSlug="))
+    ?.split("=")[1]
+
   const masterAdminType = document.cookie
     .split("; ")
     .find((row) => row.startsWith("masterAdminType="))
@@ -67,6 +73,9 @@ export function getClientImpersonationContext(): ImpersonationContext {
     impersonatedUserEmail: impersonatedUserEmail ? decodeURIComponent(impersonatedUserEmail) : undefined,
     impersonatedUserRole,
     impersonatedOrganizationId,
+    impersonatedOrganizationSlug: impersonatedOrganizationSlug
+      ? decodeURIComponent(impersonatedOrganizationSlug)
+      : undefined,
     masterAdminType,
   }
 }
@@ -118,22 +127,39 @@ export async function getEffectiveClientUser(): Promise<EffectiveUser | null> {
   }
 }
 
-export function startImpersonation(
+export async function startImpersonation(
   targetUserEmail: string,
   targetUserRole: string,
   targetOrganizationId: string,
   masterAdminType: "master_admin" | "superuser" = "master_admin",
 ) {
-  // Set cookies for backward compatibility and server-side detection
-  document.cookie = `masterAdminImpersonation=true; path=/; max-age=86400; SameSite=Lax`
-  document.cookie = `impersonatedUserEmail=${encodeURIComponent(targetUserEmail)}; path=/; max-age=86400; SameSite=Lax`
-  document.cookie = `impersonatedUserRole=${targetUserRole}; path=/; max-age=86400; SameSite=Lax`
-  document.cookie = `impersonatedOrganizationId=${targetOrganizationId}; path=/; max-age=86400; SameSite=Lax`
-  document.cookie = `masterAdminType=${masterAdminType}; path=/; max-age=86400; SameSite=Lax`
+  try {
+    const supabase = createClient()
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("email", targetUserEmail)
+      .eq("organization_id", targetOrganizationId)
+      .single()
 
-  // Navigate to user-specific URL for session isolation
-  const userSpecificUrl = generateUserSpecificUrl(targetUserEmail, targetUserRole as "admin" | "staff")
-  window.location.href = userSpecificUrl
+    if (!profile) {
+      throw new Error("Profile not found")
+    }
+
+    // Set cookies for impersonation
+    document.cookie = `masterAdminImpersonation=true; path=/; max-age=86400; SameSite=Lax`
+    document.cookie = `impersonatedUserEmail=${encodeURIComponent(targetUserEmail)}; path=/; max-age=86400; SameSite=Lax`
+    document.cookie = `impersonatedUserRole=${targetUserRole}; path=/; max-age=86400; SameSite=Lax`
+    document.cookie = `impersonatedOrganizationId=${targetOrganizationId}; path=/; max-age=86400; SameSite=Lax`
+    document.cookie = `masterAdminType=${masterAdminType}; path=/; max-age=86400; SameSite=Lax`
+
+    const profileBasedUrl = `/${profile.id}/${targetUserRole}`
+    console.log("[v0] Navigating to profile-based URL:", profileBasedUrl)
+    window.location.href = profileBasedUrl
+  } catch (error) {
+    console.error("[v0] Error starting profile-based impersonation:", error)
+    throw error
+  }
 }
 
 export function exitImpersonation() {
@@ -142,6 +168,7 @@ export function exitImpersonation() {
   document.cookie = "impersonatedUserEmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
   document.cookie = "impersonatedUserRole=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
   document.cookie = "impersonatedOrganizationId=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+  document.cookie = "impersonatedOrganizationSlug=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;" // Clear organization slug cookie
   document.cookie = "masterAdminType=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
 
   // Redirect to master dashboard

@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, AlertTriangle } from "lucide-react"
 
-import AdminDashboard from "../page"
+import AdminDashboard from "@/app/admin/page"
 
 interface User {
   id: string

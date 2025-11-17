@@ -5,44 +5,36 @@ import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, CreditCard, Download, Calendar, AlertCircle } from "lucide-react"
+import { CheckCircle, CreditCard, Download, Calendar, AlertCircle, Sparkles } from "lucide-react"
 import { useRouter } from "next/navigation"
-
-interface SubscriptionPlan {
-  id: string
-  name: string
-  price_monthly: number
-  max_templates: number
-  max_team_members: number
-  features: any
-}
+import { SUBSCRIPTION_PRODUCTS, formatPrice } from "@/lib/subscription-products"
+import StripeCheckout from "@/components/stripe-checkout"
 
 interface Subscription {
   id: string
-  plan_id: string
+  plan_name: string
   status: string
   current_period_start: string
   current_period_end: string
-  cancel_at_period_end: boolean
-  subscription_plans: SubscriptionPlan
 }
 
-interface BillingHistory {
+interface Payment {
   id: string
   amount: number
   currency: string
   status: string
-  invoice_date: string
+  created_at: string
 }
 
 export default function BillingPage() {
-  const [subscription, setSubscription] = useState<Subscription | null>(null)
-  const [plans, setPlans] = useState<SubscriptionPlan[]>([])
-  const [billingHistory, setBillingHistory] = useState<BillingHistory[]>([])
+  const [subscription, setSubscription] = useState<any | null>(null)
+  const [billingHistory, setBillingHistory] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
   const [isImpersonated, setIsImpersonated] = useState(false)
   const [impersonatedBy, setImpersonatedBy] = useState("")
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
+  const [showCheckout, setShowCheckout] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -59,7 +51,6 @@ export default function BillingPage() {
       const supabase = createClient()
 
       try {
-        // Get current user and organization
         const {
           data: { user },
         } = await supabase.auth.getUser()
@@ -74,37 +65,23 @@ export default function BillingPage() {
 
         setOrganizationId(profile.organization_id)
 
-        // Load subscription plans
-        const { data: plansData } = await supabase
-          .from("subscription_plans")
-          .select("*")
-          .eq("is_active", true)
-          .order("price_monthly")
-
-        if (plansData) setPlans(plansData)
-
-        // Load current subscription
         const { data: subscriptionData } = await supabase
           .from("subscriptions")
-          .select(`
-            *,
-            subscription_plans (*)
-          `)
+          .select("*")
           .eq("organization_id", profile.organization_id)
           .eq("status", "active")
           .single()
 
         if (subscriptionData) setSubscription(subscriptionData)
 
-        // Load billing history
-        const { data: billingData } = await supabase
-          .from("billing_history")
+        const { data: paymentsData } = await supabase
+          .from("payments")
           .select("*")
-          .eq("organization_id", profile.organization_id)
-          .order("invoice_date", { ascending: false })
+          .eq("subscription_id", subscriptionData?.id)
+          .order("created_at", { ascending: false })
           .limit(10)
 
-        if (billingData) setBillingHistory(billingData)
+        if (paymentsData) setBillingHistory(paymentsData)
       } catch (error) {
         console.error("Error loading billing data:", error)
       } finally {
@@ -115,16 +92,20 @@ export default function BillingPage() {
     loadBillingData()
   }, [router])
 
+  const handleUpgrade = (planId: string) => {
+    setSelectedPlanId(planId)
+    setShowCheckout(true)
+  }
+
   if (loading) {
     return <div className="flex justify-center py-8">Loading billing information...</div>
   }
 
-  const currentPlan = subscription?.subscription_plans
-  const isFreePlan = !subscription || currentPlan?.name === "Free"
+  const currentPlanName = subscription?.plan_name || "Free"
+  const currentProduct = SUBSCRIPTION_PRODUCTS.find((p) => p.name === currentPlanName)
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      {/* Impersonation Banner */}
       {isImpersonated && (
         <div className="bg-orange-100 border-l-4 border-orange-500 p-4 rounded-md">
           <div className="flex items-center justify-between">
@@ -165,7 +146,6 @@ export default function BillingPage() {
         <p className="text-muted-foreground mt-2">Manage your subscription and billing information</p>
       </div>
 
-      {/* Current Plan */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -174,24 +154,25 @@ export default function BillingPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {currentPlan ? (
+          {currentProduct ? (
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-2xl font-bold">{currentPlan.name}</h3>
-                  <Badge variant={subscription?.status === "active" ? "default" : "destructive"}>
-                    {subscription?.status}
+                  <h3 className="text-2xl font-bold">{currentProduct.name}</h3>
+                  <Badge variant={subscription?.status === "active" ? "default" : "secondary"}>
+                    {subscription?.status || "free"}
                   </Badge>
                 </div>
                 <p className="text-muted-foreground mb-4">
-                  £{currentPlan.price_monthly}/month • {currentPlan.max_templates} templates •{" "}
-                  {currentPlan.max_team_members} team members
+                  {formatPrice(currentProduct.priceMonthly)}/month •
+                  {currentProduct.maxTemplates === -1 ? " Unlimited" : ` ${currentProduct.maxTemplates}`} templates •
+                  {currentProduct.maxTeamMembers === -1 ? " Unlimited" : ` ${currentProduct.maxTeamMembers}`} team
+                  members
                 </p>
                 {subscription?.current_period_end && (
                   <p className="text-sm text-muted-foreground flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
-                    {subscription.cancel_at_period_end ? "Cancels" : "Renews"} on{" "}
-                    {new Date(subscription.current_period_end).toLocaleDateString()}
+                    Renews on {new Date(subscription.current_period_end).toLocaleDateString()}
                   </p>
                 )}
               </div>
@@ -206,22 +187,21 @@ export default function BillingPage() {
         </CardContent>
       </Card>
 
-      {/* Available Plans */}
       <Card>
         <CardHeader>
           <CardTitle>Available Plans</CardTitle>
-          <CardDescription>View subscription plan options (Payment integration coming soon)</CardDescription>
+          <CardDescription>Choose the plan that fits your needs</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-3 gap-6">
-            {plans.map((plan) => {
-              const isCurrent = currentPlan?.id === plan.id
-              const isFreePlan = plan.name === "Free"
+            {SUBSCRIPTION_PRODUCTS.map((plan) => {
+              const isCurrent = currentProduct?.id === plan.id
+              const isFreePlan = plan.id === "free"
 
               return (
                 <div
                   key={plan.id}
-                  className={`border rounded-lg p-6 ${isCurrent ? "border-accent bg-accent/5" : "border-border"}`}
+                  className={`border rounded-lg p-6 ${isCurrent ? "border-primary bg-primary/5" : "border-border"}`}
                 >
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xl font-bold">{plan.name}</h3>
@@ -229,48 +209,67 @@ export default function BillingPage() {
                   </div>
 
                   <div className="text-3xl font-bold mb-2">
-                    £{plan.price_monthly}
+                    {formatPrice(plan.priceMonthly)}
                     <span className="text-lg font-normal text-muted-foreground">/month</span>
                   </div>
 
+                  <p className="text-sm text-muted-foreground mb-4">{plan.description}</p>
+
                   <ul className="space-y-2 mb-6">
                     <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-accent" />
-                      {plan.max_templates} Templates
+                      <CheckCircle className="w-4 h-4 text-primary" />
+                      <span className="text-sm">
+                        {plan.maxTemplates === -1 ? "Unlimited" : plan.maxTemplates} Templates
+                      </span>
                     </li>
                     <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-accent" />
-                      {plan.max_team_members} Team Members
+                      <CheckCircle className="w-4 h-4 text-primary" />
+                      <span className="text-sm">
+                        {plan.maxTeamMembers === -1 ? "Unlimited" : plan.maxTeamMembers} Team Members
+                      </span>
                     </li>
-                    {plan.features?.reports_branding === "custom" && (
+                    {plan.features.customBranding && (
                       <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-accent" />
-                        Custom Branding
+                        <CheckCircle className="w-4 h-4 text-primary" />
+                        <span className="text-sm">Custom Branding</span>
                       </li>
                     )}
-                    {plan.features?.priority_support && (
+                    {plan.features.prioritySupport && (
                       <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-accent" />
-                        Priority Support
+                        <CheckCircle className="w-4 h-4 text-primary" />
+                        <span className="text-sm">Priority Support</span>
                       </li>
                     )}
-                    {plan.features?.advanced_analytics && (
+                    {plan.features.advancedAnalytics && (
                       <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-accent" />
-                        Advanced Analytics
+                        <CheckCircle className="w-4 h-4 text-primary" />
+                        <span className="text-sm">Advanced Analytics</span>
+                      </li>
+                    )}
+                    {plan.features.apiAccess && (
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-primary" />
+                        <span className="text-sm">API Access</span>
                       </li>
                     )}
                   </ul>
 
                   {!isCurrent && !isFreePlan && (
-                    <Button variant="outline" className="w-full bg-transparent" disabled>
-                      Coming Soon
+                    <Button className="w-full" onClick={() => handleUpgrade(plan.id)}>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Upgrade to {plan.name}
                     </Button>
                   )}
 
-                  {isFreePlan && !isCurrent && (
+                  {isCurrent && !isFreePlan && (
                     <Button variant="outline" className="w-full bg-transparent" disabled>
                       Current Plan
+                    </Button>
+                  )}
+
+                  {isFreePlan && (
+                    <Button variant="outline" className="w-full bg-transparent" disabled>
+                      {isCurrent ? "Current Plan" : "Downgrade"}
                     </Button>
                   )}
                 </div>
@@ -280,7 +279,6 @@ export default function BillingPage() {
         </CardContent>
       </Card>
 
-      {/* Billing History */}
       {billingHistory.length > 0 && (
         <Card>
           <CardHeader>
@@ -288,28 +286,36 @@ export default function BillingPage() {
               <Download className="w-5 h-5" />
               Billing History
             </CardTitle>
-            <CardDescription>Your recent invoices and payments</CardDescription>
+            <CardDescription>Your recent payments</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {billingHistory.map((invoice) => (
-                <div key={invoice.id} className="flex items-center justify-between p-4 border rounded-lg">
+              {billingHistory.map((payment) => (
+                <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg">
                   <div>
                     <p className="font-medium">
-                      £{invoice.amount} {invoice.currency.toUpperCase()}
+                      {formatPrice(Number(payment.amount) * 100)} {payment.currency?.toUpperCase()}
                     </p>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(invoice.invoice_date).toLocaleDateString()}
-                    </p>
+                    <p className="text-sm text-muted-foreground">{new Date(payment.created_at).toLocaleDateString()}</p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Badge variant={invoice.status === "paid" ? "default" : "destructive"}>{invoice.status}</Badge>
+                    <Badge variant={payment.status === "succeeded" ? "default" : "destructive"}>{payment.status}</Badge>
                   </div>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {showCheckout && selectedPlanId && (
+        <StripeCheckout
+          productId={selectedPlanId}
+          onClose={() => {
+            setShowCheckout(false)
+            setSelectedPlanId(null)
+          }}
+        />
       )}
     </div>
   )

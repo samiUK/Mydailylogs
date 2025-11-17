@@ -4,7 +4,7 @@ import { useBranding } from "@/components/branding-provider"
 import Link from "next/link"
 import { createBrowserClient } from "@supabase/ssr"
 import { useEffect, useState } from "react"
-import { Check } from "lucide-react"
+import { Check } from 'lucide-react'
 
 export function Footer() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -53,6 +53,8 @@ export function Footer() {
       </div>
     )
   }
+
+  const currentYear = new Date().getFullYear()
 
   return (
     <footer className="bg-sidebar border-t border-sidebar-border">
@@ -132,7 +134,7 @@ export function Footer() {
       <div className="border-t border-sidebar-border py-4">
         <div className="flex justify-center items-center">
           <p className="text-sidebar-foreground/70 text-sm">
-            &copy; 2025{" "}
+            &copy; {currentYear}{" "}
             {isLoggedIn ? (
               <span className="text-sidebar-foreground/70">{organizationName}</span>
             ) : (

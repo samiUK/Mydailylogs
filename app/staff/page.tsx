@@ -6,9 +6,9 @@ import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Clock, Bell, AlertTriangle, ArrowLeft, History } from "lucide-react"
+import { Clock, Bell, AlertTriangle, ArrowLeft, History } from 'lucide-react'
 import { useState, useEffect } from "react"
-import { getEffectiveClientUser, exitImpersonation } from "@/lib/impersonation-utils"
+import { exitImpersonation } from "@/lib/impersonation-utils"
 
 export default function StaffDashboard() {
   const [user, setUser] = useState<any>(null)
@@ -28,14 +28,14 @@ export default function StaffDashboard() {
       const { error } = await supabase.from("notifications").update({ is_read: true }).eq("id", notificationId)
 
       if (error) {
-        console.error("[v0] Error marking notification as read:", error)
+        console.error("Error marking notification as read:", error)
         return
       }
 
       // Remove from local state after successful database update
       setNotifications((prev) => prev.filter((n) => n.id !== notificationId))
     } catch (error) {
-      console.error("[v0] Error updating notification:", error)
+      console.error("Error updating notification:", error)
     }
   }
 
@@ -44,19 +44,121 @@ export default function StaffDashboard() {
       const supabase = createClient()
 
       try {
-        const effectiveUser = await getEffectiveClientUser()
+        const urlParams = new URLSearchParams(window.location.search)
+        const impersonateToken = urlParams.get('impersonate')
+        
+        if (impersonateToken) {
+          try {
+            const impersonationData = JSON.parse(atob(impersonateToken))
+            console.log("[v0] Impersonation token detected:", impersonationData)
+            
+            localStorage.setItem('masterAdminImpersonation', 'true')
+            localStorage.setItem('impersonatedUserEmail', impersonationData.userEmail)
+            localStorage.setItem('impersonatedUserId', impersonationData.userId)
+            localStorage.setItem('impersonatedUserRole', impersonationData.userRole)
+            localStorage.setItem('impersonatedOrganizationId', impersonationData.organizationId)
+            localStorage.setItem('masterAdminEmail', impersonationData.masterAdminEmail)
+            
+            window.history.replaceState({}, document.title, window.location.pathname)
+            
+            const { data: profile, error: profileError } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", impersonationData.userId)
+              .single()
 
-        if (effectiveUser) {
-          setUser({ email: effectiveUser.email, id: effectiveUser.id })
-          setProfile(effectiveUser.profile)
+            if (profileError || !profile) {
+              console.error("[v0] Error loading impersonated profile:", profileError)
+              localStorage.clear()
+              return
+            }
 
-          console.log("[v0] Loading data for user:", {
-            userId: effectiveUser.id,
-            userEmail: effectiveUser.email,
-            profileId: effectiveUser.profile?.id,
-          })
+            setUser({ email: profile.email, id: profile.id })
+            setProfile(profile)
+            setLoading(false)
+            
+            // Continue loading data with impersonated user
+            const [assignedTemplatesData, completedReportsData, notificationsData] = await Promise.all([
+              supabase
+                .from("template_assignments")
+                .select(`
+                  *,
+                  checklist_templates:template_id(
+                    id,
+                    name,
+                    description,
+                    frequency,
+                    schedule_type,
+                    deadline_date,
+                    specific_date,
+                    schedule_time
+                  )
+                `)
+                .eq("assigned_to", profile.id)
+                .eq("is_active", true)
+                .order("assigned_at", { ascending: false })
+                .limit(20),
+              supabase
+                .from("template_assignments")
+                .select(`
+                  *,
+                  checklist_templates:template_id(
+                    id,
+                    name,
+                    description
+                  ),
+                  profiles:assigned_to(
+                    full_name,
+                    email
+                  )
+                `)
+                .eq("assigned_to", profile.id)
+                .eq("status", "completed")
+                .not("completed_at", "is", null)
+                .order("completed_at", { ascending: false })
+                .limit(5),
+              supabase
+                .from("notifications")
+                .select("*")
+                .eq("user_id", profile.id)
+                .eq("is_read", false)
+                .eq("type", "missed_task")
+                .order("created_at", { ascending: false })
+                .limit(10),
+            ])
 
-          const { data: assignedTemplatesData, error: assignedError } = await supabase
+            setAssignedTemplates(assignedTemplatesData.data || [])
+            setCompletedReports(completedReportsData.data || [])
+            setNotifications(notificationsData.data || [])
+            return
+          } catch (e) {
+            console.error("[v0] Invalid impersonation token:", e)
+          }
+        }
+        
+        const { data: { user }, error } = await supabase.auth.getUser()
+        
+        if (error || !user) {
+          console.error("Error getting user:", error)
+          return
+        }
+        
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single()
+          
+        if (profileError || !profile) {
+          console.error("Error loading profile:", profileError)
+          return
+        }
+
+        setUser({ email: user.email, id: user.id })
+        setProfile(profile)
+
+        const [assignedTemplatesData, completedReportsData, notificationsData] = await Promise.all([
+          supabase
             .from("template_assignments")
             .select(`
               *,
@@ -71,32 +173,11 @@ export default function StaffDashboard() {
                 schedule_time
               )
             `)
-            .eq("assigned_to", effectiveUser.id)
+            .eq("assigned_to", user.id)
             .eq("is_active", true)
             .order("assigned_at", { ascending: false })
-
-          if (assignedError) {
-            console.error("[v0] Error fetching assigned templates:", assignedError)
-          }
-
-          console.log("[v0] Raw assigned templates query result:", {
-            data: assignedTemplatesData,
-            error: assignedError,
-            userIdUsedInQuery: effectiveUser.id,
-          })
-
-          const { data: allAssignmentsData, error: allAssignmentsError } = await supabase
-            .from("template_assignments")
-            .select("*")
-            .eq("assigned_to", effectiveUser.id)
-
-          console.log("[v0] All assignments for user (any status):", {
-            data: allAssignmentsData,
-            error: allAssignmentsError,
-            count: allAssignmentsData?.length || 0,
-          })
-
-          const { data: completedReportsData } = await supabase
+            .limit(20),
+          supabase
             .from("template_assignments")
             .select(`
               *,
@@ -110,39 +191,24 @@ export default function StaffDashboard() {
                 email
               )
             `)
-            .eq("assigned_to", effectiveUser.id)
+            .eq("assigned_to", user.id)
             .eq("status", "completed")
             .not("completed_at", "is", null)
             .order("completed_at", { ascending: false })
-            .limit(10)
-
-          const { data: notificationsData } = await supabase
+            .limit(5),
+          supabase
             .from("notifications")
             .select("*")
-            .eq("user_id", effectiveUser.id)
+            .eq("user_id", user.id)
             .eq("is_read", false)
             .eq("type", "missed_task")
             .order("created_at", { ascending: false })
+            .limit(10),
+        ])
 
-          setAssignedTemplates(assignedTemplatesData || [])
-          setCompletedReports(completedReportsData || [])
-          setNotifications(notificationsData || [])
-
-          console.log(
-            "[v0] All assigned templates:",
-            assignedTemplatesData?.map((a) => ({
-              name: a.checklist_templates?.name,
-              status: a.status,
-              completed_at: a.completed_at,
-              assigned_at: a.assigned_at,
-            })),
-          )
-
-          console.log("[v0] Completed reports:", completedReportsData?.length || 0)
-        } else {
-          console.error("Error getting user")
-          return
-        }
+        setAssignedTemplates(assignedTemplatesData.data || [])
+        setCompletedReports(completedReportsData.data || [])
+        setNotifications(notificationsData.data || [])
       } catch (error) {
         console.error("Error fetching dashboard data:", error)
       } finally {
@@ -151,7 +217,7 @@ export default function StaffDashboard() {
     }
 
     loadUser()
-  }, []) // Remove user dependency to prevent infinite loop
+  }, [])
 
   if (loading) {
     return (
@@ -168,7 +234,7 @@ export default function StaffDashboard() {
 
   const today = new Date()
   const todayString = today.toDateString()
-  console.log("[v0] Today's date string:", todayString)
+  console.log("Today's date string:", todayString)
 
   const upcomingReports: any[] = []
   const regularReports: any[] = []
@@ -254,7 +320,7 @@ export default function StaffDashboard() {
       return new Date(a.completed_at) >= weekAgo
     }).length || 0
 
-  console.log("[v0] Dashboard stats:", {
+  console.log("Dashboard stats:", {
     totalAssigned,
     completedTemplates,
     activeTemplates,
@@ -455,47 +521,6 @@ export default function StaffDashboard() {
             </p>
           </CardContent>
         </Card>
-      )}
-
-      {completedReports.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-            <History className="w-5 h-5" />
-            Log History ({completedReports.length})
-          </h2>
-          <p className="text-sm text-muted-foreground">Your completed logs</p>
-
-          <div className="space-y-4">
-            {completedReports.map((report) => (
-              <Card key={report.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-foreground mb-1">
-                        {report.checklist_templates?.name || "Unknown Log"}
-                      </h3>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
-                        <span>
-                          {new Date(report.completed_at).toLocaleDateString()} at{" "}
-                          {new Date(report.completed_at).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                        <Badge variant="secondary" className="bg-green-100 text-green-800">
-                          Completed
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {report.checklist_templates?.description || "Your submission history"}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
       )}
 
       {impersonationBanner?.show && (

@@ -2,28 +2,36 @@ import { type NextRequest, NextResponse } from "next/server"
 import { stripe } from "@/lib/stripe"
 import { createClient } from "@supabase/supabase-js"
 import type Stripe from "stripe"
+import { sendEmail, emailTemplates } from "@/lib/email/smtp"
 
-// Initialize Supabase with service role for admin operations
-const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export async function POST(req: NextRequest) {
   const body = await req.text()
   const signature = req.headers.get("stripe-signature")
 
   if (!signature) {
+    console.error("[v0] Missing Stripe signature")
     return NextResponse.json({ error: "No signature" }, { status: 400 })
   }
 
   let event: Stripe.Event
 
   try {
-    event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET!)
-  } catch (err) {
-    console.error("Webhook signature verification failed:", err)
+    event = stripe.webhooks.constructEvent(
+      body,
+      signature,
+      process.env.STRIPE_WEBHOOK_SECRET!
+    )
+  } catch (err: any) {
+    console.error("[v0] Webhook signature verification failed:", err.message)
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
   }
 
-  console.log("[v0] Stripe webhook received:", event.type)
+  console.log("[v0] Stripe webhook received:", event.type, event.id)
 
   try {
     switch (event.type) {
@@ -31,35 +39,46 @@ export async function POST(req: NextRequest) {
         const session = event.data.object as Stripe.Checkout.Session
         console.log("[v0] Checkout completed:", session.id)
 
-        // Get subscription details
-        const subscriptionId = session.subscription as string
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId)
-
         const organizationId = session.metadata?.organization_id
         const productId = session.metadata?.product_id
-        const userId = session.metadata?.user_id
+        const planName = session.metadata?.plan_name
 
-        if (!organizationId || !productId) {
-          console.error("[v0] Missing metadata in session")
-          break
+        if (!organizationId || !productId || !planName) {
+          console.error("[v0] Missing required metadata in session:", session.metadata)
+          throw new Error("Invalid session metadata")
         }
 
-        // Update or create subscription record
-        const { error: subError } = await supabaseAdmin.from("subscriptions").upsert({
-          id: subscriptionId,
-          organization_id: organizationId,
-          plan_name: productId.charAt(0).toUpperCase() + productId.slice(1),
-          status: subscription.status,
-          current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-          current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+        const subscriptionId = session.subscription as string
+        if (!subscriptionId) {
+          console.error("[v0] No subscription ID in session")
+          throw new Error("Missing subscription ID")
+        }
+
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+
+        const { error: subError } = await supabaseAdmin
+          .from("subscriptions")
+          .upsert(
+            {
+              id: subscriptionId,
+              organization_id: organizationId,
+              plan_name: planName,
+              status: subscription.status,
+              stripe_subscription_id: subscriptionId,
+              current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+              current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+            {
+              onConflict: "id",
+            }
+          )
 
         if (subError) {
-          console.error("[v0] Error updating subscription:", subError)
+          console.error("[v0] Error upserting subscription:", subError)
+          throw subError
         }
 
-        // Record the payment
         const { error: paymentError } = await supabaseAdmin.from("payments").insert({
           subscription_id: subscriptionId,
           amount: (session.amount_total || 0) / 100,
@@ -73,6 +92,26 @@ export async function POST(req: NextRequest) {
           console.error("[v0] Error recording payment:", paymentError)
         }
 
+        if (session.customer_email && session.amount_total) {
+          try {
+            const template = emailTemplates.paymentConfirmation({
+              customerName: session.customer_details?.name || "Customer",
+              amount: `£${((session.amount_total || 0) / 100).toFixed(2)}`,
+              planName: planName || "Premium Plan",
+              transactionId: session.id,
+              date: new Date().toISOString(),
+              paymentMethod: session.payment_method_types?.[0] || "card",
+              invoiceUrl: session.invoice ? `https://invoice.stripe.com/i/${session.invoice}` : undefined,
+            })
+
+            await sendEmail(session.customer_email, template.subject, template.html)
+            console.log("[v0] Payment confirmation email sent to:", session.customer_email)
+          } catch (emailError) {
+            console.error("[v0] Failed to send payment confirmation email:", emailError)
+          }
+        }
+
+        console.log("[v0] Subscription created successfully:", subscriptionId)
         break
       }
 
@@ -92,6 +131,46 @@ export async function POST(req: NextRequest) {
 
         if (error) {
           console.error("[v0] Error updating subscription:", error)
+          throw error
+        }
+
+        // Check if trial is ending in 3 days and send reminder
+        if (subscription.status === 'trialing' && subscription.trial_end) {
+          const trialEndDate = new Date(subscription.trial_end * 1000)
+          const threeDaysFromNow = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+          const twoDaysFromNow = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)
+          
+          // Send reminder if trial ends in exactly 3 days (within 24-hour window)
+          if (trialEndDate >= twoDaysFromNow && trialEndDate <= threeDaysFromNow) {
+            try {
+              const customer = await stripe.customers.retrieve(subscription.customer as string) as Stripe.Customer
+              const planName = subscription.items.data[0]?.price?.nickname || subscription.metadata.plan_name || 'Premium'
+              const amount = `£${((subscription.items.data[0]?.price?.unit_amount || 0) / 100).toFixed(2)}`
+              
+              if (customer.email) {
+                const template = emailTemplates.trialEndingReminder({
+                  customerName: customer.name || "Customer",
+                  planName: planName,
+                  trialEndDate: trialEndDate.toISOString(),
+                  nextBillingDate: new Date(subscription.current_period_end * 1000).toISOString(),
+                  amount: amount,
+                  billingUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/profile/billing`,
+                  features: [
+                    'Advanced task management',
+                    'Team collaboration tools',
+                    'Professional reporting',
+                    'Priority email support',
+                    'Custom branding (Scale plan)'
+                  ]
+                })
+
+                await sendEmail(customer.email, template.subject, template.html)
+                console.log("[v0] Trial ending reminder sent to:", customer.email)
+              }
+            } catch (emailError) {
+              console.error("[v0] Failed to send trial ending reminder:", emailError)
+            }
+          }
         }
 
         break
@@ -111,6 +190,7 @@ export async function POST(req: NextRequest) {
 
         if (error) {
           console.error("[v0] Error cancelling subscription:", error)
+          throw error
         }
 
         break
@@ -128,10 +208,34 @@ export async function POST(req: NextRequest) {
             status: "succeeded",
             transaction_id: invoice.payment_intent as string,
             payment_method: "card",
+            stripe_invoice_url: invoice.hosted_invoice_url || undefined,
+            stripe_invoice_pdf: invoice.invoice_pdf || undefined,
           })
 
           if (error) {
             console.error("[v0] Error recording payment:", error)
+          }
+
+          if (invoice.customer_email && invoice.billing_reason === 'subscription_cycle') {
+            try {
+              const periodStart = new Date(invoice.period_start * 1000)
+              const periodEnd = new Date(invoice.period_end * 1000)
+              
+              const template = emailTemplates.monthlyInvoice({
+                customerName: invoice.customer_name || "Customer",
+                invoiceNumber: invoice.number || invoice.id,
+                planName: invoice.lines.data[0]?.description || "Subscription",
+                period: `${periodStart.toLocaleDateString('en-GB')} - ${periodEnd.toLocaleDateString('en-GB')}`,
+                amount: `£${((invoice.amount_paid || 0) / 100).toFixed(2)}`,
+                paymentDate: new Date(invoice.status_transitions.paid_at! * 1000).toISOString(),
+                invoiceUrl: invoice.hosted_invoice_url || undefined,
+              })
+
+              await sendEmail(invoice.customer_email, template.subject, template.html)
+              console.log("[v0] Monthly invoice email sent to:", invoice.customer_email)
+            } catch (emailError) {
+              console.error("[v0] Failed to send monthly invoice email:", emailError)
+            }
           }
         }
 
@@ -143,7 +247,7 @@ export async function POST(req: NextRequest) {
         console.log("[v0] Payment failed for invoice:", invoice.id)
 
         if (invoice.subscription) {
-          const { error } = await supabaseAdmin.from("payments").insert({
+          const { error: paymentError } = await supabaseAdmin.from("payments").insert({
             subscription_id: invoice.subscription as string,
             amount: (invoice.amount_due || 0) / 100,
             currency: invoice.currency || "gbp",
@@ -152,18 +256,54 @@ export async function POST(req: NextRequest) {
             payment_method: "card",
           })
 
-          if (error) {
-            console.error("[v0] Error recording failed payment:", error)
+          if (paymentError) {
+            console.error("[v0] Error recording failed payment:", paymentError)
+          }
+
+          const { error: subError } = await supabaseAdmin
+            .from("subscriptions")
+            .update({
+              status: "past_due",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", invoice.subscription as string)
+
+          if (subError) {
+            console.error("[v0] Error updating subscription status:", subError)
+          }
+
+          if (invoice.customer_email) {
+            try {
+              const template = emailTemplates.paymentFailed({
+                customerName: invoice.customer_name || "Customer",
+                planName: invoice.lines.data[0]?.description || "Subscription",
+                amount: `£${((invoice.amount_due || 0) / 100).toFixed(2)}`,
+                date: new Date().toISOString(),
+                reason: invoice.last_finalization_error?.message || "Payment was declined by your bank",
+                updatePaymentUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/profile/billing`,
+              })
+
+              await sendEmail(invoice.customer_email, template.subject, template.html)
+              console.log("[v0] Payment failed email sent to:", invoice.customer_email)
+            } catch (emailError) {
+              console.error("[v0] Failed to send payment failed email:", emailError)
+            }
           }
         }
 
         break
       }
+
+      default:
+        console.log("[v0] Unhandled event type:", event.type)
     }
 
     return NextResponse.json({ received: true })
-  } catch (error) {
+  } catch (error: any) {
     console.error("[v0] Error processing webhook:", error)
-    return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Webhook processing failed", details: error.message },
+      { status: 500 }
+    )
   }
 }

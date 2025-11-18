@@ -1,8 +1,7 @@
 export const dynamic = "force-dynamic"
 
-import { createServerClient } from "@/lib/supabase/server"
-import { cookies } from "next/headers"
-import { redirect, notFound } from "next/navigation"
+import { createClient } from "@/lib/supabase/server"
+import { redirect, notFound } from 'next/navigation'
 import { ReportViewClient } from "./report-view-client"
 
 interface ReportViewPageProps {
@@ -21,8 +20,7 @@ export default async function ReportViewPage({ params, searchParams }: ReportVie
 
   console.log("[v0] ReportViewPage - Loading report ID:", resolvedParams.id)
 
-  const cookieStore = await cookies()
-  const supabase = createServerClient(cookieStore)
+  const supabase = await createClient()
 
   const {
     data: { user },

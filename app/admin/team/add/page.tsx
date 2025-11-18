@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ArrowLeft, UserPlus, AlertTriangle, Crown } from 'lucide-react'
-import { checkCanCreateTeamMember, getSubscriptionLimits } from "@/lib/subscription-limits"
+import { checkCanCreateTeamMember, checkCanCreateAdmin, getSubscriptionLimits } from "@/lib/subscription-limits"
+import { UpgradeNotification } from "@/components/upgrade-notification"
 import Link from "next/link"
 
 interface Admin {
@@ -28,6 +29,8 @@ export default function AddTeamMemberPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [admins, setAdmins] = useState<Admin[]>([])
   const [canCreateTeamMember, setCanCreateTeamMember] = useState(true)
+  const [canCreateAdmin, setCanCreateAdmin] = useState(true)
+  const [adminLimitCheck, setAdminLimitCheck] = useState<any>(null)
   const [limitCheckResult, setLimitCheckResult] = useState<any>(null)
   const [subscriptionLimits, setSubscriptionLimits] = useState<any>(null)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
@@ -45,6 +48,20 @@ export default function AddTeamMemberPage() {
     loadAdminsAndCheckLimits()
   }, [])
 
+  useEffect(() => {
+    if (formData.role === "admin" && organizationId) {
+      checkAdminLimits()
+    }
+  }, [formData.role, organizationId])
+
+  const checkAdminLimits = async () => {
+    if (!organizationId) return
+    
+    const adminCheck = await checkCanCreateAdmin(organizationId)
+    setAdminLimitCheck(adminCheck)
+    setCanCreateAdmin(adminCheck.canCreate)
+  }
+
   const loadAdminsAndCheckLimits = async () => {
     const supabase = createClient()
     const {
@@ -57,7 +74,6 @@ export default function AddTeamMemberPage() {
     if (profile?.organization_id) {
       setOrganizationId(profile.organization_id)
 
-      // Load admins
       const { data: admins } = await supabase
         .from("profiles")
         .select("id, first_name, last_name, full_name, email")
@@ -79,6 +95,12 @@ export default function AddTeamMemberPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (formData.role === "admin" && !canCreateAdmin) {
+      alert(adminLimitCheck?.reason || "Cannot create admin account due to plan limits")
+      return
+    }
+    
     if (!canCreateTeamMember || !organizationId) return
 
     const limitCheck = await checkCanCreateTeamMember(organizationId)
@@ -92,7 +114,6 @@ export default function AddTeamMemberPage() {
     try {
       const supabase = createClient()
 
-      // Get current user's organization
       const {
         data: { user },
       } = await supabase.auth.getUser()
@@ -102,7 +123,6 @@ export default function AddTeamMemberPage() {
 
       if (!profile?.organization_id) throw new Error("No organization found")
 
-      // Create user account using admin API
       const response = await fetch("/api/admin/create-user", {
         method: "POST",
         headers: {
@@ -136,7 +156,6 @@ export default function AddTeamMemberPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-8">
-      {/* Header */}
       <div className="flex items-center gap-4">
         <Link href="/admin/team">
           <Button variant="outline" size="sm">
@@ -153,9 +172,14 @@ export default function AddTeamMemberPage() {
               <div className="text-sm text-muted-foreground">
                 Team Members: {limitCheckResult.currentCount} / {limitCheckResult.maxAllowed} used
               </div>
+              {adminLimitCheck && (
+                <div className="text-sm text-muted-foreground">
+                  Admins: {adminLimitCheck.currentCount} / {adminLimitCheck.maxAllowed} used
+                </div>
+              )}
               <div className="text-sm text-muted-foreground">Plan: {subscriptionLimits.planName}</div>
               {!canCreateTeamMember && (
-                <Link href="/admin/billing">
+                <Link href="/admin/profile/billing">
                   <Button size="sm" className="bg-accent hover:bg-accent/90">
                     <Crown className="w-4 h-4 mr-1" />
                     Upgrade Plan
@@ -167,12 +191,22 @@ export default function AddTeamMemberPage() {
         </div>
       </div>
 
+      {formData.role === "admin" && !canCreateAdmin && adminLimitCheck && subscriptionLimits && (
+        <UpgradeNotification
+          title="Admin Account Limit Reached"
+          description={adminLimitCheck.reason}
+          currentPlan={subscriptionLimits.planName}
+          requiredPlan="Growth"
+          variant="alert"
+        />
+      )}
+
       {!canCreateTeamMember && limitCheckResult && (
         <Alert className="border-destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
             <span>{limitCheckResult.reason}</span>
-            <Link href="/admin/billing">
+            <Link href="/admin/profile/billing">
               <Button size="sm" variant="destructive">
                 Upgrade Now
               </Button>
@@ -181,7 +215,6 @@ export default function AddTeamMemberPage() {
         </Alert>
       )}
 
-      {/* Form */}
       <Card className={!canCreateTeamMember ? "opacity-50" : ""}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -192,7 +225,6 @@ export default function AddTeamMemberPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Name Fields */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="firstName">First Name</Label>
@@ -216,7 +248,6 @@ export default function AddTeamMemberPage() {
               </div>
             </div>
 
-            {/* Position */}
             <div className="space-y-2">
               <Label htmlFor="position">Position/Job Title</Label>
               <Input
@@ -229,7 +260,6 @@ export default function AddTeamMemberPage() {
               />
             </div>
 
-            {/* Email */}
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
               <Input
@@ -242,7 +272,6 @@ export default function AddTeamMemberPage() {
               />
             </div>
 
-            {/* Password */}
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
@@ -256,7 +285,6 @@ export default function AddTeamMemberPage() {
               />
             </div>
 
-            {/* Role */}
             <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
               <Select
@@ -268,9 +296,20 @@ export default function AddTeamMemberPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="staff">Staff</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="admin">
+                    Admin
+                    {formData.role !== "admin" && adminLimitCheck && !canCreateAdmin && " 🔒"}
+                  </SelectItem>
                 </SelectContent>
               </Select>
+              {formData.role === "admin" && !canCreateAdmin && subscriptionLimits && (
+                <p className="text-xs text-muted-foreground">
+                  {subscriptionLimits.planName} plan includes {adminLimitCheck?.maxAllowed} admin account.{" "}
+                  <Link href="/admin/profile/billing" className="text-accent hover:underline">
+                    Upgrade to add more admins
+                  </Link>
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -293,9 +332,12 @@ export default function AddTeamMemberPage() {
               </Select>
             </div>
 
-            {/* Submit Button */}
             <div className="flex gap-4 pt-4">
-              <Button type="submit" disabled={isLoading || !canCreateTeamMember} className="flex-1">
+              <Button 
+                type="submit" 
+                disabled={isLoading || !canCreateTeamMember || (formData.role === "admin" && !canCreateAdmin)}
+                className="flex-1"
+              >
                 {isLoading ? "Creating Account..." : "Create Team Member"}
               </Button>
               <Link href="/admin/team">

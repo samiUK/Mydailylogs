@@ -5,10 +5,12 @@ import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, CreditCard, Download, Calendar, AlertCircle, Sparkles } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { CheckCircle, CreditCard, Download, Calendar, AlertCircle, Sparkles, ExternalLink, Loader2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { SUBSCRIPTION_PRODUCTS, formatPrice } from "@/lib/subscription-products"
 import StripeCheckout from "@/components/stripe-checkout"
+import { cancelSubscription, createBillingPortalSession } from "@/app/actions/stripe"
 
 interface Subscription {
   id: string
@@ -16,6 +18,7 @@ interface Subscription {
   status: string
   current_period_start: string
   current_period_end: string
+  stripe_subscription_id?: string
 }
 
 interface Payment {
@@ -24,6 +27,8 @@ interface Payment {
   currency: string
   status: string
   created_at: string
+  stripe_invoice_url?: string
+  stripe_invoice_pdf?: string
 }
 
 export default function BillingPage() {
@@ -31,120 +36,194 @@ export default function BillingPage() {
   const [billingHistory, setBillingHistory] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
-  const [isImpersonated, setIsImpersonated] = useState(false)
-  const [impersonatedBy, setImpersonatedBy] = useState("")
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
   const [showCheckout, setShowCheckout] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [processing, setProcessing] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
-    const checkImpersonation = () => {
-      const isImpersonating = localStorage.getItem("masterAdminImpersonation") === "true"
-      const impersonatedEmail = localStorage.getItem("impersonatedUserEmail") || ""
-      setIsImpersonated(isImpersonating)
-      setImpersonatedBy(impersonatedEmail)
-    }
+    loadBillingData()
+  }, [])
 
-    checkImpersonation()
+  async function loadBillingData() {
+    const supabase = createClient()
+    setError(null)
 
-    async function loadBillingData() {
-      const supabase = createClient()
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      
+      if (!user) {
+        router.push("/auth/login")
+        return
+      }
 
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        if (!user) {
-          router.push("/auth/login")
-          return
-        }
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("id", user.id)
+        .single()
 
-        const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single()
+      if (profileError || !profile?.organization_id) {
+        setError("Unable to load organization information")
+        return
+      }
 
-        if (!profile?.organization_id) return
+      setOrganizationId(profile.organization_id)
 
-        setOrganizationId(profile.organization_id)
+      const { data: subscriptionData, error: subError } = await supabase
+        .from("subscriptions")
+        .select("*")
+        .eq("organization_id", profile.organization_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
 
-        const { data: subscriptionData } = await supabase
+      if (subError) {
+        console.error("[v0] Error fetching subscription:", subError)
+      }
+
+      let finalSubscription = subscriptionData
+
+      if (!subscriptionData) {
+        const { data: newSub, error: insertError } = await supabase
           .from("subscriptions")
-          .select("*")
-          .eq("organization_id", profile.organization_id)
-          .eq("status", "active")
+          .insert({
+            organization_id: profile.organization_id,
+            plan_name: "starter",
+            status: "active",
+            current_period_start: new Date().toISOString(),
+            current_period_end: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(),
+          })
+          .select()
           .single()
 
-        if (subscriptionData) setSubscription(subscriptionData)
+        if (!insertError && newSub) {
+          finalSubscription = newSub
+        } else {
+          finalSubscription = {
+            id: "temp",
+            plan_name: "starter",
+            status: "active",
+            current_period_start: new Date().toISOString(),
+            current_period_end: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(),
+          }
+        }
+      }
 
+      setSubscription(finalSubscription)
+      
+      if (finalSubscription?.id && finalSubscription.id !== "temp") {
         const { data: paymentsData } = await supabase
           .from("payments")
           .select("*")
-          .eq("subscription_id", subscriptionData?.id)
+          .eq("subscription_id", finalSubscription.id)
           .order("created_at", { ascending: false })
-          .limit(10)
+          .limit(20)
 
         if (paymentsData) setBillingHistory(paymentsData)
-      } catch (error) {
-        console.error("Error loading billing data:", error)
-      } finally {
-        setLoading(false)
       }
+    } catch (error) {
+      console.error("[v0] Error loading billing data:", error)
+      setError("Failed to load billing information. Please refresh the page.")
+      setSubscription({
+        id: "temp",
+        plan_name: "starter",
+        status: "active",
+        current_period_start: new Date().toISOString(),
+        current_period_end: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(),
+      })
+    } finally {
+      setLoading(false)
     }
-
-    loadBillingData()
-  }, [router])
+  }
 
   const handleUpgrade = (planId: string) => {
+    setError(null)
+    setSuccess(null)
     setSelectedPlanId(planId)
     setShowCheckout(true)
   }
 
-  if (loading) {
-    return <div className="flex justify-center py-8">Loading billing information...</div>
+  const handleCancel = async () => {
+    if (!subscription || !confirm("Are you sure you want to cancel your subscription? You'll lose access to premium features.")) {
+      return
+    }
+
+    setProcessing(true)
+    setError(null)
+
+    try {
+      await cancelSubscription(subscription.id)
+      setSuccess("Subscription cancelled successfully. Changes will take effect at the end of your billing period.")
+      await loadBillingData()
+    } catch (error: any) {
+      setError(error.message || "Failed to cancel subscription. Please try again or contact support.")
+    } finally {
+      setProcessing(false)
+    }
   }
 
-  const currentPlanName = subscription?.plan_name || "Free"
-  const currentProduct = SUBSCRIPTION_PRODUCTS.find((p) => p.name === currentPlanName)
+  const handleManageBilling = async () => {
+    setProcessing(true)
+    setError(null)
+
+    try {
+      const portalUrl = await createBillingPortalSession()
+      window.open(portalUrl, "_blank")
+    } catch (error: any) {
+      setError(error.message || "Failed to open billing portal. Please try again.")
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  const handleDownloadInvoice = async (payment: Payment) => {
+    if (payment.stripe_invoice_pdf) {
+      window.open(payment.stripe_invoice_pdf, "_blank")
+    } else if (payment.stripe_invoice_url) {
+      window.open(payment.stripe_invoice_url, "_blank")
+    } else {
+      setError("Invoice not available for this payment")
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <span className="ml-2">Loading billing information...</span>
+      </div>
+    )
+  }
+
+  const currentPlanName = subscription?.plan_name?.toLowerCase() || "starter"
+  const currentProduct = SUBSCRIPTION_PRODUCTS.find((p) => p.id === currentPlanName) || SUBSCRIPTION_PRODUCTS[0]
+  const isFreePlan = currentPlanName === "starter"
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      {isImpersonated && (
-        <div className="bg-orange-100 border-l-4 border-orange-500 p-4 rounded-md">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-orange-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path
-                    fillRule="evenodd"
-                    d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-orange-700">
-                  <strong>IMPERSONATED SESSION</strong> - You are viewing this billing as: {impersonatedBy}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                localStorage.removeItem("masterAdminImpersonation")
-                localStorage.removeItem("impersonatedUserEmail")
-                localStorage.removeItem("impersonatedUserRole")
-                localStorage.removeItem("impersonatedOrganizationId")
-                window.location.href = "/masterdashboard"
-              }}
-              className="text-orange-700 hover:text-orange-900 text-sm font-medium"
-            >
-              Exit Impersonation
-            </button>
-          </div>
-        </div>
-      )}
-
       <div>
         <h1 className="text-3xl font-bold text-foreground">Billing & Subscription</h1>
         <p className="text-muted-foreground mt-2">Manage your subscription and billing information</p>
       </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="w-4 h-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {success && (
+        <Alert className="bg-green-50 border-green-200">
+          <CheckCircle className="w-4 h-4 text-green-600" />
+          <AlertDescription className="text-green-800">{success}</AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader>
@@ -154,36 +233,70 @@ export default function BillingPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {currentProduct ? (
+          <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-3 mb-2">
                   <h3 className="text-2xl font-bold">{currentProduct.name}</h3>
-                  <Badge variant={subscription?.status === "active" ? "default" : "secondary"}>
-                    {subscription?.status || "free"}
-                  </Badge>
+                  <Badge variant="default">Active</Badge>
                 </div>
-                <p className="text-muted-foreground mb-4">
-                  {formatPrice(currentProduct.priceMonthly)}/month •
-                  {currentProduct.maxTemplates === -1 ? " Unlimited" : ` ${currentProduct.maxTemplates}`} templates •
-                  {currentProduct.maxTeamMembers === -1 ? " Unlimited" : ` ${currentProduct.maxTeamMembers}`} team
-                  members
+                <p className="text-lg font-semibold text-primary mb-2">
+                  {formatPrice(currentProduct.priceMonthly)}/month
                 </p>
-                {subscription?.current_period_end && (
+                <div className="space-y-2 mb-4">
+                  <p className="text-sm text-muted-foreground">
+                    • {currentProduct.maxTemplates === -1 ? "Unlimited" : currentProduct.maxTemplates} templates
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    • {currentProduct.maxTeamMembers === -1 ? "Unlimited" : currentProduct.maxTeamMembers} team members
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    • {currentProduct.maxAdmins} admin account{currentProduct.maxAdmins > 1 ? 's' : ''}
+                  </p>
+                </div>
+                
+                {!isFreePlan && subscription?.current_period_end && (
                   <p className="text-sm text-muted-foreground flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
-                    Renews on {new Date(subscription.current_period_end).toLocaleDateString()}
+                    {subscription.status === "active" 
+                      ? `Renews on ${new Date(subscription.current_period_end).toLocaleDateString()}`
+                      : `Expires on ${new Date(subscription.current_period_end).toLocaleDateString()}`
+                    }
+                  </p>
+                )}
+                
+                {isFreePlan && (
+                  <p className="text-sm text-muted-foreground">
+                    All organizations start with the Starter plan. Upgrade anytime to unlock premium features.
                   </p>
                 )}
               </div>
             </div>
-          ) : (
-            <div className="text-center py-8">
-              <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No Active Subscription</h3>
-              <p className="text-muted-foreground mb-4">You're currently on the free plan with limited features.</p>
-            </div>
-          )}
+
+            {!isFreePlan && subscription?.status === "active" && (
+              <div className="flex gap-3 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={handleManageBilling}
+                  disabled={processing}
+                >
+                  {processing ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                  )}
+                  Manage Billing
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleCancel}
+                  disabled={processing}
+                >
+                  Cancel Subscription
+                </Button>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -193,19 +306,24 @@ export default function BillingPage() {
           <CardDescription>Choose the plan that fits your needs</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid md:grid-cols-3 gap-6">
-            {SUBSCRIPTION_PRODUCTS.map((plan) => {
+          <div className="grid md:grid-cols-2 gap-6">
+            {SUBSCRIPTION_PRODUCTS.filter(plan => plan.id !== "starter").map((plan) => {
               const isCurrent = currentProduct?.id === plan.id
-              const isFreePlan = plan.id === "free"
 
               return (
                 <div
                   key={plan.id}
-                  className={`border rounded-lg p-6 ${isCurrent ? "border-primary bg-primary/5" : "border-border"}`}
+                  className={`border rounded-lg p-6 ${
+                    isCurrent ? "border-primary bg-primary/5" : "border-border"
+                  } ${plan.id === "growth" ? "border-accent border-2 shadow-xl" : ""}`}
                 >
+                  {plan.id === "growth" && (
+                    <Badge className="mb-2 bg-accent text-accent-foreground">Best for SMEs</Badge>
+                  )}
+                  
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xl font-bold">{plan.name}</h3>
-                    {isCurrent && <Badge>Current</Badge>}
+                    {isCurrent && <Badge>Current Plan</Badge>}
                   </div>
 
                   <div className="text-3xl font-bold mb-2">
@@ -218,26 +336,28 @@ export default function BillingPage() {
                   <ul className="space-y-2 mb-6">
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">
-                        {plan.maxTemplates === -1 ? "Unlimited" : plan.maxTemplates} Templates
-                      </span>
+                      <span className="text-sm">{plan.maxTemplates} Templates</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-primary" />
+                      <span className="text-sm">Up to {plan.maxTeamMembers} Team Members</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
                       <span className="text-sm">
-                        {plan.maxTeamMembers === -1 ? "Unlimited" : plan.maxTeamMembers} Team Members
+                        {plan.maxAdmins === 1 ? "1 Admin Account" : `Up to ${plan.maxAdmins} Admin Accounts`}
                       </span>
                     </li>
-                    {plan.features.customBranding && (
+                    {plan.features.basicReporting && (
                       <li className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm">Custom Branding</span>
+                        <span className="text-sm">Basic Reporting</span>
                       </li>
                     )}
-                    {plan.features.prioritySupport && (
+                    {plan.features.advancedReporting && (
                       <li className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm">Priority Support</span>
+                        <span className="text-sm">Advanced Reporting</span>
                       </li>
                     )}
                     {plan.features.advancedAnalytics && (
@@ -246,30 +366,85 @@ export default function BillingPage() {
                         <span className="text-sm">Advanced Analytics</span>
                       </li>
                     )}
-                    {plan.features.apiAccess && (
+                    {plan.features.prioritySupport && (
                       <li className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm">API Access</span>
+                        <span className="text-sm">Priority Email Support</span>
+                      </li>
+                    )}
+                    {plan.features.dedicatedAccountManager && (
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-primary" />
+                        <span className="text-sm">Dedicated Account Manager</span>
+                      </li>
+                    )}
+                    {plan.features.aiTaskMonitoring && (
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-primary" />
+                        <span className="text-sm flex items-center gap-1">
+                          AI Task Monitoring
+                          <Badge variant="secondary" className="text-xs ml-1">
+                            Coming Soon
+                          </Badge>
+                        </span>
+                      </li>
+                    )}
+                    {plan.features.smartNotifications && (
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-primary" />
+                        <span className="text-sm flex items-center gap-1">
+                          Smart Notifications
+                          <Badge variant="secondary" className="text-xs ml-1">
+                            Coming Soon
+                          </Badge>
+                        </span>
+                      </li>
+                    )}
+                    {plan.features.advancedAiMonitoring && (
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-primary" />
+                        <span className="text-sm flex items-center gap-1">
+                          Advanced AI Monitoring
+                          <Badge variant="secondary" className="text-xs ml-1">
+                            Coming Soon
+                          </Badge>
+                        </span>
+                      </li>
+                    )}
+                    {plan.features.predictiveNotifications && (
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-primary" />
+                        <span className="text-sm flex items-center gap-1">
+                          Predictive Notifications
+                          <Badge variant="secondary" className="text-xs ml-1">
+                            Coming Soon
+                          </Badge>
+                        </span>
+                      </li>
+                    )}
+                    {plan.features.aiPerformanceInsights && (
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-primary" />
+                        <span className="text-sm flex items-center gap-1">
+                          AI Performance Insights
+                          <Badge variant="secondary" className="text-xs ml-1">
+                            Coming Soon
+                          </Badge>
+                        </span>
                       </li>
                     )}
                   </ul>
 
-                  {!isCurrent && !isFreePlan && (
-                    <Button className="w-full" onClick={() => handleUpgrade(plan.id)}>
+                  {!isCurrent && (
+                    <Button className="w-full" onClick={() => handleUpgrade(plan.id)} disabled={processing}>
                       <Sparkles className="w-4 h-4 mr-2" />
                       Upgrade to {plan.name}
                     </Button>
                   )}
 
-                  {isCurrent && !isFreePlan && (
+                  {isCurrent && (
                     <Button variant="outline" className="w-full bg-transparent" disabled>
                       Current Plan
-                    </Button>
-                  )}
-
-                  {isFreePlan && (
-                    <Button variant="outline" className="w-full bg-transparent" disabled>
-                      {isCurrent ? "Current Plan" : "Downgrade"}
                     </Button>
                   )}
                 </div>
@@ -284,26 +459,79 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Download className="w-5 h-5" />
-              Billing History
+              Billing History & Invoices
             </CardTitle>
-            <CardDescription>Your recent payments</CardDescription>
+            <CardDescription>Your recent payments and downloadable invoices for compliance</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {billingHistory.map((payment) => (
-                <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <p className="font-medium">
-                      {formatPrice(Number(payment.amount) * 100)} {payment.currency?.toUpperCase()}
+                <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-1">
+                      <p className="font-medium">
+                        {Number(payment.amount) < 0 ? "Refund: " : ""}
+                        {formatPrice(Math.abs(Number(payment.amount)) * 100)} {payment.currency?.toUpperCase()}
+                      </p>
+                      <Badge 
+                        variant={
+                          payment.status === "succeeded" || payment.status === "completed" 
+                            ? "default" 
+                            : payment.status === "refunded" 
+                            ? "secondary" 
+                            : "destructive"
+                        }
+                      >
+                        {payment.status}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(payment.created_at).toLocaleDateString('en-GB', { 
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
                     </p>
-                    <p className="text-sm text-muted-foreground">{new Date(payment.created_at).toLocaleDateString()}</p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Badge variant={payment.status === "succeeded" ? "default" : "destructive"}>{payment.status}</Badge>
+                    {(payment.stripe_invoice_pdf || payment.stripe_invoice_url) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDownloadInvoice(payment)}
+                        className="flex items-center gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        Download Invoice
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
+            
+            {subscription?.stripe_subscription_id && (
+              <div className="mt-6 pt-6 border-t">
+                <p className="text-sm text-muted-foreground mb-3">
+                  Need older invoices or receipts? Access your complete billing history through the Stripe portal.
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={handleManageBilling}
+                  disabled={processing}
+                  className="w-full sm:w-auto"
+                >
+                  {processing ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                  )}
+                  Access Full Billing Portal
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -314,6 +542,7 @@ export default function BillingPage() {
           onClose={() => {
             setShowCheckout(false)
             setSelectedPlanId(null)
+            loadBillingData()
           }}
         />
       )}

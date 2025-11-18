@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Users, Building2, TrendingUp, CheckCircle, Key, CreditCard, RefreshCw, Plus, Trash2, AlertTriangle, User, LogIn, Mail, Eye, Reply, X, Search, Calendar, Shield, Edit, DollarSign, Edit2, Archive, ArrowDown, ArrowUp, AlertCircle, Info } from 'lucide-react'
 import { useEffect, useState } from "react"
 import { ReportDirectoryContent } from "./report-directory-content"
+import { toast } from "sonner" // Import toast
 
 interface Organization {
   organization_id: string
@@ -217,6 +218,20 @@ export default function MasterDashboardPage() {
     setTimeout(() => {
       setNotification((prev) => ({ ...prev, show: false }))
     }, 5000)
+  }
+
+  // Function to fetch all payments (to be called after refund)
+  const loadAllPayments = async () => {
+    try {
+      const { data, error } = await createClient()
+        .from("payments")
+        .select(`*, subscriptions(*, organizations(*))`)
+      if (error) throw error
+      setAllPayments(data || [])
+    } catch (error) {
+      console.error("Error fetching payments:", error)
+      toast.error("Failed to load payment data")
+    }
   }
 
   const syncData = async () => {
@@ -700,6 +715,43 @@ export default function MasterDashboardPage() {
     }
   }
 
+  const downgradeSubscription = async (subscriptionId: string, organizationName: string) => {
+    const confirmed = confirm(
+      `Are you sure you want to downgrade ${organizationName} to the Starter plan?\n\n` +
+      `This action should only be performed after verification and user request. ` +
+      `The organization will lose access to premium features immediately.`
+    )
+    
+    if (!confirmed) return
+
+    setIsProcessing(true)
+    try {
+      const supabase = createClient()
+
+      const { error } = await supabase
+        .from("subscriptions")
+        .update({
+          plan_name: "starter",
+          status: "active",
+          current_period_end: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(), // 100 years for free plan
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", subscriptionId)
+
+      if (error) throw error
+
+      // Refresh data
+      await checkAuthAndLoadData()
+      showNotification("success", `${organizationName} successfully downgraded to Starter plan`)
+      setSelectedSubscription(null)
+    } catch (error) {
+      console.error("Error downgrading subscription:", error)
+      showNotification("error", "Failed to downgrade subscription. Please try again.")
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
   const addSubscription = async (organizationId: string, planName: string) => {
     setIsProcessing(true)
     try {
@@ -727,7 +779,8 @@ export default function MasterDashboardPage() {
     }
   }
 
-  const processRefund = async (paymentId: string, amount: string) => {
+  // Original processRefund function (will be replaced by the updated one)
+  const processRefundOriginal = async (paymentId: string, amount: string) => {
     setIsProcessing(true)
     try {
       const supabase = createClient()
@@ -754,6 +807,42 @@ export default function MasterDashboardPage() {
       alert("Failed to process refund")
     } finally {
       setIsProcessing(false)
+    }
+  }
+
+  // Updated processRefund function
+  async function processRefund(paymentId: string, amount: string) {
+    if (!confirm(`Are you sure you want to process a refund of £${amount}?`)) return
+
+    setIsProcessing(true)
+    try {
+      const response = await fetch("/api/admin/process-refund", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          paymentId, 
+          amount: parseFloat(amount),
+          reason: "requested_by_customer" 
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to process refund");
+      }
+
+      const data = await response.json()
+      console.log("[v0] Refund processed:", data)
+      toast.success("Refund processed successfully")
+      
+      // Refresh payment data
+      loadAllPayments()
+    } catch (error: any) {
+      console.error("[v0] Error processing refund:", error)
+      toast.error(error.message || "Failed to process refund")
+    } finally {
+      setIsProcessing(false)
+      setRefundAmount("")
     }
   }
 
@@ -1635,8 +1724,20 @@ export default function MasterDashboardPage() {
                           <div>
                             <p className="font-medium">{subscription.organizations?.name}</p>
                             <p className="text-sm text-gray-500">
-                              {subscription.plan_name} • Expires{" "}
-                              {new Date(subscription.current_period_end).toLocaleDateString()}
+                              {subscription.plan_name} • Started{" "}
+                              {new Date(subscription.created_at).toLocaleDateString('en-GB', { 
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric'
+                              })}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              Expires{" "}
+                              {new Date(subscription.current_period_end).toLocaleDateString('en-GB', { 
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric'
+                              })}
                             </p>
                           </div>
                           <Badge variant="default">{subscription.status}</Badge>
@@ -2034,203 +2135,124 @@ export default function MasterDashboardPage() {
           </TabsContent>
 
           <TabsContent value="subscriptions" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Total Subscriptions</p>
+                      <p className="text-2xl font-bold">{allSubscriptions.length}</p>
+                    </div>
+                    <CreditCard className="w-8 h-8 text-blue-500" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Active Plans</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {allSubscriptions.filter((sub) => sub.status === "active").length}
+                      </p>
+                    </div>
+                    <CheckCircle className="w-8 h-8 text-green-500" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Free Plans (Starter)</p>
+                      <p className="text-2xl font-bold">
+                        {allSubscriptions.filter((sub) => sub.plan_name === "Starter").length}
+                      </p>
+                    </div>
+                    <Users className="w-8 h-8 text-gray-500" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Paid Plans</p>
+                      <p className="text-2xl font-bold text-purple-600">
+                        {allSubscriptions.filter((sub) => sub.plan_name !== "Starter" && sub.status === "active").length}
+                      </p>
+                    </div>
+                    <DollarSign className="w-8 h-8 text-purple-500" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
             <Card>
               <CardHeader>
                 <CardTitle>Subscription Management</CardTitle>
-                <CardDescription>Manage all active and inactive subscriptions</CardDescription>
+                <CardDescription>Manage all active and inactive subscriptions across all organizations</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {allSubscriptions.map((subscription) => (
-                    <div key={subscription.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div>
-                        <p className="font-medium">{subscription.organizations?.name}</p>
-                        <p className="text-sm text-gray-500">
-                          {subscription.plan_name} • Started {new Date(subscription.created_at).toLocaleDateString()}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          Expires {new Date(subscription.current_period_end).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={subscription.status === "active" ? "default" : "secondary"}>
-                          {subscription.status}
-                        </Badge>
-                        {subscription.status === "active" && (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => cancelSubscription(subscription.id)}
-                            disabled={isProcessing}
-                          >
-                            <Trash2 className="w-4 h-4 mr-1" />
-                            Cancel
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="payments" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Payment Management</CardTitle>
-                <CardDescription>View and manage all payment transactions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {allPayments.map((payment) => (
-                    <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div>
-                        <p className="font-medium">{payment.subscriptions?.organizations?.name}</p>
-                        <p className="text-sm text-gray-500">
-                          {payment.subscriptions?.plan_name} • {new Date(payment.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-right">
-                          <p className="font-medium">£{Number.parseFloat(payment.amount).toFixed(2)}</p>
-                          <Badge variant={payment.status === "completed" ? "default" : "secondary"}>
-                            {payment.status}
-                          </Badge>
-                        </div>
-                        {payment.status === "completed" && (
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button variant="outline" size="sm">
-                                <RefreshCw className="w-4 h-4 mr-1" />
-                                Refund
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Process Refund</DialogTitle>
-                                <DialogDescription>Process a refund for this payment</DialogDescription>
-                              </DialogHeader>
-                              <div className="space-y-4">
-                                <div>
-                                  <Label htmlFor="refundAmount">Refund Amount (£)</Label>
-                                  <Input
-                                    id="refundAmount"
-                                    type="number"
-                                    step="0.01"
-                                    value={refundAmount}
-                                    onChange={(e) => setRefundAmount(e.target.value)}
-                                    placeholder="Enter refund amount"
-                                    max={payment.amount}
-                                  />
-                                </div>
-                              </div>
-                              <DialogFooter>
-                                <Button
-                                  onClick={() => processRefund(payment.id, refundAmount)}
-                                  disabled={!refundAmount || isProcessing}
-                                  variant="destructive"
-                                >
-                                  {isProcessing ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : null}
-                                  Process Refund
-                                </Button>
-                              </DialogFooter>
-                            </DialogContent>
-                          </Dialog>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="feedback" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Mail className="w-5 h-5" />
-                  Feedback Mailbox
-                  {unreadFeedbackCount > 0 && <Badge variant="destructive">{unreadFeedbackCount} unread</Badge>}
-                </CardTitle>
-                <CardDescription>Monitor and manage user feedback and suggestions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {feedback.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      <Mail className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                      <p>No feedback received yet</p>
+                  {allSubscriptions.length === 0 ? (
+                    <div className="text-center py-12">
+                      <CreditCard className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No Subscriptions Found</h3>
+                      <p className="text-gray-500">Subscriptions will appear here once organizations sign up.</p>
                     </div>
                   ) : (
-                    feedback.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`p-4 border rounded-lg ${
-                          item.status === "unread" ? "bg-blue-50 border-blue-200" : "bg-white"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Badge variant={item.status === "unread" ? "default" : "secondary"}>{item.status}</Badge>
-                              <span className="text-sm text-gray-500">
-                                {new Date(item.created_at).toLocaleDateString()} at{" "}
-                                {new Date(item.created_at).toLocaleTimeString()}
-                              </span>
-                            </div>
-                            <h3 className="font-medium text-lg mb-1">{item.subject}</h3>
-                            <p className="text-sm text-gray-600 mb-2">
-                              From: <strong>{item.name}</strong> ({item.email})
-                            </p>
-                            {item.page_url && (
-                              <p className="text-sm text-gray-500 mb-2">
-                                Page:{" "}
-                                <a
-                                  href={item.page_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 hover:underline"
-                                >
-                                  {item.page_url}
-                                </a>
-                              </p>
-                            )}
-                            <p className="text-gray-800 whitespace-pre-wrap">{item.message}</p>
-                            {item.attachments && item.attachments.length > 0 && (
-                              <div className="mt-2">
-                                <p className="text-sm font-medium text-gray-600 mb-1">Attachments:</p>
-                                <div className="flex flex-wrap gap-2">
-                                  {item.attachments.map((attachment: any, index: number) => (
-                                    <Badge key={index} variant="outline" className="text-xs">
-                                      📎 {attachment.name}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 ml-4">
-                            <Button variant="outline" size="sm" onClick={() => openResponseModal(item)}>
-                              <Reply className="w-4 h-4 mr-1" />
-                              Reply
-                            </Button>
-                            {item.status === "unread" && (
-                              <Button variant="outline" size="sm" onClick={() => markFeedbackAsRead(item.id)}>
-                                <Eye className="w-4 h-4 mr-1" />
-                                Mark Read
-                              </Button>
-                            )}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => deleteFeedback(item.id)}
-                              className="text-red-600 hover:text-red-700"
+                    allSubscriptions.map((subscription) => (
+                      <div key={subscription.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-1">
+                            <p className="font-medium">{subscription.organizations?.name || "Unknown Organization"}</p>
+                            <Badge 
+                              variant={subscription.plan_name === "Starter" ? "secondary" : "default"}
+                              className={subscription.plan_name === "Scale" ? "bg-purple-100 text-purple-700" : ""}
                             >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                              {subscription.plan_name}
+                            </Badge>
                           </div>
+                          <p className="text-sm text-gray-500">
+                            Started {new Date(subscription.created_at).toLocaleDateString('en-GB', { 
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric'
+                            })}
+                            {subscription.plan_name !== "Starter" && ` • Expires ${new Date(subscription.current_period_end).toLocaleDateString('en-GB', { 
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric'
+                            })}`}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={subscription.status === "active" ? "default" : "secondary"}>
+                            {subscription.status}
+                          </Badge>
+                          {subscription.status === "active" && subscription.plan_name !== "Starter" && currentUserRole === "masteradmin" && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => downgradeSubscription(subscription.id, subscription.organizations?.name || "Organization")}
+                                disabled={isProcessing}
+                              >
+                                <ArrowDown className="w-4 h-4 mr-1" />
+                                Downgrade
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => cancelSubscription(subscription.id)}
+                                disabled={isProcessing}
+                              >
+                                <Trash2 className="w-4 h-4 mr-1" />
+                                Cancel
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))
@@ -2240,256 +2262,154 @@ export default function MasterDashboardPage() {
             </Card>
           </TabsContent>
 
-          {responseModal.isOpen && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold">Reply to Feedback</h2>
-                  <Button variant="ghost" size="sm" onClick={closeResponseModal}>
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">To:</label>
-                    <p className="text-sm text-gray-600">{responseModal.feedback?.email}</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Subject:</label>
-                    <input
-                      type="text"
-                      value={responseSubject}
-                      onChange={(e) => setResponseSubject(e.target.value)}
-                      className="w-full p-2 border border-gray-300 rounded-md"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Original Message:</label>
-                    <div className="p-3 bg-gray-50 rounded-md text-sm">
-                      <p className="font-medium">{responseModal.feedback?.subject}</p>
-                      <p className="mt-1">{responseModal.feedback?.message}</p>
+          <TabsContent value="payments" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Total Revenue</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        £
+                        {allPayments
+                          .filter((payment) => payment.status === "completed" || payment.status === "succeeded")
+                          .reduce((sum, payment) => sum + Number.parseFloat(payment.amount), 0)
+                          .toFixed(2)}
+                      </p>
                     </div>
+                    <DollarSign className="w-8 h-8 text-green-500" />
                   </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Your Response:</label>
-                    <textarea
-                      value={responseMessage}
-                      onChange={(e) => setResponseMessage(e.target.value)}
-                      rows={6}
-                      className="w-full p-2 border border-gray-300 rounded-md"
-                      placeholder="Type your response here..."
-                    />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Total Payments</p>
+                      <p className="text-2xl font-bold">{allPayments.length}</p>
+                    </div>
+                    <CreditCard className="w-8 h-8 text-blue-500" />
                   </div>
-
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={closeResponseModal}>
-                      Cancel
-                    </Button>
-                    <Button onClick={sendResponse} disabled={isResponding || !responseMessage.trim()}>
-                      {isResponding ? "Sending..." : "Send Response"}
-                    </Button>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Successful</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {allPayments.filter((p) => p.status === "completed" || p.status === "succeeded").length}
+                      </p>
+                    </div>
+                    <CheckCircle className="w-8 h-8 text-green-500" />
                   </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Failed/Pending</p>
+                      <p className="text-2xl font-bold text-orange-600">
+                        {allPayments.filter((p) => p.status !== "completed" && p.status !== "succeeded").length}
+                      </p>
+                    </div>
+                    <AlertCircle className="w-8 h-8 text-orange-500" />
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-          )}
 
-          {/* Superuser Tools Tab Content */}
-          {currentUserRole === 'masteradmin' && (
-            <TabsContent value="login-as" className="space-y-6">
-              <div className="space-y-6">
-                <Tabs defaultValue="password-reset" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="password-reset">Password Reset</TabsTrigger>
-                    <TabsTrigger value="add-superusers">Add Superusers</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="password-reset" className="mt-6">
-                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <AlertTriangle className="w-6 h-6 text-orange-600" />
-                        <h2 className="text-xl font-semibold text-orange-800">Password Reset Tool</h2>
-                      </div>
-                      <p className="text-orange-700 mb-4">
-                        For security and data protection compliance, we've replaced the "Login As" feature with a secure
-                        password reset tool. This approach maintains GDPR/CCPA compliance while allowing you to help
-                        users access their accounts.
-                      </p>
-
-                      <div className="space-y-4">
-                        <div className="flex gap-2">
-                          <Input
-                            type="email"
-                            placeholder="Enter user email to reset password"
-                            value={resetPasswordEmail}
-                            onChange={(e) => setResetPasswordEmail(e.target.value)}
-                            className="flex-1"
-                          />
-                          <Button onClick={() => resetUserPassword(resetPasswordEmail)} variant="destructive">
-                            Reset Password
-                          </Button>
-                        </div>
-                        <Button onClick={testApiRoute} variant="outline" className="w-full bg-transparent">
-                          Test API Connection
-                        </Button>
-                      </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Payment Management</CardTitle>
+                <CardDescription>View and manage all payment transactions with refund capabilities</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {allPayments.length === 0 ? (
+                    <div className="text-center py-12">
+                      <DollarSign className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No Payments Found</h3>
+                      <p className="text-gray-500">Payment transactions will appear here once users upgrade to paid plans.</p>
                     </div>
-                  </TabsContent>
-
-                  <TabsContent value="add-superusers" className="mt-6">
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <Shield className="w-6 h-6 text-blue-600" />
-                        <h2 className="text-xl font-semibold text-blue-800">Superuser Management</h2>
-                      </div>
-                      <p className="text-blue-700 mb-6">
-                        Manage CS agents and superusers who can access the Master Admin Dashboard. These users will have
-                        full administrative privileges.
-                      </p>
-
-                      {/* Add New Superuser Form */}
-                      <div className="space-y-4 mb-8">
-                        <h3 className="text-lg font-medium text-blue-800">Add New Superuser</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <Input
-                            type="email"
-                            placeholder="Superuser email"
-                            value={newSuperuserEmail}
-                            onChange={(e) => setNewSuperuserEmail(e.target.value)}
-                          />
-                          <Input
-                            type="password"
-                            placeholder="Superuser password"
-                            value={newSuperuserPassword}
-                            onChange={(e) => setNewSuperuserPassword(e.target.value)}
-                          />
+                  ) : (
+                    allPayments.map((payment) => (
+                      <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-1">
+                            <p className="font-medium">{payment.subscriptions?.organizations?.name || "Unknown Organization"}</p>
+                            <Badge variant="outline">{payment.subscriptions?.plan_name || "N/A"}</Badge>
+                          </div>
+                          <p className="text-sm text-gray-500">
+                            {new Date(payment.created_at).toLocaleDateString('en-GB', { 
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
                         </div>
-                        <Button onClick={addSuperuser} className="w-full md:w-auto">
-                          <Plus className="w-4 h-4 mr-2" />
-                          Add Superuser
-                        </Button>
-                      </div>
-
-                      {/* Existing Superusers List */}
-                      <div className="space-y-4">
-                        <h3 className="text-lg font-medium text-blue-800">Existing Superusers</h3>
-                        <div className="space-y-3">
-                          {superusers.map((superuser) => (
-                            <div
-                              key={superuser.id}
-                              className="flex items-center justify-between p-4 bg-white rounded-lg border"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                  <User className="w-4 h-4 text-blue-600" />
-                                </div>
-                                <div>
-                                  <p className="font-medium text-gray-900">{superuser.email}</p>
-                                  <p className="text-sm text-gray-500">
-                                    Added {new Date(superuser.created_at).toLocaleDateString()}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    setEditingSuperuser(superuser)
-                                    setNewSuperuserPassword("")
-                                  }}
-                                >
-                                  <Edit className="w-4 h-4 mr-1" />
-                                  Edit
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <p className="font-medium text-lg">£{Number.parseFloat(payment.amount).toFixed(2)}</p>
+                            <Badge variant={payment.status === "completed" || payment.status === "succeeded" ? "default" : payment.status === "refunded" ? "secondary" : "destructive"}>
+                              {payment.status}
+                            </Badge>
+                          </div>
+                          {(payment.status === "completed" || payment.status === "succeeded") && currentUserRole === "masteradmin" && (
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                  <RefreshCw className="w-4 h-4 mr-1" />
+                                  Refund
                                 </Button>
-                                <Button variant="destructive" size="sm" onClick={() => removeSuperuser(superuser.id)}>
-                                  <Trash2 className="w-4 h-4 mr-1" />
-                                  Remove
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                          {superusers.length === 0 && (
-                            <div className="text-center p-8 text-gray-500">
-                              <Shield className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                              <p>No superusers added yet</p>
-                            </div>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>Process Refund</DialogTitle>
+                                  <DialogDescription>Process a full or partial refund for this payment</DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label htmlFor="refundAmount">Refund Amount (£)</Label>
+                                    <Input
+                                      id="refundAmount"
+                                      type="number"
+                                      step="0.01"
+                                      value={refundAmount}
+                                      onChange={(e) => setRefundAmount(e.target.value)}
+                                      placeholder="Enter refund amount"
+                                      max={payment.amount}
+                                    />
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                      Maximum refund: £{Number.parseFloat(payment.amount).toFixed(2)}
+                                    </p>
+                                  </div>
+                                </div>
+                                <DialogFooter>
+                                  <Button
+                                    onClick={() => processRefund(payment.id, refundAmount)}
+                                    disabled={!refundAmount || isProcessing || parseFloat(refundAmount) > parseFloat(payment.amount) || parseFloat(refundAmount) <= 0}
+                                    variant="destructive"
+                                  >
+                                    {isProcessing ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : null}
+                                    Process Refund
+                                  </Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
                           )}
                         </div>
                       </div>
-
-                      {/* Edit Superuser Modal */}
-                      {editingSuperuser && (
-                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                            <h3 className="text-lg font-medium mb-4">Edit Superuser</h3>
-                            <div className="space-y-4">
-                              <Input type="email" value={editingSuperuser.email} disabled className="bg-gray-50" />
-                              <Input
-                                type="password"
-                                placeholder="New password (leave blank to keep current)"
-                                value={newSuperuserPassword}
-                                onChange={(e) => setNewSuperuserPassword(e.target.value)}
-                              />
-                            </div>
-                            <div className="flex gap-2 mt-6">
-                              <Button onClick={updateSuperuser} className="flex-1">
-                                Update
-                              </Button>
-                              <Button variant="outline" onClick={() => setEditingSuperuser(null)} className="flex-1">
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </TabsContent>
-                </Tabs>
-              </div>
-            </TabsContent>
-          )}
-
-          <TabsContent value="tools" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Tools</CardTitle>
-                <CardDescription>Additional tools for platform management</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <Button variant="outline" className="h-20 flex flex-col gap-2 bg-transparent">
-                    <Users className="w-6 h-6" />
-                    <span>Bulk User Operations</span>
-                  </Button>
-                  <Button variant="outline" className="h-20 flex flex-col gap-2 bg-transparent">
-                    <CreditCard className="w-6 h-6" />
-                    <span>Payment Analytics</span>
-                  </Button>
-                  <Button variant="outline" className="h-20 flex flex-col gap-2 bg-transparent">
-                    <Building2 className="w-6 h-6" />
-                    <span>Organization Reports</span>
-                  </Button>
-                  <Button variant="outline" className="h-20 flex flex-col gap-2 bg-transparent">
-                    <TrendingUp className="w-6 h-6" />
-                    <span>Revenue Analytics</span>
-                  </Button>
-                  <Button variant="outline" className="h-20 flex flex-col gap-2 bg-transparent">
-                    <CheckCircle className="w-6 h-6" />
-                    <span>System Health</span>
-                  </Button>
-                  <Button variant="outline" className="h-20 flex flex-col gap-2 bg-transparent">
-                    <RefreshCw className="w-6 h-6" />
-                    <span>Data Backup</span>
-                  </Button>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
+
           <TabsContent value="reports" className="space-y-6">
             <Card>
               <CardHeader>

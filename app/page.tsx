@@ -8,6 +8,7 @@ import { CheckCircle, Shield, BarChart3, Users, Clock, FileText, Star, Menu, Mes
 import Link from "next/link"
 import { Footer } from "@/components/footer"
 import { FeedbackModal } from "@/components/feedback-modal"
+import CookieConsent from "@/components/cookie-consent"
 import { redirect } from 'next/navigation'
 
 export const dynamic = "force-dynamic"
@@ -433,16 +434,23 @@ export default async function HomePage() {
               </Badge>
               <CardHeader>
                 <CardTitle className="text-2xl">Growth</CardTitle>
-                <div className="text-3xl font-bold">
-                  £9.99<span className="text-lg font-normal text-muted-foreground">/month</span>
+                <div>
+                  <Badge className="mb-2 bg-green-100 text-green-800 border-green-200">
+                    🎉 1 Month FREE Trial
+                  </Badge>
+                  <div className="text-3xl font-bold">
+                    £9.99<span className="text-lg font-normal text-muted-foreground">/month</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Try free for 30 days, then £9.99/month
+                  </p>
                 </div>
                 <CardDescription>Ideal for growing small-medium businesses</CardDescription>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col">
                 <ul className="space-y-3 mb-8 flex-1">
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    10 Templates
+                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />10 Templates
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
@@ -490,16 +498,23 @@ export default async function HomePage() {
             <Card className="relative flex flex-col">
               <CardHeader>
                 <CardTitle className="text-2xl">Scale</CardTitle>
-                <div className="text-3xl font-bold">
-                  £19.99<span className="text-lg font-normal text-muted-foreground">/month</span>
+                <div>
+                  <Badge className="mb-2 bg-green-100 text-green-800 border-green-200">
+                    🎉 1 Month FREE Trial
+                  </Badge>
+                  <div className="text-3xl font-bold">
+                    £19.99<span className="text-lg font-normal text-muted-foreground">/month</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Try free for 30 days, then £19.99/month
+                  </p>
                 </div>
                 <CardDescription>For established SMEs ready to scale</CardDescription>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col">
                 <ul className="space-y-3 mb-8 flex-1">
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    30 Templates
+                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />30 Templates
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
@@ -614,6 +629,8 @@ export default async function HomePage() {
       </section>
 
       <Footer />
+      
+      <CookieConsent />
     </div>
   )
 }

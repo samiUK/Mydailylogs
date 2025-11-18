@@ -2,7 +2,7 @@
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Trash2, Users, Crown, ExternalLink, ChevronDown, UserCheck } from "lucide-react"
+import { Trash2, Users, Crown, ExternalLink, ChevronDown, UserCheck } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -72,12 +72,6 @@ export default function AdminTemplatesPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      const isMasterAdminImpersonating = localStorage.getItem("masterAdminImpersonation") === "true"
-      const impersonatedUserEmail = localStorage.getItem("impersonatedUserEmail")
-
-      console.log("[v0] Admin Templates page - Master admin impersonating:", isMasterAdminImpersonating)
-      console.log("[v0] Admin Templates page - Impersonated user email:", impersonatedUserEmail)
-
       const supabase = createClient()
 
       const {
@@ -92,63 +86,17 @@ export default function AdminTemplatesPage() {
         return
       }
 
-      let user: any = authUser
-      let profileData: any = null
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authUser.id)
+        .single()
 
-      if (isMasterAdminImpersonating && impersonatedUserEmail) {
-        const { data: masterAdminCheck } = await supabase
-          .from("superusers")
-          .select("email")
-          .eq("email", authUser.email)
-          .eq("is_active", true)
-          .single()
+      console.log("[v0] Admin Templates page - Profile query error:", profileError)
+      console.log("[v0] Admin Templates page - Profile found, organization_id:", profileData?.organization_id)
 
-        if (masterAdminCheck) {
-          const { data: impersonatedProfile, error: impersonatedError } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("email", impersonatedUserEmail)
-            .single()
-
-          console.log("[v0] Admin Templates page - Impersonated profile error:", impersonatedError)
-          console.log("[v0] Admin Templates page - Impersonated profile found:", impersonatedProfile?.id)
-
-          if (impersonatedProfile) {
-            user = { id: impersonatedProfile.id }
-            profileData = impersonatedProfile
-          }
-        } else {
-          console.log("[v0] Admin Templates page - Invalid master admin session, clearing impersonation")
-          localStorage.removeItem("masterAdminImpersonation")
-          localStorage.removeItem("impersonatedUserEmail")
-          localStorage.removeItem("impersonatedUserRole")
-          localStorage.removeItem("impersonatedOrganizationId")
-          localStorage.removeItem("masterAdminType")
-        }
-      }
-
-      if (!profileData) {
-        const { data: regularProfile, error: profileError } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", authUser.id)
-          .single()
-
-        console.log("[v0] Admin Templates page - Profile query error:", profileError)
-        console.log("[v0] Admin Templates page - Profile found, organization_id:", regularProfile?.organization_id)
-
-        if (profileError || !regularProfile) {
-          console.log("[v0] Admin Templates page - Profile not found, redirecting to login")
-          window.location.href = "/auth/login"
-          return
-        }
-
-        profileData = regularProfile
-        user = authUser
-      }
-
-      if (!user || !profileData) {
-        console.log("[v0] Admin Templates page - No valid user or profile, redirecting to login")
+      if (profileError || !profileData) {
+        console.log("[v0] Admin Templates page - Profile not found, redirecting to login")
         window.location.href = "/auth/login"
         return
       }
@@ -166,7 +114,7 @@ export default function AdminTemplatesPage() {
           .from("profiles")
           .select("id, first_name, last_name, full_name, role")
           .eq("organization_id", profileData.organization_id)
-          .neq("id", user.id)
+          .neq("id", authUser.id)
           .order("first_name")
           .limit(50),
       ])

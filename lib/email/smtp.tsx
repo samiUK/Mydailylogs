@@ -12,7 +12,7 @@ interface EmailResult {
 
 // Create SMTP transporter
 const createTransporter = () => {
-  return nodemailer.createTransporter({
+  return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: Number.parseInt(process.env.SMTP_PORT || "587"),
     secure: false, // true for 465, false for other ports
@@ -179,6 +179,277 @@ export const emailTemplates = {
         <p style="word-break: break-all; color: #6b7280;">${data.invite_url}</p>
         
         <p>Welcome to professional task management!</p>
+      </div>
+      ${getEmailFooter()}
+    `,
+  }),
+
+  teamInvite: (data: any): EmailTemplate => ({
+    subject: `You've been invited to join ${data.organizationName || 'a team'} on MyDayLogs`,
+    html: `
+      ${getEmailHeader()}
+      <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
+        <h2 style="color: #10b981; margin-bottom: 20px;">Team Invitation</h2>
+        
+        <p>Hi ${data.name || 'there'},</p>
+        
+        <p>${data.inviterName} has invited you to join <strong>${data.organizationName}</strong> on MyDayLogs as a <strong>${data.role}</strong>.</p>
+        
+        <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <p><strong>Organization:</strong> ${data.organizationName}</p>
+          <p><strong>Role:</strong> ${data.role}</p>
+          <p><strong>Email:</strong> ${data.email}</p>
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.inviteUrl}" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Accept Invitation</a>
+        </div>
+        
+        <p>If the button doesn't work, copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; color: #6b7280; background-color: #f9fafb; padding: 10px; border-radius: 4px;">${data.inviteUrl}</p>
+        
+        <p>Get ready to streamline your team's task management!</p>
+        
+        <p>Best regards,<br>
+        <strong>The MyDayLogs Team</strong></p>
+      </div>
+      ${getEmailFooter()}
+    `,
+  }),
+
+  taskAssignment: (data: any): EmailTemplate => ({
+    subject: `New Task Assigned: ${data.taskName || 'Task Assignment'}`,
+    html: `
+      ${getEmailHeader()}
+      <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
+        <h2 style="color: #10b981; margin-bottom: 20px;">New Task Assignment</h2>
+        
+        <p>Hi ${data.assigneeName},</p>
+        
+        <p>You have been assigned a new task by ${data.assignerName}.</p>
+        
+        <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981;">
+          <h3 style="margin: 0 0 15px 0; color: #374151;">Task Details</h3>
+          <p><strong>Task:</strong> ${data.taskName}</p>
+          ${data.description ? `<p><strong>Description:</strong> ${data.description}</p>` : ''}
+          ${data.dueDate ? `<p><strong>Due Date:</strong> ${new Date(data.dueDate).toLocaleDateString()}</p>` : ''}
+          ${data.priority ? `<p><strong>Priority:</strong> <span style="color: ${data.priority === 'high' ? '#ef4444' : data.priority === 'medium' ? '#f59e0b' : '#10b981'};">${data.priority.toUpperCase()}</span></p>` : ''}
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.taskUrl}" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">View Task</a>
+        </div>
+        
+        <p>Best regards,<br>
+        <strong>The MyDayLogs Team</strong></p>
+      </div>
+      ${getEmailFooter()}
+    `,
+  }),
+
+  logSubmission: (data: any): EmailTemplate => ({
+    subject: `Log Submitted: ${data.logTitle || 'Daily Log'}`,
+    html: `
+      ${getEmailHeader()}
+      <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
+        <h2 style="color: #10b981; margin-bottom: 20px;">Log Submission Notification</h2>
+        
+        <p>Hi ${data.recipientName},</p>
+        
+        <p><strong>${data.staffName}</strong> has submitted a new log for your review.</p>
+        
+        <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin: 0 0 15px 0; color: #374151;">Log Details</h3>
+          <p><strong>Staff Member:</strong> ${data.staffName}</p>
+          <p><strong>Date:</strong> ${new Date(data.date).toLocaleDateString()}</p>
+          ${data.summary ? `<p><strong>Summary:</strong> ${data.summary}</p>` : ''}
+          <p><strong>Status:</strong> ${data.status || 'Pending Review'}</p>
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.logUrl}" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Review Log</a>
+        </div>
+        
+        <p>Best regards,<br>
+        <strong>The MyDayLogs Team</strong></p>
+      </div>
+      ${getEmailFooter()}
+    `,
+  }),
+
+  monthlyInvoice: (data: any): EmailTemplate => ({
+    subject: `Your MyDayLogs Invoice for ${data.period || 'this month'}`,
+    html: `
+      ${getEmailHeader()}
+      <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
+        <h2 style="color: #10b981; margin-bottom: 20px;">Monthly Invoice</h2>
+        
+        <p>Hi ${data.customerName},</p>
+        
+        <p>Thank you for your continued subscription to MyDayLogs. Here's your invoice for ${data.period}.</p>
+        
+        <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin: 0 0 15px 0; color: #374151;">Invoice Summary</h3>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb;"><strong>Invoice Number:</strong></td>
+              <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">${data.invoiceNumber}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb;"><strong>Plan:</strong></td>
+              <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">${data.planName}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb;"><strong>Billing Period:</strong></td>
+              <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">${data.period}</td>
+            </tr>
+            <tr style="font-size: 18px; font-weight: bold;">
+              <td style="padding: 15px 0;"><strong>Total Amount:</strong></td>
+              <td style="padding: 15px 0; text-align: right; color: #10b981;">${data.amount}</td>
+            </tr>
+          </table>
+        </div>
+        
+        ${data.invoiceUrl ? `
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.invoiceUrl}" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Download Invoice PDF</a>
+        </div>
+        ` : ''}
+        
+        <p>Payment was successfully processed on ${new Date(data.paymentDate).toLocaleDateString()} using your saved payment method.</p>
+        
+        <p>If you have any questions about this invoice, please don't hesitate to contact our support team.</p>
+        
+        <p>Best regards,<br>
+        <strong>The MyDayLogs Team</strong></p>
+      </div>
+      ${getEmailFooter()}
+    `,
+  }),
+
+  paymentConfirmation: (data: any): EmailTemplate => ({
+    subject: `Payment Confirmation - ${data.amount}`,
+    html: `
+      ${getEmailHeader()}
+      <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
+        <h2 style="color: #10b981; margin-bottom: 20px;">Payment Confirmation</h2>
+        
+        <p>Hi ${data.customerName},</p>
+        
+        <p>Your payment has been successfully processed!</p>
+        
+        <div style="background-color: #ecfdf5; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
+          <div style="font-size: 48px; margin-bottom: 10px;">✓</div>
+          <p style="font-size: 24px; font-weight: bold; color: #10b981; margin: 0;">${data.amount}</p>
+          <p style="color: #6b7280; margin: 5px 0 0 0;">Payment Successful</p>
+        </div>
+        
+        <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin: 0 0 15px 0; color: #374151;">Transaction Details</h3>
+          <p><strong>Plan:</strong> ${data.planName}</p>
+          <p><strong>Transaction ID:</strong> ${data.transactionId}</p>
+          <p><strong>Date:</strong> ${new Date(data.date).toLocaleString()}</p>
+          <p><strong>Payment Method:</strong> ${data.paymentMethod}</p>
+        </div>
+        
+        ${data.invoiceUrl ? `
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.invoiceUrl}" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Download Receipt</a>
+        </div>
+        ` : ''}
+        
+        <p>Thank you for your payment! Your subscription is now active.</p>
+        
+        <p>Best regards,<br>
+        <strong>The MyDayLogs Team</strong></p>
+      </div>
+      ${getEmailFooter()}
+    `,
+  }),
+
+  paymentFailed: (data: any): EmailTemplate => ({
+    subject: `Action Required: Payment Failed`,
+    html: `
+      ${getEmailHeader()}
+      <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
+        <h2 style="color: #ef4444; margin-bottom: 20px;">Payment Failed</h2>
+        
+        <p>Hi ${data.customerName},</p>
+        
+        <p>We were unable to process your payment for the MyDayLogs ${data.planName} subscription.</p>
+        
+        <div style="background-color: #fee2e2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ef4444;">
+          <h3 style="margin: 0 0 15px 0; color: #7f1d1d;">Payment Details</h3>
+          <p><strong>Amount:</strong> ${data.amount}</p>
+          <p><strong>Attempted Date:</strong> ${new Date(data.date).toLocaleString()}</p>
+          <p><strong>Reason:</strong> ${data.reason || 'Payment declined by your bank'}</p>
+        </div>
+        
+        <p><strong>What happens next?</strong></p>
+        <ul>
+          <li>We'll retry the payment in 3 days</li>
+          <li>If payment continues to fail, your subscription may be suspended</li>
+          <li>Update your payment method to avoid service interruption</li>
+        </ul>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.updatePaymentUrl}" style="background-color: #ef4444; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Update Payment Method</a>
+        </div>
+        
+        <p>If you have any questions, please contact our support team immediately.</p>
+        
+        <p>Best regards,<br>
+        <strong>The MyDayLogs Team</strong></p>
+      </div>
+      ${getEmailFooter()}
+    `,
+  }),
+
+  trialEndingReminder: (data: any): EmailTemplate => ({
+    subject: `Your MyDayLogs Trial Ends in 3 Days`,
+    html: `
+      ${getEmailHeader()}
+      <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
+        <h2 style="color: #10b981; margin-bottom: 20px;">Your Free Trial is Ending Soon</h2>
+        
+        <p>Hi ${data.customerName},</p>
+        
+        <p>Your 30-day free trial of the <strong>${data.planName}</strong> plan is ending in 3 days.</p>
+        
+        <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+          <h3 style="margin: 0 0 15px 0; color: #78350f;">Important Billing Information</h3>
+          <p><strong>Trial End Date:</strong> ${new Date(data.trialEndDate).toLocaleDateString('en-GB')}</p>
+          <p><strong>First Billing Date:</strong> ${new Date(data.nextBillingDate).toLocaleDateString('en-GB')} (Day 31)</p>
+          <p><strong>Amount:</strong> ${data.amount}</p>
+          <p style="margin-top: 15px; font-size: 14px;">
+            <strong>📅 Billing Schedule:</strong> After your trial ends, you'll be charged ${data.amount} every 30 days from your subscription date.
+          </p>
+        </div>
+        
+        <div style="background-color: #ecfdf5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin: 0 0 15px 0; color: #10b981;">What You're Getting</h3>
+          <ul style="margin: 0; padding-left: 20px;">
+            ${data.features.map((feature: string) => `<li style="margin-bottom: 8px;">${feature}</li>`).join('')}
+          </ul>
+        </div>
+        
+        <p><strong>No action needed!</strong> Your saved payment method will be charged automatically on ${new Date(data.nextBillingDate).toLocaleDateString('en-GB')}.</p>
+        
+        <p>Want to make changes? You can:</p>
+        <ul>
+          <li>Update your payment method</li>
+          <li>Change your plan</li>
+          <li>Cancel your subscription (no charges if cancelled before trial ends)</li>
+        </ul>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.billingUrl}" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Manage Subscription</a>
+        </div>
+        
+        <p>If you have any questions, our support team is here to help!</p>
+        
+        <p>Best regards,<br>
+        <strong>The MyDayLogs Team</strong></p>
       </div>
       ${getEmailFooter()}
     `,

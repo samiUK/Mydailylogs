@@ -1,63 +1,89 @@
 export interface SubscriptionProduct {
-  id: string
-  name: string
-  description: string
-  priceMonthly: number
-  maxTemplates: number
-  maxTeamMembers: number
+  id: string;
+  name: string;
+  description: string;
+  priceMonthly: number;
+  trialDays: number;
+  maxTemplates: number;
+  maxTeamMembers: number;
+  maxAdmins: number;
   features: {
-    customBranding?: boolean
-    prioritySupport?: boolean
-    advancedAnalytics?: boolean
-    apiAccess?: boolean
-  }
+    basicReporting?: boolean;
+    manualTaskMonitoring?: boolean;
+    advancedReporting?: boolean;
+    advancedAnalytics?: boolean;
+    prioritySupport?: boolean;
+    dedicatedAccountManager?: boolean;
+    aiTaskMonitoring?: boolean;
+    smartNotifications?: boolean;
+    advancedAiMonitoring?: boolean;
+    predictiveNotifications?: boolean;
+    aiPerformanceInsights?: boolean;
+  };
 }
 
-// This is the source of truth for all subscription products
-// All UI to display products should pull from this array
-// IDs passed to the checkout session should match IDs from this array
 export const SUBSCRIPTION_PRODUCTS: SubscriptionProduct[] = [
   {
-    id: "free",
-    name: "Free",
-    description: "Perfect for getting started",
+    id: "starter",
+    name: "Starter",
+    description: "Perfect for micro-businesses and startups",
     priceMonthly: 0,
+    trialDays: 0, // No trial for free plan
     maxTemplates: 3,
     maxTeamMembers: 5,
-    features: {},
-  },
-  {
-    id: "professional",
-    name: "Professional",
-    description: "For growing teams",
-    priceMonthly: 2900, // £29.00 in pence
-    maxTemplates: 20,
-    maxTeamMembers: 25,
+    maxAdmins: 1,
     features: {
-      customBranding: true,
-      prioritySupport: true,
+      basicReporting: true,
+      manualTaskMonitoring: true,
     },
   },
   {
-    id: "enterprise",
-    name: "Enterprise",
-    description: "For large organizations",
-    priceMonthly: 9900, // £99.00 in pence
-    maxTemplates: -1, // unlimited
-    maxTeamMembers: -1, // unlimited
+    id: "growth",
+    name: "Growth",
+    description: "Ideal for growing small-medium businesses",
+    priceMonthly: 999, // £9.99 in pence
+    trialDays: 30, // 30-day free trial
+    maxTemplates: 10,
+    maxTeamMembers: 30,
+    maxAdmins: 3,
     features: {
-      customBranding: true,
+      basicReporting: true,
+      manualTaskMonitoring: true,
+      advancedReporting: true,
       prioritySupport: true,
+      aiTaskMonitoring: true, // Coming Soon
+      smartNotifications: true, // Coming Soon
+    },
+  },
+  {
+    id: "scale",
+    name: "Scale",
+    description: "For established SMEs ready to scale",
+    priceMonthly: 1999, // £19.99 in pence
+    trialDays: 30, // 30-day free trial
+    maxTemplates: 30,
+    maxTeamMembers: 100,
+    maxAdmins: 10,
+    features: {
+      basicReporting: true,
+      manualTaskMonitoring: true,
+      advancedReporting: true,
       advancedAnalytics: true,
-      apiAccess: true,
+      prioritySupport: true,
+      dedicatedAccountManager: true,
+      aiTaskMonitoring: true,
+      smartNotifications: true,
+      advancedAiMonitoring: true, // Coming Soon
+      predictiveNotifications: true, // Coming Soon
+      aiPerformanceInsights: true, // Coming Soon
     },
   },
-]
+];
 
 export function getProduct(productId: string): SubscriptionProduct | undefined {
-  return SUBSCRIPTION_PRODUCTS.find((p) => p.id === productId)
+  return SUBSCRIPTION_PRODUCTS.find((p) => p.id === productId);
 }
 
 export function formatPrice(priceInPence: number): string {
-  return `£${(priceInPence / 100).toFixed(2)}`
+  return `£${(priceInPence / 100).toFixed(2)}`;
 }

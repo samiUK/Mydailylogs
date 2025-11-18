@@ -5,7 +5,7 @@ let client: SupabaseClient | null = null
 
 export function createClient() {
   // Return existing client if available (singleton pattern)
-  if (client) {
+  if (typeof window !== 'undefined' && client) {
     return client
   }
 
@@ -25,6 +25,7 @@ export function createClient() {
       detectSessionInUrl: true,
       flowType: 'pkce',
       storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+      storageKey: 'sb-sgurqdjmnvkechuewenx-auth-token',
     },
   })
   

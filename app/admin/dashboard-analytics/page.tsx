@@ -1,11 +1,11 @@
-import { createServerClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { BarChart3, FileText, TrendingUp, Users, Eye, Download } from "lucide-react"
-import { redirect } from "next/navigation"
+import { BarChart3, FileText, TrendingUp, Users, Eye, Download } from 'lucide-react'
+import { redirect } from 'next/navigation'
 import { batchQuery, getUserProfile } from "@/lib/database-utils"
 import { ErrorDisplay } from "@/components/error-display"
 import { createBrowserClient } from "@supabase/ssr"
@@ -46,8 +46,7 @@ export default async function AdminDashboardAnalyticsPage() {
   console.log("[v0] Admin Dashboard Analytics page - Component function called")
 
   try {
-    const cookieStore = await cookies() // Added await before cookies() for Next.js 15 compatibility
-    const supabase = createServerClient(cookieStore)
+    const supabase = await createClient()
 
     const {
       data: { user },

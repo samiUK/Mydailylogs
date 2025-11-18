@@ -68,41 +68,36 @@ export function Footer() {
               </p>
             </div>
             <div>
-              <h3 className="font-semibold text-sidebar-foreground mb-4">Product</h3>
+              <h3 className="font-semibold text-sidebar-foreground mb-4">Company</h3>
               <ul className="space-y-2 text-sidebar-foreground/70">
                 <li>
-                  <a href="#features" className="hover:text-sidebar-foreground">
-                    Features
-                  </a>
+                  <Link href="/about" className="hover:text-sidebar-foreground">
+                    About
+                  </Link>
                 </li>
                 <li>
-                  <a href="#pricing" className="hover:text-sidebar-foreground">
-                    Pricing
-                  </a>
+                  <Link href="/contact" className="hover:text-sidebar-foreground">
+                    Contact
+                  </Link>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-sidebar-foreground">
-                    API
-                  </a>
+                  <Link href="/support" className="hover:text-sidebar-foreground">
+                    Support
+                  </Link>
                 </li>
               </ul>
             </div>
             <div>
-              <h3 className="font-semibold text-sidebar-foreground mb-4">Company</h3>
+              <h3 className="font-semibold text-sidebar-foreground mb-4">Resources</h3>
               <ul className="space-y-2 text-sidebar-foreground/70">
                 <li>
-                  <a href="#" className="hover:text-sidebar-foreground">
-                    About
+                  <a href="/#features" className="hover:text-sidebar-foreground">
+                    Features
                   </a>
                 </li>
                 <li>
-                  <a href="mailto:info@mydaylogs.co.uk" className="hover:text-sidebar-foreground">
-                    Contact
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="hover:text-sidebar-foreground">
-                    Support
+                  <a href="/#pricing" className="hover:text-sidebar-foreground">
+                    Pricing
                   </a>
                 </li>
               </ul>
@@ -111,19 +106,19 @@ export function Footer() {
               <h3 className="font-semibold text-sidebar-foreground mb-4">Legal</h3>
               <ul className="space-y-2 text-sidebar-foreground/70">
                 <li>
-                  <a href="#" className="hover:text-sidebar-foreground">
+                  <Link href="/privacy" className="hover:text-sidebar-foreground">
                     Privacy Policy
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-sidebar-foreground">
+                  <Link href="/terms" className="hover:text-sidebar-foreground">
                     Terms of Service
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-sidebar-foreground">
+                  <Link href="/gdpr" className="hover:text-sidebar-foreground">
                     GDPR
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </div>

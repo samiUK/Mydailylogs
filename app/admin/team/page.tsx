@@ -35,6 +35,7 @@ interface TeamMember {
     full_name: string | null
     email: string
   } | null
+  organization_id?: string
 }
 
 function ProfileCard({ member }: { member: TeamMember }) {
@@ -97,17 +98,14 @@ function ProfileCard({ member }: { member: TeamMember }) {
 }
 
 function OrganizationalChart({ members }: { members: TeamMember[] }) {
-  // Find admins (top level)
   const admins = members.filter((member) => member.role === "admin")
 
-  // Find staff members and group by supervisor
   const getDirectReports = (supervisorId: string) => {
     return members.filter((member) => member.reports_to === supervisorId)
   }
 
   return (
     <div className="space-y-12">
-      {/* Admin Level */}
       <div className="text-center">
         <h3 className="text-lg font-semibold text-foreground mb-6">Leadership</h3>
         <div className="flex flex-wrap justify-center gap-8">
@@ -115,7 +113,6 @@ function OrganizationalChart({ members }: { members: TeamMember[] }) {
             <div key={admin.id} className="flex flex-col items-center">
               <ProfileCard member={admin} />
 
-              {/* Direct Reports */}
               {(() => {
                 const directReports = getDirectReports(admin.id)
                 if (directReports.length > 0) {
@@ -140,7 +137,6 @@ function OrganizationalChart({ members }: { members: TeamMember[] }) {
         </div>
       </div>
 
-      {/* Unassigned Staff */}
       {(() => {
         const unassignedStaff = members.filter((member) => member.role === "staff" && !member.reports_to)
         if (unassignedStaff.length > 0) {
@@ -177,7 +173,6 @@ export default async function AdminTeamPage() {
     redirect("/auth/login")
   }
 
-  // Get user's profile and organization
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("organization_id")
@@ -214,7 +209,6 @@ export default async function AdminTeamPage() {
 
   console.log("[v0] Admin Team page - Profile found, organization_id:", profile.organization_id)
 
-  // Get team members
   const { data: members, error: membersError } = await supabase
     .from("profiles")
     .select(`
@@ -227,7 +221,7 @@ export default async function AdminTeamPage() {
       )
     `)
     .eq("organization_id", profile.organization_id)
-    .order("role", { ascending: false }) // Admins first
+    .order("role", { ascending: false })
     .order("created_at", { ascending: false })
 
   console.log("[v0] Admin Team page - Members query error:", membersError)
@@ -267,7 +261,6 @@ export default async function AdminTeamPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Team Management</h1>

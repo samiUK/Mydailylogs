@@ -71,7 +71,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Failed to store feedback" }, { status: 500 })
       }
 
-      // Send email notification to admin
       const template = emailTemplates.feedback(data)
       const result = await sendEmail("info@mydaylogs.co.uk", template.subject, template.html)
 

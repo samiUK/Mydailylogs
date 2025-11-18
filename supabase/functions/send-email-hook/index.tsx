@@ -22,6 +22,17 @@ serve(async (req) => {
     let htmlContent = ""
     let textContent = ""
 
+    const getAutomatedEmailNotice = () => {
+      return `
+        <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: center;">
+          <p style="color: #6b7280; font-size: 13px; margin: 0; font-family: Arial, sans-serif;">
+            ⚠️ <strong>This is an automated email.</strong> Please do not reply to this message. 
+            For support inquiries, please contact us at <a href="mailto:info@mydaylogs.co.uk" style="color: #1DB584; text-decoration: none;">info@mydaylogs.co.uk</a>
+          </p>
+        </div>
+      `
+    }
+
     switch (type) {
       case "signup":
         subject = "Confirm your MyDayLogs account"
@@ -44,6 +55,7 @@ serve(async (req) => {
               <p style="color: #999; font-size: 14px;">
                 If the button doesn't work, copy and paste this link: ${confirmUrl}
               </p>
+              ${getAutomatedEmailNotice()}
             </div>
           </div>
         `
@@ -71,6 +83,7 @@ serve(async (req) => {
               <p style="color: #999; font-size: 14px;">
                 If you didn't request this, please ignore this email. Link expires in 1 hour.
               </p>
+              ${getAutomatedEmailNotice()}
             </div>
           </div>
         `
@@ -95,6 +108,7 @@ serve(async (req) => {
                   Accept Invitation
                 </a>
               </div>
+              ${getAutomatedEmailNotice()}
             </div>
           </div>
         `

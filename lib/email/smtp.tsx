@@ -43,13 +43,24 @@ const getEmailFooter = () => {
   `
 }
 
+const getAutomatedEmailNotice = () => {
+  return `
+    <div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0; text-align: center;">
+      <p style="color: #6b7280; font-size: 13px; margin: 0; font-family: Arial, sans-serif;">
+        ⚠️ <strong>This is an automated email.</strong> Please do not reply to this message. 
+        For support inquiries, please contact us at <a href="mailto:info@mydaylogs.co.uk" style="color: #10b981; text-decoration: none;">info@mydaylogs.co.uk</a>
+      </p>
+    </div>
+  `
+}
+
 // Send email function
 export const sendEmail = async (to: string, subject: string, html: string): Promise<EmailResult> => {
   try {
     const transporter = createTransporter()
 
     const mailOptions = {
-      from: `"MyDayLogs" <info@mydaylogs.co.uk>`, // Professional sender address
+      from: `"MyDayLogs" <info@mydaylogs.co.uk>`, // Reverted to info@ until no-reply@ is set up in Zoho
       to,
       subject,
       html,
@@ -135,6 +146,8 @@ export const emailTemplates = {
         <p style="word-break: break-all; color: #6b7280;">${data.confirmation_url}</p>
         
         <p>Welcome to professional task management!</p>
+        
+        ${getAutomatedEmailNotice()}
       </div>
       ${getEmailFooter()}
     `,
@@ -157,6 +170,8 @@ export const emailTemplates = {
         <p style="word-break: break-all; color: #6b7280;">${data.recovery_url}</p>
         
         <p>If you didn't request this password reset, you can safely ignore this email.</p>
+        
+        ${getAutomatedEmailNotice()}
       </div>
       ${getEmailFooter()}
     `,
@@ -179,6 +194,8 @@ export const emailTemplates = {
         <p style="word-break: break-all; color: #6b7280;">${data.invite_url}</p>
         
         <p>Welcome to professional task management!</p>
+        
+        ${getAutomatedEmailNotice()}
       </div>
       ${getEmailFooter()}
     `,
@@ -210,6 +227,8 @@ export const emailTemplates = {
         
         <p>Get ready to streamline your team's task management!</p>
         
+        ${getAutomatedEmailNotice()}
+        
         <p>Best regards,<br>
         <strong>The MyDayLogs Team</strong></p>
       </div>
@@ -240,6 +259,8 @@ export const emailTemplates = {
           <a href="${data.taskUrl}" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">View Task</a>
         </div>
         
+        ${getAutomatedEmailNotice()}
+        
         <p>Best regards,<br>
         <strong>The MyDayLogs Team</strong></p>
       </div>
@@ -269,6 +290,8 @@ export const emailTemplates = {
         <div style="text-align: center; margin: 30px 0;">
           <a href="${data.logUrl}" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Review Log</a>
         </div>
+        
+        ${getAutomatedEmailNotice()}
         
         <p>Best regards,<br>
         <strong>The MyDayLogs Team</strong></p>
@@ -318,7 +341,9 @@ export const emailTemplates = {
         
         <p>Payment was successfully processed on ${new Date(data.paymentDate).toLocaleDateString()} using your saved payment method.</p>
         
-        <p>If you have any questions about this invoice, please don't hesitate to contact our support team.</p>
+        ${getAutomatedEmailNotice()}
+        
+        <p>If you have any questions about this invoice, please contact our support team at info@mydaylogs.co.uk.</p>
         
         <p>Best regards,<br>
         <strong>The MyDayLogs Team</strong></p>
@@ -360,6 +385,8 @@ export const emailTemplates = {
         
         <p>Thank you for your payment! Your subscription is now active.</p>
         
+        ${getAutomatedEmailNotice()}
+        
         <p>Best regards,<br>
         <strong>The MyDayLogs Team</strong></p>
       </div>
@@ -396,7 +423,9 @@ export const emailTemplates = {
           <a href="${data.updatePaymentUrl}" style="background-color: #ef4444; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Update Payment Method</a>
         </div>
         
-        <p>If you have any questions, please contact our support team immediately.</p>
+        ${getAutomatedEmailNotice()}
+        
+        <p>If you have any questions, please contact our support team at info@mydaylogs.co.uk immediately.</p>
         
         <p>Best regards,<br>
         <strong>The MyDayLogs Team</strong></p>
@@ -446,7 +475,9 @@ export const emailTemplates = {
           <a href="${data.billingUrl}" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Manage Subscription</a>
         </div>
         
-        <p>If you have any questions, our support team is here to help!</p>
+        ${getAutomatedEmailNotice()}
+        
+        <p>If you have any questions, our support team is here to help at info@mydaylogs.co.uk!</p>
         
         <p>Best regards,<br>
         <strong>The MyDayLogs Team</strong></p>

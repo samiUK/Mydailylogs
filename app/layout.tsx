@@ -1,20 +1,18 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
-import { JetBrains_Mono } from "next/font/google"
+import { Inter } from 'next/font/google'
+import { JetBrains_Mono } from 'next/font/google'
 import "./globals.css"
 import { BrandingProvider } from "@/components/branding-provider"
 
-const inter = Inter({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-inter",
+const inter = Inter({ 
+  subsets: ['latin'],
+  variable: '--font-inter',
 })
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-jetbrains-mono",
+const jetbrainsMono = JetBrains_Mono({ 
+  subsets: ['latin'],
+  variable: '--font-jetbrains-mono',
 })
 
 export const metadata: Metadata = {

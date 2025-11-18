@@ -105,23 +105,39 @@ export default function BillingPage() {
   }, [router])
 
   const handleUpgrade = (planId: string) => {
-    setSelectedPlanId(planId)
-    setShowCheckout(true)
+    try {
+      setSelectedPlanId(planId)
+      setShowCheckout(true)
+    } catch (error) {
+      console.error("[v0] Error opening checkout:", error)
+      alert("There was an error opening checkout. Please refresh and try again.")
+    }
   }
 
   const handleChangePlan = async (planId: string) => {
-    if (!confirm(`Are you sure you want to switch to the ${SUBSCRIPTION_PRODUCTS.find(p => p.id === planId)?.name} plan? Your billing will be adjusted accordingly.`)) {
+    const targetPlan = SUBSCRIPTION_PRODUCTS.find(p => p.id === planId)
+    if (!targetPlan) {
+      alert("Invalid plan selected")
+      return
+    }
+
+    if (!confirm(`Are you sure you want to switch to the ${targetPlan.name} plan? Your billing will be adjusted accordingly.`)) {
       return
     }
 
     setChangingPlan(planId)
     try {
-      await changeSubscriptionPlan(planId)
-      alert("Plan changed successfully! Your new features are now available.")
-      window.location.reload()
+      const result = await changeSubscriptionPlan(planId)
+      if (result.success) {
+        alert("Plan changed successfully! Your new features are now available.")
+        window.location.reload()
+      } else {
+        throw new Error("Plan change was not successful")
+      }
     } catch (error) {
-      console.error("Error changing plan:", error)
-      alert(error instanceof Error ? error.message : "Failed to change plan. Please try again.")
+      console.error("[v0] Error changing plan:", error)
+      const errorMessage = error instanceof Error ? error.message : "Failed to change plan. Please try again."
+      alert(errorMessage)
     } finally {
       setChangingPlan(null)
     }

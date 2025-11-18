@@ -17,7 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Users, Building2, TrendingUp, CheckCircle, Key, CreditCard, RefreshCw, Plus, Trash2, AlertTriangle, User, LogIn, Mail, Eye, Reply, X, Search, Calendar, Shield, Edit, DollarSign, Edit2, Archive, ArrowDown, ArrowUp, AlertCircle, Info } from 'lucide-react'
+import { Users, Building2, TrendingUp, CheckCircle, Key, CreditCard, RefreshCw, Plus, Trash2, AlertTriangle, User, LogIn, Mail, Eye, Reply, X, Search, Calendar, Shield, Edit, DollarSign, Edit2, Archive, ArrowDown, ArrowUp, AlertCircle, Info, Activity } from 'lucide-react'
 import { useEffect, useState } from "react"
 import { ReportDirectoryContent } from "./report-directory-content"
 import { toast } from "sonner" // Import toast
@@ -157,6 +157,9 @@ export default function MasterDashboardPage() {
   // New state and modal control for impersonation link
   const [showImpersonationModal, setShowImpersonationModal] = useState(false)
   const [impersonationUrl, setImpersonationUrl] = useState("")
+
+  const [activityLogs, setActivityLogs] = useState<any[]>([])
+  const [activityLogsLoading, setActivityLogsLoading] = useState(false)
 
   const getCookie = (name: string) => {
     const value = `; ${document.cookie}`
@@ -618,6 +621,12 @@ export default function MasterDashboardPage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (activeTab === 'login-as' && currentUserRole === 'masteradmin') {
+      fetchActivityLogs()
+    }
+  }, [activeTab, currentUserRole])
+
   const loginAsUser = async (userEmail: string, userRole: string) => {
     try {
       console.log(`[v0] Starting master admin impersonation for: ${userEmail} Role: ${userRole}`)
@@ -627,7 +636,7 @@ export default function MasterDashboardPage() {
         .from("profiles")
         .select("*, organizations(organization_id, organization_name, logo_url, primary_color, secondary_color)")
         .eq("email", userEmail.trim())
-        .single() // This .single() is potentially problematic if multiple users have the same email
+        .single()
 
       if (profileError || !profileData) {
         console.error("[v0] Profile fetch error:", profileError)
@@ -637,31 +646,30 @@ export default function MasterDashboardPage() {
 
       console.log("[v0] Profile data fetched:", profileData)
 
-      const organization = profileData.organizations || {}
-      const impersonationData = {
-        userEmail: userEmail.trim(),
-        userId: profileData.id,
-        userRole: userRole,
-        organizationId: profileData.organization_id || null,
-        organizationName: organization.organization_name || "No Organization",
-        logoUrl: organization.logo_url || null,
-        primaryColor: organization.primary_color || "#dc2626",
-        masterAdminEmail: localStorage.getItem("masterAdminEmail") || "arsami.uk@gmail.com",
-        timestamp: Date.now(),
+      const response = await fetch("/api/impersonation/create-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: profileData.id,
+          userEmail: userEmail.trim(),
+          userRole: userRole,
+          organizationId: profileData.organization_id || null,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to create impersonation token")
       }
 
-      console.log("[v0] Impersonation data prepared:", impersonationData)
-
-      const token = btoa(JSON.stringify(impersonationData))
-      const impersonationUrl = `${window.location.origin}/${userRole}?impersonate=${token}`
+      const { url, token, expiresAt } = await response.json()
       
-      console.log("[v0] Generated impersonation URL:", impersonationUrl)
+      console.log("[v0] Generated short impersonation URL:", url)
       
       // Set the impersonation URL in state to show the modal
-      setImpersonationUrl(impersonationUrl)
+      setImpersonationUrl(url)
       setShowImpersonationModal(true)
       
-      showNotification("success", "Impersonation link generated! Copy it to an incognito window.")
+      showNotification("success", `Impersonation link generated! Valid for 15 minutes.`)
     } catch (error) {
       console.error("[v0] Error setting up impersonation:", error)
       showNotification("error", "Failed to generate impersonation link")
@@ -874,6 +882,13 @@ export default function MasterDashboardPage() {
   }
 
   useEffect(() => {}, [])
+
+  useEffect(() => {
+    if (activeTab === 'login-as' && currentUserRole === 'masteradmin') {
+      fetchActivityLogs()
+    }
+  }, [activeTab, currentUserRole])
+
 
   useEffect(() => {
     console.log("[v0] Calculating stats - Organizations:", organizations.length, "Users:", allUsers.length)
@@ -1275,6 +1290,35 @@ export default function MasterDashboardPage() {
     }
   }
 
+  const fetchActivityLogs = async () => {
+    setActivityLogsLoading(true)
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from('impersonation_activity_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100)
+
+      if (error) {
+        if (error.message.includes('Could not find the table')) {
+          console.log('[v0] Activity logs table not created yet. Please run scripts/create-impersonation-activity-logs.sql')
+          setActivityLogs([])
+        } else {
+          console.error('[v0] Error fetching activity logs:', error)
+          setActivityLogs([])
+        }
+      } else {
+        setActivityLogs(data || [])
+      }
+    } catch (error) {
+      console.error('[v0] Error fetching activity logs:', error)
+      setActivityLogs([])
+    } finally {
+      setActivityLogsLoading(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -1402,7 +1446,7 @@ export default function MasterDashboardPage() {
               {isProcessing ? "Syncing..." : "Comprehensive Sync"}
             </Button>
             <Badge variant={currentUserRole === 'masteradmin' ? "destructive" : "secondary"}>
-              {currentUserRole === 'masteradmin' ? 'Master Admin' : 'Superuser'}
+              {currentUserRole === 'masteradmin' ? 'Master Admin' : 'Support'}
             </Badge>
             <Button variant="outline" onClick={handleSignOut}>
               Sign Out
@@ -1465,14 +1509,18 @@ export default function MasterDashboardPage() {
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Active Subscriptions</CardTitle>
+                  <CardTitle className="text-sm font-medium">Paid Subscriptions</CardTitle>
                   <CreditCard className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {allSubscriptions.filter((sub) => sub.status === "active").length}
+                    {allSubscriptions.filter(
+                      (sub) => 
+                        sub.status === "active" && 
+                        (sub.plan_name.toLowerCase() === "growth" || sub.plan_name.toLowerCase() === "scale")
+                    ).length}
                   </div>
-                  <p className="text-xs text-muted-foreground">Currently active</p>
+                  <p className="text-xs text-muted-foreground">Growth & Scale plans</p>
                 </CardContent>
               </Card>
 
@@ -2166,7 +2214,7 @@ export default function MasterDashboardPage() {
                     <div>
                       <p className="text-sm font-medium text-gray-600">Free Plans (Starter)</p>
                       <p className="text-2xl font-bold">
-                        {allSubscriptions.filter((sub) => sub.plan_name === "Starter").length}
+                        {allSubscriptions.filter((sub) => sub.plan_name?.toLowerCase() === "starter").length}
                       </p>
                     </div>
                     <Users className="w-8 h-8 text-gray-500" />
@@ -2179,7 +2227,7 @@ export default function MasterDashboardPage() {
                     <div>
                       <p className="text-sm font-medium text-gray-600">Paid Plans</p>
                       <p className="text-2xl font-bold text-purple-600">
-                        {allSubscriptions.filter((sub) => sub.plan_name !== "Starter" && sub.status === "active").length}
+                        {allSubscriptions.filter((sub) => sub.plan_name?.toLowerCase() !== "starter" && sub.status === "active").length}
                       </p>
                     </div>
                     <DollarSign className="w-8 h-8 text-purple-500" />
@@ -2208,8 +2256,8 @@ export default function MasterDashboardPage() {
                           <div className="flex items-center gap-3 mb-1">
                             <p className="font-medium">{subscription.organizations?.name || "Unknown Organization"}</p>
                             <Badge 
-                              variant={subscription.plan_name === "Starter" ? "secondary" : "default"}
-                              className={subscription.plan_name === "Scale" ? "bg-purple-100 text-purple-700" : ""}
+                              variant={subscription.plan_name?.toLowerCase() === "starter" ? "secondary" : "default"}
+                              className={subscription.plan_name?.toLowerCase() === "scale" ? "bg-purple-100 text-purple-700" : ""}
                             >
                               {subscription.plan_name}
                             </Badge>
@@ -2220,7 +2268,7 @@ export default function MasterDashboardPage() {
                               month: 'long',
                               year: 'numeric'
                             })}
-                            {subscription.plan_name !== "Starter" && ` • Expires ${new Date(subscription.current_period_end).toLocaleDateString('en-GB', { 
+                            {subscription.plan_name?.toLowerCase() !== "starter" && ` • Expires ${new Date(subscription.current_period_end).toLocaleDateString('en-GB', { 
                               day: 'numeric',
                               month: 'long',
                               year: 'numeric'
@@ -2231,7 +2279,7 @@ export default function MasterDashboardPage() {
                           <Badge variant={subscription.status === "active" ? "default" : "secondary"}>
                             {subscription.status}
                           </Badge>
-                          {subscription.status === "active" && subscription.plan_name !== "Starter" && currentUserRole === "masteradmin" && (
+                          {subscription.status === "active" && subscription.plan_name?.toLowerCase() !== "starter" && currentUserRole === "masteradmin" && (
                             <>
                               <Button
                                 variant="outline"
@@ -2409,6 +2457,249 @@ export default function MasterDashboardPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="reports" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Report Directory</CardTitle>
+                <CardDescription>
+                  Manage deleted reports - view, restore, or permanently delete reports within 30 days
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ReportDirectoryContent />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {currentUserRole === 'masteradmin' && (
+            <TabsContent value="login-as" className="space-y-6">
+              {/* Superuser Management Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Superuser Management
+                  </CardTitle>
+                  <CardDescription>
+                    Add and manage support admin accounts. Only master admins can perform these actions.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Add New Superuser Form */}
+                  <div className="border rounded-lg p-4 space-y-4">
+                    <h3 className="font-semibold text-sm">Add New Support Admin</h3>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="text-sm font-medium">Email Address</label>
+                        <Input
+                          type="email"
+                          placeholder="support@mydaylogs.co.uk"
+                          value={newSuperuserEmail}
+                          onChange={(e) => setNewSuperuserEmail(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Password</label>
+                        <Input
+                          type="password"
+                          placeholder="Secure password"
+                          value={newSuperuserPassword}
+                          onChange={(e) => setNewSuperuserPassword(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <Button onClick={addSuperuser} disabled={!newSuperuserEmail || !newSuperuserPassword}>
+                      Add Support Admin
+                    </Button>
+                  </div>
+
+                  {/* Existing Superusers List */}
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-sm">Existing Support Admins</h3>
+                    {superusers.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No support admins found.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {superusers.map((superuser) => (
+                          <div
+                            key={superuser.id}
+                            className="flex items-center justify-between p-3 border rounded-lg"
+                          >
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">{superuser.email}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Added: {new Date(superuser.created_at).toLocaleDateString()}
+                                {superuser.role === 'masteradmin' && (
+                                  <Badge variant="default" className="ml-2">Master Admin</Badge>
+                                )}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setEditingSuperuser(superuser)
+                                  setNewSuperuserPassword('')
+                                }}
+                              >
+                                Reset Password
+                              </Button>
+                              {superuser.email !== 'arsami.uk@gmail.com' && (
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => removeSuperuser(superuser.id)}
+                                >
+                                  Remove
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Edit Superuser Modal */}
+                  {editingSuperuser && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                      <Card className="w-full max-w-md">
+                        <CardHeader>
+                          <CardTitle>Reset Password</CardTitle>
+                          <CardDescription>
+                            Enter a new password for {editingSuperuser.email}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div>
+                            <label className="text-sm font-medium">New Password</label>
+                            <Input
+                              type="password"
+                              placeholder="New secure password"
+                              value={newSuperuserPassword}
+                              onChange={(e) => setNewSuperuserPassword(e.target.value)}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button onClick={updateSuperuser} disabled={!newSuperuserPassword}>
+                              Update Password
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setEditingSuperuser(null)
+                                setNewSuperuserPassword('')
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Activity Logs Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="h-5 w-5" />
+                    Impersonation Activity Logs
+                  </CardTitle>
+                  <CardDescription>
+                    Monitor all actions performed by master admin and support admins while impersonating users for security and audit purposes.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={fetchActivityLogs}
+                        disabled={activityLogsLoading}
+                      >
+                        {activityLogsLoading ? 'Loading...' : 'Refresh Logs'}
+                      </Button>
+                    </div>
+
+                    {activityLogsLoading ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        Loading activity logs...
+                      </div>
+                    ) : activityLogs.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No activity logs found. Logs will appear here when admins perform actions while impersonating users.
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                        {activityLogs.map((log) => (
+                          <div
+                            key={log.id}
+                            className={`border rounded-lg p-3 ${
+                              log.risk_level === 'high'
+                                ? 'border-red-300 bg-red-50'
+                                : log.risk_level === 'medium'
+                                ? 'border-yellow-300 bg-yellow-50'
+                                : 'border-gray-200'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <Badge variant={log.admin_type === 'masteradmin' ? 'default' : 'secondary'}>
+                                    {log.admin_type === 'masteradmin' ? 'Master Admin' : 'Support'}
+                                  </Badge>
+                                  <Badge
+                                    variant={
+                                      log.risk_level === 'high'
+                                        ? 'destructive'
+                                        : log.risk_level === 'medium'
+                                        ? 'default'
+                                        : 'outline'
+                                    }
+                                  >
+                                    {log.risk_level.toUpperCase()}
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground">
+                                    {new Date(log.created_at).toLocaleString()}
+                                  </span>
+                                </div>
+                                <p className="text-sm font-medium">
+                                  <span className="text-blue-600">{log.admin_email}</span> impersonated{' '}
+                                  <span className="text-purple-600">{log.impersonated_user_email}</span>
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  Action: <span className="font-medium">{log.action_type.replace(/_/g, ' ')}</span>
+                                </p>
+                                {log.action_details && (
+                                  <details className="text-xs">
+                                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                                      View details
+                                    </summary>
+                                    <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto">
+                                      {JSON.stringify(log.action_details, null, 2)}
+                                    </pre>
+                                  </details>
+                                )}
+                                {log.ip_address && (
+                                  <p className="text-xs text-muted-foreground">IP: {log.ip_address}</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
 
           <TabsContent value="reports" className="space-y-6">
             <Card>

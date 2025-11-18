@@ -197,36 +197,41 @@ export default function SettingsPage() {
       let logoUrl = organization.logo_url
 
       if (logoFile) {
-        const fileExt = logoFile.name.split(".").pop()?.toLowerCase()
-        const timestamp = Date.now()
-        const fileName = `${organization.organization_id}/logo-${timestamp}.${fileExt}`
+        try {
+          const fileExt = logoFile.name.split(".").pop()?.toLowerCase()
+          const timestamp = Date.now()
+          const fileName = `${organization.organization_id}/logo-${timestamp}.${fileExt}`
 
-        if (organization.logo_url) {
-          const oldFileName = organization.logo_url.split("/").pop()
-          if (oldFileName && oldFileName.startsWith("logo")) {
-            await supabase.storage
-              .from("organization-assets")
-              .remove([`${organization.organization_id}/${oldFileName}`])
+          if (organization.logo_url) {
+            const oldFileName = organization.logo_url.split("/").pop()
+            if (oldFileName && oldFileName.startsWith("logo")) {
+              await supabase.storage
+                .from("organization-assets")
+                .remove([`${organization.organization_id}/${oldFileName}`])
+            }
           }
+
+          const { error: uploadError, data: uploadData } = await supabase.storage
+            .from("organization-assets")
+            .upload(fileName, logoFile, {
+              upsert: false,
+              contentType: logoFile.type,
+            })
+
+          if (uploadError) {
+            console.error("Upload error:", uploadError)
+            throw new Error(`Failed to upload logo: ${uploadError.message}`)
+          }
+
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from("organization-assets").getPublicUrl(fileName)
+
+          logoUrl = `${publicUrl}?v=${timestamp}`
+        } catch (storageError) {
+          console.error("[v0] Storage operation failed:", storageError)
+          throw new Error("Failed to upload logo. Please try again or contact support.")
         }
-
-        const { error: uploadError, data: uploadData } = await supabase.storage
-          .from("organization-assets")
-          .upload(fileName, logoFile, {
-            upsert: false,
-            contentType: logoFile.type,
-          })
-
-        if (uploadError) {
-          console.error("Upload error:", uploadError)
-          throw new Error(`Failed to upload logo: ${uploadError.message}`)
-        }
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("organization-assets").getPublicUrl(fileName)
-
-        logoUrl = `${publicUrl}?v=${timestamp}`
       }
 
       const slug = generateSlug(name)

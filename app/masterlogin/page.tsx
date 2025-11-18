@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useRouter } from "next/navigation"
+import { useRouter } from 'next/navigation'
 import { useState } from "react"
-import { Shield, AlertTriangle, ArrowLeft } from "lucide-react"
+import { Shield, AlertTriangle, ArrowLeft } from 'lucide-react'
 import { useBranding } from "@/components/branding-provider"
 
 export default function MasterLoginPage() {
@@ -40,14 +40,23 @@ export default function MasterLoginPage() {
         return
       }
 
+      // Set localStorage
       localStorage.setItem("masterAdminAuth", "true")
       localStorage.setItem("masterAdminEmail", email)
 
-      document.cookie = `masterAdminImpersonation=true; path=/; max-age=86400; SameSite=Lax`
-      document.cookie = `masterAdminEmail=${email}; path=/; max-age=86400; SameSite=Lax`
-      document.cookie = `userType=${data.userType}; path=/; max-age=86400; SameSite=Lax`
-      console.log("[v0] Set master admin authentication cookies")
-
+      if (data.userType === "master_admin") {
+        document.cookie = `master-admin-session=authenticated; path=/; max-age=86400; SameSite=Lax`
+        document.cookie = `masterAdminEmail=${email}; path=/; max-age=86400; SameSite=Lax`
+        document.cookie = `userType=master_admin; path=/; max-age=86400; SameSite=Lax`
+        console.log("[v0] Set master admin authentication cookies")
+      } else if (data.userType === "superuser") {
+        document.cookie = `superuser-session=authenticated; path=/; max-age=86400; SameSite=Lax`
+        document.cookie = `superuser-email=${email}; path=/; max-age=86400; SameSite=Lax`
+        document.cookie = `userType=superuser; path=/; max-age=86400; SameSite=Lax`
+        console.log("[v0] Set superuser authentication cookies")
+      }
+      
+      // Both redirect to masterdashboard
       router.push("/masterdashboard")
     } catch (error: unknown) {
       setError("Authentication failed. Please try again.")

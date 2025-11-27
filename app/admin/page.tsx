@@ -23,12 +23,25 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ChevronDown, Users, UserCheck, Bell, CheckCircle, Plus, UserPlus, AlertTriangle } from "lucide-react"
+import {
+  ChevronDown,
+  Users,
+  UserCheck,
+  Plus,
+  UserPlus,
+  AlertTriangle,
+  ClipboardList,
+  CheckCircle2,
+  CheckCheck,
+  Clock,
+  Activity,
+} from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import Link from "next/link"
 import { FeedbackBanner } from "@/components/feedback-banner"
 import { useRouter } from "next/navigation"
+import { formatUKDate, formatUKDateTime, formatRelativeTime } from "@/lib/date-formatter"
 
 export const dynamic = "force-dynamic"
 
@@ -60,11 +73,14 @@ export default function AdminDashboard() {
   })
 
   const [allNotifications, setAllNotifications] = useState<any[]>([])
+  const [activityLog, setActivityLog] = useState<any[]>([])
+  const [activityLoading, setActivityLoading] = useState(true)
 
   const router = useRouter()
+  const organizationId = profile?.organization_id
 
   const checkMissedTasks = async () => {
-    if (!profile?.organization_id) return
+    if (!organizationId) return
 
     const supabase = createClient()
     const today = new Date()
@@ -88,7 +104,7 @@ export default function AdminDashboard() {
           full_name
         )
       `)
-      .eq("organization_id", profile.organization_id)
+      .eq("organization_id", organizationId)
       .neq("status", "completed")
       .eq("is_active", true)
 
@@ -162,7 +178,7 @@ export default function AdminDashboard() {
         body: JSON.stringify({
           templateId,
           memberIds,
-          organizationId: profile?.organization_id,
+          organizationId,
         }),
       })
 
@@ -191,7 +207,7 @@ export default function AdminDashboard() {
         body: JSON.stringify({
           templateId,
           memberIds,
-          organizationId: profile?.organization_id,
+          organizationId,
         }),
       })
 
@@ -254,7 +270,7 @@ export default function AdminDashboard() {
           lastName: teamForm.lastName,
           position: teamForm.position,
           role: teamForm.role,
-          organizationId: profile?.organization_id,
+          organizationId,
           reportsTo: teamForm.reportsTo === "none" ? null : teamForm.reportsTo,
         }),
       })
@@ -279,7 +295,7 @@ export default function AdminDashboard() {
       const { data: updatedTeamMembers } = await supabase
         .from("profiles")
         .select("id, first_name, last_name, full_name, role")
-        .eq("organization_id", profile.organization_id)
+        .eq("organization_id", organizationId)
         .neq("id", user.id)
         .order("first_name")
       setTeamMembers(updatedTeamMembers || [])
@@ -407,8 +423,8 @@ export default function AdminDashboard() {
   }, [router])
 
   useEffect(() => {
-    const loadData = async () => {
-      if (!user || !profile) return
+    const fetchDashboardData = async () => {
+      if (!user || !organizationId) return
 
       try {
         const supabase = createClient()
@@ -417,19 +433,19 @@ export default function AdminDashboard() {
           supabase
             .from("checklist_templates")
             .select("id, name, description, is_active, created_at")
-            .eq("organization_id", profile.organization_id)
+            .eq("organization_id", organizationId)
             .limit(5),
           supabase
             .from("checklist_templates")
             .select("id, name, description")
-            .eq("organization_id", profile.organization_id)
+            .eq("organization_id", organizationId)
             .eq("is_active", true)
             .order("name")
             .limit(5),
           supabase
             .from("profiles")
             .select("id, first_name, last_name, full_name, role")
-            .eq("organization_id", profile.organization_id)
+            .eq("organization_id", organizationId)
             .neq("id", user.id)
             .order("first_name")
             .limit(10),
@@ -454,14 +470,14 @@ export default function AdminDashboard() {
                 email
               )
             `)
-            .eq("organization_id", profile.organization_id)
+            .eq("organization_id", organizationId)
             .neq("status", "completed")
             .eq("is_active", true)
             .order("assigned_at", { ascending: false }),
           supabase
             .from("profiles")
             .select("id, first_name, last_name, full_name, email")
-            .eq("organization_id", profile.organization_id)
+            .eq("organization_id", organizationId)
             .eq("role", "admin"),
         ])
 
@@ -477,8 +493,121 @@ export default function AdminDashboard() {
       }
     }
 
-    loadData()
-  }, [user, profile])
+    const fetchActivityLog = async () => {
+      try {
+        setActivityLoading(true)
+        const supabase = createClient()
+
+        // Fetch template assignments
+        const { data: assignments, error: assignmentsError } = await supabase
+          .from("template_assignments")
+          .select(`
+            *,
+            template:checklist_templates(name),
+            assigned_to_profile:profiles!template_assignments_assigned_to_fkey(first_name, last_name, full_name),
+            assigned_by_profile:profiles!template_assignments_assigned_by_fkey(first_name, last_name, full_name)
+          `)
+          .eq("organization_id", organizationId)
+          .order("created_at", { ascending: false })
+          .limit(50)
+
+        // Fetch submitted reports
+        const { data: submissions, error: submissionsError } = await supabase
+          .from("submitted_reports")
+          .select(`
+            *,
+            submitter:profiles!submitted_reports_submitted_by_fkey(first_name, last_name, full_name)
+          `)
+          .eq("organization_id", organizationId)
+          .order("submitted_at", { ascending: false })
+          .limit(50)
+
+        // Fetch daily checklists status changes
+        const { data: checklists, error: checklistsError } = await supabase
+          .from("daily_checklists")
+          .select(`
+            *,
+            template:checklist_templates(name),
+            assigned_user:profiles!daily_checklists_assigned_to_fkey(first_name, last_name, full_name)
+          `)
+          .eq("organization_id", organizationId)
+          .order("updated_at", { ascending: false })
+          .limit(50)
+
+        if (assignmentsError) throw assignmentsError
+        if (submissionsError) throw submissionsError
+        if (checklistsError) throw checklistsError
+
+        // Combine and format all activities
+        const activities: any[] = []
+
+        // Add assignment activities
+        assignments?.forEach((assignment: any) => {
+          activities.push({
+            id: `assignment-${assignment.id}`,
+            type: "assignment",
+            action: "Task Assigned",
+            description: `${assignment.assigned_by_profile?.full_name || assignment.assigned_by_profile?.first_name + " " + assignment.assigned_by_profile?.last_name || "Admin"} assigned "${assignment.template?.name || "Task"}" to ${assignment.assigned_to_profile?.full_name || assignment.assigned_to_profile?.first_name + " " + assignment.assigned_to_profile?.last_name || "Team Member"}`,
+            timestamp: assignment.assigned_at || assignment.created_at,
+            status: assignment.status,
+            icon: "assignment",
+          })
+        })
+
+        // Add submission activities
+        submissions?.forEach((submission: any) => {
+          activities.push({
+            id: `submission-${submission.id}`,
+            type: "submission",
+            action: "Report Submitted",
+            description: `${submission.submitter?.full_name || submission.submitter?.first_name + " " + submission.submitter?.last_name || "Team Member"} submitted "${submission.template_name || "Report"}"`,
+            timestamp: submission.submitted_at || submission.created_at,
+            status: submission.status,
+            icon: "submission",
+          })
+        })
+
+        // Add checklist completion activities
+        checklists?.forEach((checklist: any) => {
+          if (checklist.status === "completed") {
+            activities.push({
+              id: `completed-${checklist.id}`,
+              type: "completion",
+              action: "Task Completed",
+              description: `${checklist.assigned_user?.full_name || checklist.assigned_user?.first_name + " " + checklist.assigned_user?.last_name || "Team Member"} completed "${checklist.template?.name || "Task"}"`,
+              timestamp: checklist.completed_at || checklist.updated_at,
+              status: "completed",
+              icon: "check",
+            })
+          } else if (checklist.status === "pending" || checklist.status === "in_progress") {
+            activities.push({
+              id: `pending-${checklist.id}`,
+              type: "pending",
+              action: checklist.status === "in_progress" ? "Task In Progress" : "Task Pending",
+              description: `"${checklist.template?.name || "Task"}" is ${checklist.status === "in_progress" ? "in progress" : "pending"} for ${checklist.assigned_user?.full_name || checklist.assigned_user?.first_name + " " + checklist.assigned_user?.last_name || "Team Member"}`,
+              timestamp: checklist.updated_at,
+              status: checklist.status,
+              icon: "clock",
+            })
+          }
+        })
+
+        // Sort by timestamp (most recent first)
+        activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+        setActivityLog(activities.slice(0, 20)) // Show latest 20 activities
+      } catch (error) {
+        console.error("Error fetching activity log:", error)
+      } finally {
+        setActivityLoading(false)
+      }
+    }
+
+    if (user && organizationId) {
+      fetchDashboardData()
+      fetchActivityLog()
+    }
+  }, [user, organizationId])
 
   if (loading || !user) {
     return (
@@ -516,7 +645,7 @@ export default function AdminDashboard() {
                       "Staff Member"}
                   </div>
                   <div className="text-red-700">
-                    Missed: {task.template.name} (Due: {task.dueDate.toLocaleDateString()})
+                    Missed: {task.template.name} (Due: {formatUKDate(task.dueDate)})
                   </div>
                 </div>
               ))}
@@ -565,13 +694,13 @@ export default function AdminDashboard() {
                       </p>
                       <p className="text-sm text-muted-foreground">
                         {assignment.checklist_templates?.specific_date
-                          ? `Due: ${new Date(assignment.checklist_templates.specific_date).toLocaleDateString()}`
+                          ? `Due: ${formatUKDate(new Date(assignment.checklist_templates.specific_date))}`
                           : assignment.checklist_templates?.deadline_date
-                            ? `Deadline: ${new Date(assignment.checklist_templates.deadline_date).toLocaleDateString()}`
+                            ? `Deadline: ${formatUKDate(new Date(assignment.checklist_templates.deadline_date))}`
                             : `Frequency: ${assignment.checklist_templates?.frequency || "Not scheduled"}`}
                       </p>
                       <p className="text-xs text-blue-600">
-                        Assigned: {new Date(assignment.assigned_at).toLocaleString()}
+                        Assigned: {formatUKDateTime(new Date(assignment.assigned_at))}
                       </p>
                     </div>
                     <div className="text-right">
@@ -799,71 +928,66 @@ export default function AdminDashboard() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Bell className="w-4 h-4" />
-              Notifications
-              {allNotifications.length > 0 && (
-                <Badge variant="secondary" className="text-xs">
-                  {allNotifications.length}
-                </Badge>
-              )}
+              <ClipboardList className="h-5 w-5" />
+              Activity Log
             </CardTitle>
-            <CardDescription>Latest updates, submissions, and task assignments</CardDescription>
+            <CardDescription>Real-time feed of all team activities</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3 max-h-64 overflow-y-auto">
-              {allNotifications.length > 0 && (
-                <div className="flex justify-between items-center pb-2 border-b">
-                  <span className="text-xs text-muted-foreground">
-                    {allNotifications.length} notification{allNotifications.length > 1 ? "s" : ""}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setAllNotifications([])}
-                    className="text-xs h-6 px-2"
-                  >
-                    Clear All
-                  </Button>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {activityLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
-              )}
-
-              {allNotifications.length === 0 ? (
-                <div className="text-sm text-muted-foreground text-center py-4">No new notifications</div>
+              ) : activityLog.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-8 text-center">No recent activity</div>
               ) : (
-                allNotifications.map((notification) => (
+                activityLog.map((activity) => (
                   <div
-                    key={notification.id}
-                    className={`block p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
-                      notification.type === "submission" ? "bg-green-50 border-green-200" : "bg-blue-50 border-blue-200"
-                    }`}
+                    key={activity.id}
+                    className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3 flex-1">
-                        {notification.type === "submission" ? (
-                          <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                        ) : (
-                          <Bell className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground">{notification.title}</p>
-                          <p className="text-xs text-muted-foreground mt-1">{notification.message}</p>
-                          <p className="text-xs text-blue-600 font-medium">
-                            {new Date(notification.timestamp).toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
+                    <div
+                      className={`mt-0.5 rounded-full p-1.5 ${
+                        activity.type === "assignment"
+                          ? "bg-blue-100 text-blue-600"
+                          : activity.type === "submission"
+                            ? "bg-green-100 text-green-600"
+                            : activity.type === "completion"
+                              ? "bg-purple-100 text-purple-600"
+                              : "bg-orange-100 text-orange-600"
+                      }`}
+                    >
+                      {activity.icon === "assignment" && <ClipboardList className="h-4 w-4" />}
+                      {activity.icon === "submission" && <CheckCircle2 className="h-4 w-4" />}
+                      {activity.icon === "check" && <CheckCheck className="h-4 w-4" />}
+                      {activity.icon === "clock" && <Clock className="h-4 w-4" />}
+                      {activity.icon === "activity" && <Activity className="h-4 w-4" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <Badge
-                          variant="outline"
-                          className={
-                            notification.type === "submission"
-                              ? "bg-green-100 text-green-800 border-green-300"
-                              : "bg-blue-100 text-blue-800 border-blue-300"
-                          }
-                        >
-                          {notification.type === "submission" ? "Completed" : "Assigned"}
-                        </Badge>
+                        <span className="text-xs font-medium text-foreground">{activity.action}</span>
+                        {activity.status && (
+                          <Badge
+                            variant="secondary"
+                            className={`text-xs ${
+                              activity.status === "completed"
+                                ? "bg-green-100 text-green-700"
+                                : activity.status === "pending"
+                                  ? "bg-orange-100 text-orange-700"
+                                  : activity.status === "in_progress"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-gray-100 text-gray-700"
+                            }`}
+                          >
+                            {activity.status.replace("_", " ")}
+                          </Badge>
+                        )}
                       </div>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{activity.description}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {formatRelativeTime(new Date(activity.timestamp))}
+                      </p>
                     </div>
                   </div>
                 ))

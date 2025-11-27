@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
 import { sendEmail } from "@/lib/email/smtp"
+import { formatUKDate } from "@/lib/date-formatter"
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, organization_id, full_name, email")
+      .select("role, organization_id, full_name, first_name, last_name, email")
       .eq("id", user.id)
       .single()
 
@@ -73,14 +74,20 @@ export async function POST(request: NextRequest) {
 
     const { data: assignedMembers } = await supabase
       .from("profiles")
-      .select("id, email, full_name, first_name")
+      .select("id, email, full_name, first_name, last_name")
       .in("id", newMemberIds)
 
     if (assignedMembers && assignedMembers.length > 0) {
+      const dueDateText = template.specific_date
+        ? ` by ${formatUKDate(template.specific_date)}`
+        : template.deadline_date
+          ? ` by ${formatUKDate(template.deadline_date)}`
+          : ""
+
       const notifications = assignedMembers.map((member) => ({
         user_id: member.id,
         type: "assignment",
-        message: `You have been assigned to complete "${template.name}"${template.specific_date ? ` by ${new Date(template.specific_date).toLocaleDateString()}` : template.deadline_date ? ` by ${new Date(template.deadline_date).toLocaleDateString()}` : ""}`,
+        message: `You have been assigned to complete "${template.name}"${dueDateText}`,
         template_id: templateId,
         is_read: false,
         created_at: new Date().toISOString(),
@@ -88,22 +95,32 @@ export async function POST(request: NextRequest) {
 
       await supabase.from("notifications").insert(notifications)
 
+      const adminFullName =
+        profile.full_name ||
+        (profile.first_name && profile.last_name ? `${profile.first_name} ${profile.last_name}` : null) ||
+        profile.email
+
       for (const member of assignedMembers) {
         try {
+          const memberFullName =
+            member.full_name ||
+            (member.first_name && member.last_name ? `${member.first_name} ${member.last_name}` : null) ||
+            member.first_name ||
+            "Team Member"
+
           await sendEmail({
             to: member.email,
             ...sendEmail.templates.taskAssignment({
-              assigneeName: member.first_name || member.full_name || "Team Member",
-              assignerName: profile.full_name || profile.email,
+              assigneeName: memberFullName,
+              assignerName: adminFullName,
               taskName: template.name,
               description: template.description,
               dueDate: template.specific_date || template.deadline_date,
               taskUrl: `${process.env.NEXT_PUBLIC_SITE_URL || "https://mydaylogs.co.uk"}/staff`,
             }),
           })
-          console.log(`[v0] Sent task assignment email to ${member.email}`)
         } catch (emailError) {
-          console.error(`[v0] Failed to send email to ${member.email}:`, emailError)
+          console.error(`Failed to send email to ${member.email}:`, emailError)
           // Continue with other emails even if one fails
         }
       }

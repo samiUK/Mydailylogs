@@ -4,7 +4,7 @@ import { sendEmail } from "@/lib/email/smtp"
 export interface NotificationData {
   userId: string
   userEmail: string
-  userName: string
+  userName: string // Now required - use full names
   type: "assignment" | "submission" | "reminder"
   message: string
   templateId?: string
@@ -23,14 +23,14 @@ export async function createNotification(data: NotificationData) {
   const { error } = await supabase.from("notifications").insert({
     user_id: data.userId,
     type: data.type,
-    message: data.message,
+    message: data.message, // Message should already contain full name
     template_id: data.templateId,
     is_read: false,
     created_at: new Date().toISOString(),
   })
 
   if (error) {
-    console.error("[v0] Failed to create notification:", error)
+    console.error("Failed to create notification:", error)
     return false
   }
 
@@ -46,7 +46,7 @@ export async function sendEmailNotification(data: NotificationData) {
       await sendEmail({
         to: data.userEmail,
         ...sendEmail.templates.taskAssignment({
-          assigneeName: data.userName,
+          assigneeName: data.userName, // Use full name
           assignerName: data.assignerName || "Administrator",
           taskName: data.templateName,
           dueDate: data.dueDate,
@@ -55,10 +55,9 @@ export async function sendEmailNotification(data: NotificationData) {
       })
     }
 
-    console.log(`[v0] Sent ${data.type} email notification to ${data.userEmail}`)
     return true
   } catch (error) {
-    console.error(`[v0] Failed to send email notification to ${data.userEmail}:`, error)
+    console.error(`Failed to send email notification to ${data.userEmail}:`, error)
     return false
   }
 }

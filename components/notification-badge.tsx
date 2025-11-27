@@ -13,6 +13,7 @@ import {
 import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { formatRelativeTime } from "@/lib/date-formatter"
 
 interface Notification {
   id: string
@@ -21,6 +22,10 @@ interface Notification {
   is_read: boolean
   created_at: string
   template_id?: string
+  profiles: {
+    first_name: string
+    last_name: string
+  }
 }
 
 export function NotificationBadge() {
@@ -48,7 +53,13 @@ export function NotificationBadge() {
 
     const { data } = await supabase
       .from("notifications")
-      .select("*")
+      .select(`
+        *,
+        profiles:user_id (
+          first_name,
+          last_name
+        )
+      `)
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(10)
@@ -126,9 +137,7 @@ export function NotificationBadge() {
               <div className="flex items-start justify-between w-full">
                 <div className="flex-1">
                   <p className={`text-sm ${!notification.is_read ? "font-semibold" : ""}`}>{notification.message}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {new Date(notification.created_at).toLocaleString()}
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">{formatRelativeTime(notification.created_at)}</p>
                 </div>
                 {!notification.is_read && <div className="h-2 w-2 rounded-full bg-blue-500 ml-2 mt-1" />}
               </div>

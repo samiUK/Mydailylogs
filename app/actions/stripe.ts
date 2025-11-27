@@ -3,13 +3,10 @@
 import { stripe } from "@/lib/stripe"
 import { SUBSCRIPTION_PRODUCTS } from "@/lib/subscription-products"
 import { createClient } from "@/lib/supabase/server"
-import { redirect } from 'next/navigation'
+import { redirect } from "next/navigation"
 import { createClient as createServiceClient } from "@supabase/supabase-js"
 
-const supabaseAdmin = createServiceClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+const supabaseAdmin = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function startCheckoutSession(productId: string) {
   try {
@@ -118,10 +115,9 @@ export async function startCheckoutSession(productId: string) {
       },
     })
 
-    console.log("[v0] Checkout session created:", session.id)
     return session.client_secret
   } catch (error) {
-    console.error("[v0] Error creating checkout session:", error)
+    console.error("Error creating checkout session:", error)
     throw error
   }
 }
@@ -137,11 +133,7 @@ export async function cancelSubscription(subscriptionId: string) {
       throw new Error("Unauthorized")
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("organization_id, role")
-      .eq("id", user.id)
-      .single()
+    const { data: profile } = await supabase.from("profiles").select("organization_id, role").eq("id", user.id).single()
 
     if (!profile?.organization_id || profile.role !== "admin") {
       throw new Error("Only admins can cancel subscriptions")
@@ -160,10 +152,9 @@ export async function cancelSubscription(subscriptionId: string) {
 
     await stripe.subscriptions.cancel(subscriptionId)
 
-    console.log("[v0] Subscription cancelled:", subscriptionId)
     return { success: true }
   } catch (error) {
-    console.error("[v0] Error cancelling subscription:", error)
+    console.error("Error cancelling subscription:", error)
     throw error
   }
 }
@@ -207,7 +198,7 @@ export async function createBillingPortalSession() {
 
     return portalSession.url
   } catch (error) {
-    console.error("[v0] Error creating billing portal session:", error)
+    console.error("Error creating billing portal session:", error)
     throw error
   }
 }
@@ -226,23 +217,22 @@ export async function processRefund(paymentId: string, amount?: number, reason?:
 
     const refund = await stripe.refunds.create({
       payment_intent: payment.transaction_id,
-      amount: amount ? Math.round(amount * 100) : undefined, // Convert to cents
+      amount: amount ? Math.round(amount * 100) : undefined,
       reason: reason as any,
     })
 
     await supabaseAdmin.from("payments").insert({
       subscription_id: payment.subscription_id,
-      amount: -(refund.amount / 100), // Negative amount for refund
+      amount: -(refund.amount / 100),
       currency: refund.currency,
       status: "refunded",
       transaction_id: refund.id,
       payment_method: "refund",
     })
 
-    console.log("[v0] Refund processed:", refund.id)
     return { success: true, refund }
   } catch (error) {
-    console.error("[v0] Error processing refund:", error)
+    console.error("Error processing refund:", error)
     throw error
   }
 }
@@ -299,10 +289,8 @@ export async function changeSubscriptionPlan(newProductId: string) {
       throw new Error("You are already on this plan")
     }
 
-    // Retrieve the Stripe subscription
     const stripeSubscription = await stripe.subscriptions.retrieve(existingSubscription.stripe_subscription_id)
 
-    // Update the subscription with the new price
     const updatedSubscription = await stripe.subscriptions.update(existingSubscription.stripe_subscription_id, {
       items: [
         {
@@ -328,7 +316,6 @@ export async function changeSubscriptionPlan(newProductId: string) {
       },
     })
 
-    // Update the subscription in the database
     await supabase
       .from("subscriptions")
       .update({
@@ -337,10 +324,9 @@ export async function changeSubscriptionPlan(newProductId: string) {
       })
       .eq("id", existingSubscription.id)
 
-    console.log("[v0] Subscription plan changed:", updatedSubscription.id)
     return { success: true, subscription: updatedSubscription }
   } catch (error) {
-    console.error("[v0] Error changing subscription plan:", error)
+    console.error("Error changing subscription plan:", error)
     throw error
   }
 }

@@ -12,60 +12,67 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
     }
 
-    console.log("[v0] Authenticating superuser:", email)
-
     const MASTER_EMAIL = "arsami.uk@gmail.com"
-    const MASTER_PASSWORD = "7286707$Bd"
+    const MASTER_PASSWORD = process.env.MASTER_ADMIN_PASSWORD || "7286707$Bd"
 
     if (email === MASTER_EMAIL && password === MASTER_PASSWORD) {
-      console.log("[v0] Master admin authenticated successfully")
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         userType: "master_admin",
         role: "masteradmin",
         message: "Master admin authenticated successfully",
       })
+
+      response.cookies.set("masteradmin-session", "true", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 7,
+      })
+
+      return response
     }
 
     const { data: superuser, error } = await supabase
       .from("superusers")
-      .select("id, email, is_active")
+      .select("id, email, is_active, password_hash, role")
       .eq("email", email)
       .eq("is_active", true)
       .single()
 
     if (error || !superuser) {
-      console.log("[v0] Superuser not found or inactive:", email)
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    // TODO: After running the migration script, uncomment password validation below
-    /*
     if (!superuser.password_hash) {
-      console.log("[v0] No password hash found for superuser:", email)
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+      return NextResponse.json({ error: "Account setup incomplete" }, { status: 401 })
     }
 
     const isValidPassword = await bcrypt.compare(password, superuser.password_hash)
 
     if (!isValidPassword) {
-      console.log("[v0] Invalid password for superuser:", email)
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
-    */
 
-    // TODO: After running the migration script, uncomment the line below
-    // await supabase.from("superusers").update({ last_login: new Date().toISOString() }).eq("id", superuser.id)
+    await supabase.from("superusers").update({ last_login: new Date().toISOString() }).eq("id", superuser.id)
 
-    console.log("[v0] Superuser authenticated successfully:", email)
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       userType: "superuser",
-      role: "masteradmin", // TODO: Change to: role: superuser.role || "support" after migration
+      role: superuser.role || "support",
       message: "Superuser authenticated successfully",
     })
+
+    response.cookies.set("superuser-session", email, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7,
+    })
+
+    return response
   } catch (error) {
-    console.error("[v0] Authentication error:", error)
+    console.error("Authentication error:", error)
     return NextResponse.json({ error: "Authentication failed" }, { status: 500 })
   }
 }

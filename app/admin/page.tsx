@@ -23,12 +23,12 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ChevronDown, Users, UserCheck, Bell, CheckCircle, Plus, UserPlus, AlertTriangle } from 'lucide-react'
+import { ChevronDown, Users, UserCheck, Bell, CheckCircle, Plus, UserPlus, AlertTriangle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import Link from "next/link"
 import { FeedbackBanner } from "@/components/feedback-banner"
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation"
 
 export const dynamic = "force-dynamic"
 
@@ -323,24 +323,24 @@ export default function AdminDashboard() {
     const loadUser = async () => {
       try {
         const supabase = createClient()
-        
+
         const urlParams = new URLSearchParams(window.location.search)
-        const impersonateToken = urlParams.get('impersonate')
-        
+        const impersonateToken = urlParams.get("impersonate")
+
         if (impersonateToken) {
           try {
             const impersonationData = JSON.parse(atob(impersonateToken))
             console.log("[v0] Impersonation token detected:", impersonationData)
-            
-            localStorage.setItem('masterAdminImpersonation', 'true')
-            localStorage.setItem('impersonatedUserEmail', impersonationData.userEmail)
-            localStorage.setItem('impersonatedUserId', impersonationData.userId)
-            localStorage.setItem('impersonatedUserRole', impersonationData.userRole)
-            localStorage.setItem('impersonatedOrganizationId', impersonationData.organizationId)
-            localStorage.setItem('masterAdminEmail', impersonationData.masterAdminEmail)
-            
+
+            localStorage.setItem("masterAdminImpersonation", "true")
+            localStorage.setItem("impersonatedUserEmail", impersonationData.userEmail)
+            localStorage.setItem("impersonatedUserId", impersonationData.userId)
+            localStorage.setItem("impersonatedUserRole", impersonationData.userRole)
+            localStorage.setItem("impersonatedOrganizationId", impersonationData.organizationId)
+            localStorage.setItem("masterAdminEmail", impersonationData.masterAdminEmail)
+
             window.history.replaceState({}, document.title, window.location.pathname)
-            
+
             const { data: profile, error: profileError } = await supabase
               .from("profiles")
               .select("*")
@@ -367,7 +367,7 @@ export default function AdminDashboard() {
             console.error("[v0] Invalid impersonation token:", e)
           }
         }
-        
+
         const {
           data: { user },
           error,
@@ -436,18 +436,28 @@ export default function AdminDashboard() {
           supabase
             .from("template_assignments")
             .select(`
-              id,
-              status,
-              assigned_at,
-              completed_at,
-              template_id,
-              assigned_to,
-              checklist_templates:template_id(name),
-              profiles:assigned_to(full_name)
+              *,
+              checklist_templates:template_id(
+                id,
+                name,
+                description,
+                deadline_date,
+                specific_date,
+                schedule_type,
+                frequency
+              ),
+              assigned_to_profile:profiles!template_assignments_assigned_to_fkey(
+                id,
+                first_name,
+                last_name,
+                full_name,
+                email
+              )
             `)
             .eq("organization_id", profile.organization_id)
-            .order("assigned_at", { ascending: false })
-            .limit(5),
+            .neq("status", "completed")
+            .eq("is_active", true)
+            .order("assigned_at", { ascending: false }),
           supabase
             .from("profiles")
             .select("id, first_name, last_name, full_name, email")
@@ -551,9 +561,16 @@ export default function AdminDashboard() {
                         {assignment.checklist_templates?.name || "Template"}
                       </h5>
                       <p className="text-sm text-muted-foreground">
-                        Assigned to: {assignment.profiles?.full_name || "Team Member"}
+                        Assigned to: {assignment.assigned_to_profile?.full_name || "Team Member"}
                       </p>
-                      <p className="text-sm text-blue-600">
+                      <p className="text-sm text-muted-foreground">
+                        {assignment.checklist_templates?.specific_date
+                          ? `Due: ${new Date(assignment.checklist_templates.specific_date).toLocaleDateString()}`
+                          : assignment.checklist_templates?.deadline_date
+                            ? `Deadline: ${new Date(assignment.checklist_templates.deadline_date).toLocaleDateString()}`
+                            : `Frequency: ${assignment.checklist_templates?.frequency || "Not scheduled"}`}
+                      </p>
+                      <p className="text-xs text-blue-600">
                         Assigned: {new Date(assignment.assigned_at).toLocaleString()}
                       </p>
                     </div>

@@ -1,3 +1,20 @@
 User-agent: *
-Disallow:
-Sitemap: https://www.mydayslog.co.uk/sitemap.xml
+Allow: /
+Disallow: /admin/
+Disallow: /staff/
+Disallow: /profile/
+Disallow: /masterdashboard/
+Disallow: /masterlogin/
+Disallow: /api/
+Disallow: /impersonate/
+
+# Allow public pages
+Allow: /pricing
+Allow: /about
+Allow: /privacy
+Allow: /terms
+Allow: /gdpr
+Allow: /cookies
+Allow: /auth/
+
+Sitemap: https://www.mydaylogs.co.uk/sitemap.xml

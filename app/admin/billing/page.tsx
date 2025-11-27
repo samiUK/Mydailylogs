@@ -5,8 +5,17 @@ import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { CreditCard, CheckCircle, Calendar, AlertCircle, Crown, Sparkles, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import {
+  CreditCard,
+  CheckCircle,
+  Calendar,
+  AlertCircle,
+  Crown,
+  Sparkles,
+  ArrowUpCircle,
+  ArrowDownCircle,
+} from "lucide-react"
+import { useRouter } from "next/navigation"
 import { SUBSCRIPTION_PRODUCTS, formatPrice } from "@/lib/subscription-products"
 import StripeCheckout from "@/components/stripe-checkout"
 import { changeSubscriptionPlan } from "@/app/actions/stripe"
@@ -72,7 +81,6 @@ export default function BillingPage() {
             .single()
 
           if (newSub) {
-            console.log("[v0] Created starter subscription:", newSub)
             setSubscription(newSub)
           } else {
             setSubscription({
@@ -84,7 +92,6 @@ export default function BillingPage() {
             })
           }
         } else {
-          console.log("[v0] Subscription data loaded:", subscriptionData)
           setSubscription(subscriptionData)
         }
       } catch (error) {
@@ -109,19 +116,23 @@ export default function BillingPage() {
       setSelectedPlanId(planId)
       setShowCheckout(true)
     } catch (error) {
-      console.error("[v0] Error opening checkout:", error)
+      console.error("Error opening checkout:", error)
       alert("There was an error opening checkout. Please refresh and try again.")
     }
   }
 
   const handleChangePlan = async (planId: string) => {
-    const targetPlan = SUBSCRIPTION_PRODUCTS.find(p => p.id === planId)
+    const targetPlan = SUBSCRIPTION_PRODUCTS.find((p) => p.id === planId)
     if (!targetPlan) {
       alert("Invalid plan selected")
       return
     }
 
-    if (!confirm(`Are you sure you want to switch to the ${targetPlan.name} plan? Your billing will be adjusted accordingly.`)) {
+    if (
+      !confirm(
+        `Are you sure you want to switch to the ${targetPlan.name} plan? Your billing will be adjusted accordingly.`,
+      )
+    ) {
       return
     }
 
@@ -135,7 +146,7 @@ export default function BillingPage() {
         throw new Error("Plan change was not successful")
       }
     } catch (error) {
-      console.error("[v0] Error changing plan:", error)
+      console.error("Error changing plan:", error)
       const errorMessage = error instanceof Error ? error.message : "Failed to change plan. Please try again."
       alert(errorMessage)
     } finally {
@@ -150,7 +161,7 @@ export default function BillingPage() {
   const currentPlanName = subscription?.plan_name?.toLowerCase() || "starter"
   const currentProduct = SUBSCRIPTION_PRODUCTS.find((p) => p.id === currentPlanName) || SUBSCRIPTION_PRODUCTS[0]
   const isFreePlan = currentPlanName === "starter"
-  
+
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div>
@@ -213,7 +224,7 @@ export default function BillingPage() {
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 gap-6">
-            {SUBSCRIPTION_PRODUCTS.filter(plan => plan.id !== "starter").map((plan) => {
+            {SUBSCRIPTION_PRODUCTS.filter((plan) => plan.id !== "starter").map((plan) => {
               const isCurrent = currentProduct?.id === plan.id
               const isUpgrade = plan.priceMonthly > currentProduct.priceMonthly
               const isDowngrade = plan.priceMonthly < currentProduct.priceMonthly && !isFreePlan
@@ -236,7 +247,8 @@ export default function BillingPage() {
                   <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
                     <p className="text-sm font-semibold text-green-800 mb-1">🎉 30-Day Free Trial</p>
                     <p className="text-xs text-green-700">
-                      Start your trial today! You'll be charged {formatPrice(plan.priceMonthly)} on day 31. We'll email you 3 days before billing.
+                      Start your trial today! You'll be charged {formatPrice(plan.priceMonthly)} on day 31. We'll email
+                      you 3 days before billing.
                     </p>
                   </div>
 
@@ -258,7 +270,7 @@ export default function BillingPage() {
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
                       <span className="text-sm">
-                        {plan.maxAdmins} Admin Account{plan.maxAdmins > 1 ? 's' : ''}
+                        {plan.maxAdmins} Admin Account{plan.maxAdmins > 1 ? "s" : ""}
                       </span>
                     </li>
                     {plan.features.customBranding && (
@@ -294,8 +306,8 @@ export default function BillingPage() {
                   )}
 
                   {!isCurrent && isFreePlan && (
-                    <Button 
-                      className="w-full" 
+                    <Button
+                      className="w-full"
                       onClick={() => handleUpgrade(plan.id)}
                       disabled={changingPlan === plan.id}
                     >
@@ -305,8 +317,8 @@ export default function BillingPage() {
                   )}
 
                   {!isCurrent && !isFreePlan && isUpgrade && (
-                    <Button 
-                      className="w-full" 
+                    <Button
+                      className="w-full"
                       onClick={() => handleChangePlan(plan.id)}
                       disabled={changingPlan === plan.id}
                     >
@@ -322,9 +334,9 @@ export default function BillingPage() {
                   )}
 
                   {!isCurrent && !isFreePlan && isDowngrade && (
-                    <Button 
-                      variant="outline" 
-                      className="w-full" 
+                    <Button
+                      variant="outline"
+                      className="w-full bg-transparent"
                       onClick={() => handleChangePlan(plan.id)}
                       disabled={changingPlan === plan.id}
                     >
@@ -347,7 +359,8 @@ export default function BillingPage() {
             <div className="mt-6 p-4 bg-muted rounded-lg border">
               <p className="text-sm text-muted-foreground">
                 <AlertCircle className="w-4 h-4 inline mr-2" />
-                Need to downgrade to Starter? Please contact our support team for assistance with plan downgrades to the free tier.
+                Need to downgrade to Starter? Please contact our support team for assistance with plan downgrades to the
+                free tier.
               </p>
             </div>
           )}

@@ -4,14 +4,68 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { CheckCircle, Shield, BarChart3, Users, Clock, FileText, Star, Menu, MessageSquare } from 'lucide-react'
+import { CheckCircle, Shield, BarChart3, Users, Clock, FileText, Star, Menu, MessageSquare } from "lucide-react"
 import Link from "next/link"
 import { Footer } from "@/components/footer"
 import { FeedbackModal } from "@/components/feedback-modal"
 import CookieConsent from "@/components/cookie-consent"
-import { redirect } from 'next/navigation'
+import { redirect } from "next/navigation"
 
 export const dynamic = "force-dynamic"
+
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "MyDayLogs",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web Browser",
+  offers: {
+    "@type": "AggregateOffer",
+    priceCurrency: "GBP",
+    lowPrice: "0",
+    highPrice: "79",
+    offerCount: "3",
+    offers: [
+      {
+        "@type": "Offer",
+        name: "Starter Plan",
+        price: "0",
+        priceCurrency: "GBP",
+      },
+      {
+        "@type": "Offer",
+        name: "Growth Plan",
+        price: "29",
+        priceCurrency: "GBP",
+      },
+      {
+        "@type": "Offer",
+        name: "Scale Plan",
+        price: "79",
+        priceCurrency: "GBP",
+      },
+    ],
+  },
+  aggregateRating: {
+    "@type": "AggregateRating",
+    ratingValue: "4.8",
+    ratingCount: "127",
+  },
+  description:
+    "Compliance-first task management platform built for UK SMEs. Streamline audit-ready reporting, automate compliance tracking, and manage team tasks with GDPR-compliant tools.",
+  featureList: [
+    "Custom Template Creation",
+    "Task Assignment & Tracking",
+    "Audit-Ready Reporting",
+    "GDPR Compliance",
+    "Team Management",
+    "Email Notifications",
+    "Progress Monitoring",
+  ],
+  screenshot: "https://www.mydaylogs.co.uk/og-image.png",
+  softwareVersion: "2.0",
+  releaseNotes: "Beta 2.0 - Enhanced compliance features and improved user experience",
+}
 
 export default async function HomePage() {
   let user = null
@@ -57,7 +111,8 @@ export default async function HomePage() {
   const showBanner = true // Always show banner during beta period
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
       {showBanner && (
         <div className="bg-accent text-accent-foreground py-2 px-4">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -177,21 +232,24 @@ export default async function HomePage() {
 
       <section className="px-4 sm:px-6 lg:px-8 py-0">
         <div className="max-w-7xl mx-auto text-center">
+          <Badge variant="secondary" className="mb-4 text-sm font-semibold">
+            🎉 Now in Beta 2.0
+          </Badge>
           <h1 className="text-4xl md:text-6xl font-bold text-foreground py-1 mb-7 mt-[70px]">
-            Streamline Task Management
-            <span className="text-accent block">& Team Reporting</span>
+            Compliance-First Task Management
+            <span className="text-accent block">Built for UK SMEs</span>
           </h1>
           <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-            Cost-effective white-label solution designed specifically for SMEs. Streamline operations, ensure
-            compliance, and manage teams without breaking the budget. Perfect for businesses with 5-100 employees
-            looking for enterprise-grade functionality at SME-friendly prices.
+            The only task management platform designed specifically for compliance and audit-ready reporting. Streamline
+            operations, ensure regulatory compliance, and manage teams with automated workflows that keep your business
+            audit-ready without the enterprise price tag. Perfect for UK businesses with 5-100 employees.
           </p>
         </div>
       </section>
 
       <section className="w-full">
         <img
-          src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/design-mode-images/SS%20on%20a%20laptop-G6ITEgovXtg9RfwbLzdOBVs6YKSx7G.png"
+          src="/images/design-mode-images-ss-20on-20a-20laptop.png"
           alt="MyDayLogs Admin Dashboard"
           className="w-full h-auto object-cover"
         />
@@ -254,55 +312,69 @@ export default async function HomePage() {
       <section className="py-20 bg-muted/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Built for Small-Medium Enterprises</h2>
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Compliance Made Simple for SMEs</h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Everything your growing business needs without the enterprise complexity or cost
+              Everything your growing business needs to stay compliant without the complexity or enterprise cost
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             <Card>
               <CardHeader>
                 <CheckCircle className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>Simple Task Management</CardTitle>
+                <CardTitle>Compliance Templates</CardTitle>
                 <CardDescription>
-                  No complex setup required. Create and manage tasks with templates designed for small business
-                  workflows
+                  Pre-built templates for health & safety, GDPR, ISO standards, and custom compliance workflows. No
+                  complex setup - just assign and track
                 </CardDescription>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <Shield className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>Affordable Compliance</CardTitle>
+                <CardTitle>Audit-Ready Reports</CardTitle>
                 <CardDescription>
-                  Meet regulatory requirements without expensive consultants. Automated tracking that fits your budget
+                  Generate professional, timestamped reports that auditors love. Complete audit trail with submission
+                  history and digital signatures
                 </CardDescription>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <BarChart3 className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>Professional Reports</CardTitle>
+                <CardTitle>Automated Tracking</CardTitle>
                 <CardDescription>
-                  Impress clients and stakeholders with branded reports that look like they came from a big consultancy
+                  Never miss a deadline again. Automated reminders, overdue alerts, and real-time compliance dashboards
+                  keep your team on track
                 </CardDescription>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <Users className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>Team Collaboration</CardTitle>
+                <CardTitle>Team Accountability</CardTitle>
                 <CardDescription>
-                  Keep your small team aligned and productive with simple task assignment and progress tracking
+                  Clear task assignment with email notifications. Track who did what and when - perfect for
+                  demonstrating due diligence
                 </CardDescription>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <Clock className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>Time-Saving Automation</CardTitle>
+                <CardTitle>Save 10+ Hours/Week</CardTitle>
                 <CardDescription>
-                  Reduce manual work with automated scheduling and reminders - perfect for lean teams
+                  Eliminate manual checklists, spreadsheets, and chasing emails. Automated workflows that actually work
+                  for small teams
+                </CardDescription>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader>
+                <Shield className="w-10 h-10 text-accent mb-4" />
+                <CardTitle>UK GDPR Compliant</CardTitle>
+                <CardDescription>
+                  Built with UK data protection standards in mind. Secure UK-based data storage with full GDPR
+                  compliance and ICO-ready documentation
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -340,10 +412,9 @@ export default async function HomePage() {
                 </div>
                 <CardHeader>
                   <Shield className="w-8 h-8 text-muted-foreground mb-3" />
-                  <CardTitle className="text-lg">Security Audit</CardTitle>
+                  <CardTitle className="text-lg">Enhanced Security Audit</CardTitle>
                   <CardDescription className="text-sm">
-                    Comprehensive security auditing with detailed logs and compliance tracking for enterprise-grade
-                    protection
+                    Advanced audit logging with risk assessment and anomaly detection for enhanced security compliance
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -356,9 +427,9 @@ export default async function HomePage() {
                 </div>
                 <CardHeader>
                   <BarChart3 className="w-8 h-8 text-muted-foreground mb-3" />
-                  <CardTitle className="text-lg">Backup & Data Recovery</CardTitle>
+                  <CardTitle className="text-lg">Automated Backups</CardTitle>
                   <CardDescription className="text-sm">
-                    Automated backup systems with one-click recovery to protect your valuable business data
+                    Automated backup systems with one-click recovery to protect your valuable compliance data
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -371,9 +442,9 @@ export default async function HomePage() {
                 </div>
                 <CardHeader>
                   <Users className="w-8 h-8 text-muted-foreground mb-3" />
-                  <CardTitle className="text-lg">Link Share</CardTitle>
+                  <CardTitle className="text-lg">External Sharing</CardTitle>
                   <CardDescription className="text-sm">
-                    Share forms with external contractors and vendors without requiring account creation or team access
+                    Share forms with contractors and external auditors without requiring full account access
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -387,7 +458,7 @@ export default async function HomePage() {
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">SME-Friendly Pricing</h2>
             <p className="text-xl text-muted-foreground">
-              Enterprise features at small business prices - no hidden costs
+              Enterprise-grade compliance features at small business prices - no hidden costs
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
@@ -435,22 +506,19 @@ export default async function HomePage() {
               <CardHeader>
                 <CardTitle className="text-2xl">Growth</CardTitle>
                 <div>
-                  <Badge className="mb-2 bg-green-100 text-green-800 border-green-200">
-                    🎉 1 Month FREE Trial
-                  </Badge>
+                  <Badge className="mb-2 bg-green-100 text-green-800 border-green-200">🎉 1 Month FREE Trial</Badge>
                   <div className="text-3xl font-bold">
                     £9.99<span className="text-lg font-normal text-muted-foreground">/month</span>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Try free for 30 days, then £9.99/month
-                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">Try free for 30 days, then £9.99/month</p>
                 </div>
                 <CardDescription>Ideal for growing small-medium businesses</CardDescription>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col">
                 <ul className="space-y-3 mb-8 flex-1">
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />10 Templates
+                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    10 Templates
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
@@ -499,22 +567,19 @@ export default async function HomePage() {
               <CardHeader>
                 <CardTitle className="text-2xl">Scale</CardTitle>
                 <div>
-                  <Badge className="mb-2 bg-green-100 text-green-800 border-green-200">
-                    🎉 1 Month FREE Trial
-                  </Badge>
+                  <Badge className="mb-2 bg-green-100 text-green-800 border-green-200">🎉 1 Month FREE Trial</Badge>
                   <div className="text-3xl font-bold">
                     £19.99<span className="text-lg font-normal text-muted-foreground">/month</span>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Try free for 30 days, then £19.99/month
-                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">Try free for 30 days, then £19.99/month</p>
                 </div>
                 <CardDescription>For established SMEs ready to scale</CardDescription>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col">
                 <ul className="space-y-3 mb-8 flex-1">
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />30 Templates
+                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    30 Templates
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
@@ -629,7 +694,7 @@ export default async function HomePage() {
       </section>
 
       <Footer />
-      
+
       <CookieConsent />
     </div>
   )

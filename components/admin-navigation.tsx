@@ -14,8 +14,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { ChevronDownIcon, UserIcon, SettingsIcon, LogOutIcon, MenuIcon, Check, CreditCard, MessageSquare, Shield, Database, Crown } from 'lucide-react'
+import {
+  ChevronDownIcon,
+  UserIcon,
+  SettingsIcon,
+  LogOutIcon,
+  MenuIcon,
+  Check,
+  CreditCard,
+  MessageSquare,
+  Shield,
+  Database,
+  Crown,
+} from "lucide-react"
 import { FeedbackModal } from "@/components/feedback-modal"
+import { NotificationBadge } from "@/components/notification-badge"
 
 interface AdminNavigationProps {
   user: any
@@ -100,6 +113,8 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <NotificationBadge />
+
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="default" className="md:hidden min-w-12 min-h-12">

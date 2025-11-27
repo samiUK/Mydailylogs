@@ -1,7 +1,28 @@
+import type { Metadata } from "next"
 import { MyDayLogsLogo } from "@/components/mydaylogs-logo"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Shield, Users, Zap, Check } from 'lucide-react'
+import { Shield, Users, Zap } from "lucide-react"
+
+export const metadata: Metadata = {
+  title: "About Us - MyDayLogs",
+  description:
+    "Learn about MyDayLogs, the UK's leading compliance-first task management platform for SMEs. Discover our mission to simplify regulatory compliance and team management for small and medium businesses.",
+  keywords: [
+    "about mydaylogs",
+    "UK compliance software",
+    "SME task management company",
+    "business compliance solutions",
+  ],
+  openGraph: {
+    title: "About MyDayLogs - Compliance Task Management for UK SMEs",
+    description: "Professional task management and compliance platform designed for UK small and medium enterprises.",
+    url: "https://www.mydaylogs.co.uk/about",
+  },
+  alternates: {
+    canonical: "https://www.mydaylogs.co.uk/about",
+  },
+}
 
 export default function AboutPage() {
   return (
@@ -18,7 +39,7 @@ export default function AboutPage() {
             <Link href="/contact">
               <Button variant="ghost">Contact</Button>
             </Link>
-            <Link href="/login">
+            <Link href="/auth/login">
               <Button>Sign In</Button>
             </Link>
           </nav>
@@ -29,19 +50,24 @@ export default function AboutPage() {
         <div className="text-center mb-16">
           <h1 className="text-5xl font-bold text-gray-900 mb-4">About MyDayLogs</h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Professional task management and compliance platform designed for multi-industry enterprises across the United Kingdom.
+            Professional compliance task management platform designed for UK small and medium enterprises across
+            multiple industries.
           </p>
         </div>
 
         <div className="prose prose-lg max-w-4xl mx-auto mb-16">
           <h2>Our Mission</h2>
           <p>
-            MyDayLogs was founded to address a critical need in UK industries: a comprehensive, compliant, and intuitive platform for managing daily operations, tasks, and team accountability. We believe that effective task management shouldn't be complicated, and compliance shouldn't be a burden.
+            MyDayLogs was founded to address a critical need in UK industries: a comprehensive, compliant, and intuitive
+            platform for managing daily operations, tasks, and team accountability. We believe that effective task
+            management shouldn't be complicated, and compliance shouldn't be a burden.
           </p>
 
           <h2>What We Do</h2>
           <p>
-            We provide organizations with the tools they need to streamline operations, maintain compliance records, and empower teams to work more efficiently. Our platform serves businesses across construction, healthcare, education, retail, and professional services sectors throughout the UK.
+            We provide organizations with the tools they need to streamline operations, maintain compliance records, and
+            empower teams to work more efficiently. Our platform serves businesses across construction, healthcare,
+            education, retail, and professional services sectors throughout the UK.
           </p>
 
           <h2>Why Choose MyDayLogs</h2>
@@ -71,22 +97,32 @@ export default function AboutPage() {
 
           <h2>Our Commitment</h2>
           <p>
-            We are committed to providing UK businesses with a reliable, secure, and continuously improving platform. Our team is based in the UK and understands the unique challenges faced by British enterprises. We comply with all relevant UK regulations including UK GDPR, and we're dedicated to protecting your data and privacy.
+            We are committed to providing UK businesses with a reliable, secure, and continuously improving platform.
+            Our team is based in the UK and understands the unique challenges faced by British enterprises. We comply
+            with all relevant UK regulations including UK GDPR, and we're dedicated to protecting your data and privacy.
           </p>
 
           <h2>Company Information</h2>
           <div className="bg-gray-50 p-6 rounded-lg">
-            <p className="mb-2"><strong>Registered Name:</strong> MyDayLogs Ltd</p>
-            <p className="mb-2"><strong>Location:</strong> United Kingdom</p>
-            <p className="mb-2"><strong>Email:</strong> info@mydaylogs.co.uk</p>
-            <p className="mb-2"><strong>Data Protection:</strong> UK GDPR Compliant</p>
+            <p className="mb-2">
+              <strong>Registered Name:</strong> MyDayLogs Ltd
+            </p>
+            <p className="mb-2">
+              <strong>Location:</strong> United Kingdom
+            </p>
+            <p className="mb-2">
+              <strong>Email:</strong> info@mydaylogs.co.uk
+            </p>
+            <p className="mb-2">
+              <strong>Data Protection:</strong> UK GDPR Compliant
+            </p>
           </div>
         </div>
 
         <div className="text-center">
           <h2 className="text-3xl font-bold mb-6">Ready to get started?</h2>
           <div className="flex gap-4 justify-center">
-            <Link href="/signup">
+            <Link href="/auth/sign-up">
               <Button size="lg" className="bg-emerald-600 hover:bg-emerald-700">
                 Start Free Trial
               </Button>

@@ -10,3 +10,5 @@ export function createAdminClient() {
     },
   })
 }
+
+export { createAdminClient as createClient }

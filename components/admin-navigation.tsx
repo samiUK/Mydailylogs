@@ -20,7 +20,6 @@ import {
   SettingsIcon,
   LogOutIcon,
   MenuIcon,
-  Check,
   CreditCard,
   MessageSquare,
   Shield,
@@ -45,22 +44,16 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
           <div className="flex items-center">
             <Link href="/admin" className="flex items-center gap-3">
               <div className="flex items-center gap-2">
-                {logoUrl ? (
-                  <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
-                    <img
-                      src={logoUrl || "/placeholder.svg"}
-                      alt={organizationName}
-                      className="max-w-full max-h-full object-contain"
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none"
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
-                    <Check className="w-4 h-4 text-white" />
-                  </div>
-                )}
+                <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
+                  <img
+                    src={logoUrl || "/mydaylogs-logo.png"}
+                    alt={organizationName}
+                    className="max-w-full max-h-full object-contain"
+                    onError={(e) => {
+                      e.currentTarget.src = "/mydaylogs-logo.png"
+                    }}
+                  />
+                </div>
                 <span className="text-xl font-bold text-emerald-600">{organizationName}</span>
               </div>
             </Link>

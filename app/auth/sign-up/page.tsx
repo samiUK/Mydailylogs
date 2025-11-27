@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-import { createUserWithProfile } from "./actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -11,6 +10,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { ArrowLeft, Check } from "lucide-react"
+import { createUserWithProfile } from "./actions"
 
 export default function SignUpPage() {
   const [email, setEmail] = useState("")
@@ -36,7 +36,15 @@ export default function SignUpPage() {
       return
     }
 
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters long")
+      setIsLoading(false)
+      return
+    }
+
     try {
+      console.log("[v0] Calling server action to create user")
+
       const result = await createUserWithProfile({
         email,
         password,
@@ -45,16 +53,23 @@ export default function SignUpPage() {
         organizationName,
       })
 
+      console.log("[v0] Server action result:", result)
+
       if (result.success) {
-        setSuccess(result.message || "Account created successfully!")
+        setSuccess(result.message || "Account created successfully! Redirecting to login...")
         setTimeout(() => {
           router.push("/auth/login")
         }, 2000)
       } else {
-        setError(result.error || "An error occurred during sign up")
+        setError(result.error || "Failed to create account")
       }
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred")
+      console.error("[v0] Signup error:", error)
+      if (error instanceof Error) {
+        setError(error.message || "An error occurred during sign up")
+      } else {
+        setError("An error occurred during sign up")
+      }
     } finally {
       setIsLoading(false)
     }
@@ -92,7 +107,7 @@ export default function SignUpPage() {
               <Link href="/">{renderLogo()}</Link>
             </div>
             <CardTitle className="text-2xl">Create Account</CardTitle>
-            <CardDescription>Set up your {organizationName || "MyDayLogs"} organization</CardDescription>
+            <CardDescription>Set up your {organizationName || "Clearbooks"} organization</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSignUp}>
@@ -104,7 +119,7 @@ export default function SignUpPage() {
                   <Input
                     id="organizationName"
                     type="text"
-                    placeholder="Your Company Name"
+                    placeholder="Clearbooks"
                     required
                     value={organizationName}
                     onChange={(e) => setOrganizationName(e.target.value)}
@@ -131,7 +146,7 @@ export default function SignUpPage() {
                     <Input
                       id="lastName"
                       type="text"
-                      placeholder="Doe"
+                      placeholder="Forecre"
                       required
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
@@ -145,7 +160,7 @@ export default function SignUpPage() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="admin@company.com"
+                    placeholder="sami@clearbooks.co.uk"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}

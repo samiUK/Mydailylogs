@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { ChevronDownIcon, UserIcon, LogOutIcon, MenuIcon, Check, MessageSquare } from "lucide-react"
+import { ChevronDownIcon, UserIcon, LogOutIcon, MenuIcon, MessageSquare } from "lucide-react"
 import { FeedbackModal } from "@/components/feedback-modal"
 import { NotificationBadge } from "@/components/notification-badge"
 
@@ -48,35 +48,17 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
           <div className="flex items-center">
             <Link href="/staff" className="flex items-center gap-3">
               <div className="flex items-center gap-2">
-                {logoUrl ? (
-                  <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
-                    <img
-                      key={`${logoKey}-${logoUrl}`}
-                      src={logoUrl || "/placeholder.svg"}
-                      alt={`${organizationName} logo`}
-                      className="max-w-full max-h-full object-contain"
-                      onError={(e) => {
-                        const target = e.currentTarget
-                        const parent = target.parentElement
-                        if (parent) {
-                          target.style.display = "none"
-                          if (!parent.querySelector(".fallback-logo")) {
-                            const fallback = document.createElement("div")
-                            fallback.className =
-                              "w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center fallback-logo"
-                            fallback.innerHTML =
-                              '<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>'
-                            parent.appendChild(fallback)
-                          }
-                        }
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
-                    <Check className="w-4 h-4 text-white" />
-                  </div>
-                )}
+                <div className="w-10 h-10 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
+                  <img
+                    key={`${logoKey}-${logoUrl}`}
+                    src={logoUrl || "/mydaylogs-logo.png"}
+                    alt={`${organizationName} logo`}
+                    className="max-w-full max-h-full object-contain"
+                    onError={(e) => {
+                      e.currentTarget.src = "/mydaylogs-logo.png"
+                    }}
+                  />
+                </div>
                 <span className="text-xl font-bold text-emerald-600">{organizationName}</span>
               </div>
             </Link>

@@ -9,7 +9,7 @@ export function MyDayLogsLogo({
   className = "",
   size = "md",
   showText = true,
-  text = "MyDayLogs", // Updated default text from "Mydailylogs" to "MyDayLogs"
+  text = "MyDayLogs",
 }: MyDayLogsLogoProps) {
   const sizeClasses = {
     sm: "w-8 h-8",
@@ -27,19 +27,7 @@ export function MyDayLogsLogo({
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      {/* MyDayLogs Logo SVG */}
-      <div className={`${sizeClasses[size]} bg-emerald-500 rounded-lg flex items-center justify-center shadow-sm`}>
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-2/3 h-2/3 text-white">
-          {/* Checkmark icon representing task completion */}
-          <path
-            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </div>
+      <img src="/mydaylogs-logo.png" alt="MyDayLogs Logo" className={`${sizeClasses[size]} object-contain`} />
 
       {/* Brand Text */}
       {showText && <span className={`font-bold text-emerald-600 ${textSizeClasses[size]}`}>{text}</span>}

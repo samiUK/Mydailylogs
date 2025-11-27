@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -17,7 +17,30 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Users, Building2, TrendingUp, CheckCircle, Key, CreditCard, RefreshCw, Plus, Trash2, AlertTriangle, User, LogIn, Mail, Eye, Reply, X, Search, Calendar, Shield, Edit, DollarSign, Edit2, Archive, ArrowDown, ArrowUp, AlertCircle, Info, Activity } from 'lucide-react'
+import {
+  Users,
+  Building2,
+  CheckCircle,
+  Key,
+  CreditCard,
+  RefreshCw,
+  Trash2,
+  AlertTriangle,
+  User,
+  LogIn,
+  X,
+  Search,
+  Calendar,
+  Shield,
+  DollarSign,
+  Edit2,
+  Archive,
+  ArrowDown,
+  ArrowUp,
+  AlertCircle,
+  Info,
+  Activity,
+} from "lucide-react"
 import { useEffect, useState } from "react"
 import { ReportDirectoryContent } from "./report-directory-content"
 import { toast } from "sonner" // Import toast
@@ -56,6 +79,7 @@ interface Subscription {
   current_period_end: string
   created_at: string
   organizations?: { name: string; logo_url: string | null; slug: string } // Added slug
+  organization_id?: string // Added to link subscription to organization
 }
 
 interface Payment {
@@ -87,7 +111,7 @@ interface Superuser {
   email: string
   created_at: string
   is_active?: boolean // Added is_active field
-  role?: 'masteradmin' | 'support'
+  role?: "masteradmin" | "support"
 }
 
 export default function MasterDashboardPage() {
@@ -136,7 +160,7 @@ export default function MasterDashboardPage() {
   const [newSuperuserEmail, setNewSuperuserEmail] = useState("")
   const [newSuperuserPassword, setNewSuperuserPassword] = useState("")
   const [editingSuperuser, setEditingSuperuser] = useState<Superuser | null>(null)
-  const [currentUserRole, setCurrentUserRole] = useState<'masteradmin' | 'support'>('support')
+  const [currentUserRole, setCurrentUserRole] = useState<"masteradmin" | "support">("support")
 
   const [impersonatedOrgBranding, setImpersonatedOrgBranding] = useState<{
     name: string
@@ -226,9 +250,7 @@ export default function MasterDashboardPage() {
   // Function to fetch all payments (to be called after refund)
   const loadAllPayments = async () => {
     try {
-      const { data, error } = await createClient()
-        .from("payments")
-        .select(`*, subscriptions(*, organizations(*))`)
+      const { data, error } = await createClient().from("payments").select(`*, subscriptions(*, organizations(*))`)
       if (error) throw error
       setAllPayments(data || [])
     } catch (error) {
@@ -410,7 +432,7 @@ export default function MasterDashboardPage() {
             createClient().from("checklist_templates").select("id, name, organization_id, is_active").limit(100),
             createClient()
               .from("subscriptions")
-              .select(`*, organizations(*)`), // Select organization details for subscriptions
+              .select(`*, organizations(organization_id, organization_name, logo_url, primary_color, slug)`), // Select organization details for subscriptions
             createClient()
               .from("payments")
               .select(`*, subscriptions(*, organizations(*))`), // Select subscription and organization details for payments
@@ -452,7 +474,22 @@ export default function MasterDashboardPage() {
             console.error("[v0] Subscriptions fetch error:", subscriptionsError)
             setAllSubscriptions([])
           } else {
-            setAllSubscriptions(subscriptionsData || [])
+            // Ensure organization_id is present in subscriptions data
+            const enrichedSubscriptions = (subscriptionsData || []).map((sub) => {
+              const org = organizationsData?.find((org) => org.organization_id === sub.organization_id)
+              return {
+                ...sub,
+                organizations: org
+                  ? {
+                      organization_id: org.organization_id,
+                      organization_name: org.organization_name,
+                      logo_url: org.logo_url,
+                      slug: org.slug,
+                    }
+                  : null,
+              }
+            })
+            setAllSubscriptions(enrichedSubscriptions)
           }
 
           if (paymentsError) {
@@ -560,32 +597,33 @@ export default function MasterDashboardPage() {
     const fetchCurrentUserRole = async () => {
       const masterAdminEmail = localStorage.getItem("masterAdminEmail") || getCookie("masterAdminEmail")
       // Check if masterAdminAuth is true and masterAdminEmail is available
-      const masterAdminAuth = localStorage.getItem("masterAdminAuth") === "true" || getCookie("masterAdminImpersonation") === "true"
-      
-      if (!masterAdminAuth || !masterAdminEmail) { 
-        setCurrentUserRole('support')
+      const masterAdminAuth =
+        localStorage.getItem("masterAdminAuth") === "true" || getCookie("masterAdminImpersonation") === "true"
+
+      if (!masterAdminAuth || !masterAdminEmail) {
+        setCurrentUserRole("support")
         console.log("[v0] Master admin not authenticated or email missing, defaulting to support")
         return
       }
 
       if (masterAdminEmail === "arsami.uk@gmail.com") {
-        setCurrentUserRole('masteradmin')
+        setCurrentUserRole("masteradmin")
         console.log("[v0] Hardcoded master admin role for arsami.uk@gmail.com")
         return
       }
 
       try {
         const supabase = createClient()
-        
+
         const { data, error } = await supabase
           .from("superusers")
-          .select('role')
+          .select("role")
           .eq("email", masterAdminEmail)
           .eq("is_active", true)
 
         if (error) {
           console.error("[v0] Error fetching current user role:", error.message)
-          setCurrentUserRole('support')
+          setCurrentUserRole("support")
           console.log("[v0] Error fetching role, defaulting to support")
           return
         }
@@ -594,7 +632,7 @@ export default function MasterDashboardPage() {
           setCurrentUserRole(data[0].role)
           console.log("[v0] Current user role from database:", data[0].role)
         } else {
-          setCurrentUserRole('support')
+          setCurrentUserRole("support")
           console.log("[v0] No superuser record found, defaulting to support")
         }
       } catch (error) {
@@ -605,7 +643,7 @@ export default function MasterDashboardPage() {
     }
 
     fetchCurrentUserRole()
-  }, [getCookie, localStorage, createClient]) // Added dependencies
+  }, []) // Removed getCookie, localStorage, createClient as dependencies
 
   useEffect(() => {
     checkAuthAndLoadData()
@@ -622,7 +660,7 @@ export default function MasterDashboardPage() {
   }, [])
 
   useEffect(() => {
-    if (activeTab === 'login-as' && currentUserRole === 'masteradmin') {
+    if (activeTab === "login-as" && currentUserRole === "masteradmin") {
       fetchActivityLogs()
     }
   }, [activeTab, currentUserRole])
@@ -630,7 +668,7 @@ export default function MasterDashboardPage() {
   const loginAsUser = async (userEmail: string, userRole: string) => {
     try {
       console.log(`[v0] Starting master admin impersonation for: ${userEmail} Role: ${userRole}`)
-      
+
       const supabase = createClient()
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
@@ -662,13 +700,13 @@ export default function MasterDashboardPage() {
       }
 
       const { url, token, expiresAt } = await response.json()
-      
+
       console.log("[v0] Generated short impersonation URL:", url)
-      
+
       // Set the impersonation URL in state to show the modal
       setImpersonationUrl(url)
       setShowImpersonationModal(true)
-      
+
       showNotification("success", `Impersonation link generated! Valid for 15 minutes.`)
     } catch (error) {
       console.error("[v0] Error setting up impersonation:", error)
@@ -726,10 +764,10 @@ export default function MasterDashboardPage() {
   const downgradeSubscription = async (subscriptionId: string, organizationName: string) => {
     const confirmed = confirm(
       `Are you sure you want to downgrade ${organizationName} to the Starter plan?\n\n` +
-      `This action should only be performed after verification and user request. ` +
-      `The organization will lose access to premium features immediately.`
+        `This action should only be performed after verification and user request. ` +
+        `The organization will lose access to premium features immediately.`,
     )
-    
+
     if (!confirmed) return
 
     setIsProcessing(true)
@@ -827,22 +865,22 @@ export default function MasterDashboardPage() {
       const response = await fetch("/api/admin/process-refund", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          paymentId, 
-          amount: parseFloat(amount),
-          reason: "requested_by_customer" 
+        body: JSON.stringify({
+          paymentId,
+          amount: Number.parseFloat(amount),
+          reason: "requested_by_customer",
         }),
       })
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to process refund");
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to process refund")
       }
 
       const data = await response.json()
       console.log("[v0] Refund processed:", data)
       toast.success("Refund processed successfully")
-      
+
       // Refresh payment data
       loadAllPayments()
     } catch (error: any) {
@@ -884,11 +922,10 @@ export default function MasterDashboardPage() {
   useEffect(() => {}, [])
 
   useEffect(() => {
-    if (activeTab === 'login-as' && currentUserRole === 'masteradmin') {
+    if (activeTab === "login-as" && currentUserRole === "masteradmin") {
       fetchActivityLogs()
     }
   }, [activeTab, currentUserRole])
-
 
   useEffect(() => {
     console.log("[v0] Calculating stats - Organizations:", organizations.length, "Users:", allUsers.length)
@@ -904,16 +941,18 @@ export default function MasterDashboardPage() {
       return
     }
 
+    const orgsWithSubs = new Set(allSubscriptions.map((sub) => sub.organization_id)).size
+
     const stats = {
       total: organizations.length,
       active: organizations.length, // Simplified calculation
-      withSubscriptions: 0, // Will be calculated when subscriptions are loaded
+      withSubscriptions: orgsWithSubs, // Count unique organizations with subscriptions
       totalUsers: allUsers.length,
       totalAdmins: allUsers.filter((user) => user.role === "admin").length,
       totalStaff: allUsers.filter((user) => user.role === "staff").length,
     }
     setOrganizationStats(stats)
-  }, [organizations, allUsers]) // Added allUsers dependency for accurate counts
+  }, [organizations, allUsers, allSubscriptions]) // Added allSubscriptions dependency for accurate counts
 
   const handleSignOut = async () => {
     document.cookie = "masterAdminImpersonation=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
@@ -1000,9 +1039,9 @@ export default function MasterDashboardPage() {
         `User: ${data.userEmail}`,
         `Temporary Password: ${data.tempPassword}`,
         "",
-        "Please provide this to the user and ask them to change it immediately."
+        "Please provide this to the user and ask them to change it immediately.",
       ].join("\n")
-      
+
       alert(message)
     } catch (error) {
       console.error("[v0] Password reset error:", error)
@@ -1295,24 +1334,26 @@ export default function MasterDashboardPage() {
     try {
       const supabase = createClient()
       const { data, error } = await supabase
-        .from('impersonation_activity_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
+        .from("impersonation_activity_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
         .limit(100)
 
       if (error) {
-        if (error.message.includes('Could not find the table')) {
-          console.log('[v0] Activity logs table not created yet. Please run scripts/create-impersonation-activity-logs.sql')
+        if (error.message.includes("Could not find the table")) {
+          console.log(
+            "[v0] Activity logs table not created yet. Please run scripts/create-impersonation-activity-logs.sql",
+          )
           setActivityLogs([])
         } else {
-          console.error('[v0] Error fetching activity logs:', error)
+          console.error("[v0] Error fetching activity logs:", error)
           setActivityLogs([])
         }
       } else {
         setActivityLogs(data || [])
       }
     } catch (error) {
-      console.error('[v0] Error fetching activity logs:', error)
+      console.error("[v0] Error fetching activity logs:", error)
       setActivityLogs([])
     } finally {
       setActivityLogsLoading(false)
@@ -1445,8 +1486,8 @@ export default function MasterDashboardPage() {
               <RefreshCw className={`w-4 h-4 ${isProcessing ? "animate-spin" : ""}`} />
               {isProcessing ? "Syncing..." : "Comprehensive Sync"}
             </Button>
-            <Badge variant={currentUserRole === 'masteradmin' ? "destructive" : "secondary"}>
-              {currentUserRole === 'masteradmin' ? 'Master Admin' : 'Support'}
+            <Badge variant={currentUserRole === "masteradmin" ? "destructive" : "secondary"}>
+              {currentUserRole === "masteradmin" ? "Master Admin" : "Support"}
             </Badge>
             <Button variant="outline" onClick={handleSignOut}>
               Sign Out
@@ -1473,7 +1514,7 @@ export default function MasterDashboardPage() {
             <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="reports">Report Directory</TabsTrigger>
             {/* Conditionally render Superuser Tools tab only if user is masteradmin */}
-            {currentUserRole === 'masteradmin' && (
+            {currentUserRole === "masteradmin" && (
               <TabsTrigger
                 value="login-as"
                 className="text-red-600 border-red-200 data-[state=active]:bg-red-50 data-[state=active]:text-red-700"
@@ -1514,11 +1555,13 @@ export default function MasterDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {allSubscriptions.filter(
-                      (sub) => 
-                        sub.status === "active" && 
-                        (sub.plan_name.toLowerCase() === "growth" || sub.plan_name.toLowerCase() === "scale")
-                    ).length}
+                    {
+                      allSubscriptions.filter(
+                        (sub) =>
+                          sub.status === "active" &&
+                          (sub.plan_name.toLowerCase() === "growth" || sub.plan_name.toLowerCase() === "scale"),
+                      ).length
+                    }
                   </div>
                   <p className="text-xs text-muted-foreground">Growth & Scale plans</p>
                 </CardContent>
@@ -1773,18 +1816,18 @@ export default function MasterDashboardPage() {
                             <p className="font-medium">{subscription.organizations?.name}</p>
                             <p className="text-sm text-gray-500">
                               {subscription.plan_name} • Started{" "}
-                              {new Date(subscription.created_at).toLocaleDateString('en-GB', { 
-                                day: 'numeric',
-                                month: 'long',
-                                year: 'numeric'
+                              {new Date(subscription.created_at).toLocaleDateString("en-GB", {
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
                               })}
                             </p>
                             <p className="text-sm text-gray-500">
                               Expires{" "}
-                              {new Date(subscription.current_period_end).toLocaleDateString('en-GB', { 
-                                day: 'numeric',
-                                month: 'long',
-                                year: 'numeric'
+                              {new Date(subscription.current_period_end).toLocaleDateString("en-GB", {
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
                               })}
                             </p>
                           </div>
@@ -2227,7 +2270,11 @@ export default function MasterDashboardPage() {
                     <div>
                       <p className="text-sm font-medium text-gray-600">Paid Plans</p>
                       <p className="text-2xl font-bold text-purple-600">
-                        {allSubscriptions.filter((sub) => sub.plan_name?.toLowerCase() !== "starter" && sub.status === "active").length}
+                        {
+                          allSubscriptions.filter(
+                            (sub) => sub.plan_name?.toLowerCase() !== "starter" && sub.status === "active",
+                          ).length
+                        }
                       </p>
                     </div>
                     <DollarSign className="w-8 h-8 text-purple-500" />
@@ -2247,60 +2294,78 @@ export default function MasterDashboardPage() {
                     <div className="text-center py-12">
                       <CreditCard className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                       <h3 className="text-lg font-medium text-gray-900 mb-2">No Subscriptions Found</h3>
-                      <p className="text-gray-500">Subscriptions will appear here once organizations sign up.</p>
+                      <p className="text-gray-500">
+                        Subscriptions will appear here once organizations sign up to paid plans.
+                      </p>
                     </div>
                   ) : (
                     allSubscriptions.map((subscription) => (
-                      <div key={subscription.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                      <div
+                        key={subscription.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                      >
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-1">
-                            <p className="font-medium">{subscription.organizations?.name || "Unknown Organization"}</p>
-                            <Badge 
+                            <p className="font-medium">
+                              {subscription.organizations?.organization_name || "Unknown Organization"}
+                            </p>
+                            <Badge
                               variant={subscription.plan_name?.toLowerCase() === "starter" ? "secondary" : "default"}
-                              className={subscription.plan_name?.toLowerCase() === "scale" ? "bg-purple-100 text-purple-700" : ""}
+                              className={
+                                subscription.plan_name?.toLowerCase() === "scale" ? "bg-purple-100 text-purple-700" : ""
+                              }
                             >
                               {subscription.plan_name}
                             </Badge>
                           </div>
                           <p className="text-sm text-gray-500">
-                            Started {new Date(subscription.created_at).toLocaleDateString('en-GB', { 
-                              day: 'numeric',
-                              month: 'long',
-                              year: 'numeric'
+                            Started{" "}
+                            {new Date(subscription.created_at).toLocaleDateString("en-GB", {
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
                             })}
-                            {subscription.plan_name?.toLowerCase() !== "starter" && ` • Expires ${new Date(subscription.current_period_end).toLocaleDateString('en-GB', { 
-                              day: 'numeric',
-                              month: 'long',
-                              year: 'numeric'
-                            })}`}
+                            {subscription.plan_name?.toLowerCase() !== "starter" &&
+                              ` • Expires ${new Date(subscription.current_period_end).toLocaleDateString("en-GB", {
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
+                              })}`}
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant={subscription.status === "active" ? "default" : "secondary"}>
                             {subscription.status}
                           </Badge>
-                          {subscription.status === "active" && subscription.plan_name?.toLowerCase() !== "starter" && currentUserRole === "masteradmin" && (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => downgradeSubscription(subscription.id, subscription.organizations?.name || "Organization")}
-                                disabled={isProcessing}
-                              >
-                                <ArrowDown className="w-4 h-4 mr-1" />
-                                Downgrade
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => cancelSubscription(subscription.id)}
-                                disabled={isProcessing}
-                              >
-                                <Trash2 className="w-4 h-4 mr-1" />
-                                Cancel
-                              </Button>
-                            </>
-                          )}
+                          {subscription.status === "active" &&
+                            subscription.plan_name?.toLowerCase() !== "starter" &&
+                            currentUserRole === "masteradmin" && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    downgradeSubscription(
+                                      subscription.id,
+                                      subscription.organizations?.organization_name || "Organization",
+                                    )
+                                  }
+                                  disabled={isProcessing}
+                                >
+                                  <ArrowDown className="w-4 h-4 mr-1" />
+                                  Downgrade
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => cancelSubscription(subscription.id)}
+                                  disabled={isProcessing}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-1" />
+                                  Cancel
+                                </Button>
+                              </>
+                            )}
                         </div>
                       </div>
                     ))
@@ -2379,76 +2444,99 @@ export default function MasterDashboardPage() {
                     <div className="text-center py-12">
                       <DollarSign className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                       <h3 className="text-lg font-medium text-gray-900 mb-2">No Payments Found</h3>
-                      <p className="text-gray-500">Payment transactions will appear here once users upgrade to paid plans.</p>
+                      <p className="text-gray-500">
+                        Payment transactions will appear here once organizations sign up to paid plans.
+                      </p>
                     </div>
                   ) : (
                     allPayments.map((payment) => (
-                      <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                      <div
+                        key={payment.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                      >
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-1">
-                            <p className="font-medium">{payment.subscriptions?.organizations?.name || "Unknown Organization"}</p>
+                            <p className="font-medium">
+                              {payment.subscriptions?.organizations?.organization_name || "Unknown Organization"}
+                            </p>
                             <Badge variant="outline">{payment.subscriptions?.plan_name || "N/A"}</Badge>
                           </div>
                           <p className="text-sm text-gray-500">
-                            {new Date(payment.created_at).toLocaleDateString('en-GB', { 
-                              day: 'numeric',
-                              month: 'long',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
+                            {new Date(payment.created_at).toLocaleDateString("en-GB", {
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
                             })}
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="text-right">
                             <p className="font-medium text-lg">£{Number.parseFloat(payment.amount).toFixed(2)}</p>
-                            <Badge variant={payment.status === "completed" || payment.status === "succeeded" ? "default" : payment.status === "refunded" ? "secondary" : "destructive"}>
+                            <Badge
+                              variant={
+                                payment.status === "completed" || payment.status === "succeeded"
+                                  ? "default"
+                                  : payment.status === "refunded"
+                                    ? "secondary"
+                                    : "destructive"
+                              }
+                            >
                               {payment.status}
                             </Badge>
                           </div>
-                          {(payment.status === "completed" || payment.status === "succeeded") && currentUserRole === "masteradmin" && (
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button variant="outline" size="sm">
-                                  <RefreshCw className="w-4 h-4 mr-1" />
-                                  Refund
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>Process Refund</DialogTitle>
-                                  <DialogDescription>Process a full or partial refund for this payment</DialogDescription>
-                                </DialogHeader>
-                                <div className="space-y-4">
-                                  <div>
-                                    <Label htmlFor="refundAmount">Refund Amount (£)</Label>
-                                    <Input
-                                      id="refundAmount"
-                                      type="number"
-                                      step="0.01"
-                                      value={refundAmount}
-                                      onChange={(e) => setRefundAmount(e.target.value)}
-                                      placeholder="Enter refund amount"
-                                      max={payment.amount}
-                                    />
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                      Maximum refund: £{Number.parseFloat(payment.amount).toFixed(2)}
-                                    </p>
-                                  </div>
-                                </div>
-                                <DialogFooter>
-                                  <Button
-                                    onClick={() => processRefund(payment.id, refundAmount)}
-                                    disabled={!refundAmount || isProcessing || parseFloat(refundAmount) > parseFloat(payment.amount) || parseFloat(refundAmount) <= 0}
-                                    variant="destructive"
-                                  >
-                                    {isProcessing ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : null}
-                                    Process Refund
+                          {(payment.status === "completed" || payment.status === "succeeded") &&
+                            currentUserRole === "masteradmin" && (
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button variant="outline" size="sm">
+                                    <RefreshCw className="w-4 h-4 mr-1" />
+                                    Refund
                                   </Button>
-                                </DialogFooter>
-                              </DialogContent>
-                            </Dialog>
-                          )}
+                                </DialogTrigger>
+                                <DialogContent>
+                                  <DialogHeader>
+                                    <DialogTitle>Process Refund</DialogTitle>
+                                    <DialogDescription>
+                                      Process a full or partial refund for this payment
+                                    </DialogDescription>
+                                  </DialogHeader>
+                                  <div className="space-y-4">
+                                    <div>
+                                      <Label htmlFor="refundAmount">Refund Amount (£)</Label>
+                                      <Input
+                                        id="refundAmount"
+                                        type="number"
+                                        step="0.01"
+                                        value={refundAmount}
+                                        onChange={(e) => setRefundAmount(e.target.value)}
+                                        placeholder="Enter refund amount"
+                                        max={payment.amount}
+                                      />
+                                      <p className="text-sm text-muted-foreground mt-1">
+                                        Maximum refund: £{Number.parseFloat(payment.amount).toFixed(2)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <DialogFooter>
+                                    <Button
+                                      onClick={() => processRefund(payment.id, refundAmount)}
+                                      disabled={
+                                        !refundAmount ||
+                                        isProcessing ||
+                                        Number.parseFloat(refundAmount) > Number.parseFloat(payment.amount) ||
+                                        Number.parseFloat(refundAmount) <= 0
+                                      }
+                                      variant="destructive"
+                                    >
+                                      {isProcessing ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : null}
+                                      Process Refund
+                                    </Button>
+                                  </DialogFooter>
+                                </DialogContent>
+                              </Dialog>
+                            )}
                         </div>
                       </div>
                     ))
@@ -2472,7 +2560,7 @@ export default function MasterDashboardPage() {
             </Card>
           </TabsContent>
 
-          {currentUserRole === 'masteradmin' && (
+          {currentUserRole === "masteradmin" && (
             <TabsContent value="login-as" className="space-y-6">
               {/* Superuser Management Section */}
               <Card>
@@ -2522,16 +2610,15 @@ export default function MasterDashboardPage() {
                     ) : (
                       <div className="space-y-2">
                         {superusers.map((superuser) => (
-                          <div
-                            key={superuser.id}
-                            className="flex items-center justify-between p-3 border rounded-lg"
-                          >
+                          <div key={superuser.id} className="flex items-center justify-between p-3 border rounded-lg">
                             <div className="flex-1">
                               <p className="font-medium text-sm">{superuser.email}</p>
                               <p className="text-xs text-muted-foreground">
                                 Added: {new Date(superuser.created_at).toLocaleDateString()}
-                                {superuser.role === 'masteradmin' && (
-                                  <Badge variant="default" className="ml-2">Master Admin</Badge>
+                                {superuser.role === "masteradmin" && (
+                                  <Badge variant="default" className="ml-2">
+                                    Master Admin
+                                  </Badge>
                                 )}
                               </p>
                             </div>
@@ -2541,17 +2628,13 @@ export default function MasterDashboardPage() {
                                 variant="outline"
                                 onClick={() => {
                                   setEditingSuperuser(superuser)
-                                  setNewSuperuserPassword('')
+                                  setNewSuperuserPassword("")
                                 }}
                               >
                                 Reset Password
                               </Button>
-                              {superuser.email !== 'arsami.uk@gmail.com' && (
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() => removeSuperuser(superuser.id)}
-                                >
+                              {superuser.email !== "arsami.uk@gmail.com" && (
+                                <Button size="sm" variant="destructive" onClick={() => removeSuperuser(superuser.id)}>
                                   Remove
                                 </Button>
                               )}
@@ -2568,9 +2651,7 @@ export default function MasterDashboardPage() {
                       <Card className="w-full max-w-md">
                         <CardHeader>
                           <CardTitle>Reset Password</CardTitle>
-                          <CardDescription>
-                            Enter a new password for {editingSuperuser.email}
-                          </CardDescription>
+                          <CardDescription>Enter a new password for {editingSuperuser.email}</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                           <div>
@@ -2590,7 +2671,7 @@ export default function MasterDashboardPage() {
                               variant="outline"
                               onClick={() => {
                                 setEditingSuperuser(null)
-                                setNewSuperuserPassword('')
+                                setNewSuperuserPassword("")
                               }}
                             >
                               Cancel
@@ -2611,29 +2692,24 @@ export default function MasterDashboardPage() {
                     Impersonation Activity Logs
                   </CardTitle>
                   <CardDescription>
-                    Monitor all actions performed by master admin and support admins while impersonating users for security and audit purposes.
+                    Monitor all actions performed by master admin and support admins while impersonating users for
+                    security and audit purposes.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={fetchActivityLogs}
-                        disabled={activityLogsLoading}
-                      >
-                        {activityLogsLoading ? 'Loading...' : 'Refresh Logs'}
+                      <Button size="sm" variant="outline" onClick={fetchActivityLogs} disabled={activityLogsLoading}>
+                        {activityLogsLoading ? "Loading..." : "Refresh Logs"}
                       </Button>
                     </div>
 
                     {activityLogsLoading ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        Loading activity logs...
-                      </div>
+                      <div className="text-center py-8 text-muted-foreground">Loading activity logs...</div>
                     ) : activityLogs.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
-                        No activity logs found. Logs will appear here when admins perform actions while impersonating users.
+                        No activity logs found. Logs will appear here when admins perform actions while impersonating
+                        users.
                       </div>
                     ) : (
                       <div className="space-y-2 max-h-[500px] overflow-y-auto">
@@ -2641,26 +2717,26 @@ export default function MasterDashboardPage() {
                           <div
                             key={log.id}
                             className={`border rounded-lg p-3 ${
-                              log.risk_level === 'high'
-                                ? 'border-red-300 bg-red-50'
-                                : log.risk_level === 'medium'
-                                ? 'border-yellow-300 bg-yellow-50'
-                                : 'border-gray-200'
+                              log.risk_level === "high"
+                                ? "border-red-300 bg-red-50"
+                                : log.risk_level === "medium"
+                                  ? "border-yellow-300 bg-yellow-50"
+                                  : "border-gray-200"
                             }`}
                           >
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1 space-y-1">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <Badge variant={log.admin_type === 'masteradmin' ? 'default' : 'secondary'}>
-                                    {log.admin_type === 'masteradmin' ? 'Master Admin' : 'Support'}
+                                  <Badge variant={log.admin_type === "masteradmin" ? "default" : "secondary"}>
+                                    {log.admin_type === "masteradmin" ? "Master Admin" : "Support"}
                                   </Badge>
                                   <Badge
                                     variant={
-                                      log.risk_level === 'high'
-                                        ? 'destructive'
-                                        : log.risk_level === 'medium'
-                                        ? 'default'
-                                        : 'outline'
+                                      log.risk_level === "high"
+                                        ? "destructive"
+                                        : log.risk_level === "medium"
+                                          ? "default"
+                                          : "outline"
                                     }
                                   >
                                     {log.risk_level.toUpperCase()}
@@ -2670,11 +2746,11 @@ export default function MasterDashboardPage() {
                                   </span>
                                 </div>
                                 <p className="text-sm font-medium">
-                                  <span className="text-blue-600">{log.admin_email}</span> impersonated{' '}
+                                  <span className="text-blue-600">{log.admin_email}</span> impersonated{" "}
                                   <span className="text-purple-600">{log.impersonated_user_email}</span>
                                 </p>
                                 <p className="text-sm text-muted-foreground">
-                                  Action: <span className="font-medium">{log.action_type.replace(/_/g, ' ')}</span>
+                                  Action: <span className="font-medium">{log.action_type.replace(/_/g, " ")}</span>
                                 </p>
                                 {log.action_details && (
                                   <details className="text-xs">
@@ -2723,17 +2799,12 @@ export default function MasterDashboardPage() {
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-5"
           onClick={() => setShowImpersonationModal(false)}
         >
-          <div
-            className="bg-white rounded-lg p-5 max-w-2xl w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="bg-white rounded-lg p-5 max-w-2xl w-full" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold mb-4">Impersonation Link Generated</h3>
             <p className="text-sm text-gray-600 mb-3">
               Copy this URL and paste it into an incognito/private window to impersonate the user:
             </p>
-            <div className="bg-gray-100 p-3 rounded mb-4 break-all font-mono text-xs">
-              {impersonationUrl}
-            </div>
+            <div className="bg-gray-100 p-3 rounded mb-4 break-all font-mono text-xs">{impersonationUrl}</div>
             <div className="flex gap-2">
               <button
                 onClick={() => {
@@ -2745,7 +2816,7 @@ export default function MasterDashboardPage() {
                 Copy to Clipboard
               </button>
               <button
-                onClick={() => window.open(impersonationUrl, '_blank')}
+                onClick={() => window.open(impersonationUrl, "_blank")}
                 className="flex-1 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
               >
                 Open in New Tab

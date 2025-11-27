@@ -4,7 +4,18 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { CheckCircle, Shield, BarChart3, Users, Clock, FileText, Star, Menu, MessageSquare } from "lucide-react"
+import {
+  CheckCircle,
+  Shield,
+  BarChart3,
+  Users,
+  Clock,
+  FileText,
+  Star,
+  Menu,
+  MessageSquare,
+  ArrowRight,
+} from "lucide-react"
 import Link from "next/link"
 import { Footer } from "@/components/footer"
 import { FeedbackModal } from "@/components/feedback-modal"
@@ -236,13 +247,14 @@ export default async function HomePage() {
             🎉 Now in Beta 2.0
           </Badge>
           <h1 className="text-4xl md:text-6xl font-bold text-foreground py-1 mb-7 mt-[70px]">
-            Compliance-First Task Management
-            <span className="text-accent block">Built for UK SMEs</span>
+            Compliance-Ready Task Management
+            <span className="text-accent block">& Reporting System for UK SMEs</span>
           </h1>
           <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-            The only task management platform designed specifically for compliance and audit-ready reporting. Streamline
-            operations, ensure regulatory compliance, and manage teams with automated workflows that keep your business
-            audit-ready without the enterprise price tag. Perfect for UK businesses with 5-100 employees.
+            Professional task management with audit-ready reporting built specifically for UK small and medium
+            enterprises. Generate compliance reports with business letterheads, timestamps, and signatures that meet
+            regulatory standards. Automate workflows, track deadlines, and maintain complete audit trails—all without
+            enterprise complexity or cost.
           </p>
         </div>
       </section>
@@ -317,6 +329,72 @@ export default async function HomePage() {
               Everything your growing business needs to stay compliant without the complexity or enterprise cost
             </p>
           </div>
+          <div className="mb-20 bg-background rounded-2xl shadow-xl overflow-hidden border border-border">
+            <div className="grid lg:grid-cols-2 gap-0">
+              <div className="p-8 lg:p-12 flex flex-col justify-center bg-gradient-to-br from-accent/5 to-transparent">
+                <Badge variant="secondary" className="mb-4 w-fit">
+                  Sample Compliance Report
+                </Badge>
+                <h3 className="text-2xl md:text-3xl font-bold text-foreground mb-4">
+                  Professional, Audit-Ready Reports
+                </h3>
+                <p className="text-lg text-muted-foreground mb-6">
+                  Generate industry-standard compliance reports with your business letterhead, digital signatures, and
+                  complete audit trails. Perfect for health & safety, ISO audits, GDPR documentation, and regulatory
+                  inspections.
+                </p>
+                <ul className="space-y-3 mb-8">
+                  <li className="flex items-start">
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
+                    <span className="text-muted-foreground">
+                      <strong className="text-foreground">Professional formatting</strong> with company branding and
+                      letterhead
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
+                    <span className="text-muted-foreground">
+                      <strong className="text-foreground">Complete audit trail</strong> with timestamps and signatures
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
+                    <span className="text-muted-foreground">
+                      <strong className="text-foreground">Optimized file sizes</strong> under 300KB for easy storage and
+                      sharing
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
+                    <span className="text-muted-foreground">
+                      <strong className="text-foreground">Industry-standard PDF format</strong> accepted by all auditors
+                    </span>
+                  </li>
+                </ul>
+                <Link href="/auth/sign-up">
+                  <Button size="lg" className="bg-accent hover:bg-accent/90 text-accent-foreground w-full sm:w-auto">
+                    Start Creating Reports Free
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </Link>
+              </div>
+              <div className="bg-muted/30 p-8 lg:p-12 flex items-center justify-center">
+                <div className="w-full max-w-md">
+                  <div className="bg-background rounded-lg shadow-2xl border-2 border-border overflow-hidden transform hover:scale-105 transition-transform duration-300">
+                    <img
+                      src="/images/image.png"
+                      alt="Sample Compliance Report - Professional audit-ready report with company letterhead, task completion details, and signatures"
+                      className="w-full h-auto"
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground text-center mt-4">
+                    Live example: Quarterly compliance report with full audit trail
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             <Card>
               <CardHeader>

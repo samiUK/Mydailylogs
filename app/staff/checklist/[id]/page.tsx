@@ -61,6 +61,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, File[]>>({})
   const [uploading, setUploading] = useState<Record<string, boolean>>({})
   const router = useRouter()
+  const [organizationId, setOrganizationId] = useState<string | null>(null)
 
   const compressImage = (file: File, targetSizeKB = 15): Promise<File> => {
     return new Promise((resolve) => {
@@ -275,6 +276,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
           }
 
           setDailyChecklist(dailyChecklistData)
+          setOrganizationId(assignmentData.organization_id)
         }
 
         // Load tasks
@@ -804,6 +806,18 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
     }
 
     try {
+      const reportData = tasks.map((task) => {
+        const response = responses.find((r) => r.item_id === task.id)
+        return {
+          task_name: task.name,
+          task_description: task.description,
+          response_value: response?.response_value || "",
+          notes: response?.notes || "",
+          is_completed: response?.is_completed || false,
+          completed_at: response?.completed_at || null,
+        }
+      })
+
       if (template?.frequency === "daily" && dailyChecklist) {
         console.log("[v0] Completing daily checklist instance")
         const { data: dailyUpdateData, error: dailyError } = await supabase
@@ -853,6 +867,25 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
         }
 
         console.log("[v0] Template assignment updated successfully")
+      }
+
+      const { data: submittedReport, error: submittedReportError } = await supabase
+        .from("submitted_reports")
+        .insert({
+          template_name: template?.name || "Untitled Report",
+          template_description: template?.description || "",
+          submitted_by: currentUser.id,
+          organization_id: organizationId,
+          report_data: reportData,
+          status: "completed",
+          submitted_at: new Date().toISOString(),
+        })
+        .select()
+
+      if (submittedReportError) {
+        console.error("[v0] Error creating submitted_reports entry:", submittedReportError)
+      } else {
+        console.log("[v0] Submitted report entry created successfully:", submittedReport)
       }
 
       // Create a completion notification for admin

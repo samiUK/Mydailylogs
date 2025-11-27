@@ -35,6 +35,8 @@ import {
   CheckCheck,
   Clock,
   Activity,
+  AlertCircle,
+  RotateCw,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -75,6 +77,9 @@ export default function AdminDashboard() {
   const [allNotifications, setAllNotifications] = useState<any[]>([])
   const [activityLog, setActivityLog] = useState<any[]>([])
   const [activityLoading, setActivityLoading] = useState(true)
+  const [activityFilter, setActivityFilter] = useState<"all" | "overdue" | "due-soon" | "critical">("all")
+  const [overdueCount, setOverdueCount] = useState(0)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   const router = useRouter()
   const organizationId = profile?.organization_id
@@ -422,6 +427,199 @@ export default function AdminDashboard() {
     loadUser()
   }, [router])
 
+  const fetchActivityLog = async () => {
+    if (!organizationId) return
+
+    try {
+      setActivityLoading(true)
+      const supabase = createClient()
+      const now = new Date()
+      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+
+      // Fetch template assignments with due date tracking
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from("template_assignments")
+        .select(`
+          *,
+          template:checklist_templates(name),
+          assigned_to_profile:profiles!template_assignments_assigned_to_fkey(first_name, last_name, full_name),
+          assigned_by_profile:profiles!template_assignments_assigned_by_fkey(first_name, last_name, full_name)
+        `)
+        .eq("organization_id", organizationId)
+        .gte("created_at", twentyFourHoursAgo.toISOString()) // Filter last 24 hours
+        .order("created_at", { ascending: false })
+        .limit(100)
+
+      console.log("[v0] Template assignments fetched:", assignments)
+
+      // Fetch submitted reports
+      const { data: submissions, error: submissionsError } = await supabase
+        .from("submitted_reports")
+        .select(`
+          *,
+          submitter:profiles!submitted_reports_submitted_by_fkey(first_name, last_name, full_name)
+        `)
+        .eq("organization_id", organizationId)
+        .gte("submitted_at", twentyFourHoursAgo.toISOString()) // Filter last 24 hours
+        .order("submitted_at", { ascending: false })
+        .limit(50)
+
+      console.log("[v0] Submitted reports fetched:", submissions)
+
+      // Fetch daily checklists with due date tracking
+      const { data: checklists, error: checklistsError } = await supabase
+        .from("daily_checklists")
+        .select(`
+          *,
+          template:checklist_templates(name),
+          assigned_user:profiles!daily_checklists_assigned_to_fkey(first_name, last_name, full_name)
+        `)
+        .eq("organization_id", organizationId)
+        .gte("updated_at", twentyFourHoursAgo.toISOString()) // Filter last 24 hours
+        .order("updated_at", { ascending: false })
+        .limit(100)
+
+      console.log("[v0] Daily checklists fetched:", checklists)
+
+      if (assignmentsError) throw assignmentsError
+      if (submissionsError) throw submissionsError
+      if (checklistsError) throw checklistsError
+
+      const activities: any[] = []
+      let overdueCounter = 0
+
+      // Add assignment activities with overdue detection
+      assignments?.forEach((assignment: any) => {
+        const dueDate = assignment.scheduled_date ? new Date(assignment.scheduled_date) : null
+        const isOverdue = dueDate && dueDate < now && assignment.status !== "completed"
+        const isDueSoon =
+          dueDate &&
+          !isOverdue &&
+          dueDate.getTime() - now.getTime() < 3 * 24 * 60 * 60 * 1000 &&
+          assignment.status !== "completed"
+
+        if (isOverdue) overdueCounter++
+
+        if (assignment.status === "completed") {
+          activities.push({
+            id: `completed-assignment-${assignment.id}`,
+            type: "completion",
+            action: "Task Completed",
+            description: `${assignment.assigned_to_profile?.full_name || assignment.assigned_to_profile?.first_name + " " + assignment.assigned_to_profile?.last_name || "Team Member"} completed "${assignment.template?.name || "Task"}"`,
+            timestamp: assignment.completed_at || assignment.updated_at,
+            dueDate: dueDate,
+            status: "completed",
+            icon: "check",
+            isOverdue: false,
+            isDueSoon: false,
+            priority: 5,
+          })
+        } else {
+          // Add assignment activity for non-completed tasks
+          activities.push({
+            id: `assignment-${assignment.id}`,
+            type: "assignment",
+            action: isOverdue ? "OVERDUE Task" : isDueSoon ? "Due Soon" : "Task Assigned",
+            description: `${assignment.assigned_by_profile?.full_name || assignment.assigned_by_profile?.first_name + " " + assignment.assigned_by_profile?.last_name || "Admin"} assigned "${assignment.template?.name || "Task"}" to ${assignment.assigned_to_profile?.full_name || assignment.assigned_to_profile?.first_name + " " + assignment.assigned_to_profile?.last_name || "Team Member"}`,
+            timestamp: assignment.assigned_at || assignment.created_at,
+            dueDate: dueDate,
+            status: assignment.status,
+            icon: isOverdue ? "alert" : "assignment",
+            isOverdue,
+            isDueSoon,
+            priority: isOverdue ? 1 : isDueSoon ? 2 : 3,
+          })
+        }
+      })
+
+      // Add submission activities
+      submissions?.forEach((submission: any) => {
+        activities.push({
+          id: `submission-${submission.id}`,
+          type: "submission",
+          action: "Report Submitted",
+          description: `${submission.submitter?.full_name || submission.submitter?.first_name + " " + submission.submitter?.last_name || "Team Member"} submitted "${submission.template_name || "Report"}"`,
+          timestamp: submission.submitted_at || submission.created_at,
+          status: submission.status,
+          icon: "submission",
+          isOverdue: false,
+          isDueSoon: false,
+          priority: 4,
+        })
+      })
+
+      // Add checklist activities with overdue detection
+      checklists?.forEach((checklist: any) => {
+        const dueDate = checklist.date ? new Date(checklist.date) : null
+        const isOverdue = dueDate && dueDate < now && checklist.status !== "completed"
+        const isDueSoon =
+          dueDate &&
+          !isOverdue &&
+          dueDate.getTime() - now.getTime() < 3 * 24 * 60 * 60 * 1000 &&
+          checklist.status !== "completed"
+
+        if (isOverdue) overdueCounter++
+
+        if (checklist.status === "completed") {
+          activities.push({
+            id: `completed-${checklist.id}`,
+            type: "completion",
+            action: "Task Completed",
+            description: `${checklist.assigned_user?.full_name || checklist.assigned_user?.first_name + " " + checklist.assigned_user?.last_name || "Team Member"} completed "${checklist.template?.name || "Task"}"`,
+            timestamp: checklist.completed_at || checklist.updated_at,
+            dueDate: dueDate,
+            status: "completed",
+            icon: "check",
+            isOverdue: false,
+            isDueSoon: false,
+            priority: 5,
+          })
+        } else if (checklist.status === "pending" || checklist.status === "in_progress") {
+          activities.push({
+            id: `pending-${checklist.id}`,
+            type: "pending",
+            action: isOverdue
+              ? "OVERDUE Task"
+              : isDueSoon
+                ? "Due Soon"
+                : checklist.status === "in_progress"
+                  ? "Task In Progress"
+                  : "Task Pending",
+            description: `"${checklist.template?.name || "Task"}" is ${checklist.status === "in_progress" ? "in progress" : "pending"} for ${checklist.assigned_user?.full_name || checklist.assigned_user?.first_name + " " + checklist.assigned_user?.last_name || "Team Member"}`,
+            timestamp: checklist.updated_at,
+            dueDate: dueDate,
+            status: checklist.status,
+            icon: isOverdue ? "alert" : "clock",
+            isOverdue,
+            isDueSoon,
+            priority: isOverdue ? 1 : isDueSoon ? 2 : 3,
+          })
+        }
+      })
+
+      // Sort by priority first (overdue, due soon, then recent), then by timestamp
+      activities.sort((a, b) => {
+        if (a.priority !== b.priority) {
+          return a.priority - b.priority
+        }
+        return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      })
+
+      setOverdueCount(overdueCounter)
+      setActivityLog(activities)
+    } catch (error) {
+      console.error("Error fetching activity log:", error)
+    } finally {
+      setActivityLoading(false)
+    }
+  }
+
+  const refreshActivityLog = async () => {
+    setIsRefreshing(true)
+    await fetchActivityLog()
+    setIsRefreshing(false)
+  }
+
   useEffect(() => {
     const fetchDashboardData = async () => {
       if (!user || !organizationId) return
@@ -490,116 +688,6 @@ export default function AdminDashboard() {
         await checkMissedTasks()
       } catch (error) {
         console.error("Error fetching dashboard data:", error)
-      }
-    }
-
-    const fetchActivityLog = async () => {
-      try {
-        setActivityLoading(true)
-        const supabase = createClient()
-
-        // Fetch template assignments
-        const { data: assignments, error: assignmentsError } = await supabase
-          .from("template_assignments")
-          .select(`
-            *,
-            template:checklist_templates(name),
-            assigned_to_profile:profiles!template_assignments_assigned_to_fkey(first_name, last_name, full_name),
-            assigned_by_profile:profiles!template_assignments_assigned_by_fkey(first_name, last_name, full_name)
-          `)
-          .eq("organization_id", organizationId)
-          .order("created_at", { ascending: false })
-          .limit(50)
-
-        // Fetch submitted reports
-        const { data: submissions, error: submissionsError } = await supabase
-          .from("submitted_reports")
-          .select(`
-            *,
-            submitter:profiles!submitted_reports_submitted_by_fkey(first_name, last_name, full_name)
-          `)
-          .eq("organization_id", organizationId)
-          .order("submitted_at", { ascending: false })
-          .limit(50)
-
-        // Fetch daily checklists status changes
-        const { data: checklists, error: checklistsError } = await supabase
-          .from("daily_checklists")
-          .select(`
-            *,
-            template:checklist_templates(name),
-            assigned_user:profiles!daily_checklists_assigned_to_fkey(first_name, last_name, full_name)
-          `)
-          .eq("organization_id", organizationId)
-          .order("updated_at", { ascending: false })
-          .limit(50)
-
-        if (assignmentsError) throw assignmentsError
-        if (submissionsError) throw submissionsError
-        if (checklistsError) throw checklistsError
-
-        // Combine and format all activities
-        const activities: any[] = []
-
-        // Add assignment activities
-        assignments?.forEach((assignment: any) => {
-          activities.push({
-            id: `assignment-${assignment.id}`,
-            type: "assignment",
-            action: "Task Assigned",
-            description: `${assignment.assigned_by_profile?.full_name || assignment.assigned_by_profile?.first_name + " " + assignment.assigned_by_profile?.last_name || "Admin"} assigned "${assignment.template?.name || "Task"}" to ${assignment.assigned_to_profile?.full_name || assignment.assigned_to_profile?.first_name + " " + assignment.assigned_to_profile?.last_name || "Team Member"}`,
-            timestamp: assignment.assigned_at || assignment.created_at,
-            status: assignment.status,
-            icon: "assignment",
-          })
-        })
-
-        // Add submission activities
-        submissions?.forEach((submission: any) => {
-          activities.push({
-            id: `submission-${submission.id}`,
-            type: "submission",
-            action: "Report Submitted",
-            description: `${submission.submitter?.full_name || submission.submitter?.first_name + " " + submission.submitter?.last_name || "Team Member"} submitted "${submission.template_name || "Report"}"`,
-            timestamp: submission.submitted_at || submission.created_at,
-            status: submission.status,
-            icon: "submission",
-          })
-        })
-
-        // Add checklist completion activities
-        checklists?.forEach((checklist: any) => {
-          if (checklist.status === "completed") {
-            activities.push({
-              id: `completed-${checklist.id}`,
-              type: "completion",
-              action: "Task Completed",
-              description: `${checklist.assigned_user?.full_name || checklist.assigned_user?.first_name + " " + checklist.assigned_user?.last_name || "Team Member"} completed "${checklist.template?.name || "Task"}"`,
-              timestamp: checklist.completed_at || checklist.updated_at,
-              status: "completed",
-              icon: "check",
-            })
-          } else if (checklist.status === "pending" || checklist.status === "in_progress") {
-            activities.push({
-              id: `pending-${checklist.id}`,
-              type: "pending",
-              action: checklist.status === "in_progress" ? "Task In Progress" : "Task Pending",
-              description: `"${checklist.template?.name || "Task"}" is ${checklist.status === "in_progress" ? "in progress" : "pending"} for ${checklist.assigned_user?.full_name || checklist.assigned_user?.first_name + " " + checklist.assigned_user?.last_name || "Team Member"}`,
-              timestamp: checklist.updated_at,
-              status: checklist.status,
-              icon: "clock",
-            })
-          }
-        })
-
-        // Sort by timestamp (most recent first)
-        activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-
-        setActivityLog(activities.slice(0, 20)) // Show latest 20 activities
-      } catch (error) {
-        console.error("Error fetching activity log:", error)
-      } finally {
-        setActivityLoading(false)
       }
     }
 
@@ -927,70 +1015,190 @@ export default function AdminDashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ClipboardList className="h-5 w-5" />
-              Activity Log
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Activity className="h-5 w-5" />
+                Activity Log
+                {overdueCount > 0 && (
+                  <Badge variant="destructive" className="ml-2">
+                    {overdueCount} Overdue
+                  </Badge>
+                )}
+              </div>
+              <div className="flex gap-1">
+                <Button
+                  variant={activityFilter === "all" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setActivityFilter("all")}
+                >
+                  All
+                </Button>
+                <Button
+                  variant={activityFilter === "critical" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setActivityFilter("critical")}
+                >
+                  Critical
+                </Button>
+                <Button
+                  variant={activityFilter === "overdue" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setActivityFilter("overdue")}
+                >
+                  Overdue
+                </Button>
+                <Button
+                  variant={activityFilter === "due-soon" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setActivityFilter("due-soon")}
+                >
+                  Due Soon
+                </Button>
+                {/* Added refresh button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={refreshActivityLog}
+                  disabled={isRefreshing}
+                  className="ml-2 bg-transparent"
+                >
+                  <RotateCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
             </CardTitle>
-            <CardDescription>Real-time feed of all team activities</CardDescription>
+            <CardDescription>Real-time monitoring of all team activities and deadlines</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
+            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
               {activityLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
-              ) : activityLog.length === 0 ? (
-                <div className="text-sm text-muted-foreground py-8 text-center">No recent activity</div>
+              ) : activityLog.filter((activity) => {
+                  if (activityFilter === "overdue") return activity.isOverdue
+                  if (activityFilter === "due-soon") return activity.isDueSoon
+                  if (activityFilter === "critical") return activity.isOverdue || activity.isDueSoon
+                  return true
+                }).length === 0 ? (
+                <div className="text-sm text-muted-foreground py-8 text-center">
+                  {activityFilter === "all"
+                    ? "No activity in the last 24 hours"
+                    : `No ${activityFilter.replace("-", " ")} tasks in the last 24 hours`}
+                </div>
               ) : (
-                activityLog.map((activity) => (
-                  <div
-                    key={activity.id}
-                    className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-                  >
+                activityLog
+                  .filter((activity) => {
+                    if (activityFilter === "overdue") return activity.isOverdue
+                    if (activityFilter === "due-soon") return activity.isDueSoon
+                    if (activityFilter === "critical") return activity.isOverdue || activity.isDueSoon
+                    return true
+                  })
+                  .map((activity) => (
                     <div
-                      className={`mt-0.5 rounded-full p-1.5 ${
-                        activity.type === "assignment"
-                          ? "bg-blue-100 text-blue-600"
-                          : activity.type === "submission"
-                            ? "bg-green-100 text-green-600"
-                            : activity.type === "completion"
-                              ? "bg-purple-100 text-purple-600"
-                              : "bg-orange-100 text-orange-600"
+                      key={activity.id}
+                      className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
+                        activity.isOverdue
+                          ? "bg-red-50 border-red-200 hover:bg-red-100"
+                          : activity.isDueSoon
+                            ? "bg-amber-50 border-amber-200 hover:bg-amber-100"
+                            : "bg-card hover:bg-accent/50"
                       }`}
                     >
-                      {activity.icon === "assignment" && <ClipboardList className="h-4 w-4" />}
-                      {activity.icon === "submission" && <CheckCircle2 className="h-4 w-4" />}
-                      {activity.icon === "check" && <CheckCheck className="h-4 w-4" />}
-                      {activity.icon === "clock" && <Clock className="h-4 w-4" />}
-                      {activity.icon === "activity" && <Activity className="h-4 w-4" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-foreground">{activity.action}</span>
-                        {activity.status && (
-                          <Badge
-                            variant="secondary"
-                            className={`text-xs ${
-                              activity.status === "completed"
-                                ? "bg-green-100 text-green-700"
-                                : activity.status === "pending"
-                                  ? "bg-orange-100 text-orange-700"
-                                  : activity.status === "in_progress"
-                                    ? "bg-blue-100 text-blue-700"
-                                    : "bg-gray-100 text-gray-700"
+                      <div
+                        className={`mt-0.5 rounded-full p-1.5 ${
+                          activity.isOverdue
+                            ? "bg-red-500 text-white animate-pulse"
+                            : activity.isDueSoon
+                              ? "bg-amber-500 text-white"
+                              : activity.type === "assignment"
+                                ? "bg-blue-100 text-blue-600"
+                                : activity.type === "submission"
+                                  ? "bg-green-100 text-green-600"
+                                  : activity.type === "completion"
+                                    ? "bg-purple-100 text-purple-600"
+                                    : "bg-orange-100 text-orange-600"
+                        }`}
+                      >
+                        {activity.icon === "alert" && <AlertCircle className="h-4 w-4" />}
+                        {activity.icon === "assignment" && <ClipboardList className="h-4 w-4" />}
+                        {activity.icon === "submission" && <CheckCircle2 className="h-4 w-4" />}
+                        {activity.icon === "check" && <CheckCheck className="h-4 w-4" />}
+                        {activity.icon === "clock" && <Clock className="h-4 w-4" />}
+                        {activity.icon === "activity" && <Activity className="h-4 w-4" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={`text-xs font-semibold ${
+                              activity.isOverdue
+                                ? "text-red-700"
+                                : activity.isDueSoon
+                                  ? "text-amber-700"
+                                  : "text-foreground"
                             }`}
                           >
-                            {activity.status.replace("_", " ")}
-                          </Badge>
-                        )}
+                            {activity.action}
+                          </span>
+                          {activity.status && (
+                            <Badge
+                              variant="secondary"
+                              className={`text-xs ${
+                                activity.status === "completed"
+                                  ? "bg-green-100 text-green-700"
+                                  : activity.status === "pending"
+                                    ? "bg-orange-100 text-orange-700"
+                                    : activity.status === "in_progress"
+                                      ? "bg-blue-100 text-blue-700"
+                                      : "bg-gray-100 text-gray-700"
+                              }`}
+                            >
+                              {activity.status.replace("_", " ")}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{activity.description}</p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <p className="text-xs text-muted-foreground">
+                            {formatRelativeTime(new Date(activity.timestamp))}
+                          </p>
+                          {activity.dueDate && (
+                            <>
+                              <span className="text-xs text-muted-foreground">•</span>
+                              <p
+                                className={`text-xs font-medium ${
+                                  activity.isOverdue
+                                    ? "text-red-600"
+                                    : activity.isDueSoon
+                                      ? "text-amber-600"
+                                      : "text-muted-foreground"
+                                }`}
+                              >
+                                Due: {formatUKDate(activity.dueDate)}
+                                {activity.isOverdue && (
+                                  <span className="ml-1 font-semibold">
+                                    (
+                                    {Math.floor(
+                                      (new Date().getTime() - activity.dueDate.getTime()) / (1000 * 60 * 60 * 24),
+                                    )}{" "}
+                                    days overdue)
+                                  </span>
+                                )}
+                                {activity.isDueSoon && !activity.isOverdue && (
+                                  <span className="ml-1 font-semibold">
+                                    (
+                                    {Math.ceil(
+                                      (activity.dueDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24),
+                                    )}{" "}
+                                    days left)
+                                  </span>
+                                )}
+                              </p>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{activity.description}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {formatRelativeTime(new Date(activity.timestamp))}
-                      </p>
                     </div>
-                  </div>
-                ))
+                  ))
               )}
             </div>
           </CardContent>

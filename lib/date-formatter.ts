@@ -15,6 +15,21 @@ export function formatUKDate(date: Date | string): string {
 }
 
 /**
+ * Format a date to UK format with flexible output
+ * @param date - Date to format
+ * @param format - "short" for dd-mm-yyyy, "long" for dd Month yyyy, "datetime" for dd-mm-yyyy HH:mm
+ */
+export function formatDateUK(date: Date | string, format: "short" | "long" | "datetime" = "long"): string {
+  if (format === "short") {
+    return formatUKDate(date)
+  } else if (format === "datetime") {
+    return formatUKDateTime(date)
+  } else {
+    return formatUKDateLong(date)
+  }
+}
+
+/**
  * Format a date to UK long format: dd Month yyyy
  */
 export function formatUKDateLong(date: Date | string): string {

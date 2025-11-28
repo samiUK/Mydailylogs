@@ -1030,46 +1030,15 @@ export default function AdminDashboard() {
                   </Badge>
                 )}
               </div>
-              <div className="flex gap-1">
-                <Button
-                  variant={activityFilter === "all" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setActivityFilter("all")}
-                >
-                  All
-                </Button>
-                <Button
-                  variant={activityFilter === "critical" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setActivityFilter("critical")}
-                >
-                  Critical
-                </Button>
-                <Button
-                  variant={activityFilter === "overdue" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setActivityFilter("overdue")}
-                >
-                  Overdue
-                </Button>
-                <Button
-                  variant={activityFilter === "due-soon" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setActivityFilter("due-soon")}
-                >
-                  Due Soon
-                </Button>
-                {/* Added refresh button */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={refreshActivityLog}
-                  disabled={isRefreshing}
-                  className="ml-2 bg-transparent"
-                >
-                  <RotateCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={refreshActivityLog}
+                disabled={isRefreshing}
+                className="bg-transparent"
+              >
+                <RotateCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              </Button>
             </CardTitle>
             <CardDescription>Real-time monitoring of all team activities and deadlines</CardDescription>
           </CardHeader>
@@ -1079,131 +1048,115 @@ export default function AdminDashboard() {
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
-              ) : activityLog.filter((activity) => {
-                  if (activityFilter === "overdue") return activity.isOverdue
-                  if (activityFilter === "due-soon") return activity.isDueSoon
-                  if (activityFilter === "critical") return activity.isOverdue || activity.isDueSoon
-                  return true
-                }).length === 0 ? (
-                <div className="text-sm text-muted-foreground py-8 text-center">
-                  {activityFilter === "all"
-                    ? "No activity in the last 24 hours"
-                    : `No ${activityFilter.replace("-", " ")} tasks in the last 24 hours`}
-                </div>
+              ) : activityLog.length === 0 ? (
+                <div className="text-sm text-muted-foreground py-8 text-center">No activity in the last 24 hours</div>
               ) : (
-                activityLog
-                  .filter((activity) => {
-                    if (activityFilter === "overdue") return activity.isOverdue
-                    if (activityFilter === "due-soon") return activity.isDueSoon
-                    if (activityFilter === "critical") return activity.isOverdue || activity.isDueSoon
-                    return true
-                  })
-                  .map((activity) => (
+                activityLog.map((activity, index) => (
+                  <div
+                    key={activity.id}
+                    className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
+                      activity.isOverdue
+                        ? "bg-red-50 border-red-200 hover:bg-red-100"
+                        : activity.isDueSoon
+                          ? "bg-amber-50 border-amber-200 hover:bg-amber-100"
+                          : "bg-card hover:bg-accent/50"
+                    }`}
+                  >
                     <div
-                      key={activity.id}
-                      className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
+                      className={`mt-0.5 rounded-full p-1.5 ${
                         activity.isOverdue
-                          ? "bg-red-50 border-red-200 hover:bg-red-100"
+                          ? "bg-red-500 text-white animate-pulse"
                           : activity.isDueSoon
-                            ? "bg-amber-50 border-amber-200 hover:bg-amber-100"
-                            : "bg-card hover:bg-accent/50"
+                            ? "bg-amber-500 text-white"
+                            : activity.type === "assignment"
+                              ? "bg-blue-100 text-blue-600"
+                              : activity.type === "submission"
+                                ? "bg-green-100 text-green-600"
+                                : activity.type === "completion"
+                                  ? "bg-purple-100 text-purple-600"
+                                  : "bg-orange-100 text-orange-600"
                       }`}
                     >
-                      <div
-                        className={`mt-0.5 rounded-full p-1.5 ${
-                          activity.isOverdue
-                            ? "bg-red-500 text-white animate-pulse"
-                            : activity.isDueSoon
-                              ? "bg-amber-500 text-white"
-                              : activity.type === "assignment"
-                                ? "bg-blue-100 text-blue-600"
-                                : activity.type === "submission"
-                                  ? "bg-green-100 text-green-600"
-                                  : activity.type === "completion"
-                                    ? "bg-purple-100 text-purple-600"
-                                    : "bg-orange-100 text-orange-600"
-                        }`}
-                      >
-                        {activity.icon === "alert" && <AlertCircle className="h-4 w-4" />}
-                        {activity.icon === "assignment" && <ClipboardList className="h-4 w-4" />}
-                        {activity.icon === "submission" && <CheckCircle2 className="h-4 w-4" />}
-                        {activity.icon === "check" && <CheckCheck className="h-4 w-4" />}
-                        {activity.icon === "clock" && <Clock className="h-4 w-4" />}
-                        {activity.icon === "activity" && <Activity className="h-4 w-4" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span
-                            className={`text-xs font-semibold ${
-                              activity.isOverdue
-                                ? "text-red-700"
-                                : activity.isDueSoon
-                                  ? "text-amber-700"
-                                  : "text-foreground"
+                      {activity.icon === "alert" && <AlertCircle className="h-4 w-4" />}
+                      {activity.icon === "assignment" && <ClipboardList className="h-4 w-4" />}
+                      {activity.icon === "submission" && <CheckCircle2 className="h-4 w-4" />}
+                      {activity.icon === "check" && <CheckCheck className="h-4 w-4" />}
+                      {activity.icon === "clock" && <Clock className="h-4 w-4" />}
+                      {activity.icon === "activity" && <Activity className="h-4 w-4" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className={`text-xs font-semibold ${
+                            activity.isOverdue
+                              ? "text-red-700"
+                              : activity.isDueSoon
+                                ? "text-amber-700"
+                                : "text-foreground"
+                          }`}
+                        >
+                          {activity.action}
+                        </span>
+                        {activity.status && (
+                          <Badge
+                            variant="secondary"
+                            className={`text-xs ${
+                              activity.status === "completed"
+                                ? "bg-green-100 text-green-700"
+                                : activity.status === "pending"
+                                  ? "bg-orange-100 text-orange-700"
+                                  : activity.status === "in_progress"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-gray-100 text-gray-700"
                             }`}
                           >
-                            {activity.action}
-                          </span>
-                          {activity.status && (
-                            <Badge
-                              variant="secondary"
-                              className={`text-xs ${
-                                activity.status === "completed"
-                                  ? "bg-green-100 text-green-700"
-                                  : activity.status === "pending"
-                                    ? "bg-orange-100 text-orange-700"
-                                    : activity.status === "in_progress"
-                                      ? "bg-blue-100 text-blue-700"
-                                      : "bg-gray-100 text-gray-700"
+                            {activity.status.replace("_", " ")}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{activity.description}</p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <p className="text-xs text-muted-foreground">
+                          {formatRelativeTime(new Date(activity.timestamp))}
+                        </p>
+                        {activity.dueDate && (
+                          <>
+                            <span className="text-xs text-muted-foreground">•</span>
+                            <p
+                              className={`text-xs font-medium ${
+                                activity.isOverdue
+                                  ? "text-red-600"
+                                  : activity.isDueSoon
+                                    ? "text-amber-600"
+                                    : "text-muted-foreground"
                               }`}
                             >
-                              {activity.status.replace("_", " ")}
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{activity.description}</p>
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          <p className="text-xs text-muted-foreground">
-                            {formatRelativeTime(new Date(activity.timestamp))}
-                          </p>
-                          {activity.dueDate && (
-                            <>
-                              <span className="text-xs text-muted-foreground">•</span>
-                              <p
-                                className={`text-xs font-medium ${
-                                  activity.isOverdue
-                                    ? "text-red-600"
-                                    : activity.isDueSoon
-                                      ? "text-amber-600"
-                                      : "text-muted-foreground"
-                                }`}
-                              >
-                                Due: {formatUKDate(activity.dueDate)}
-                                {activity.isOverdue && (
-                                  <span className="ml-1 font-semibold">
-                                    (
-                                    {Math.floor(
-                                      (new Date().getTime() - activity.dueDate.getTime()) / (1000 * 60 * 60 * 24),
-                                    )}{" "}
-                                    days overdue)
-                                  </span>
-                                )}
-                                {activity.isDueSoon && !activity.isOverdue && (
-                                  <span className="ml-1 font-semibold">
-                                    (
-                                    {Math.ceil(
-                                      (activity.dueDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24),
-                                    )}{" "}
-                                    days left)
-                                  </span>
-                                )}
-                              </p>
-                            </>
-                          )}
-                        </div>
+                              Due: {formatUKDate(activity.dueDate)}
+                              {activity.isOverdue && (
+                                <span className="ml-1 font-semibold">
+                                  (
+                                  {Math.floor(
+                                    (new Date().getTime() - activity.dueDate.getTime()) / (1000 * 60 * 60 * 24),
+                                  )}{" "}
+                                  days overdue)
+                                </span>
+                              )}
+                              {activity.isDueSoon && !activity.isOverdue && (
+                                <span className="ml-1 font-semibold">
+                                  (
+                                  {Math.ceil(
+                                    (activity.dueDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24),
+                                  )}{" "}
+                                  days left)
+                                </span>
+                              )}
+                            </p>
+                          </>
+                        )}
                       </div>
                     </div>
-                  ))
+                  </div>
+                ))
               )}
             </div>
           </CardContent>

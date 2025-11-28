@@ -54,7 +54,7 @@ export async function createUserWithProfile(formData: {
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: false, // Require email verification
+      email_confirm: false, // Requires verification but can still login
       user_metadata: {
         full_name: fullName,
         first_name: firstName,

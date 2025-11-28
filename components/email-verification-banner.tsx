@@ -14,14 +14,44 @@ export function EmailVerificationBanner({ userEmail, isVerified }: EmailVerifica
   const [dismissed, setDismissed] = useState(false)
   const [resending, setResending] = useState(false)
   const [message, setMessage] = useState("")
+  const [currentVerificationStatus, setCurrentVerificationStatus] = useState(isVerified)
 
   useEffect(() => {
     console.log("[v0] Email Verification Banner - Email:", userEmail)
-    console.log("[v0] Email Verification Banner - Is Verified:", isVerified)
-    console.log("[v0] Email Verification Banner - Should Show Banner:", !isVerified && !dismissed)
-  }, [userEmail, isVerified, dismissed])
+    console.log("[v0] Email Verification Banner - Is Verified:", currentVerificationStatus)
+    console.log("[v0] Email Verification Banner - Should Show Banner:", !currentVerificationStatus && !dismissed)
 
-  if (isVerified || dismissed) {
+    setCurrentVerificationStatus(isVerified)
+  }, [userEmail, isVerified, dismissed, currentVerificationStatus])
+
+  useEffect(() => {
+    const checkVerificationStatus = async () => {
+      try {
+        const response = await fetch("/api/auth/check-verification", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: userEmail }),
+        })
+        const data = await response.json()
+        if (data.verified && !currentVerificationStatus) {
+          setCurrentVerificationStatus(true)
+          setMessage("Email verified successfully!")
+          setTimeout(() => {
+            window.location.reload()
+          }, 1500)
+        }
+      } catch (error) {
+        console.error("[v0] Error checking verification:", error)
+      }
+    }
+
+    if (!currentVerificationStatus && !dismissed) {
+      const interval = setInterval(checkVerificationStatus, 5000)
+      return () => clearInterval(interval)
+    }
+  }, [userEmail, currentVerificationStatus, dismissed])
+
+  if (currentVerificationStatus || dismissed) {
     return null
   }
 

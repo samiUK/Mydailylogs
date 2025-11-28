@@ -1047,6 +1047,12 @@ export default function MasterDashboardPage() {
       const data = await response.json()
       showNotification("success", `Email verified successfully for ${userEmail}`)
 
+      setAllUsers((prevUsers) =>
+        prevUsers.map((user) =>
+          user.email === userEmail ? { ...user, email_confirmed_at: new Date().toISOString() } : user,
+        ),
+      )
+
       // Refresh the data to show updated verification status
       checkAuthAndLoadData()
     } catch (error) {
@@ -1993,9 +1999,9 @@ export default function MasterDashboardPage() {
                                   variant="outline"
                                   size="sm"
                                   disabled
-                                  className="text-green-600 border-green-200 bg-green-50 text-xs px-2 py-1"
+                                  className="text-green-600 border-green-200 bg-green-50 text-xs px-2 py-1 cursor-not-allowed"
                                 >
-                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  <Mail className="w-3 h-3 mr-1" />
                                   Verified
                                 </Button>
                               ) : (

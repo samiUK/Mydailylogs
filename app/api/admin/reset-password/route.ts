@@ -29,11 +29,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.mydaylogs.co.uk"
+    const cleanBaseUrl = baseUrl.replace(/\/$/, "")
+    const redirectUrl = cleanBaseUrl.startsWith("http")
+      ? `${cleanBaseUrl}/auth/callback?next=/auth/reset-password`
+      : `https://${cleanBaseUrl}/auth/callback?next=/auth/reset-password`
+
+    console.log("[v0] Using redirect URL:", redirectUrl)
+
     const { data, error } = await supabase.auth.admin.generateLink({
       type: "recovery",
       email: userEmail,
       options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.mydaylogs.co.uk"}/auth/reset-password`,
+        redirectTo: redirectUrl,
       },
     })
 
@@ -50,12 +58,12 @@ export async function POST(request: NextRequest) {
     console.log("[v0] Recovery link generated successfully")
     console.log("[v0] Recovery URL:", data.properties.action_link)
 
+    const firstName = user.user_metadata?.first_name || user.user_metadata?.full_name?.split(" ")[0] || "there"
+
+    console.log("[v0] Sending password reset email with first name:", firstName)
+
     // Send password reset email via Resend
-    const emailResult = await sendPasswordResetEmail(
-      userEmail,
-      user.user_metadata?.first_name || user.user_metadata?.full_name || "there",
-      data.properties.action_link,
-    )
+    const emailResult = await sendPasswordResetEmail(userEmail, firstName, data.properties.action_link)
 
     if (!emailResult.success) {
       console.error("[v0] Failed to send password reset email:", emailResult.error)

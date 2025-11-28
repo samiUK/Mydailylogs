@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Eye, EyeOff, Lock } from "lucide-react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 
 export default function ResetPasswordPage() {
   const [newPassword, setNewPassword] = useState("")
@@ -22,55 +22,39 @@ export default function ResetPasswordPage() {
   const [checkingSession, setCheckingSession] = useState(true)
 
   const router = useRouter()
-  const searchParams = useSearchParams()
   const supabase = createClient()
 
   useEffect(() => {
     const checkSession = async () => {
-      console.log("[v0] Reset password page loaded")
+      console.log("[v0] Reset password page loaded, checking session...")
 
-      // Check if we have a token in the URL
-      const token = searchParams.get("token")
-      const type = searchParams.get("type")
+      let attempts = 0
+      let session = null
 
-      console.log("[v0] Token from URL:", token ? "present" : "missing")
-      console.log("[v0] Type from URL:", type)
-
-      if (token && type === "recovery") {
-        console.log("[v0] Attempting to verify OTP with token")
-        const { data, error } = await supabase.auth.verifyOtp({
-          token_hash: token,
-          type: "recovery",
-        })
-
-        if (error) {
-          console.error("[v0] OTP verification error:", error)
-          setMessage("Invalid or expired password reset link. Please request a new one.")
-          setIsValidSession(false)
-        } else {
-          console.log("[v0] OTP verified successfully, session established")
-          setIsValidSession(true)
-        }
-      } else {
-        // Check if we already have a valid session
+      while (attempts < 5 && !session) {
+        await new Promise((resolve) => setTimeout(resolve, 500))
         const {
-          data: { session },
+          data: { session: currentSession },
         } = await supabase.auth.getSession()
-        console.log("[v0] Existing session:", session ? "found" : "not found")
+        session = currentSession
+        attempts++
+        console.log("[v0] Session check attempt", attempts, ":", session ? "valid session" : "no session")
+      }
 
-        if (session) {
-          setIsValidSession(true)
-        } else {
-          setMessage("Invalid or expired password reset link. Please request a new one.")
-          setIsValidSession(false)
-        }
+      if (session) {
+        console.log("[v0] Valid recovery session found, user can reset password")
+        setIsValidSession(true)
+      } else {
+        console.log("[v0] No valid session after", attempts, "attempts, link may be invalid or expired")
+        setMessage("Invalid or expired password reset link. Please request a new one.")
+        setIsValidSession(false)
       }
 
       setCheckingSession(false)
     }
 
     checkSession()
-  }, [supabase, searchParams])
+  }, [supabase])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -90,18 +74,44 @@ export default function ResetPasswordPage() {
     }
 
     try {
-      console.log("[v0] Attempting to update password")
+      console.log("[v0] Updating password...")
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
       })
 
       if (error) throw error
 
-      console.log("[v0] Password updated successfully")
-      setMessage("Password updated successfully! Redirecting to login...")
-      setTimeout(() => {
-        router.push("/auth/login")
-      }, 2000)
+      console.log("[v0] Password updated successfully, fetching user profile...")
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (user) {
+        const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
+
+        console.log("[v0] User role:", profile?.role)
+
+        setMessage("Password updated successfully! Redirecting to your dashboard...")
+
+        setTimeout(() => {
+          if (profile?.role === "admin") {
+            console.log("[v0] Redirecting to admin dashboard")
+            router.push("/admin")
+          } else if (profile?.role === "staff") {
+            console.log("[v0] Redirecting to staff dashboard")
+            router.push("/staff")
+          } else {
+            console.log("[v0] Unknown role, redirecting to login")
+            router.push("/auth/login")
+          }
+        }, 1500)
+      } else {
+        setMessage("Password updated successfully! Redirecting to login...")
+        setTimeout(() => {
+          router.push("/auth/login")
+        }, 1500)
+      }
     } catch (error) {
       console.error("[v0] Error updating password:", error)
       setMessage(`Error: ${error instanceof Error ? error.message : "An unexpected error occurred"}`)
@@ -191,7 +201,7 @@ export default function ResetPasswordPage() {
                 </div>
 
                 <Button type="submit" disabled={loading} className="w-full">
-                  {loading ? "Updating Password..." : "Update Password"}
+                  {loading ? "Saving..." : "Save Password"}
                 </Button>
               </form>
             ) : (

@@ -1,48 +1,45 @@
-import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { type NextRequest, NextResponse } from "next/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { cookies } from "next/headers"
 
 export async function POST(request: NextRequest) {
   try {
     const cookieStore = await cookies()
-    
+
     const masterAdminSession = cookieStore.get("master-admin-session")?.value
     const isMasterAdmin = masterAdminSession === "authenticated"
-    
+
     const superuserSession = cookieStore.get("superuser-session")?.value
     const superuserEmail = cookieStore.get("superuser-email")?.value
     const isSuperuser = superuserSession === "authenticated" && superuserEmail
-    
+
     if (!isMasterAdmin && !isSuperuser) {
       return NextResponse.json(
         { error: "Unauthorized: Only master admin and support admins can create impersonation tokens" },
-        { status: 403 }
+        { status: 403 },
       )
     }
-    
+
     const masterAdminEmail = isMasterAdmin ? "master@mydaylogs.co.uk" : superuserEmail!
 
     const body = await request.json()
     const { userId, userEmail, userRole, organizationId } = body
 
     if (!userId || !userEmail || !userRole) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
     // Generate a short, secure token (8 characters)
     const token = Array.from(crypto.getRandomValues(new Uint8Array(6)))
-      .map(b => b.toString(36))
-      .join('')
+      .map((b) => b.toString(36))
+      .join("")
       .substring(0, 8)
       .toUpperCase()
 
     // Token expires in 15 minutes
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
 
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     // Insert token into database
     const { data: tokenData, error: tokenError } = await supabase
@@ -63,10 +60,7 @@ export async function POST(request: NextRequest) {
 
     if (tokenError) {
       console.error("[v0] Error creating impersonation token:", tokenError)
-      return NextResponse.json(
-        { error: "Failed to create impersonation token" },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: "Failed to create impersonation token" }, { status: 500 })
     }
 
     // Generate the short, clean URL
@@ -80,9 +74,6 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("[v0] Impersonation token creation error:", error)
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

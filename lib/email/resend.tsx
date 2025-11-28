@@ -129,11 +129,11 @@ export async function sendVerificationEmail(email: string, token: string) {
 }
 
 // Send password reset email
-export async function sendPasswordResetEmail(email: string, resetUrl: string, userName?: string) {
+export async function sendPasswordResetEmail(email: string, userName: string, resetUrl: string) {
   const html = getEmailLayout(
     `
       <h1 style="color: #059669; margin-bottom: 24px;">Reset Your Password</h1>
-      <p>Hi ${userName || ""},</p>
+      <p>Hi ${userName || "there"},</p>
       <p>We received a request to reset your password for your MyDayLogs account.</p>
       <p>Click the button below to choose a new password:</p>
       <a href="${resetUrl}" class="button">Reset Password</a>

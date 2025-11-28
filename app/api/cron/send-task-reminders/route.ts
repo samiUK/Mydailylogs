@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
-import { sendEmail } from "@/lib/email/smtp"
+import { sendEmail, emailTemplates } from "@/lib/email/resend"
 
 export async function GET(request: NextRequest) {
   try {
@@ -98,12 +98,11 @@ export async function GET(request: NextRequest) {
             created_at: new Date().toISOString(),
           })
 
-          // Send email reminder
           await sendEmail({
             to: member.email,
             subject: `Reminder: Task Due in ${daysDiff} Day${daysDiff > 1 ? "s" : ""} - ${template.name}`,
             html: `
-              ${sendEmail.getEmailHeader()}
+              ${emailTemplates.getEmailHeader()}
               <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
                 <h2 style="color: #f59e0b; margin-bottom: 20px;">📅 Task Reminder</h2>
                 
@@ -124,12 +123,12 @@ export async function GET(request: NextRequest) {
                   <a href="${process.env.NEXT_PUBLIC_SITE_URL || "https://mydaylogs.co.uk"}/staff" style="background-color: #f59e0b; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Complete Task Now</a>
                 </div>
                 
-                ${sendEmail.getAutomatedEmailNotice()}
+                ${emailTemplates.getAutomatedEmailNotice()}
                 
                 <p>Best regards,<br>
                 <strong>The MyDayLogs Team</strong></p>
               </div>
-              ${sendEmail.getEmailFooter()}
+              ${emailTemplates.getEmailFooter()}
             `,
           })
 
@@ -140,7 +139,6 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Check for overdue tasks and send urgent reminder
       if (daysDiff < 0) {
         const member = assignment.assigned_to_profile
         const daysOverdue = Math.abs(daysDiff)
@@ -171,7 +169,7 @@ export async function GET(request: NextRequest) {
             to: member.email,
             subject: `🚨 OVERDUE: ${template.name} - Action Required`,
             html: `
-              ${sendEmail.getEmailHeader()}
+              ${emailTemplates.getEmailHeader()}
               <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
                 <h2 style="color: #dc2626; margin-bottom: 20px;">🚨 Overdue Task Alert</h2>
                 
@@ -191,12 +189,12 @@ export async function GET(request: NextRequest) {
                   <a href="${process.env.NEXT_PUBLIC_SITE_URL || "https://mydaylogs.co.uk"}/staff" style="background-color: #dc2626; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Complete Task Immediately</a>
                 </div>
                 
-                ${sendEmail.getAutomatedEmailNotice()}
+                ${emailTemplates.getAutomatedEmailNotice()}
                 
                 <p>Best regards,<br>
                 <strong>The MyDayLogs Team</strong></p>
               </div>
-              ${sendEmail.getEmailFooter()}
+              ${emailTemplates.getEmailFooter()}
             `,
           })
 

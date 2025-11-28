@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { sendEmail } from "@/lib/email/smtp"
+import { sendEmail, emailTemplates } from "@/lib/email/resend"
 
 export interface NotificationData {
   userId: string
@@ -43,15 +43,18 @@ export async function createNotification(data: NotificationData) {
 export async function sendEmailNotification(data: NotificationData) {
   try {
     if (data.type === "assignment" && data.templateName) {
+      const taskTemplate = emailTemplates.taskAssignment({
+        userName: data.userName,
+        taskName: data.templateName,
+        taskDescription: undefined,
+        dueDate: data.dueDate,
+        assignedBy: data.assignerName || "Administrator",
+      })
+
       await sendEmail({
         to: data.userEmail,
-        ...sendEmail.templates.taskAssignment({
-          assigneeName: data.userName, // Use full name
-          assignerName: data.assignerName || "Administrator",
-          taskName: data.templateName,
-          dueDate: data.dueDate,
-          taskUrl: data.taskUrl || `${process.env.NEXT_PUBLIC_SITE_URL || "https://mydaylogs.co.uk"}/staff`,
-        }),
+        subject: taskTemplate.subject,
+        html: taskTemplate.html,
       })
     }
 

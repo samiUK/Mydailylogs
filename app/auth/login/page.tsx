@@ -26,6 +26,9 @@ export default function LoginPage() {
   const [selectedProfile, setSelectedProfile] = useState<string>("")
   const [showProfileSelection, setShowProfileSelection] = useState(false)
   const [isClient, setIsClient] = useState(false)
+  const [failedAttempts, setFailedAttempts] = useState(0)
+  const [showResetOption, setShowResetOption] = useState(false)
+  const [resetEmailSent, setResetEmailSent] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -99,6 +102,40 @@ export default function LoginPage() {
     return () => clearTimeout(timeoutId)
   }, [email, checkUserProfiles])
 
+  const handleSendResetEmail = async () => {
+    if (!email || !email.includes("@")) {
+      setError("Please enter a valid email address first")
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch("/api/admin/reset-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userEmail: email }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to send reset email")
+      }
+
+      setResetEmailSent(true)
+      setError(null)
+    } catch (error) {
+      console.error("[v0] Reset email error:", error)
+      setError(error instanceof Error ? error.message : "Failed to send reset email")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     const supabase = createClient()
@@ -133,6 +170,11 @@ export default function LoginPage() {
         return
       }
 
+      console.log("[v0] Attempting login for:", email)
+      console.log("[v0] Has profiles:", availableProfiles.length)
+      console.log("[v0] Show profile selection:", showProfileSelection)
+      console.log("[v0] Selected profile:", selectedProfile)
+
       if (showProfileSelection && !selectedProfile) {
         throw new Error("Please select a profile to continue.")
       }
@@ -142,17 +184,46 @@ export default function LoginPage() {
         password,
       })
 
-      if (authError) throw authError
+      if (authError) {
+        console.error("[v0] Auth error details:", authError)
+
+        const newFailedAttempts = failedAttempts + 1
+        setFailedAttempts(newFailedAttempts)
+
+        if (newFailedAttempts >= 3) {
+          setShowResetOption(true)
+        }
+
+        // Provide more user-friendly error messages
+        if (authError.message.includes("Invalid login credentials")) {
+          throw new Error("Invalid email or password. Please check your credentials and try again.")
+        } else if (authError.message.includes("Email not confirmed")) {
+          throw new Error(
+            "Please verify your email address before logging in. Check your inbox for the verification link.",
+          )
+        } else {
+          throw authError
+        }
+      }
+
+      setFailedAttempts(0)
+      setShowResetOption(false)
+
+      console.log("[v0] Auth successful, user ID:", authData.user?.id)
 
       const profileId = selectedProfile || availableProfiles[0]?.id
       if (!profileId) {
-        throw new Error("No profile found for this user.")
+        console.error("[v0] No profile found after successful auth")
+        throw new Error("Account created but profile not found. Please contact support.")
       }
 
       const selectedProfileData = availableProfiles.find((p) => p.id === profileId)
       if (!selectedProfileData) {
-        throw new Error("Selected profile not found.")
+        console.error("[v0] Selected profile data not found:", profileId)
+        throw new Error("Selected profile not found. Please try again.")
       }
+
+      console.log("[v0] Profile found:", selectedProfileData.role, selectedProfileData.organization_name)
 
       if (typeof window !== "undefined") {
         if (rememberMe) {
@@ -168,7 +239,7 @@ export default function LoginPage() {
       window.location.href = redirectUrl
     } catch (error: unknown) {
       console.error("[v0] Login error:", error)
-      setError(error instanceof Error ? error.message : "An error occurred")
+      setError(error instanceof Error ? error.message : "An error occurred during login. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -290,6 +361,32 @@ export default function LoginPage() {
                   </div>
                 )}
                 {error && <p className="text-sm text-red-500">{error}</p>}
+
+                {showResetOption && !resetEmailSent && (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800 mb-3">
+                      Having trouble logging in? We can send you a password reset email.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full bg-transparent"
+                      onClick={handleSendResetEmail}
+                      disabled={isLoading}
+                    >
+                      Send Password Reset Email
+                    </Button>
+                  </div>
+                )}
+
+                {resetEmailSent && (
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-sm text-green-800">
+                      Password reset email sent! Check your inbox at <strong>{email}</strong> for instructions.
+                    </p>
+                  </div>
+                )}
+
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? "Signing in..." : isMasterLogin ? "Login as User" : "Sign In"}
                 </Button>

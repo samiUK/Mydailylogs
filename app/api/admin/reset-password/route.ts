@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
+import { sendPasswordResetEmail } from "@/lib/email/resend"
 
 export async function POST(request: NextRequest) {
   console.log("[v0] Password reset API route called")
@@ -14,12 +15,25 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminClient()
 
-    // This bypasses the auth hooks that require authorization tokens
+    // Get user details for personalized email
+    const { data: users, error: getUserError } = await supabase.auth.admin.listUsers()
+
+    if (getUserError) {
+      console.error("[v0] Error fetching users:", getUserError)
+      return NextResponse.json({ error: "Failed to fetch user" }, { status: 500 })
+    }
+
+    const user = users.users.find((u) => u.email === userEmail)
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
     const { data, error } = await supabase.auth.admin.generateLink({
       type: "recovery",
       email: userEmail,
       options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/reset-password`,
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.mydaylogs.co.uk"}/auth/reset-password`,
       },
     })
 
@@ -35,15 +49,24 @@ export async function POST(request: NextRequest) {
 
     console.log("[v0] Recovery link generated successfully")
     console.log("[v0] Recovery URL:", data.properties.action_link)
-    console.log(
-      "[v0] To send emails automatically, configure Custom SMTP in Supabase Dashboard > Authentication > Email Templates",
+
+    // Send password reset email via Resend
+    const emailResult = await sendPasswordResetEmail(
+      userEmail,
+      user.user_metadata?.first_name || user.user_metadata?.full_name || "there",
+      data.properties.action_link,
     )
-    console.log("[v0] For now, you can manually send this link to the user or copy it from console")
+
+    if (!emailResult.success) {
+      console.error("[v0] Failed to send password reset email:", emailResult.error)
+      return NextResponse.json({ error: "Failed to send password reset email" }, { status: 500 })
+    }
+
+    console.log("[v0] Password reset email sent successfully via Resend to:", userEmail)
 
     return NextResponse.json({
       success: true,
-      message: "Password reset link generated. Configure SMTP in Supabase to send emails automatically.",
-      recoveryLink: data.properties.action_link,
+      message: "Password reset email sent successfully",
       userEmail,
     })
   } catch (error) {

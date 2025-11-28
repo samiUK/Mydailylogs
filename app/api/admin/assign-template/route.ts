@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
-import { sendEmail } from "@/lib/email/smtp"
+import { sendEmail, emailTemplates } from "@/lib/email/resend"
 import { formatUKDate } from "@/lib/date-formatter"
 
 export async function POST(request: NextRequest) {
@@ -108,20 +108,26 @@ export async function POST(request: NextRequest) {
             member.first_name ||
             "Team Member"
 
+          const taskTemplate = emailTemplates.taskAssignment({
+            userName: memberFullName,
+            taskName: template.name,
+            taskDescription: template.description,
+            dueDate:
+              template.specific_date || template.deadline_date
+                ? formatUKDate(template.specific_date || template.deadline_date)
+                : undefined,
+            assignedBy: adminFullName,
+          })
+
           await sendEmail({
             to: member.email,
-            ...sendEmail.templates.taskAssignment({
-              assigneeName: memberFullName,
-              assignerName: adminFullName,
-              taskName: template.name,
-              description: template.description,
-              dueDate: template.specific_date || template.deadline_date,
-              taskUrl: `${process.env.NEXT_PUBLIC_SITE_URL || "https://mydaylogs.co.uk"}/staff`,
-            }),
+            subject: taskTemplate.subject,
+            html: taskTemplate.html,
           })
+
+          console.log("[v0] Task assignment email sent to:", member.email)
         } catch (emailError) {
-          console.error(`Failed to send email to ${member.email}:`, emailError)
-          // Continue with other emails even if one fails
+          console.error(`[v0] Failed to send email to ${member.email}:`, emailError)
         }
       }
     }

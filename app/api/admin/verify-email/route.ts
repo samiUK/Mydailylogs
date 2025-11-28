@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
     // Update user to mark email as verified
     const { data, error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
       email_confirm: true,
+      email_confirmed_at: new Date().toISOString(),
     })
 
     if (error) {

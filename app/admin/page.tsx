@@ -709,12 +709,14 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       <FeedbackBanner />
 
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
-        <p className="text-muted-foreground mt-2">Manage your organization's compliance checklists and team members</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Admin Dashboard</h1>
+        <p className="text-sm sm:text-base text-muted-foreground mt-2">
+          Manage your organization's compliance checklists and team members
+        </p>
       </div>
 
       {missedTasks.length > 0 && (
@@ -745,42 +747,45 @@ export default function AdminDashboard() {
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="md:col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
+        <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-lg">Report Overview</CardTitle>
-            <CardDescription className="text-base">Report templates awaiting completion</CardDescription>
+            <CardTitle className="text-base sm:text-lg">Report Overview</CardTitle>
+            <CardDescription className="text-sm sm:text-base">Report templates awaiting completion</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-4 mb-4 p-3 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-4 p-2 sm:p-3 bg-gray-50 rounded-lg">
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{reportStats.total}</div>
+                <div className="text-xl sm:text-2xl font-bold text-blue-600">{reportStats.total}</div>
                 <div className="text-xs text-muted-foreground">Total Reports</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{reportStats.completed}</div>
+                <div className="text-xl sm:text-2xl font-bold text-green-600">{reportStats.completed}</div>
                 <div className="text-xs text-muted-foreground">Completed</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600">{reportStats.pending}</div>
+                <div className="text-xl sm:text-2xl font-bold text-orange-600">{reportStats.pending}</div>
                 <div className="text-xs text-muted-foreground">Pending</div>
               </div>
             </div>
 
-            <div className="space-y-3 max-h-48 overflow-y-auto text-left">
+            <div className="space-y-3 max-h-64 sm:max-h-48 overflow-y-auto text-left">
               {pendingAssignments.length === 0 ? (
-                <div className="text-base text-muted-foreground text-left py-4">No pending reports</div>
+                <div className="text-sm sm:text-base text-muted-foreground text-left py-4">No pending reports</div>
               ) : (
                 pendingAssignments.slice(0, 5).map((assignment) => (
-                  <div key={assignment.id} className="flex items-center justify-between p-2 border rounded-lg">
+                  <div
+                    key={assignment.id}
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg gap-2"
+                  >
                     <div className="flex-1 text-left">
-                      <h5 className="text-base font-medium text-foreground">
+                      <h5 className="text-sm sm:text-base font-medium text-foreground">
                         {assignment.checklist_templates?.name || "Template"}
                       </h5>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs sm:text-sm text-muted-foreground">
                         Assigned to: {assignment.assigned_to_profile?.full_name || "Team Member"}
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs sm:text-sm text-muted-foreground">
                         {assignment.checklist_templates?.specific_date
                           ? `Due: ${formatUKDate(new Date(assignment.checklist_templates.specific_date))}`
                           : assignment.checklist_templates?.deadline_date
@@ -791,7 +796,7 @@ export default function AdminDashboard() {
                         Assigned: {formatUKDateTime(new Date(assignment.assigned_at))}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-left sm:text-right">
                       <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
                         Pending
                       </Badge>
@@ -818,8 +823,8 @@ export default function AdminDashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Team Members</CardTitle>
-            <CardDescription>Team overview</CardDescription>
+            <CardTitle className="text-sm sm:text-base">Team Members</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">Team overview</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{teamMembers?.length || 0}</div>
@@ -831,22 +836,22 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Common administrative tasks</CardDescription>
+            <CardTitle className="text-base sm:text-lg">Quick Actions</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">Common administrative tasks</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-2 sm:space-y-3">
             <Link href="/admin/templates/new">
-              <Button variant="outline" className="w-full justify-start bg-transparent">
+              <Button variant="outline" className="w-full justify-start bg-transparent h-12 text-sm sm:text-base">
                 <Plus className="h-4 w-4 mr-2" />+ New Report Template
               </Button>
             </Link>
 
             <Dialog open={showTeamModal} onOpenChange={setShowTeamModal}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="w-full justify-start bg-transparent">
+                <Button variant="outline" className="w-full justify-start bg-transparent h-12 text-sm sm:text-base">
                   <UserPlus className="h-4 w-4 mr-2" />
                   Add Team Member
                 </Button>

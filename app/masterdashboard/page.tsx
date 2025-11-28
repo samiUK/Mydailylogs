@@ -40,10 +40,15 @@ import {
   Info,
   Activity,
   Mail,
+  MessageSquare,
+  User,
+  Clock,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { ReportDirectoryContent } from "./report-directory-content"
 import { toast } from "sonner" // Import toast
+
+// All admin operations now use server-side API routes for security
 
 interface Organization {
   organization_id: string
@@ -79,7 +84,7 @@ interface Subscription {
   status: string
   current_period_end: string
   created_at: string
-  organizations?: { name: string; logo_url: string | null; slug: string } // Added slug
+  organizations?: { organization_id: string; organization_name: string; logo_url: string | null; slug: string } // Added slug
   organization_id?: string // Added to link subscription to organization
 }
 
@@ -90,7 +95,7 @@ interface Payment {
   created_at: string
   subscriptions?: {
     plan_name: string
-    organizations?: { name: string; slug: string } // Added slug
+    organizations?: { organization_id: string; organization_name: string; slug: string } // Added slug
   }
 }
 
@@ -417,6 +422,16 @@ export default function MasterDashboardPage() {
           const timestamp = Date.now()
           console.log("[v0] Loading fresh data with timestamp:", timestamp)
 
+          const authUsersResponse = await fetch("/api/admin/get-auth-users")
+          const authUsersResult = await authUsersResponse.json()
+
+          const authUserMap = new Map()
+          if (authUsersResult.verificationMap) {
+            Object.entries(authUsersResult.verificationMap).forEach(([userId, data]: [string, any]) => {
+              authUserMap.set(userId, data.email_confirmed_at)
+            })
+          }
+
           const [
             { data: organizationsData, error: orgError },
             { data: profilesData, error: profileError },
@@ -425,7 +440,7 @@ export default function MasterDashboardPage() {
             { data: subscriptionsData, error: subscriptionsError }, // Fetch subscriptions
             { data: paymentsData, error: paymentsError }, // Fetch payments
             { data: feedbackData, error: feedbackError }, // Fetch feedback
-            { data: reportsData, error: reportsError }, // Fetch reports
+            { data: reportsData, error: reportsError }, // Fetch submitted reports
           ] = await Promise.all([
             createClient().from("organizations").select("*"),
             createClient().from("profiles").select("*"),
@@ -532,25 +547,30 @@ export default function MasterDashboardPage() {
           // Add profiles to their respective organizations
           if (profilesData) {
             profilesData.forEach((profile) => {
-              if (profile.organization_id) {
-                const org = organizationMap.get(profile.organization_id)
+              // Enrich profile with email_confirmed_at status from auth users
+              const confirmedAt = authUserMap.get(profile.id) || null
+              const enrichedProfile = { ...profile, email_confirmed_at: confirmedAt }
+
+              if (enrichedProfile.organization_id) {
+                const org = organizationMap.get(enrichedProfile.organization_id)
                 if (org) {
-                  org.profiles.push(profile)
+                  org.profiles.push(enrichedProfile)
                 } else {
                   // Create organization from profile data if not in organizations table
-                  organizationMap.set(profile.organization_id, {
-                    organization_id: profile.organization_id,
+                  organizationMap.set(enrichedProfile.organization_id, {
+                    organization_id: enrichedProfile.organization_id,
                     organization_name:
-                      profile.organization_name || `Organization ${profile.organization_id.slice(0, 8)}`,
+                      enrichedProfile.organization_name ||
+                      `Organization ${enrichedProfile.organization_id.slice(0, 8)}`,
                     logo_url: null,
                     primary_color: null,
                     secondary_color: null,
                     slug: null,
-                    created_at: profile.created_at || new Date().toISOString(),
-                    updated_at: profile.updated_at || new Date().toISOString(),
-                    profiles: [profile],
+                    created_at: enrichedProfile.created_at || new Date().toISOString(),
+                    updated_at: enrichedProfile.updated_at || new Date().toISOString(),
+                    profiles: [enrichedProfile],
                     templateCount:
-                      templatesData?.filter((t) => t.organization_id === profile.organization_id)?.length || 0,
+                      templatesData?.filter((t) => t.organization_id === enrichedProfile.organization_id)?.length || 0,
                   })
                 }
               }
@@ -560,11 +580,22 @@ export default function MasterDashboardPage() {
           const allOrganizations = Array.from(organizationMap.values())
 
           setOrganizations(allOrganizations)
-          setAllUsers(profilesData || [])
+          setAllUsers(
+            profilesData?.map((profile) => {
+              // Ensure allUsers also gets email_confirmed_at
+              const confirmedAt = authUserMap.get(profile.id) || null
+              return { ...profile, email_confirmed_at: confirmedAt }
+            }) || [],
+          )
 
           console.log("[v0] Enhanced data loaded:", {
             organizations: allOrganizations.length,
-            users: profilesData?.length || 0,
+            users: (
+              profilesData?.map((profile) => {
+                const confirmedAt = authUserMap.get(profile.id) || null
+                return { ...profile, email_confirmed_at: confirmedAt }
+              }) || []
+            ).length,
             superusers: superusersData?.length || 0,
             templates: templatesData?.length || 0,
             subscriptions: subscriptionsData?.length || 0,
@@ -573,8 +604,20 @@ export default function MasterDashboardPage() {
             reports: reportsData?.length || 0,
           })
 
-          const admins = profilesData?.filter((user) => user.role === "admin") || []
-          const staff = profilesData?.filter((user) => user.role === "staff") || []
+          const admins = (
+            profilesData?.map((profile) => {
+              // Ensure admins also get email_confirmed_at
+              const confirmedAt = authUserMap.get(profile.id) || null
+              return { ...profile, email_confirmed_at: confirmedAt }
+            }) || []
+          ).filter((user) => user.role === "admin")
+          const staff = (
+            profilesData?.map((profile) => {
+              // Ensure staff also get email_confirmed_at
+              const confirmedAt = authUserMap.get(profile.id) || null
+              return { ...profile, email_confirmed_at: confirmedAt }
+            }) || []
+          ).filter((user) => user.role === "staff")
 
           console.log("[v0] User roles:", { admins: admins.length, staff: staff.length })
           console.log("[v0] Essential data loaded successfully")
@@ -821,37 +864,6 @@ export default function MasterDashboardPage() {
     } catch (error) {
       console.error("Error adding subscription:", error)
       showNotification("error", "Failed to add subscription")
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  // Original processRefund function (will be replaced by the updated one)
-  const processRefundOriginal = async (paymentId: string, amount: string) => {
-    setIsProcessing(true)
-    try {
-      const supabase = createClient()
-
-      // Create refund record
-      const { error } = await supabase.from("payments").insert({
-        amount: `-${amount}`,
-        status: "refunded",
-        payment_method: "refund",
-        created_at: new Date().toISOString(),
-      })
-
-      if (error) throw error
-
-      // Update original payment status
-      await supabase.from("payments").update({ status: "refunded" }).eq("id", paymentId)
-
-      // Refresh data
-      checkAuthAndLoadData()
-      alert(`Refund of £${amount} processed successfully`)
-      setRefundAmount("")
-    } catch (error) {
-      console.error("Error processing refund:", error)
-      alert("Failed to process refund")
     } finally {
       setIsProcessing(false)
     }
@@ -2323,6 +2335,107 @@ export default function MasterDashboardPage() {
                     ))
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="feedback" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>User Feedback & Support Requests</CardTitle>
+                <CardDescription>View and respond to feedback submitted by users across the platform</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {feedback.length === 0 ? (
+                  <div className="text-center py-12">
+                    <MessageSquare className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Feedback Yet</h3>
+                    <p className="text-gray-500">User feedback and support requests will appear here once submitted.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {feedback.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`border rounded-lg p-4 ${
+                          item.status === "unread" ? "bg-blue-50 border-blue-200" : "bg-white"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-semibold text-lg">{item.subject}</h3>
+                              <Badge variant={item.status === "unread" ? "default" : "secondary"}>{item.status}</Badge>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-gray-600">
+                              <span className="flex items-center gap-1">
+                                <User className="w-4 h-4" />
+                                {item.name}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Mail className="w-4 h-4" />
+                                {item.email}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-4 h-4" />
+                                {new Date(item.created_at).toLocaleDateString("en-GB", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                            {item.page_url && <p className="text-xs text-gray-500 mt-1">From: {item.page_url}</p>}
+                          </div>
+                        </div>
+
+                        <div className="bg-gray-50 rounded p-3 mb-3">
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{item.message}</p>
+                        </div>
+
+                        {item.attachments && item.attachments.length > 0 && (
+                          <div className="mb-3">
+                            <p className="text-sm font-medium text-gray-700 mb-2">Attachments:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {item.attachments.map((attachment: any, index: number) => (
+                                <Badge key={index} variant="outline">
+                                  {attachment.name || `Attachment ${index + 1}`}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="default" onClick={() => openResponseModal(item)}>
+                            <Mail className="w-4 h-4 mr-1" />
+                            Reply
+                          </Button>
+                          {item.status === "unread" && (
+                            <Button size="sm" variant="outline" onClick={() => markFeedbackAsRead(item.id)}>
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              Mark as Read
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => {
+                              if (confirm("Are you sure you want to delete this feedback?")) {
+                                deleteFeedback(item.id)
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

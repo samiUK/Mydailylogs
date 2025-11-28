@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { sendEmail, emailTemplates } from "@/lib/email/smtp"
+import { sendEmail, emailTemplates } from "@/lib/email/resend"
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +12,6 @@ export async function POST(request: NextRequest) {
     if (contentType?.includes("application/json")) {
       body = await request.json()
     } else {
-      // Handle FormData from feedback modal
       const formData = await request.formData()
       body = {
         type: formData.get("template") as string,
@@ -27,67 +26,41 @@ export async function POST(request: NextRequest) {
     const { type, to, subject, data } = body
     const supabase = await createClient()
 
-    if (type === "auth" || type === "signup" || type === "recovery" || type === "invite") {
-      let template
+    if (type === "feedback" || type === "feedback_notification") {
+      console.log("[v0] Processing feedback submission...")
 
-      switch (type) {
-        case "signup":
-          template = emailTemplates.signup(data)
-          break
-        case "recovery":
-          template = emailTemplates.recovery(data)
-          break
-        case "invite":
-          template = emailTemplates.invite(data)
-          break
-        default:
-          // Handle generic auth emails
-          template = { subject: subject || "MyDayLogs Authentication", html: data.html || "" }
-      }
-
-      const result = await sendEmail(to, template.subject, template.html)
-
-      if (!result.success) {
-        console.error("[v0] Auth email failed:", result.error)
-        return NextResponse.json({ error: "Failed to send authentication email" }, { status: 500 })
-      }
-
-      return NextResponse.json({ success: true, message: "Authentication email sent successfully" })
-    }
-
-    if (type === "feedback") {
-      const { error: dbError } = await supabase.from("feedback").insert({
-        name: data.name?.trim() || "Anonymous",
-        email: data.email?.trim() || "Anonymous",
-        subject: subject || "Feedback!",
-        message: data.message?.trim() || "",
-        page_url: data.page_url || null,
-        user_id: data.user_id || null,
-        status: "unread",
+      const feedbackTemplate = emailTemplates.feedbackNotification({
+        userName: data.name || "User",
+        userEmail: data.email || to,
+        organization: data.organization || "Unknown Organization",
+        feedbackType: data.feedbackType || data.type || "General Feedback",
+        message: data.message || "",
       })
 
-      if (dbError) {
-        console.error("[v0] Database error:", dbError)
-        return NextResponse.json({ error: "Failed to store feedback" }, { status: 500 })
+      // Send notification to support team
+      const result = await sendEmail({
+        to: "info@mydaylogs.co.uk",
+        subject: feedbackTemplate.subject,
+        html: feedbackTemplate.html,
+        replyTo: data.email || to,
+      })
+
+      if (result.success) {
+        console.log("[v0] Feedback notification sent to info@mydaylogs.co.uk")
+      } else {
+        console.error("[v0] Failed to send feedback notification:", result.error)
       }
 
-      const template = emailTemplates.feedback(data)
-      const result = await sendEmail("info@mydaylogs.co.uk", template.subject, template.html)
+      return NextResponse.json({
+        success: result.success,
+        message: result.success
+          ? "Feedback submitted successfully. Our team will review it and respond soon."
+          : "Failed to send feedback notification",
+      })
+    }
 
-      if (!result.success) {
-        console.error("[v0] Email sending failed:", result.error)
-        return NextResponse.json({ error: "Failed to send email notification" }, { status: 500 })
-      }
-
-      return NextResponse.json({ success: true, message: "Feedback submitted successfully" })
-    } else if (type === "response") {
-      const template = emailTemplates.response(data)
-      const result = await sendEmail(to, subject, template.html)
-
-      if (!result.success) {
-        console.error("[v0] Response email failed:", result.error)
-        return NextResponse.json({ error: "Failed to send response" }, { status: 500 })
-      }
+    if (type === "response") {
+      console.log("[v0] Processing feedback response...")
 
       // Update feedback status to 'responded'
       if (data.feedbackId) {
@@ -101,7 +74,36 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      return NextResponse.json({ success: true, message: "Response sent successfully" })
+      // Send response email to user
+      const result = await sendEmail({
+        to: to,
+        subject: subject || "Response to Your Feedback - MyDayLogs",
+        html: `
+          ${emailTemplates.getEmailHeader()}
+          <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
+            <h2 style="color: #10b981; margin-bottom: 20px;">Response to Your Feedback</h2>
+            
+            <p>Hi ${data.recipientName || "there"},</p>
+            
+            <p>Thank you for your feedback. Here's our response:</p>
+            
+            <div style="background-color: #f0fdf4; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981;">
+              ${data.response || data.message}
+            </div>
+            
+            <p>If you have any further questions, feel free to reply to this email.</p>
+            
+            <p>Best regards,<br><strong>The MyDayLogs Support Team</strong></p>
+          </div>
+          ${emailTemplates.getEmailFooter()}
+        `,
+        replyTo: "info@mydaylogs.co.uk",
+      })
+
+      return NextResponse.json({
+        success: result.success,
+        message: result.success ? "Response sent successfully" : "Failed to send response",
+      })
     }
 
     return NextResponse.json({ error: "Invalid email type" }, { status: 400 })

@@ -100,14 +100,19 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
       console.log("[v0] Starting feedback submission...")
       const supabase = createClient()
 
-      // Get current user if logged in
       const {
         data: { user },
       } = await supabase.auth.getUser()
 
       console.log("[v0] Current user:", user?.id || "Anonymous")
 
-      // Prepare attachment data
+      let organizationId = null
+      if (user) {
+        const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single()
+
+        organizationId = profile?.organization_id || null
+      }
+
       const attachmentData = attachments.map((file) => ({
         name: file.name,
         size: file.size,
@@ -116,12 +121,13 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
 
       const feedbackData = {
         name: name.trim(),
-        email: email.trim() || "Anonymous",
+        email: email.trim() || user?.email || "Anonymous",
         subject: subject || "Feedback!",
         message: feedback.trim(),
         page_url: currentPage,
         attachments: attachmentData,
         user_id: user?.id || null,
+        organization_id: organizationId,
         status: "unread",
       }
 
@@ -151,7 +157,7 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
             subject: `New Feedback: ${subject || "Feedback!"}`,
             data: {
               name: name.trim(),
-              email: email.trim() || "Anonymous",
+              email: email.trim() || user?.email || "Anonymous",
               subject: subject || "Feedback!",
               message: feedback.trim(),
               page_url: currentPage,
@@ -167,7 +173,6 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
         }
       } catch (emailError) {
         console.error("[v0] Error sending admin notification:", emailError)
-        // Don't throw here - feedback was saved successfully, email is just a bonus
       }
 
       localStorage.setItem("feedbackSubmitted", "true")

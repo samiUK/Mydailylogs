@@ -86,8 +86,8 @@ export default function MasterLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center p-6">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center p-4 sm:p-6">
+      <div className="w-full max-w-sm">
         <div className="mb-4">
           <Button
             variant="ghost"
@@ -100,33 +100,34 @@ export default function MasterLoginPage() {
         </div>
 
         <Card className="border-red-200 shadow-xl">
-          <CardHeader className="text-center space-y-4">
-            <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+          <CardHeader className="text-center space-y-3 sm:space-y-4">
+            <div className="mx-auto w-14 h-14 sm:w-16 sm:h-16 bg-red-100 rounded-full flex items-center justify-center">
               {logoUrl ? (
-                <img src={logoUrl || "/placeholder.svg"} alt="Logo" className="w-10 h-10 object-contain" />
+                <img
+                  src={logoUrl || "/placeholder.svg"}
+                  alt="Logo"
+                  className="w-8 h-8 sm:w-10 sm:h-10 object-contain"
+                />
               ) : (
-                <Shield className="w-8 h-8 text-red-600" />
+                <Shield className="w-6 h-6 sm:w-8 sm:h-8 text-red-600" />
               )}
             </div>
-            <CardTitle className="text-2xl text-red-800">
-              {organizationName || "MyDayLogs"} - Master Admin Access
+            <CardTitle className="text-xl sm:text-2xl text-red-800">
+              {organizationName || "MyDayLogs"} - Master Admin
             </CardTitle>
-            <CardDescription className="text-red-600">
-              Restricted access for system monitoring and customer support
-            </CardDescription>
+            <CardDescription className="text-sm text-red-600">Restricted access for system monitoring</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-              <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-red-700">
-                <strong>Warning:</strong> This is a secure administrative interface. Unauthorized access is prohibited
-                and monitored.
+            <div className="mb-4 p-2.5 sm:p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-red-500 mt-0.5 flex-shrink-0" />
+              <div className="text-xs sm:text-sm text-red-700">
+                <strong>Warning:</strong> Unauthorized access is prohibited and monitored.
               </div>
             </div>
 
             <form onSubmit={handleMasterLogin} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-red-800">
+                <Label htmlFor="email" className="text-sm text-red-800">
                   Master Admin Email
                 </Label>
                 <Input
@@ -140,7 +141,7 @@ export default function MasterLoginPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-red-800">
+                <Label htmlFor="password" className="text-sm text-red-800">
                   Password
                 </Label>
                 <Input
@@ -153,12 +154,16 @@ export default function MasterLoginPage() {
                 />
               </div>
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-700">{error}</p>
+                <div className="p-2.5 sm:p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-xs sm:text-sm text-red-700">{error}</p>
                 </div>
               )}
-              <Button type="submit" className="w-full bg-red-600 hover:bg-red-700" disabled={isLoading}>
-                {isLoading ? "Authenticating..." : "Access Master Dashboard"}
+              <Button
+                type="submit"
+                className="w-full bg-red-600 hover:bg-red-700 text-sm sm:text-base"
+                disabled={isLoading}
+              >
+                {isLoading ? "Authenticating..." : "Access Dashboard"}
               </Button>
             </form>
           </CardContent>

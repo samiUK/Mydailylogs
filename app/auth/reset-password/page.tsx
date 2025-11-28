@@ -19,26 +19,58 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState("")
   const [isValidSession, setIsValidSession] = useState(false)
+  const [checkingSession, setCheckingSession] = useState(true)
 
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
 
   useEffect(() => {
-    // Check if we have a valid password reset session
     const checkSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (session) {
-        setIsValidSession(true)
+      console.log("[v0] Reset password page loaded")
+
+      // Check if we have a token in the URL
+      const token = searchParams.get("token")
+      const type = searchParams.get("type")
+
+      console.log("[v0] Token from URL:", token ? "present" : "missing")
+      console.log("[v0] Type from URL:", type)
+
+      if (token && type === "recovery") {
+        console.log("[v0] Attempting to verify OTP with token")
+        const { data, error } = await supabase.auth.verifyOtp({
+          token_hash: token,
+          type: "recovery",
+        })
+
+        if (error) {
+          console.error("[v0] OTP verification error:", error)
+          setMessage("Invalid or expired password reset link. Please request a new one.")
+          setIsValidSession(false)
+        } else {
+          console.log("[v0] OTP verified successfully, session established")
+          setIsValidSession(true)
+        }
       } else {
-        setMessage("Invalid or expired password reset link. Please request a new one.")
+        // Check if we already have a valid session
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+        console.log("[v0] Existing session:", session ? "found" : "not found")
+
+        if (session) {
+          setIsValidSession(true)
+        } else {
+          setMessage("Invalid or expired password reset link. Please request a new one.")
+          setIsValidSession(false)
+        }
       }
+
+      setCheckingSession(false)
     }
 
     checkSession()
-  }, [supabase])
+  }, [supabase, searchParams])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -58,30 +90,32 @@ export default function ResetPasswordPage() {
     }
 
     try {
+      console.log("[v0] Attempting to update password")
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
       })
 
       if (error) throw error
 
+      console.log("[v0] Password updated successfully")
       setMessage("Password updated successfully! Redirecting to login...")
       setTimeout(() => {
         router.push("/auth/login")
       }, 2000)
     } catch (error) {
-      console.error("Error updating password:", error)
+      console.error("[v0] Error updating password:", error)
       setMessage(`Error: ${error instanceof Error ? error.message : "An unexpected error occurred"}`)
     } finally {
       setLoading(false)
     }
   }
 
-  if (!isValidSession && !message.includes("Error")) {
+  if (checkingSession) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-48 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-32"></div>
+        <div className="animate-pulse text-center">
+          <div className="h-8 bg-gray-200 rounded w-48 mb-4 mx-auto"></div>
+          <div className="h-4 bg-gray-200 rounded w-32 mx-auto"></div>
         </div>
       </div>
     )

@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin"
 import { revalidatePath } from "next/cache"
+import { sendVerificationEmail } from "@/lib/email/resend"
 
 export async function createUserWithProfile(formData: {
   email: string
@@ -50,11 +51,11 @@ export async function createUserWithProfile(formData: {
 
     console.log("[v0] Organization created:", organizationId)
 
-    console.log("[v0] Creating auth user with email verification required")
+    console.log("[v0] Creating auth user - allows login but encourages verification")
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: false, // Requires verification but can still login
+      email_confirm: true, // Allows immediate login
       user_metadata: {
         full_name: fullName,
         first_name: firstName,
@@ -113,8 +114,33 @@ export async function createUserWithProfile(formData: {
       console.log("[v0] Starter subscription created")
     }
 
-    console.log("[v0] Email verification will be sent by Supabase if SMTP is configured")
-    console.log("[v0] To enable emails: Supabase Dashboard > Authentication > Email Templates > Configure Custom SMTP")
+    console.log("[v0] Generating email verification link...")
+    const { data: verificationData, error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
+      type: "signup",
+      email: email,
+      options: {
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "https://mydaylogs.co.uk"}/auth/callback`,
+      },
+    })
+
+    if (verificationError) {
+      console.error("[v0] Failed to generate verification link:", verificationError)
+    } else if (verificationData.properties?.action_link) {
+      console.log("[v0] Verification link generated:", verificationData.properties.action_link)
+
+      // Send verification email via Resend
+      const emailResult = await sendVerificationEmail(
+        email,
+        firstName || fullName,
+        verificationData.properties.action_link,
+      )
+
+      if (emailResult.success) {
+        console.log("[v0] Verification email sent successfully via Resend")
+      } else {
+        console.error("[v0] Failed to send verification email:", emailResult.error)
+      }
+    }
 
     console.log("[v0] Signup completed successfully")
     revalidatePath("/")
@@ -123,7 +149,7 @@ export async function createUserWithProfile(formData: {
       success: true,
       userId,
       organizationId,
-      message: "Account created successfully. Please check your email to verify your account.",
+      message: "Account created successfully. You can login now. Please verify your email to unlock all features.",
     }
   } catch (error: any) {
     console.error("[v0] Signup error:", error)

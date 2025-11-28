@@ -26,7 +26,6 @@ import {
   RefreshCw,
   Trash2,
   AlertTriangle,
-  User,
   LogIn,
   X,
   Search,
@@ -40,6 +39,7 @@ import {
   AlertCircle,
   Info,
   Activity,
+  Mail,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { ReportDirectoryContent } from "./report-directory-content"
@@ -70,6 +70,7 @@ interface UserProfile {
   organization_id?: string
   organization_name?: string
   updated_at?: string
+  email_confirmed_at?: string | null // Added email_confirmed_at field
 }
 
 interface Subscription {
@@ -991,18 +992,14 @@ export default function MasterDashboardPage() {
 
   const resetUserPassword = async (userEmail: string) => {
     if (!userEmail) {
-      alert("Please enter a user email")
+      showNotification("error", "Please enter a user email")
       return
     }
 
     try {
       console.log("[v0] Starting password reset for:", userEmail)
 
-      const baseUrl = window.location.origin
-      const apiUrl = `${baseUrl}/api/admin/reset-password`
-      console.log("[v0] Making fetch request to:", apiUrl)
-
-      const response = await fetch(apiUrl, {
+      const response = await fetch("/api/admin/reset-password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1010,47 +1007,79 @@ export default function MasterDashboardPage() {
         body: JSON.stringify({ userEmail }),
       })
 
-      console.log("[v0] Fetch response status:", response.status)
-      console.log("[v0] Fetch response ok:", response.ok)
-
-      const responseText = await response.text()
-      console.log("[v0] Raw response text:", responseText)
-
       if (!response.ok) {
-        console.log("[v0] Error response text:", responseText)
-        alert("Failed to reset password. Status: " + response.status)
+        const errorData = await response.json()
+        showNotification("error", `Failed to send reset email: ${errorData.error}`)
         return
       }
 
-      let data
-      try {
-        data = JSON.parse(responseText)
-        console.log("[v0] Parsed response data:", data)
-      } catch (jsonError) {
-        console.error("[v0] JSON parsing error:", jsonError)
-        console.log("[v0] Response was not valid JSON:", responseText)
-        alert("Server returned invalid response format")
-        return
-      }
-
-      const message = [
-        "Password reset successful!",
-        "",
-        `User: ${data.userEmail}`,
-        `Temporary Password: ${data.tempPassword}`,
-        "",
-        "Please provide this to the user and ask them to change it immediately.",
-      ].join("\n")
-
-      alert(message)
+      const data = await response.json()
+      showNotification("success", `Password reset email sent to ${userEmail}`)
     } catch (error) {
       console.error("[v0] Password reset error:", error)
-      alert("Failed to reset password: " + error.message)
+      showNotification("error", "Failed to send reset email")
+    }
+  }
+
+  const verifyUserEmail = async (userEmail: string) => {
+    if (!userEmail) {
+      showNotification("error", "Please enter a user email")
+      return
+    }
+
+    try {
+      console.log("[v0] Starting email verification for:", userEmail)
+
+      const response = await fetch("/api/admin/verify-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userEmail }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        showNotification("error", `Failed to verify email: ${errorData.error}`)
+        return
+      }
+
+      const data = await response.json()
+      showNotification("success", `Email verified successfully for ${userEmail}`)
+
+      // Refresh the data to show updated verification status
+      checkAuthAndLoadData()
+    } catch (error) {
+      console.error("[v0] Email verification error:", error)
+      showNotification("error", "Failed to verify email")
     }
   }
 
   const handleDeleteUser = async (userId: string, userEmail: string) => {
-    if (!confirm(`Delete user ${userEmail}? This action cannot be undone.`)) return
+    const confirmed = confirm(
+      `⚠️ GDPR DELETION WARNING ⚠️\n\n` +
+        `Delete user: ${userEmail}?\n\n` +
+        `This will permanently delete:\n` +
+        `• User account and profile\n` +
+        `• All activity logs\n` +
+        `• All notifications\n` +
+        `• All checklist responses\n` +
+        `• All assigned templates\n` +
+        `• Organization data (if last member)\n\n` +
+        `This action CANNOT be undone and complies with GDPR right to erasure.\n\n` +
+        `Type the user's email in the next prompt to confirm.`,
+    )
+
+    if (!confirmed) return
+
+    const emailConfirm = prompt(`Type "${userEmail}" to confirm deletion:`)
+
+    if (emailConfirm !== userEmail) {
+      showNotification("error", "Email confirmation did not match. Deletion cancelled.")
+      return
+    }
+
+    setIsProcessing(true)
 
     try {
       const response = await fetch("/api/admin/delete-user", {
@@ -1064,16 +1093,16 @@ export default function MasterDashboardPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        alert("Failed to delete user: " + data.error)
+        showNotification("error", `Failed to delete user: ${data.error}`)
         return
       }
 
       // Refresh data
-      checkAuthAndLoadData()
-      alert("User deleted successfully")
+      await checkAuthAndLoadData()
+      showNotification("success", `User ${userEmail} and all associated data deleted successfully (GDPR compliant)`)
     } catch (error) {
-      console.error("Error deleting user:", error)
-      alert("Failed to delete user")
+      console.error("[v0] Error deleting user:", error)
+      showNotification("error", "Failed to delete user")
     } finally {
       setIsProcessing(false)
     }
@@ -1887,56 +1916,123 @@ export default function MasterDashboardPage() {
                   <CardDescription>Complete list of all registered users</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {filteredUsersNew.map((user) => (
-                      <div
-                        key={user.id}
-                        className="flex flex-col lg:flex-row lg:items-center lg:justify-between p-4 border rounded-lg gap-4"
-                      >
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <User className="w-5 h-5 text-blue-600" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h3 className="font-medium truncate">{user.full_name || user.email}</h3>
-                            <p className="text-sm text-gray-500 truncate">{user.email}</p>
-                            <p className="text-xs text-gray-400 truncate">
-                              {user.role} • {user.organizations?.name || "No Organization"}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => loginAsUser(user.email, user.role)}
-                            className="text-blue-600 border-blue-200 hover:bg-blue-50 text-xs px-2 py-1"
-                          >
-                            <LogIn className="w-3 h-3 mr-1" />
-                            Login
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => resetUserPassword(user.email)}
-                            className="text-orange-600 border-orange-200 hover:bg-orange-50 text-xs px-2 py-1"
-                          >
-                            <Key className="w-3 h-3 mr-1" />
-                            Reset
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteUser(user.id, user.email)}
-                            className="text-red-600 border-red-200 hover:bg-red-50 text-xs px-2 py-1"
-                            disabled={isProcessing}
-                          >
-                            <Trash2 className="w-3 h-3 mr-1" />
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Name
+                          </th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Email
+                          </th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Verification
+                          </th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Role
+                          </th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Organization
+                          </th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Last Seen
+                          </th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {filteredUsersNew.map((user) => (
+                          <tr key={user.id}>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {user.full_name || "N/A"}
+                            </td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">{user.email}</td>
+                            <td className="px-3 py-2 text-left text-xs whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                {user.email_confirmed_at ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-green-600 border-green-200 bg-green-50 text-xs"
+                                  >
+                                    Verified
+                                  </Badge>
+                                ) : (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-orange-600 border-orange-200 bg-orange-50 text-xs"
+                                  >
+                                    Unverified
+                                  </Badge>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 capitalize">
+                              {user.role}
+                            </td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
+                              {user.organizations?.name || "N/A"}
+                            </td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
+                              {user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString() : "Never"}
+                            </td>
+                            <td className="px-3 py-2 text-left text-xs flex gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => loginAsUser(user.email, user.role)}
+                                className="text-blue-600 border-blue-200 hover:bg-blue-50 text-xs px-2 py-1"
+                              >
+                                <LogIn className="w-3 h-3 mr-1" />
+                                Login
+                              </Button>
+                              {user.email_confirmed_at ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled
+                                  className="text-green-600 border-green-200 bg-green-50 text-xs px-2 py-1"
+                                >
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  Verified
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => verifyUserEmail(user.email)}
+                                  className="text-purple-600 border-purple-200 hover:bg-purple-50 text-xs px-2 py-1"
+                                >
+                                  <Mail className="w-3 h-3 mr-1" />
+                                  Verify Email
+                                </Button>
+                              )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => resetUserPassword(user.email)}
+                                className="text-orange-600 border-orange-200 hover:bg-orange-50 text-xs px-2 py-1"
+                              >
+                                <Key className="w-3 h-3 mr-1" />
+                                Reset
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDeleteUser(user.id, user.email)}
+                                className="text-red-600 border-red-200 hover:bg-red-50 text-xs px-2 py-1"
+                                disabled={isProcessing}
+                              >
+                                <Trash2 className="w-3 h-3 mr-1" />
+                                Delete
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </CardContent>
               </Card>
@@ -2805,6 +2901,14 @@ export default function MasterDashboardPage() {
               Copy this URL and paste it into an incognito/private window to impersonate the user:
             </p>
             <div className="bg-gray-100 p-3 rounded mb-4 break-all font-mono text-xs">{impersonationUrl}</div>
+            <p className="text-xs text-amber-600 mb-4 flex items-start gap-2">
+              <span>⚠️</span>
+              <span>
+                <strong>Important:</strong> Right-click "Open in Incognito" and select "Open in Incognito Window"
+                (Chrome) or "Open in Private Window" (Firefox/Safari) to avoid session conflicts with your current admin
+                session.
+              </span>
+            </p>
             <div className="flex gap-2">
               <button
                 onClick={() => {
@@ -2819,7 +2923,7 @@ export default function MasterDashboardPage() {
                 onClick={() => window.open(impersonationUrl, "_blank")}
                 className="flex-1 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
               >
-                Open in New Tab
+                Open in Incognito (Right-Click)
               </button>
               <button
                 onClick={() => setShowImpersonationModal(false)}

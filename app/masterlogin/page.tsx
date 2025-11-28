@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { Shield, AlertTriangle, ArrowLeft } from 'lucide-react'
+import { Shield, AlertTriangle, ArrowLeft } from "lucide-react"
 import { useBranding } from "@/components/branding-provider"
 
 export default function MasterLoginPage() {
@@ -24,6 +24,8 @@ export default function MasterLoginPage() {
     setError(null)
 
     try {
+      console.log("[v0] Attempting master login with:", { email, passwordLength: password.length })
+
       const response = await fetch("/api/admin/authenticate-superuser", {
         method: "POST",
         headers: {
@@ -32,9 +34,26 @@ export default function MasterLoginPage() {
         body: JSON.stringify({ email, password }),
       })
 
-      const data = await response.json()
+      let data
+      const contentType = response.headers.get("content-type")
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json()
+      } else {
+        const text = await response.text()
+        console.error("[v0] Non-JSON response:", text)
+        setError("Server error. Please check the console and try again.")
+        setIsLoading(false)
+        return
+      }
+
+      console.log("[v0] Auth response:", {
+        status: response.ok,
+        statusCode: response.status,
+        data,
+      })
 
       if (!response.ok) {
+        console.log("[v0] Auth failed:", data.error)
         setError(data.error || "Invalid credentials. Access denied.")
         setIsLoading(false)
         return
@@ -55,10 +74,12 @@ export default function MasterLoginPage() {
         document.cookie = `userType=superuser; path=/; max-age=86400; SameSite=Lax`
         console.log("[v0] Set superuser authentication cookies")
       }
-      
+
+      console.log("[v0] Redirecting to /masterdashboard")
       // Both redirect to masterdashboard
       router.push("/masterdashboard")
     } catch (error: unknown) {
+      console.error("[v0] Master login error:", error)
       setError("Authentication failed. Please try again.")
       setIsLoading(false)
     }

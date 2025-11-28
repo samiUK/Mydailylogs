@@ -2,7 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
 
 export async function POST(request: NextRequest) {
-  console.log("[v0] API route called")
+  console.log("[v0] Password reset API route called")
 
   try {
     const { userEmail } = await request.json()
@@ -12,43 +12,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "User email is required" }, { status: 400 })
     }
 
-    console.log("[v0] Creating admin Supabase client")
     const supabase = createAdminClient()
 
-    console.log("[v0] Looking up user by email")
-    const { data: userData, error: userError } = await supabase.auth.admin.listUsers()
-
-    if (userError) {
-      console.error("[v0] Error listing users:", userError)
-      return NextResponse.json({ error: `Failed to find user: ${userError.message}` }, { status: 500 })
-    }
-
-    const user = userData.users.find((u) => u.email === userEmail)
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
-
-    // Generate secure temporary password
-    const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8).toUpperCase()
-
-    console.log("[v0] Updating user password")
-    const { error: updateError } = await supabase.auth.admin.updateUserById(user.id, {
-      password: tempPassword,
+    // This bypasses the auth hooks that require authorization tokens
+    const { data, error } = await supabase.auth.admin.generateLink({
+      type: "recovery",
+      email: userEmail,
+      options: {
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/reset-password`,
+      },
     })
 
-    if (updateError) {
-      console.error("[v0] Error updating password:", updateError)
-      return NextResponse.json({ error: `Failed to update password: ${updateError.message}` }, { status: 500 })
+    if (error) {
+      console.error("[v0] Error generating reset link:", error.message)
+      return NextResponse.json({ error: `Failed to generate reset link: ${error.message}` }, { status: 500 })
     }
 
-    console.log("[v0] Password reset successful")
+    if (!data.properties?.action_link) {
+      console.error("[v0] No action link generated")
+      return NextResponse.json({ error: "Failed to generate reset link" }, { status: 500 })
+    }
+
+    console.log("[v0] Recovery link generated successfully")
+    console.log("[v0] Recovery URL:", data.properties.action_link)
+    console.log(
+      "[v0] To send emails automatically, configure Custom SMTP in Supabase Dashboard > Authentication > Email Templates",
+    )
+    console.log("[v0] For now, you can manually send this link to the user or copy it from console")
+
     return NextResponse.json({
       success: true,
-      tempPassword,
+      message: "Password reset link generated. Configure SMTP in Supabase to send emails automatically.",
+      recoveryLink: data.properties.action_link,
       userEmail,
     })
   } catch (error) {
     console.error("[v0] API route error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: 500 },
+    )
   }
 }

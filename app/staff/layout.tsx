@@ -3,12 +3,16 @@ import { BrandingProvider } from "@/components/branding-provider"
 import { StaffNavigation } from "@/components/staff-navigation"
 import { DashboardFooter } from "@/components/dashboard-footer"
 import { createClient } from "@/lib/supabase/server"
-import { redirect } from 'next/navigation'
+import { redirect } from "next/navigation"
+import { EmailVerificationBanner } from "@/components/email-verification-banner"
 
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
 
   if (!user) {
     redirect("/auth/login")
@@ -55,6 +59,8 @@ export default async function StaffLayout({ children }: { children: React.ReactN
     redirect("/auth/login")
   }
 
+  const isEmailVerified = user.email_confirmed_at !== null
+
   return (
     <BrandingProvider
       initialBranding={{
@@ -67,6 +73,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
     >
       <div className="min-h-screen bg-background flex flex-col">
         <StaffNavigation user={profile} onSignOut={handleSignOut} profileId={profile.id} />
+        <EmailVerificationBanner userEmail={user.email || ""} isVerified={isEmailVerified} />
         <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">{children}</main>
         <DashboardFooter />
       </div>

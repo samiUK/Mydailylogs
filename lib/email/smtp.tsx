@@ -1,5 +1,3 @@
-import nodemailer from "nodemailer"
-
 interface EmailTemplate {
   subject: string
   html: string
@@ -10,16 +8,37 @@ interface EmailResult {
   error?: string
 }
 
-// Create SMTP transporter
-const createTransporter = () => {
-  return nodemailer.createTransport({
+// Create SMTP transporter with dynamic import
+const createTransporter = async () => {
+  const { default: nodemailerModule } = await import("nodemailer")
+
+  const smtpPort = Number.parseInt(process.env.SMTP_PORT || "587")
+  const isSSL = smtpPort === 465
+
+  console.log("[v0] Creating SMTP transporter with config:", {
     host: process.env.SMTP_HOST,
-    port: Number.parseInt(process.env.SMTP_PORT || "587"),
-    secure: false, // true for 465, false for other ports
+    port: smtpPort,
+    secure: isSSL,
+    user: process.env.SMTP_USER,
+  })
+
+  return nodemailerModule.createTransport({
+    host: process.env.SMTP_HOST,
+    port: smtpPort,
+    secure: isSSL, // true for 465 (SSL), false for 587 (STARTTLS)
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASSWORD,
     },
+    tls: {
+      // Do not fail on invalid certificates (only for development)
+      rejectUnauthorized: true,
+      // Minimum TLS version
+      minVersion: "TLSv1.2",
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 5000,
+    socketTimeout: 10000,
   })
 }
 
@@ -57,21 +76,41 @@ const getAutomatedEmailNotice = () => {
 // Send email function
 export const sendEmail = async (to: string, subject: string, html: string): Promise<EmailResult> => {
   try {
-    const transporter = createTransporter()
+    console.log("[v0] Attempting to send email to:", to)
+    const transporter = await createTransporter()
 
     const mailOptions = {
-      from: `"MyDayLogs" <info@mydaylogs.co.uk>`, // Reverted to info@ until no-reply@ is set up in Zoho
+      from: `"MyDayLogs" <${process.env.SMTP_USER}>`, // Use SMTP_USER as sender
       to,
       subject,
       html,
     }
 
-    await transporter.sendMail(mailOptions)
+    console.log("[v0] Sending email with options:", {
+      from: mailOptions.from,
+      to: mailOptions.to,
+      subject: mailOptions.subject,
+    })
+
+    const info = await transporter.sendMail(mailOptions)
+    console.log("[v0] Email sent successfully:", info.messageId)
+
     return { success: true }
   } catch (error) {
-    console.error("Email sending error:", error)
-    return { success: false, error: error.message }
+    console.error("[v0] Email sending error:", error)
+    if (error instanceof Error) {
+      console.error("[v0] Error name:", error.name)
+      console.error("[v0] Error message:", error.message)
+      console.error("[v0] Error stack:", error.stack)
+    }
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" }
   }
+}
+
+// Send password reset email helper function
+export const sendPasswordResetEmail = async (email: string, recoveryUrl: string) => {
+  const template = emailTemplates.recovery({ recovery_url: recoveryUrl })
+  return await sendEmail(email, template.subject, template.html)
 }
 
 // Email templates
@@ -202,13 +241,13 @@ export const emailTemplates = {
   }),
 
   teamInvite: (data: any): EmailTemplate => ({
-    subject: `You've been invited to join ${data.organizationName || 'a team'} on MyDayLogs`,
+    subject: `You've been invited to join ${data.organizationName || "a team"} on MyDayLogs`,
     html: `
       ${getEmailHeader()}
       <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
         <h2 style="color: #10b981; margin-bottom: 20px;">Team Invitation</h2>
         
-        <p>Hi ${data.name || 'there'},</p>
+        <p>Hi ${data.name || "there"},</p>
         
         <p>${data.inviterName} has invited you to join <strong>${data.organizationName}</strong> on MyDayLogs as a <strong>${data.role}</strong>.</p>
         
@@ -237,7 +276,7 @@ export const emailTemplates = {
   }),
 
   taskAssignment: (data: any): EmailTemplate => ({
-    subject: `New Task Assigned: ${data.taskName || 'Task Assignment'}`,
+    subject: `New Task Assigned: ${data.taskName || "Task Assignment"}`,
     html: `
       ${getEmailHeader()}
       <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
@@ -250,9 +289,9 @@ export const emailTemplates = {
         <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981;">
           <h3 style="margin: 0 0 15px 0; color: #374151;">Task Details</h3>
           <p><strong>Task:</strong> ${data.taskName}</p>
-          ${data.description ? `<p><strong>Description:</strong> ${data.description}</p>` : ''}
-          ${data.dueDate ? `<p><strong>Due Date:</strong> ${new Date(data.dueDate).toLocaleDateString()}</p>` : ''}
-          ${data.priority ? `<p><strong>Priority:</strong> <span style="color: ${data.priority === 'high' ? '#ef4444' : data.priority === 'medium' ? '#f59e0b' : '#10b981'};">${data.priority.toUpperCase()}</span></p>` : ''}
+          ${data.description ? `<p><strong>Description:</strong> ${data.description}</p>` : ""}
+          ${data.dueDate ? `<p><strong>Due Date:</strong> ${new Date(data.dueDate).toLocaleDateString()}</p>` : ""}
+          ${data.priority ? `<p><strong>Priority:</strong> <span style="color: ${data.priority === "high" ? "#ef4444" : data.priority === "medium" ? "#f59e0b" : "#10b981"};">${data.priority.toUpperCase()}</span></p>` : ""}
         </div>
         
         <div style="text-align: center; margin: 30px 0;">
@@ -269,7 +308,7 @@ export const emailTemplates = {
   }),
 
   logSubmission: (data: any): EmailTemplate => ({
-    subject: `Log Submitted: ${data.logTitle || 'Daily Log'}`,
+    subject: `Log Submitted: ${data.logTitle || "Daily Log"}`,
     html: `
       ${getEmailHeader()}
       <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
@@ -283,8 +322,8 @@ export const emailTemplates = {
           <h3 style="margin: 0 0 15px 0; color: #374151;">Log Details</h3>
           <p><strong>Staff Member:</strong> ${data.staffName}</p>
           <p><strong>Date:</strong> ${new Date(data.date).toLocaleDateString()}</p>
-          ${data.summary ? `<p><strong>Summary:</strong> ${data.summary}</p>` : ''}
-          <p><strong>Status:</strong> ${data.status || 'Pending Review'}</p>
+          ${data.summary ? `<p><strong>Summary:</strong> ${data.summary}</p>` : ""}
+          <p><strong>Status:</strong> ${data.status || "Pending Review"}</p>
         </div>
         
         <div style="text-align: center; margin: 30px 0;">
@@ -301,7 +340,7 @@ export const emailTemplates = {
   }),
 
   monthlyInvoice: (data: any): EmailTemplate => ({
-    subject: `Your MyDayLogs Invoice for ${data.period || 'this month'}`,
+    subject: `Your MyDayLogs Invoice for ${data.period || "this month"}`,
     html: `
       ${getEmailHeader()}
       <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
@@ -333,11 +372,15 @@ export const emailTemplates = {
           </table>
         </div>
         
-        ${data.invoiceUrl ? `
+        ${
+          data.invoiceUrl
+            ? `
         <div style="text-align: center; margin: 30px 0;">
           <a href="${data.invoiceUrl}" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Download Invoice PDF</a>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
         
         <p>Payment was successfully processed on ${new Date(data.paymentDate).toLocaleDateString()} using your saved payment method.</p>
         
@@ -377,11 +420,15 @@ export const emailTemplates = {
           <p><strong>Payment Method:</strong> ${data.paymentMethod}</p>
         </div>
         
-        ${data.invoiceUrl ? `
+        ${
+          data.invoiceUrl
+            ? `
         <div style="text-align: center; margin: 30px 0;">
           <a href="${data.invoiceUrl}" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Download Receipt</a>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
         
         <p>Thank you for your payment! Your subscription is now active.</p>
         
@@ -409,7 +456,7 @@ export const emailTemplates = {
           <h3 style="margin: 0 0 15px 0; color: #7f1d1d;">Payment Details</h3>
           <p><strong>Amount:</strong> ${data.amount}</p>
           <p><strong>Attempted Date:</strong> ${new Date(data.date).toLocaleString()}</p>
-          <p><strong>Reason:</strong> ${data.reason || 'Payment declined by your bank'}</p>
+          <p><strong>Reason:</strong> ${data.reason || "Payment declined by your bank"}</p>
         </div>
         
         <p><strong>What happens next?</strong></p>
@@ -447,8 +494,8 @@ export const emailTemplates = {
         
         <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
           <h3 style="margin: 0 0 15px 0; color: #78350f;">Important Billing Information</h3>
-          <p><strong>Trial End Date:</strong> ${new Date(data.trialEndDate).toLocaleDateString('en-GB')}</p>
-          <p><strong>First Billing Date:</strong> ${new Date(data.nextBillingDate).toLocaleDateString('en-GB')} (Day 31)</p>
+          <p><strong>Trial End Date:</strong> ${new Date(data.trialEndDate).toLocaleDateString("en-GB")}</p>
+          <p><strong>First Billing Date:</strong> ${new Date(data.nextBillingDate).toLocaleDateString("en-GB")} (Day 31)</p>
           <p><strong>Amount:</strong> ${data.amount}</p>
           <p style="margin-top: 15px; font-size: 14px;">
             <strong>📅 Billing Schedule:</strong> After your trial ends, you'll be charged ${data.amount} every 30 days from your subscription date.
@@ -458,11 +505,11 @@ export const emailTemplates = {
         <div style="background-color: #ecfdf5; padding: 20px; border-radius: 8px; margin: 20px 0;">
           <h3 style="margin: 0 0 15px 0; color: #10b981;">What You're Getting</h3>
           <ul style="margin: 0; padding-left: 20px;">
-            ${data.features.map((feature: string) => `<li style="margin-bottom: 8px;">${feature}</li>`).join('')}
+            ${data.features.map((feature: string) => `<li style="margin-bottom: 8px;">${feature}</li>`).join("")}
           </ul>
         </div>
         
-        <p><strong>No action needed!</strong> Your saved payment method will be charged automatically on ${new Date(data.nextBillingDate).toLocaleDateString('en-GB')}.</p>
+        <p><strong>No action needed!</strong> Your saved payment method will be charged automatically on ${new Date(data.nextBillingDate).toLocaleDateString("en-GB")}.</p>
         
         <p>Want to make changes? You can:</p>
         <ul>

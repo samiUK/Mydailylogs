@@ -50,11 +50,11 @@ export async function createUserWithProfile(formData: {
 
     console.log("[v0] Organization created:", organizationId)
 
-    console.log("[v0] Creating auth user with admin.createUser")
+    console.log("[v0] Creating auth user with email verification required")
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // Auto-confirm email
+      email_confirm: false, // Require email verification
       user_metadata: {
         full_name: fullName,
         first_name: firstName,
@@ -79,7 +79,7 @@ export async function createUserWithProfile(formData: {
       full_name: fullName,
       first_name: firstName,
       last_name: lastName,
-      organization_name: organizationName, // Added missing required field
+      organization_name: organizationName,
       role: "admin",
       organization_id: organizationId,
       created_at: new Date().toISOString(),
@@ -103,16 +103,18 @@ export async function createUserWithProfile(formData: {
       max_users: 5,
       max_templates: 3,
       current_period_start: new Date().toISOString(),
-      current_period_end: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year
+      current_period_end: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
       created_at: new Date().toISOString(),
     })
 
     if (subError) {
       console.error("[v0] Subscription creation failed:", subError)
-      // Continue anyway - subscription can be added later
     } else {
       console.log("[v0] Starter subscription created")
     }
+
+    console.log("[v0] Email verification will be sent by Supabase if SMTP is configured")
+    console.log("[v0] To enable emails: Supabase Dashboard > Authentication > Email Templates > Configure Custom SMTP")
 
     console.log("[v0] Signup completed successfully")
     revalidatePath("/")
@@ -121,7 +123,7 @@ export async function createUserWithProfile(formData: {
       success: true,
       userId,
       organizationId,
-      message: "Account created successfully. You can now sign in.",
+      message: "Account created successfully. Please check your email to verify your account.",
     }
   } catch (error: any) {
     console.error("[v0] Signup error:", error)

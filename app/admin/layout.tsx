@@ -1,18 +1,26 @@
 import type React from "react"
 import { createClient } from "@/lib/supabase/server"
-import { redirect } from 'next/navigation'
+import { redirect } from "next/navigation"
 import { AdminNavigation } from "@/components/admin-navigation"
 import { BrandingProvider } from "@/components/branding-provider"
 import { DashboardFooter } from "@/components/dashboard-footer"
+import { EmailVerificationBanner } from "@/components/email-verification-banner"
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
-  
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
 
   if (!user) {
     redirect("/auth/login")
   }
+
+  console.log("[v0] Admin Layout - User Email:", user.email)
+  console.log("[v0] Admin Layout - Email Confirmed At:", user.email_confirmed_at)
+  console.log("[v0] Admin Layout - Is Verified:", user.email_confirmed_at !== null)
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -58,10 +66,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     hasCustomBranding: true,
   }
 
+  const isEmailVerified = user.email_confirmed_at !== null
+
   return (
     <BrandingProvider initialBranding={brandingData}>
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <AdminNavigation user={profile} onSignOut={handleSignOut} />
+        <EmailVerificationBanner userEmail={user.email || ""} isVerified={isEmailVerified} />
         <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">{children}</main>
         <DashboardFooter />
       </div>

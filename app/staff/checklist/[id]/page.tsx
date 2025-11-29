@@ -9,7 +9,9 @@ import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
-import { Camera, FileText, Hash, CheckSquare, Check, X } from "lucide-react"
+import { Camera, FileText, Hash, CheckSquare, Check, X, Lock } from "lucide-react"
+import { getSubscriptionLimits } from "@/lib/subscription-limits"
+import Link from "next/link"
 
 interface ChecklistTask {
   id: string
@@ -60,10 +62,13 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
   const [isSaving, setIsSaving] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, File[]>>({})
   const [uploading, setUploading] = useState<Record<string, boolean>>({})
-  const router = useRouter()
+  const [hasPhotoUpload, setHasPhotoUpload] = useState(false)
+  const [checklistId, setChecklistId] = useState<string | null>(null)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
+  const router = useRouter()
+  const supabase = createClient()
 
-  const compressImage = (file: File, targetSizeKB = 15): Promise<File> => {
+  const compressImage = (file: File, targetSizeKB = 200): Promise<File> => {
     return new Promise((resolve) => {
       const canvas = document.createElement("canvas")
       const ctx = canvas.getContext("2d")
@@ -71,7 +76,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
 
       img.onload = () => {
         let { width, height } = img
-        const maxDimension = 400
+        const maxDimension = 800
 
         if (width > height) {
           if (width > maxDimension) {
@@ -169,43 +174,27 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
     handleTaskResponse(taskId, value, !!value)
   }
 
-  useEffect(() => {
-    async function loadChecklist() {
-      const resolvedParams = await params
-      console.log("[v0] Loading checklist for template ID:", resolvedParams.id)
-      const supabase = createClient()
+  const loadChecklist = async () => {
+    try {
+      setIsLoading(true)
 
-      const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
-      let currentUser: any = null
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error("Not authenticated")
 
-      if (impersonationContext) {
-        const impersonationData = JSON.parse(impersonationContext)
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .single()
 
-        const { data: targetProfile } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("email", impersonationData.targetUserEmail)
-          .single()
+      if (!profile) throw new Error("Profile not found")
 
-        if (targetProfile) {
-          currentUser = { id: targetProfile.id, email: impersonationData.targetUserEmail }
-        }
-      }
+      setOrganizationId(profile.organization_id)
 
-      if (!currentUser) {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        if (!user) {
-          console.log("[v0] No user found")
-          return
-        }
-
-        currentUser = user
-      }
-
-      console.log("[v0] User found:", currentUser.id)
+      const limits = await getSubscriptionLimits(profile.organization_id)
+      setHasPhotoUpload(limits.hasPhotoUpload)
 
       // Check if user has access to this template
       const { data: assignmentData } = await supabase
@@ -219,8 +208,8 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
             frequency
           )
         `)
-        .eq("template_id", resolvedParams.id)
-        .eq("assigned_to", currentUser.id)
+        .eq("template_id", checklistId)
+        .eq("assigned_to", user.id)
         .eq("is_active", true)
         .single()
 
@@ -240,8 +229,8 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
           const { data: existingDaily } = await supabase
             .from("daily_checklists")
             .select("*")
-            .eq("template_id", resolvedParams.id)
-            .eq("assigned_to", currentUser.id)
+            .eq("template_id", checklistId)
+            .eq("assigned_to", user.id)
             .eq("date", today)
             .single()
 
@@ -256,8 +245,8 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
             const { data: newDaily, error: dailyError } = await supabase
               .from("daily_checklists")
               .insert({
-                template_id: resolvedParams.id,
-                assigned_to: currentUser.id,
+                template_id: checklistId,
+                assigned_to: user.id,
                 date: today,
                 status: "in_progress",
                 organization_id: assignmentData.organization_id,
@@ -276,14 +265,13 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
           }
 
           setDailyChecklist(dailyChecklistData)
-          setOrganizationId(assignmentData.organization_id)
         }
 
         // Load tasks
         const { data: tasksData } = await supabase
           .from("checklist_items")
           .select("*")
-          .eq("template_id", resolvedParams.id)
+          .eq("template_id", checklistId)
           .order("order_index")
 
         console.log("[v0] Tasks loaded:", tasksData?.length)
@@ -291,13 +279,13 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
           setTasks(tasksData)
         }
 
-        const checklistId = dailyChecklistData?.id || resolvedParams.id
-        console.log("[v0] Loading responses for checklist ID:", checklistId)
+        const checklistIdForResponses = dailyChecklist?.id || checklistId
+        console.log("[v0] Loading responses for checklist ID:", checklistIdForResponses)
 
         const { data: responsesData } = await supabase
           .from("checklist_responses")
           .select("*")
-          .eq("checklist_id", checklistId)
+          .eq("checklist_id", checklistIdForResponses)
 
         console.log("[v0] Responses loaded:", responsesData?.length)
         if (responsesData) {
@@ -318,248 +306,79 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
           setLocalNotes(initialNotes)
         }
       }
-
+    } catch (error) {
+      console.error("[v0] Error loading checklist:", error)
+    } finally {
       setIsLoading(false)
     }
-
-    loadChecklist()
-  }, [params])
+  }
 
   const handleTaskResponse = async (taskId: string, value: string, isCompleted = true) => {
-    const supabase = createClient()
-
-    const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
-    let currentUser: any = null
-
-    if (impersonationContext) {
-      const impersonationData = JSON.parse(impersonationContext)
-
-      const { data: targetProfile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("email", impersonationData.targetUserEmail)
-        .single()
-
-      if (targetProfile) {
-        currentUser = { id: targetProfile.id, email: impersonationData.targetUserEmail }
-      }
-    }
-
-    if (!currentUser) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) return
-
-      currentUser = user
-    }
-
-    const existingResponse = responses.find((r) => r.item_id === taskId)
-    const checklistId = dailyChecklist?.id || (await params).id
-
-    if (existingResponse) {
+    try {
       const { data } = await supabase
         .from("checklist_responses")
-        .update({
+        .upsert({
+          checklist_id: dailyChecklist?.id || checklistId,
+          item_id: taskId,
           response_value: value,
           is_completed: isCompleted,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", existingResponse.id)
         .select()
         .single()
 
       if (data) {
         setResponses((prev) => prev.map((r) => (r.id === data.id ? data : r)))
       }
-    } else {
-      // Create new response
-      const { data } = await supabase
-        .from("checklist_responses")
-        .insert({
-          checklist_id: checklistId,
-          item_id: taskId,
-          response_value: value,
-          is_completed: isCompleted,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .select()
-        .single()
-
-      if (data) {
-        setResponses((prev) => [...prev, data])
-      }
+    } catch (error) {
+      console.error("[v0] Error handling task response:", error)
     }
   }
 
   const handleTaskNotes = async (taskId: string, notes: string) => {
-    const supabase = createClient()
+    try {
+      setLocalNotes((prev) => ({ ...prev, [taskId]: notes }))
 
-    const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
-    let currentUser: any = null
-
-    if (impersonationContext) {
-      const impersonationData = JSON.parse(impersonationContext)
-
-      const { data: targetProfile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("email", impersonationData.targetUserEmail)
-        .single()
-
-      if (targetProfile) {
-        currentUser = { id: targetProfile.id, email: impersonationData.targetUserEmail }
-      }
-    }
-
-    if (!currentUser) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) return
-
-      currentUser = user
-    }
-
-    setLocalNotes((prev) => ({ ...prev, [taskId]: notes }))
-
-    const existingResponse = responses.find((r) => r.item_id === taskId)
-    const checklistId = dailyChecklist?.id || (await params).id
-
-    if (existingResponse) {
       const { data } = await supabase
         .from("checklist_responses")
-        .update({ notes, updated_at: new Date().toISOString() })
-        .eq("id", existingResponse.id)
-        .select()
-        .single()
-
-      if (data) {
-        setResponses((prev) => prev.map((r) => (r.id === data.id ? data : r)))
-      }
-    } else {
-      // Create new response with notes
-      const { data } = await supabase
-        .from("checklist_responses")
-        .insert({
-          checklist_id: checklistId,
+        .upsert({
+          checklist_id: dailyChecklist?.id || checklistId,
           item_id: taskId,
           notes,
-          is_completed: false,
-          created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .select()
         .single()
 
       if (data) {
-        setResponses((prev) => [...prev, data])
+        setResponses((prev) => prev.map((r) => (r.id === data.id ? data : r)))
       }
+    } catch (error) {
+      console.error("[v0] Error handling task notes:", error)
     }
   }
 
   const handleMarkCompleted = async (taskId: string) => {
     console.log("[v0] Mark completed button clicked for task:", taskId)
 
-    const supabase = createClient()
-
-    const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
-    let currentUser: any = null
-
-    if (impersonationContext) {
-      const impersonationData = JSON.parse(impersonationContext)
-
-      const { data: targetProfile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("email", impersonationData.targetUserEmail)
+    try {
+      const { data } = await supabase
+        .from("checklist_responses")
+        .upsert({
+          checklist_id: dailyChecklist?.id || checklistId,
+          item_id: taskId,
+          is_completed: !responses.some((r) => r.item_id === taskId && r.is_completed),
+          completed_at: responses.some((r) => r.item_id === taskId && r.is_completed) ? null : new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
         .single()
 
-      if (targetProfile) {
-        currentUser = { id: targetProfile.id, email: impersonationData.targetUserEmail }
+      if (data) {
+        setResponses((prev) => prev.map((r) => (r.id === data.id ? data : r)))
       }
-    }
-
-    if (!currentUser) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        console.log("[v0] No user found")
-        return
-      }
-
-      currentUser = user
-    }
-
-    console.log("[v0] User found:", currentUser.id)
-
-    const existingResponse = responses.find((r) => r.item_id === taskId)
-    const currentValue = localInputValues[taskId] ?? ""
-    const task = tasks.find((t) => t.id === taskId)
-    const checklistId = dailyChecklist?.id || (await params).id
-
-    console.log("[v0] Existing response:", existingResponse)
-    console.log("[v0] Current value:", currentValue)
-    console.log("[v0] Task:", task)
-    console.log("[v0] Checklist ID:", checklistId)
-
-    try {
-      if (existingResponse) {
-        console.log("[v0] Updating existing response")
-        const { data, error } = await supabase
-          .from("checklist_responses")
-          .update({
-            is_completed: !existingResponse.is_completed,
-            completed_at: existingResponse.is_completed ? null : new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", existingResponse.id)
-          .select()
-          .single()
-
-        if (error) {
-          console.log("[v0] Error updating response:", error)
-          return
-        }
-
-        console.log("[v0] Updated response:", data)
-        if (data) {
-          setResponses((prev) => prev.map((r) => (r.id === data.id ? data : r)))
-        }
-      } else {
-        console.log("[v0] Creating new response for daily checklist")
-        const { data, error } = await supabase
-          .from("checklist_responses")
-          .insert({
-            checklist_id: checklistId,
-            item_id: taskId,
-            is_completed: true,
-            completed_at: new Date().toISOString(),
-            notes: localNotes[taskId] || "",
-            response_value: currentValue,
-          })
-          .select()
-          .single()
-
-        if (error) {
-          console.log("[v0] Error creating response:", error)
-          return
-        }
-
-        console.log("[v0] Created response:", data)
-        if (data) {
-          setResponses((prev) => [...prev, data])
-        }
-      }
-
-      console.log("[v0] Mark completed successful")
     } catch (error) {
-      console.log("[v0] Exception in mark completed:", error)
+      console.error("[v0] Exception in mark completed:", error)
     }
   }
 
@@ -666,64 +485,93 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
 
       case "photo":
         return (
-          <div className="space-y-4">
-            <div className="flex items-center justify-center w-full">
-              <label
-                htmlFor={`photo-${task.id}`}
-                className="flex flex-col items-center justify-center w-full h-40 border-3 border-blue-300 border-dashed rounded-xl cursor-pointer bg-blue-50 hover:bg-blue-100 shadow-lg transition-all duration-200"
-              >
-                <div className="flex flex-col items-center justify-center pt-6 pb-6">
-                  <Camera className="w-12 h-12 mb-3 text-blue-500" />
-                  <p className="mb-2 text-lg font-semibold text-blue-700">Tap to Take Photo</p>
-                  <p className="text-sm text-blue-600">Photos auto-compressed for faster upload</p>
-                </div>
-                <input
-                  id={`photo-${task.id}`}
-                  type="file"
-                  className="hidden"
-                  accept="image/*"
-                  multiple
-                  capture="environment"
-                  onChange={(e) => handleFileUpload(task.id, e.target.files)}
-                />
-              </label>
-            </div>
+          <div key={task.id} className="space-y-4 pb-8 border-b-2 border-dashed border-gray-300">
+            <h3 className="text-lg font-semibold text-gray-800">{task.name}</h3>
 
-            {uploadedFiles[task.id] && uploadedFiles[task.id].length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {uploadedFiles[task.id].map((file, index) => (
-                  <div key={index} className="relative bg-white rounded-lg border-2 border-gray-200 shadow-md">
-                    <img
-                      src={URL.createObjectURL(file) || "/placeholder.svg"}
-                      alt={`Upload ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-t-lg"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeFile(task.id, index)}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 shadow-lg"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                    <div className="p-2">
-                      <p className="text-sm font-medium text-gray-700 truncate">{file.name}</p>
+            {!hasPhotoUpload ? (
+              <Card className="border-amber-200 bg-amber-50">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <Lock className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div className="space-y-2">
+                      <p className="font-medium text-amber-900">Photo Upload - Premium Feature</p>
+                      <p className="text-sm text-amber-800">
+                        Upgrade to Growth or Scale plan to upload photos with your reports. Photo uploads help document
+                        work completion with visual evidence.
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-amber-300 text-amber-900 hover:bg-amber-100 bg-transparent"
+                        asChild
+                      >
+                        <Link href="/admin/profile/billing">Upgrade Plan</Link>
+                      </Button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <div className="flex items-center justify-center w-full">
+                  <label
+                    htmlFor={`photo-${task.id}`}
+                    className="flex flex-col items-center justify-center w-full h-40 border-3 border-blue-300 border-dashed rounded-xl cursor-pointer bg-blue-50 hover:bg-blue-100 shadow-lg transition-all duration-200"
+                  >
+                    <div className="flex flex-col items-center justify-center pt-6 pb-6">
+                      <Camera className="w-12 h-12 mb-3 text-blue-500" />
+                      <p className="mb-2 text-lg font-semibold text-blue-700">Tap to Take Photo</p>
+                      <p className="text-sm text-blue-600">Photos auto-compressed for faster upload</p>
+                    </div>
+                    <input
+                      id={`photo-${task.id}`}
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      multiple
+                      capture="environment"
+                      onChange={(e) => handleFileUpload(task.id, e.target.files)}
+                    />
+                  </label>
+                </div>
 
-            {uploading[task.id] && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="text-lg font-medium text-blue-700">📸 Processing photos...</div>
-              </div>
-            )}
-            {currentValue && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <p className="text-sm font-medium text-green-700">
-                  ✓ {currentValue.split(",").length} photo(s) uploaded
-                </p>
-              </div>
+                {uploadedFiles[task.id] && uploadedFiles[task.id].length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {uploadedFiles[task.id].map((file, index) => (
+                      <div key={index} className="relative bg-white rounded-lg border-2 border-gray-200 shadow-md">
+                        <img
+                          src={URL.createObjectURL(file) || "/placeholder.svg"}
+                          alt={`Upload ${index + 1}`}
+                          className="w-full h-32 object-cover rounded-t-lg"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeFile(task.id, index)}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 shadow-lg"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                        <div className="p-2">
+                          <p className="text-sm font-medium text-gray-700 truncate">{file.name}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {uploading[task.id] && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="text-lg font-medium text-blue-700">📸 Processing photos...</div>
+                  </div>
+                )}
+                {currentValue && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <p className="text-sm font-medium text-green-700">
+                      ✓ {currentValue.split(",").length} photo(s) uploaded
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )
@@ -751,59 +599,6 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
   const handleCompleteChecklist = async () => {
     console.log("[v0] Complete Checklist button clicked")
     setIsSaving(true)
-
-    const supabase = createClient()
-
-    const impersonationContext = sessionStorage.getItem("masterAdminImpersonation")
-    let currentUser: any = null
-
-    if (impersonationContext) {
-      const impersonationData = JSON.parse(impersonationContext)
-
-      const { data: targetProfile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("email", impersonationData.targetUserEmail)
-        .single()
-
-      if (targetProfile) {
-        currentUser = { id: targetProfile.id, email: impersonationData.targetUserEmail }
-      }
-    }
-
-    if (!currentUser) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        console.log("[v0] No user found for checklist completion")
-        setIsSaving(false)
-        return
-      }
-
-      currentUser = user
-    }
-
-    console.log("[v0] User found for completion:", currentUser.id)
-    console.log("[v0] Template ID:", (await params).id)
-
-    // Check if all required tasks are completed
-    const requiredTasks = tasks.filter((task) => task.is_required)
-    const completedRequiredTasks = requiredTasks.filter((task) => {
-      const response = responses.find((r) => r.item_id === task.id)
-      return response?.is_completed
-    })
-
-    console.log("[v0] Required tasks:", requiredTasks.length)
-    console.log("[v0] Completed required tasks:", completedRequiredTasks.length)
-
-    if (completedRequiredTasks.length < requiredTasks.length) {
-      console.log("[v0] Not all required tasks completed")
-      alert("Please complete all required tasks before submitting.")
-      setIsSaving(false)
-      return
-    }
 
     try {
       const reportData = tasks.map((task) => {
@@ -847,8 +642,8 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
             completed_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
-          .eq("template_id", (await params).id)
-          .eq("assigned_to", currentUser.id)
+          .eq("template_id", checklistId)
+          .eq("assigned_to", (await supabase.auth.getUser()).data.user.id)
           .eq("is_active", true)
           .select()
 
@@ -874,7 +669,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
         .insert({
           template_name: template?.name || "Untitled Report",
           template_description: template?.description || "",
-          submitted_by: currentUser.id,
+          submitted_by: (await supabase.auth.getUser()).data.user.id,
           organization_id: organizationId,
           report_data: reportData,
           status: "completed",
@@ -890,10 +685,10 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
 
       // Create a completion notification for admin
       const { error: notificationError } = await supabase.from("notifications").insert({
-        user_id: currentUser.id,
-        template_id: (await params).id,
+        user_id: (await supabase.auth.getUser()).data.user.id,
+        template_id: checklistId,
         type: "checklist_completed",
-        message: `${currentUser.email} submitted a report: ${template?.name}`,
+        message: `${(await supabase.auth.getUser()).data.user.email} submitted a report: ${template?.name}`,
         created_at: new Date().toISOString(),
       })
 
@@ -913,6 +708,20 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
 
     setIsSaving(false)
   }
+
+  useEffect(() => {
+    const resolveParams = async () => {
+      const resolvedParams = await params
+      setChecklistId(resolvedParams.id)
+    }
+    resolveParams()
+  }, [params])
+
+  useEffect(() => {
+    if (checklistId) {
+      loadChecklist()
+    }
+  }, [checklistId])
 
   if (isLoading) {
     return (

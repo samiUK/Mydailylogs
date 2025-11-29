@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import { getSubscriptionLimits } from "@/lib/subscription-limits"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Copy, ExternalLink, Check } from "lucide-react"
+import { ArrowLeft, Copy, ExternalLink, Check, Lock } from "lucide-react"
 import Link from "next/link"
 
 interface Template {
@@ -17,6 +18,7 @@ interface Template {
   description: string
   frequency: string
   is_active: boolean
+  organization_id: string
 }
 
 export default function ShareTemplatePage({ params }: { params: Promise<{ id: string }> }) {
@@ -27,6 +29,8 @@ export default function ShareTemplatePage({ params }: { params: Promise<{ id: st
   const [copied, setCopied] = useState(false)
   const [shareableLink, setShareableLink] = useState("")
   const [templateId, setTemplateId] = useState<string>("")
+  const [hasContractorAccess, setHasContractorAccess] = useState(false)
+  const [organizationId, setOrganizationId] = useState<string>("")
 
   useEffect(() => {
     const resolveParams = async () => {
@@ -52,6 +56,10 @@ export default function ShareTemplatePage({ params }: { params: Promise<{ id: st
 
       if (error) throw error
       setTemplate(templateData)
+      setOrganizationId(templateData.organization_id)
+
+      const limits = await getSubscriptionLimits(templateData.organization_id)
+      setHasContractorAccess(limits.hasContractorLinkShare)
 
       generateShareableLink()
     } catch (error) {
@@ -103,6 +111,53 @@ export default function ShareTemplatePage({ params }: { params: Promise<{ id: st
             Back to Templates
           </Button>
         </Link>
+      </div>
+    )
+  }
+
+  if (!hasContractorAccess) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="flex items-center gap-4">
+          <Link href="/admin/templates">
+            <Button variant="outline" size="sm">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Share External Form</h1>
+            <p className="text-muted-foreground">Generate a shareable link for external contractors</p>
+          </div>
+        </div>
+
+        <Card className="border-amber-200 bg-amber-50">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Lock className="w-5 h-5 text-amber-600" />
+              <CardTitle>Premium Feature</CardTitle>
+            </div>
+            <CardDescription>Contractor Link Share is available on Growth and Scale plans</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Upgrade your plan to share external forms with contractors, vendors, or temporary workers who don't need
+              full access to your system.
+            </p>
+            <div className="bg-white border border-amber-200 rounded-lg p-4">
+              <h4 className="font-medium text-foreground mb-2">With Contractor Link Share you can:</h4>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>• Share forms without requiring account creation</li>
+                <li>• Collect submissions from external contractors</li>
+                <li>• Track external submissions separately</li>
+                <li>• Maintain security while gathering data</li>
+              </ul>
+            </div>
+            <Link href="/admin/profile/billing">
+              <Button className="w-full">Upgrade to Access Contractor Links</Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     )
   }

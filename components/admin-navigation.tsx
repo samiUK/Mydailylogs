@@ -14,18 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import {
-  ChevronDownIcon,
-  UserIcon,
-  SettingsIcon,
-  LogOutIcon,
-  MenuIcon,
-  CreditCard,
-  MessageSquare,
-  Shield,
-  Database,
-  Crown,
-} from "lucide-react"
+import { ChevronDownIcon, UserIcon, SettingsIcon, LogOutIcon, MenuIcon, CreditCard, MessageSquare } from "lucide-react"
 import { FeedbackModal } from "@/components/feedback-modal"
 
 interface AdminNavigationProps {
@@ -86,22 +75,6 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
               >
                 Reports and Analytics
               </Link>
-              <Link
-                href="/admin/audit-logs"
-                className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1"
-                style={{ "--hover-color": primaryColor } as React.CSSProperties}
-              >
-                <Crown className="w-3 h-3 text-amber-500" />
-                Security Audit
-              </Link>
-              <Link
-                href="/admin/backup-recovery"
-                className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1"
-                style={{ "--hover-color": primaryColor } as React.CSSProperties}
-              >
-                <Database className="w-3 h-3" />
-                Backup & Recovery
-              </Link>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -143,24 +116,6 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Reports and Analytics
-                  </Link>
-                  <Link
-                    href="/admin/audit-logs"
-                    className="text-muted-foreground hover:text-indigo-600 px-4 py-4 rounded-md text-base font-medium border-b min-h-12 flex items-center"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    <Shield className="mr-2 h-4 w-4" />
-                    <Crown className="mr-1 h-3 w-3 text-amber-500" />
-                    Security Audit
-                  </Link>
-                  <Link
-                    href="/admin/backup-recovery"
-                    className="text-muted-foreground hover:text-indigo-600 px-4 py-4 rounded-md text-base font-medium border-b min-h-12 flex items-center"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    <Database className="mr-2 h-4 w-4" />
-                    <Crown className="mr-1 h-3 w-3 text-amber-500" />
-                    Backup & Recovery
                   </Link>
                 </div>
               </SheetContent>

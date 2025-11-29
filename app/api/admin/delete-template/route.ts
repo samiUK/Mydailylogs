@@ -3,7 +3,6 @@ import { type NextRequest, NextResponse } from "next/server"
 
 async function preserveCompletedReports(supabase: any, templateId: string) {
   try {
-    // Get template details for preservation
     const { data: template } = await supabase
       .from("checklist_templates")
       .select("name, description, organization_id")
@@ -31,7 +30,7 @@ async function preserveCompletedReports(supabase: any, templateId: string) {
         .select("*")
         .eq("checklist_id", checklist.id)
 
-      // Create submitted report entry
+      // Create submitted report entry to preserve historical data
       await supabase.from("submitted_reports").insert({
         organization_id: template.organization_id,
         template_name: template.name,
@@ -68,7 +67,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Template ID is required" }, { status: 400 })
     }
 
-    // Get the current user
     const {
       data: { user },
       error: userError,
@@ -79,7 +77,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Verify user is admin
     const { data: profile } = await supabase.from("profiles").select("role, organization_id").eq("id", user.id).single()
 
     if (!profile || profile.role !== "admin") {
@@ -92,7 +89,6 @@ export async function POST(request: NextRequest) {
 
     console.log("[v0] Delete template API - Deleting items for template:", templateId)
 
-    // Delete associated checklist items first (due to foreign key constraints)
     const { error: itemsError } = await supabase.from("checklist_items").delete().eq("template_id", templateId)
 
     if (itemsError) {
@@ -102,12 +98,12 @@ export async function POST(request: NextRequest) {
 
     console.log("[v0] Delete template API - Deleting template:", templateId)
 
-    // Delete the template
+    // Delete the template - assignments, checklists, and reports remain in database
     const { error: templateError } = await supabase
       .from("checklist_templates")
       .delete()
       .eq("id", templateId)
-      .eq("organization_id", profile.organization_id) // Ensure user can only delete templates from their org
+      .eq("organization_id", profile.organization_id)
 
     if (templateError) {
       console.error("[v0] Delete template API - Error deleting template:", templateError)
@@ -118,7 +114,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Template deleted successfully. Completed reports have been preserved.",
+      message: "Template deleted successfully. All task assignments and reports have been preserved.",
     })
   } catch (error) {
     console.error("[v0] Delete template API - Error in delete template API:", error)
@@ -126,7 +122,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Keep existing DELETE handler for API consistency
 export async function DELETE(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -147,7 +142,6 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Verify user is admin
     const { data: profile } = await supabase.from("profiles").select("role, organization_id").eq("id", user.id).single()
 
     if (!profile || profile.role !== "admin") {
@@ -160,7 +154,6 @@ export async function DELETE(request: NextRequest) {
 
     console.log("[v0] Delete template API - Deleting items for template:", templateId)
 
-    // Delete associated checklist items first (due to foreign key constraints)
     const { error: itemsError } = await supabase.from("checklist_items").delete().eq("template_id", templateId)
 
     if (itemsError) {
@@ -170,12 +163,11 @@ export async function DELETE(request: NextRequest) {
 
     console.log("[v0] Delete template API - Deleting template:", templateId)
 
-    // Delete the template
     const { error: templateError } = await supabase
       .from("checklist_templates")
       .delete()
       .eq("id", templateId)
-      .eq("organization_id", profile.organization_id) // Ensure user can only delete templates from their org
+      .eq("organization_id", profile.organization_id)
 
     if (templateError) {
       console.error("[v0] Delete template API - Error deleting template:", templateError)
@@ -186,7 +178,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Template deleted successfully. Completed reports have been preserved.",
+      message: "Template deleted successfully. All task assignments and reports have been preserved.",
     })
   } catch (error) {
     console.error("[v0] Delete template API - Error in delete template API:", error)

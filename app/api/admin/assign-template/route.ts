@@ -44,6 +44,20 @@ export async function POST(request: NextRequest) {
 
     const assignmentDueDate = dueDate || template.specific_date || template.deadline_date
 
+    let holidayWarning = null
+    if (assignmentDueDate) {
+      const { data: holidays } = await supabase
+        .from("holidays")
+        .select("name, date")
+        .eq("organization_id", profile.organization_id)
+        .eq("date", assignmentDueDate)
+
+      if (holidays && holidays.length > 0) {
+        holidayWarning = `Warning: Due date ${formatUKDate(assignmentDueDate)} is ${holidays[0].name}`
+        console.log(`[v0] ${holidayWarning}`)
+      }
+    }
+
     const assignments = memberIds.map((memberId: string) => ({
       template_id: templateId,
       assigned_to: memberId,
@@ -116,7 +130,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, assignedCount: assignments.length })
+    return NextResponse.json({
+      success: true,
+      assignedCount: assignments.length,
+      holidayWarning,
+    })
   } catch (error) {
     console.error("Error assigning template:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

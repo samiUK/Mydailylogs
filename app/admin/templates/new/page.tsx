@@ -498,11 +498,17 @@ export default function NewTemplatePage() {
                         <SelectValue placeholder="How often should this be completed?" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="daily">Daily (Every day including weekends)</SelectItem>
+                        <SelectItem value="weekdays">Daily (Weekdays only)</SelectItem>
                         <SelectItem value="weekly">Weekly</SelectItem>
                         <SelectItem value="monthly">Monthly</SelectItem>
                       </SelectContent>
                     </Select>
+                    {frequency === "weekdays" && (
+                      <p className="text-xs text-gray-600">
+                        Tasks will be created Monday through Friday only. Weekends are automatically skipped.
+                      </p>
+                    )}
                   </div>
                 )}
 

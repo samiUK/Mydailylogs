@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
       .eq("is_recurring", true)
       .eq("is_active", true)
       .eq("template_assignments.is_active", true)
-      .in("recurrence_type", ["daily", "weekly", "monthly"])
+      .in("recurrence_type", ["daily", "weekdays", "weekly", "monthly"])
 
     if (templatesError) {
       console.error("[v0] Error fetching templates:", templatesError)
@@ -130,6 +130,23 @@ async function checkIfShouldRunToday(template: any, today: string, supabase: any
   const todayDate = new Date(today)
   const dayOfWeek = todayDate.getDay() // 0 = Sunday, 6 = Saturday
 
+  const { data: organization } = await supabase
+    .from("organizations")
+    .select("business_hours")
+    .eq("organization_id", template.organization_id)
+    .single()
+
+  if (organization?.business_hours) {
+    const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+    const dayName = dayNames[dayOfWeek]
+    const dayHours = organization.business_hours[dayName]
+
+    if (dayHours && !dayHours.enabled) {
+      console.log(`[v0] Skipping template ${template.id} - business closed on ${dayName}`)
+      return false
+    }
+  }
+
   const { data: holidays } = await supabase
     .from("holidays")
     .select("date")
@@ -165,6 +182,9 @@ async function checkIfShouldRunToday(template: any, today: string, supabase: any
   switch (template.recurrence_type) {
     case "daily":
       return true
+    case "weekdays":
+      // Monday = 1, Friday = 5, Saturday = 6, Sunday = 0
+      return dayOfWeek >= 1 && dayOfWeek <= 5
     case "weekly":
       // Run on the same day of week as created
       const createdDate = new Date(template.created_at)

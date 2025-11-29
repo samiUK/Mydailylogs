@@ -64,11 +64,11 @@ const structuredData = {
     ratingCount: "127",
   },
   description:
-    "Compliance-first task management platform built for UK SMEs. Streamline audit-ready reporting, automate compliance tracking, and manage team tasks with GDPR-compliant tools.",
+    "Task management and reporting platform for SMEs. Streamline team coordination, track task completion, and generate professional reports with GDPR-compliant tools.",
   featureList: [
     "Custom Template Creation",
     "Task Assignment & Tracking",
-    "Audit-Ready Reporting",
+    "Professional Reporting",
     "GDPR Compliance",
     "Team Management",
     "Email Notifications",
@@ -251,7 +251,7 @@ export default async function HomePage() {
             Professional Task Management <span className="text-accent block">& Reporting System for SMEs</span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground leading-relaxed">
-            Professional task management with audit-ready reporting built specifically for small and medium enterprises.
+            Professional task management with detailed reporting built specifically for small and medium enterprises.
             Streamline compliance tracking and team coordination with powerful automation tools.
           </p>
         </div>
@@ -304,7 +304,7 @@ export default async function HomePage() {
               <h3 className="text-xl font-semibold mb-4">Track & Report</h3>
               <p className="text-muted-foreground">
                 Track while every team member is completing task lists in real-time. Generate and save professional
-                reports for regulatory and compliance needs that impress auditors and stakeholders.
+                reports with timestamps, signatures, and complete task history for your business records.
               </p>
             </div>
           </div>
@@ -334,12 +334,11 @@ export default async function HomePage() {
                   Sample Compliance Report
                 </Badge>
                 <h3 className="text-2xl md:text-3xl font-bold text-foreground mb-4">
-                  Professional, Audit-Ready Reports
+                  Professional Reports for Your Business
                 </h3>
                 <p className="text-lg text-muted-foreground mb-6">
-                  Generate industry-standard compliance reports with your business branding, complete audit trails, and
-                  digital signatures. Perfect for health & safety, ISO audits, GDPR documentation, and regulatory
-                  inspections.
+                  Generate professional compliance reports with your business branding, complete task history, and
+                  timestamps. Suitable for documentation, record-keeping, and business reporting needs.
                 </p>
                 <ul className="space-y-3 mb-8">
                   <li className="flex items-start">
@@ -352,20 +351,20 @@ export default async function HomePage() {
                   <li className="flex items-start">
                     <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                     <span className="text-muted-foreground">
-                      <strong className="text-foreground">Complete audit trail</strong> with timestamps and signatures
+                      <strong className="text-foreground">Complete task history</strong> with timestamps and completion
+                      details
                     </span>
                   </li>
                   <li className="flex items-start">
                     <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                     <span className="text-muted-foreground">
-                      <strong className="text-foreground">Optimized file sizes</strong> under 300KB for easy storage and
-                      sharing
+                      <strong className="text-foreground">Optimized file sizes</strong> for easy storage and sharing
                     </span>
                   </li>
                   <li className="flex items-start">
                     <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                     <span className="text-muted-foreground">
-                      <strong className="text-foreground">Industry-standard PDF format</strong> accepted by all auditors
+                      <strong className="text-foreground">Standard PDF format</strong> for compatibility
                     </span>
                   </li>
                 </ul>
@@ -381,12 +380,12 @@ export default async function HomePage() {
                   <div className="bg-background rounded-lg shadow-2xl border-2 border-border overflow-hidden transform hover:scale-105 transition-transform duration-300">
                     <img
                       src="/images/image.png"
-                      alt="Sample Compliance Report - Professional audit-ready report with company letterhead, task completion details, and signatures"
+                      alt="Sample Professional Report - Task completion report with company letterhead, completion details, and timestamps"
                       className="w-full h-auto"
                     />
                   </div>
                   <p className="text-sm text-muted-foreground text-center mt-4">
-                    Live example: Quarterly compliance report with full audit trail
+                    Live example: Professional task completion report
                   </p>
                 </div>
               </div>
@@ -413,10 +412,10 @@ export default async function HomePage() {
                 <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
                   <FileText className="w-6 h-6 text-accent" />
                 </div>
-                <CardTitle>Automated Compliance Reports</CardTitle>
+                <CardTitle>Professional Reporting</CardTitle>
                 <CardDescription>
-                  Generate professional audit reports with your business branding, complete audit trails, and digital
-                  signatures. Perfect for ISO, H&S, and regulatory audits.
+                  Generate professional reports with your business branding, complete task history, and timestamps.
+                  Perfect for documentation, record-keeping, and business reporting needs.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -473,6 +472,10 @@ export default async function HomePage() {
                 <ul className="space-y-3">
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <span>1 admin account</span>
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
                     <span>Up to 5 team members</span>
                   </li>
                   <li className="flex items-center">
@@ -481,7 +484,7 @@ export default async function HomePage() {
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span>Basic reporting</span>
+                    <span>50 report submissions</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
@@ -512,6 +515,10 @@ export default async function HomePage() {
                 <ul className="space-y-3">
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <span>3 admin accounts</span>
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
                     <span>Up to 25 team members</span>
                   </li>
                   <li className="flex items-center">
@@ -520,7 +527,7 @@ export default async function HomePage() {
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span>Advanced reporting & analytics</span>
+                    <span>Unlimited report submissions</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
@@ -528,7 +535,15 @@ export default async function HomePage() {
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span>Custom business branding</span>
+                    <span className="font-semibold">🎨 Custom Business Branding</span>
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <span className="font-semibold">🔗 Contractor Link Share</span>
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <span className="font-semibold">📸 Photo Upload on Reports</span>
                   </li>
                 </ul>
                 <Link href="/auth/sign-up" className="mt-auto">
@@ -555,6 +570,10 @@ export default async function HomePage() {
                 <ul className="space-y-3">
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <span>10 admin accounts</span>
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
                     <span>Up to 75 team members</span>
                   </li>
                   <li className="flex items-center">
@@ -563,11 +582,7 @@ export default async function HomePage() {
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span>Everything in Growth, plus:</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span>Advanced analytics dashboard</span>
+                    <span>Unlimited report submissions</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
@@ -575,7 +590,19 @@ export default async function HomePage() {
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span>Custom business branding</span>
+                    <span className="font-semibold">🎨 Custom Business Branding</span>
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <span className="font-semibold">🔗 Contractor Link Share</span>
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <span className="font-semibold">📸 Photo Upload on Reports</span>
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <span className="font-semibold">🔄 Report Deletion Recovery (via support)</span>
                   </li>
                 </ul>
                 <Link href="/auth/sign-up" className="mt-auto">

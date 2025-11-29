@@ -248,13 +248,17 @@ export default function BillingPage() {
                 </p>
                 <div className="space-y-2 mb-4">
                   <p className="text-sm text-muted-foreground">
-                    • {currentProduct.maxTemplates === -1 ? "Unlimited" : currentProduct.maxTemplates} templates
+                    • {currentProduct.maxTemplates === -1 ? "Unlimited" : currentProduct.maxTemplates} Templates
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    • {currentProduct.maxTeamMembers === -1 ? "Unlimited" : currentProduct.maxTeamMembers} team members
+                    • {currentProduct.maxTeamMembers === -1 ? "Unlimited" : currentProduct.maxTeamMembers} Team Members
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    • {currentProduct.maxAdmins} admin account{currentProduct.maxAdmins > 1 ? "s" : ""}
+                    • {currentProduct.maxAdmins} Admin Account{currentProduct.maxAdmins > 1 ? "s" : ""}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    • {currentProduct.maxReportSubmissions === null ? "Unlimited" : currentProduct.maxReportSubmissions}{" "}
+                    Report Submissions
                   </p>
                   <p className="text-sm text-muted-foreground">
                     • {currentProduct.maxStorage === -1 ? "Unlimited" : currentProduct.maxStorage} GB storage
@@ -336,24 +340,26 @@ export default function BillingPage() {
                   <ul className="space-y-2 flex-1">
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">Basic Reporting</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">Advanced Reporting</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">Advanced Analytics</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-primary" />
                       <span className="text-sm font-semibold">⚡ Task Automation</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
                       <span className="text-sm">Custom Business Branding</span>
                     </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-primary" />
+                      <span className="text-sm">Contractor Link Share</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-primary" />
+                      <span className="text-sm">Photo Upload on Reports</span>
+                    </li>
+                    {plan.id === "scale" && (
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-semibold">Report Deletion Recovery (via support)</span>
+                      </li>
+                    )}
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
                       <span className="text-sm">
@@ -364,6 +370,31 @@ export default function BillingPage() {
                       <CheckCircle className="w-4 h-4 text-primary" />
                       <span className="text-sm">
                         {plan.maxAPIRequests === -1 ? "Unlimited" : plan.maxAPIRequests} API requests
+                      </span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-primary" />
+                      <span className="text-sm">
+                        {plan.maxTemplates === -1 ? "Unlimited" : plan.maxTemplates} Templates
+                      </span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-primary" />
+                      <span className="text-sm">
+                        {plan.maxTeamMembers === -1 ? "Unlimited" : plan.maxTeamMembers} Team Members
+                      </span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-primary" />
+                      <span className="text-sm">
+                        {plan.maxAdmins} Admin Account{plan.maxAdmins > 1 ? "s" : ""}
+                      </span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-primary" />
+                      <span className="text-sm">
+                        {plan.maxReportSubmissions === null ? "Unlimited" : plan.maxReportSubmissions} Report
+                        Submissions
                       </span>
                     </li>
                   </ul>

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useState, useEffect } from "react"
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation"
 import { getSubscriptionLimits } from "@/lib/subscription-limits"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
@@ -18,7 +18,24 @@ interface Organization {
   logo_url: string | null
   primary_color: string | null
   secondary_color: string | null
-  slug: string // Added slug to interface
+  slug: string
+  business_hours?: BusinessHours | null // Made optional to handle missing column
+}
+
+interface BusinessHours {
+  monday: DayHours
+  tuesday: DayHours
+  wednesday: DayHours
+  thursday: DayHours
+  friday: DayHours
+  saturday: DayHours
+  sunday: DayHours
+}
+
+interface DayHours {
+  enabled: boolean
+  open: string
+  close: string
 }
 
 export default function SettingsPage() {
@@ -36,15 +53,35 @@ export default function SettingsPage() {
   const [isImpersonating, setIsImpersonating] = useState(false)
   const [impersonatedEmail, setImpersonatedEmail] = useState("")
 
+  const [businessHours, setBusinessHours] = useState<BusinessHours>({
+    monday: { enabled: true, open: "09:00", close: "17:00" },
+    tuesday: { enabled: true, open: "09:00", close: "17:00" },
+    wednesday: { enabled: true, open: "09:00", close: "17:00" },
+    thursday: { enabled: true, open: "09:00", close: "17:00" },
+    friday: { enabled: true, open: "09:00", close: "17:00" },
+    saturday: { enabled: false, open: "09:00", close: "17:00" },
+    sunday: { enabled: false, open: "09:00", close: "17:00" },
+  })
+
+  const orderedDays: (keyof BusinessHours)[] = [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+  ]
+
   useEffect(() => {
     async function loadOrganization() {
       const supabase = createClient()
-      
+
       console.log("[v0] Loading organization settings...")
 
       const masterAdminImpersonation = localStorage.getItem("masterAdminImpersonation") === "true"
       const impersonatedUserEmail = localStorage.getItem("impersonatedUserEmail")
-      
+
       console.log("[v0] Impersonation check:", { masterAdminImpersonation, impersonatedUserEmail })
 
       let userProfile: any = null
@@ -53,22 +90,24 @@ export default function SettingsPage() {
       if (masterAdminImpersonation && impersonatedUserEmail) {
         setIsImpersonating(true)
         setImpersonatedEmail(impersonatedUserEmail)
-        
+
         console.log("[v0] Loading impersonated user profile:", impersonatedUserEmail)
-        
+
         const { data, error } = await supabase
           .from("profiles")
-          .select("*, organizations!inner(organization_id, organization_name, logo_url, primary_color, secondary_color)")
+          .select(
+            "*, organizations!inner(organization_id, organization_name, logo_url, primary_color, secondary_color)",
+          )
           .eq("email", impersonatedUserEmail)
           .single()
-        
+
         userProfile = data
         profileError = error
       } else {
         const {
           data: { user },
         } = await supabase.auth.getUser()
-        
+
         console.log("[v0] Current user:", user?.id)
 
         if (!user) {
@@ -80,10 +119,12 @@ export default function SettingsPage() {
 
         const { data, error } = await supabase
           .from("profiles")
-          .select("*, organizations!inner(organization_id, organization_name, logo_url, primary_color, secondary_color)")
+          .select(
+            "*, organizations!inner(organization_id, organization_name, logo_url, primary_color, secondary_color)",
+          )
           .eq("id", user.id)
           .single()
-        
+
         userProfile = data
         profileError = error
       }
@@ -130,7 +171,10 @@ export default function SettingsPage() {
       setName(org.organization_name || "")
       setPrimaryColor(org.primary_color || "#10b981")
       setLogoPreview(org.logo_url)
-      
+      if (org.business_hours) {
+        setBusinessHours(org.business_hours as BusinessHours)
+      }
+
       console.log("[v0] Successfully loaded organization settings")
       setIsLoading(false)
     }
@@ -234,20 +278,27 @@ export default function SettingsPage() {
         }
       }
 
-      const slug = generateSlug(name)
+      const newSlug = name.trim() !== organization.organization_name ? generateSlug(name) : organization.slug
 
-      if (!slug || slug.trim().length === 0) {
+      if (!newSlug || newSlug.trim().length === 0) {
         throw new Error("Failed to generate valid slug")
       }
 
-      console.log("[v0] Generated slug:", slug, "from name:", name)
+      console.log("[v0] Generated slug:", newSlug, "from name:", name)
 
-      const updateData = {
+      const updateData: any = {
         organization_name: name.trim(),
-        slug: slug,
         logo_url: logoUrl,
         primary_color: primaryColor,
         updated_at: new Date().toISOString(),
+      }
+
+      if (newSlug !== organization.slug) {
+        updateData.slug = newSlug
+      }
+
+      if ("business_hours" in organization) {
+        updateData.business_hours = businessHours
       }
 
       console.log("[v0] Update data:", updateData)
@@ -276,9 +327,10 @@ export default function SettingsPage() {
           ? {
               ...prev,
               organization_name: name,
-              slug: slug,
+              slug: newSlug,
               logo_url: logoUrl,
               primary_color: primaryColor,
+              business_hours: businessHours,
             }
           : null,
       )
@@ -308,6 +360,16 @@ export default function SettingsPage() {
 
   const canEditOrganizationName = profile?.role === "admin" || profile?.role === "master_admin"
 
+  const updateDayHours = (day: keyof BusinessHours, field: keyof DayHours, value: any) => {
+    setBusinessHours((prev) => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        [field]: value,
+      },
+    }))
+  }
+
   if (isLoading) {
     return (
       <div className="max-w-4xl mx-auto space-y-8">
@@ -329,6 +391,61 @@ export default function SettingsPage() {
               <div className="h-4 bg-gray-200 rounded w-1/4"></div>
               <div className="h-16 bg-gray-200 rounded"></div>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Business Hours</CardTitle>
+            <CardDescription>
+              Set your operating hours for automated task scheduling (Growth & Scale plans)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {orderedDays.map((day) => {
+              const hours = businessHours[day]
+              return (
+                <div key={day} className="flex items-center gap-4 p-3 border rounded-lg">
+                  <div className="flex items-center gap-3 flex-1">
+                    <input
+                      type="checkbox"
+                      checked={hours.enabled}
+                      onChange={(e) => updateDayHours(day, "enabled", e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300"
+                      disabled={!canEditOrganizationName}
+                    />
+                    <Label className="capitalize font-medium w-24">{day}</Label>
+                  </div>
+
+                  {hours.enabled && (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="time"
+                        value={hours.open}
+                        onChange={(e) => updateDayHours(day, "open", e.target.value)}
+                        className="w-32"
+                        disabled={!canEditOrganizationName}
+                      />
+                      <span className="text-gray-500">to</span>
+                      <Input
+                        type="time"
+                        value={hours.close}
+                        onChange={(e) => updateDayHours(day, "close", e.target.value)}
+                        className="w-32"
+                        disabled={!canEditOrganizationName}
+                      />
+                    </div>
+                  )}
+
+                  {!hours.enabled && <span className="text-gray-400 text-sm">Closed</span>}
+                </div>
+              )
+            })}
+
+            <p className="text-sm text-gray-600">
+              Business hours help the system schedule automated recurring tasks only during your operating hours. Free
+              users can set this but it only affects Growth and Scale plans with task automation.
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -365,9 +482,7 @@ export default function SettingsPage() {
           <AlertDescription>
             <div>
               <strong className="text-red-900">IMPERSONATION MODE</strong>
-              <span className="text-red-700 ml-2">
-                Viewing settings for: {impersonatedEmail}
-              </span>
+              <span className="text-red-700 ml-2">Viewing settings for: {impersonatedEmail}</span>
             </div>
           </AlertDescription>
         </Alert>
@@ -489,6 +604,61 @@ export default function SettingsPage() {
           <Button onClick={handleSave} disabled={isSaving || !canEditOrganizationName}>
             {isSaving ? "Saving..." : "Save Settings"}
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Business Hours</CardTitle>
+          <CardDescription>
+            Set your operating hours for automated task scheduling (Growth & Scale plans)
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {orderedDays.map((day) => {
+            const hours = businessHours[day]
+            return (
+              <div key={day} className="flex items-center gap-4 p-3 border rounded-lg">
+                <div className="flex items-center gap-3 flex-1">
+                  <input
+                    type="checkbox"
+                    checked={hours.enabled}
+                    onChange={(e) => updateDayHours(day, "enabled", e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300"
+                    disabled={!canEditOrganizationName}
+                  />
+                  <Label className="capitalize font-medium w-24">{day}</Label>
+                </div>
+
+                {hours.enabled && (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="time"
+                      value={hours.open}
+                      onChange={(e) => updateDayHours(day, "open", e.target.value)}
+                      className="w-32"
+                      disabled={!canEditOrganizationName}
+                    />
+                    <span className="text-gray-500">to</span>
+                    <Input
+                      type="time"
+                      value={hours.close}
+                      onChange={(e) => updateDayHours(day, "close", e.target.value)}
+                      className="w-32"
+                      disabled={!canEditOrganizationName}
+                    />
+                  </div>
+                )}
+
+                {!hours.enabled && <span className="text-gray-400 text-sm">Closed</span>}
+              </div>
+            )
+          })}
+
+          <p className="text-sm text-gray-600">
+            Business hours help the system schedule automated recurring tasks only during your operating hours. Free
+            users can set this but it only affects Growth and Scale plans with task automation.
+          </p>
         </CardContent>
       </Card>
 

@@ -3,9 +3,12 @@ import { createClient } from "@/lib/supabase/client"
 export interface SubscriptionLimits {
   maxTemplates: number
   maxTeamMembers: number
-  maxAdmins: number // Added admin limit
+  maxAdmins: number
   hasCustomBranding: boolean
-  hasTaskAutomation: boolean // Added task automation flag to limits
+  hasTaskAutomation: boolean
+  maxReportSubmissions: number | null // null means unlimited
+  hasContractorLinkShare: boolean
+  hasPhotoUpload: boolean
   planName: string
 }
 
@@ -28,23 +31,32 @@ export async function getSubscriptionLimits(organizationId: string): Promise<Sub
           maxTeamMembers: 5,
           maxAdmins: 1,
           hasCustomBranding: false,
-          hasTaskAutomation: false, // Free plan does NOT have task automation
+          hasTaskAutomation: false,
+          maxReportSubmissions: 50,
+          hasContractorLinkShare: false,
+          hasPhotoUpload: false,
           planName: "Starter",
         },
         growth: {
           maxTemplates: 10,
-          maxTeamMembers: 25, // Reduced from 30 to 25 team members
+          maxTeamMembers: 25,
           maxAdmins: 3,
           hasCustomBranding: true,
-          hasTaskAutomation: true, // Growth plan HAS task automation
+          hasTaskAutomation: true,
+          maxReportSubmissions: null,
+          hasContractorLinkShare: true,
+          hasPhotoUpload: true,
           planName: "Growth",
         },
         scale: {
-          maxTemplates: 20, // Reduced from 30 to 20 templates
-          maxTeamMembers: 75, // Reduced from 100 to 75 team members
+          maxTemplates: 20,
+          maxTeamMembers: 75,
           maxAdmins: 10,
           hasCustomBranding: true,
-          hasTaskAutomation: true, // Scale plan HAS task automation
+          hasTaskAutomation: true,
+          maxReportSubmissions: null,
+          hasContractorLinkShare: true,
+          hasPhotoUpload: true,
           planName: "Scale",
         },
       }
@@ -61,7 +73,10 @@ export async function getSubscriptionLimits(organizationId: string): Promise<Sub
     maxTeamMembers: 5,
     maxAdmins: 1,
     hasCustomBranding: false,
-    hasTaskAutomation: false, // Default to no task automation
+    hasTaskAutomation: false,
+    maxReportSubmissions: 50,
+    hasContractorLinkShare: false,
+    hasPhotoUpload: false,
     planName: "Starter",
   }
 }
@@ -89,10 +104,16 @@ export async function getCurrentUsage(organizationId: string) {
       .eq("organization_id", organizationId)
       .eq("role", "admin")
 
+    const { count: reportSubmissionCount } = await supabase
+      .from("submitted_reports")
+      .select("*", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+
     return {
       templateCount: templateCount || 0,
       teamMemberCount: teamMemberCount || 0,
       adminCount: adminCount || 0,
+      reportSubmissionCount: reportSubmissionCount || 0,
     }
   } catch (error) {
     console.error("Error fetching current usage:", error)
@@ -100,6 +121,7 @@ export async function getCurrentUsage(organizationId: string) {
       templateCount: 0,
       teamMemberCount: 0,
       adminCount: 0,
+      reportSubmissionCount: 0,
     }
   }
 }
@@ -165,5 +187,100 @@ export async function checkCanCreateAdmin(organizationId: string): Promise<{
     currentCount: usage.adminCount,
     maxAllowed: limits.maxAdmins,
     requiresUpgrade: !canCreate,
+  }
+}
+
+export async function checkCanSubmitReport(organizationId: string): Promise<{
+  canSubmit: boolean
+  reason?: string
+  currentCount: number
+  maxAllowed: number | null
+}> {
+  const [limits, usage] = await Promise.all([getSubscriptionLimits(organizationId), getCurrentUsage(organizationId)])
+
+  // null means unlimited
+  const canSubmit = limits.maxReportSubmissions === null || usage.reportSubmissionCount < limits.maxReportSubmissions
+
+  return {
+    canSubmit,
+    reason: canSubmit
+      ? undefined
+      : `You've reached your plan limit of ${limits.maxReportSubmissions} report submissions. Upgrade to Growth or Scale for unlimited reports.`,
+    currentCount: usage.reportSubmissionCount,
+    maxAllowed: limits.maxReportSubmissions,
+  }
+}
+
+export async function checkCanUseContractorLinkShare(organizationId: string): Promise<{
+  canUse: boolean
+  reason?: string
+}> {
+  const limits = await getSubscriptionLimits(organizationId)
+
+  const canUse = limits.hasContractorLinkShare
+
+  return {
+    canUse,
+    reason: canUse
+      ? undefined
+      : "Your current plan does not include contractor link share. Upgrade to Growth or Scale to access this feature.",
+  }
+}
+
+export async function checkCanUploadPhotos(organizationId: string): Promise<{
+  canUpload: boolean
+  reason?: string
+}> {
+  const limits = await getSubscriptionLimits(organizationId)
+
+  const canUpload = limits.hasPhotoUpload
+
+  return {
+    canUpload,
+    reason: canUpload
+      ? undefined
+      : "Your current plan does not include photo uploads. Upgrade to Growth or Scale to access this feature.",
+  }
+}
+
+export async function checkReportSubmissionLimit(organizationId: string): Promise<{
+  canSubmit: boolean
+  currentCount: number
+  limit: number
+  message?: string
+}> {
+  const supabase = createClient()
+  const limits = await getSubscriptionLimits(organizationId)
+
+  // Paid plans have unlimited submissions
+  if (limits.maxReportSubmissions === null) {
+    return {
+      canSubmit: true,
+      currentCount: 0,
+      limit: -1,
+    }
+  }
+
+  // Count submissions in current month for free plans
+  const startOfMonth = new Date()
+  startOfMonth.setDate(1)
+  startOfMonth.setHours(0, 0, 0, 0)
+
+  const { count } = await supabase
+    .from("submitted_reports")
+    .select("*", { count: "exact", head: true })
+    .eq("organization_id", organizationId)
+    .gte("submitted_at", startOfMonth.toISOString())
+
+  const currentCount = count || 0
+  const canSubmit = currentCount < limits.maxReportSubmissions
+
+  return {
+    canSubmit,
+    currentCount,
+    limit: limits.maxReportSubmissions,
+    message: canSubmit
+      ? undefined
+      : `You've reached your monthly limit of ${limits.maxReportSubmissions} report submissions. Upgrade to Growth or Scale for unlimited submissions.`,
   }
 }

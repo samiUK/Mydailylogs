@@ -47,6 +47,7 @@ import {
 import { useEffect, useState } from "react"
 import { ReportDirectoryContent } from "./report-directory-content"
 import { toast } from "sonner" // Import toast
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 // All admin operations now use server-side API routes for security
 
@@ -125,6 +126,7 @@ export default function MasterDashboardPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [allUsers, setAllUsers] = useState<UserProfile[]>([])
+  const [authUserMap, setAuthUserMap] = useState<Map<string, any>>(new Map())
   const [allSubscriptions, setAllSubscriptions] = useState<Subscription[]>([])
   const [allPayments, setAllPayments] = useState<Payment[]>([])
   const [feedback, setFeedback] = useState<Feedback[]>([])
@@ -425,12 +427,13 @@ export default function MasterDashboardPage() {
           const authUsersResponse = await fetch("/api/admin/get-auth-users")
           const authUsersResult = await authUsersResponse.json()
 
-          const authUserMap = new Map()
+          const tempAuthUserMap = new Map()
           if (authUsersResult.verificationMap) {
             Object.entries(authUsersResult.verificationMap).forEach(([userId, data]: [string, any]) => {
-              authUserMap.set(userId, data.email_confirmed_at)
+              tempAuthUserMap.set(userId, data)
             })
           }
+          setAuthUserMap(tempAuthUserMap)
 
           const [
             { data: organizationsData, error: orgError },
@@ -548,8 +551,9 @@ export default function MasterDashboardPage() {
           if (profilesData) {
             profilesData.forEach((profile) => {
               // Enrich profile with email_confirmed_at status from auth users
-              const confirmedAt = authUserMap.get(profile.id) || null
-              const enrichedProfile = { ...profile, email_confirmed_at: confirmedAt }
+              const confirmedAt = tempAuthUserMap.get(profile.id)?.email_confirmed_at || null
+              const lastSignInAt = tempAuthUserMap.get(profile.id)?.last_sign_in_at || null
+              const enrichedProfile = { ...profile, email_confirmed_at: confirmedAt, last_sign_in_at: lastSignInAt }
 
               if (enrichedProfile.organization_id) {
                 const org = organizationMap.get(enrichedProfile.organization_id)
@@ -582,9 +586,10 @@ export default function MasterDashboardPage() {
           setOrganizations(allOrganizations)
           setAllUsers(
             profilesData?.map((profile) => {
-              // Ensure allUsers also gets email_confirmed_at
-              const confirmedAt = authUserMap.get(profile.id) || null
-              return { ...profile, email_confirmed_at: confirmedAt }
+              // Ensure allUsers also gets email_confirmed_at and last_sign_in_at
+              const confirmedAt = tempAuthUserMap.get(profile.id)?.email_confirmed_at || null
+              const lastSignInAt = tempAuthUserMap.get(profile.id)?.last_sign_in_at || null
+              return { ...profile, email_confirmed_at: confirmedAt, last_sign_in_at: lastSignInAt }
             }) || [],
           )
 
@@ -592,8 +597,9 @@ export default function MasterDashboardPage() {
             organizations: allOrganizations.length,
             users: (
               profilesData?.map((profile) => {
-                const confirmedAt = authUserMap.get(profile.id) || null
-                return { ...profile, email_confirmed_at: confirmedAt }
+                const confirmedAt = tempAuthUserMap.get(profile.id)?.email_confirmed_at || null
+                const lastSignInAt = tempAuthUserMap.get(profile.id)?.last_sign_in_at || null
+                return { ...profile, email_confirmed_at: confirmedAt, last_sign_in_at: lastSignInAt }
               }) || []
             ).length,
             superusers: superusersData?.length || 0,
@@ -606,16 +612,18 @@ export default function MasterDashboardPage() {
 
           const admins = (
             profilesData?.map((profile) => {
-              // Ensure admins also get email_confirmed_at
-              const confirmedAt = authUserMap.get(profile.id) || null
-              return { ...profile, email_confirmed_at: confirmedAt }
+              // Ensure admins also get email_confirmed_at and last_sign_in_at
+              const confirmedAt = tempAuthUserMap.get(profile.id)?.email_confirmed_at || null
+              const lastSignInAt = tempAuthUserMap.get(profile.id)?.last_sign_in_at || null
+              return { ...profile, email_confirmed_at: confirmedAt, last_sign_in_at: lastSignInAt }
             }) || []
           ).filter((user) => user.role === "admin")
           const staff = (
             profilesData?.map((profile) => {
-              // Ensure staff also get email_confirmed_at
-              const confirmedAt = authUserMap.get(profile.id) || null
-              return { ...profile, email_confirmed_at: confirmedAt }
+              // Ensure staff also get email_confirmed_at and last_sign_in_at
+              const confirmedAt = tempAuthUserMap.get(profile.id)?.email_confirmed_at || null
+              const lastSignInAt = tempAuthUserMap.get(profile.id)?.last_sign_in_at || null
+              return { ...profile, email_confirmed_at: confirmedAt, last_sign_in_at: lastSignInAt }
             }) || []
           ).filter((user) => user.role === "staff")
 
@@ -1942,122 +1950,134 @@ export default function MasterDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                    <Table className="min-w-full divide-y divide-gray-200">
+                      <TableHeader className="bg-gray-50">
+                        <TableRow>
+                          {/* <TableHead>Name</TableHead> */}
+                          <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                             Name
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                          </TableHead>
+                          <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                             Email
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                          </TableHead>
+                          {/* Removed Organization column header */}
+                          <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                             Verification
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                          </TableHead>
+                          <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                             Role
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                          </TableHead>
+                          <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                             Organization
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                          </TableHead>
+                          <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                             Last Seen
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
+                          </TableHead>
+                          <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
                             Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {filteredUsersNew.map((user) => (
-                          <tr key={user.id}>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
-                              {user.full_name || "N/A"}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">{user.email}</td>
-                            <td className="px-3 py-2 text-left text-xs whitespace-nowrap">
-                              <div className="flex items-center gap-2">
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody className="bg-white divide-y divide-gray-200">
+                        {filteredUsersNew.map((user) => {
+                          const authUser = authUserMap.get(user.id) // FIX: authUserMap is declared inside checkAuthAndLoadData, but used here.
+                          const lastSignIn = authUser?.last_sign_in_at
+                            ? new Date(authUser.last_sign_in_at).toLocaleString()
+                            : "Never"
+
+                          return (
+                            <TableRow key={user.id}>
+                              <TableCell className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {user.full_name || "N/A"}
+                              </TableCell>
+                              <TableCell className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
+                                {user.email}
+                              </TableCell>
+                              <TableCell className="px-3 py-2 text-left text-xs whitespace-nowrap">
+                                <div className="flex items-center gap-2">
+                                  {user.email_confirmed_at ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-green-600 border-green-200 bg-green-50 text-xs"
+                                    >
+                                      Verified
+                                    </Badge>
+                                  ) : (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-orange-600 border-orange-200 bg-orange-50 text-xs"
+                                    >
+                                      Unverified
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 capitalize">
+                                {user.role}
+                              </TableCell>
+                              {/* Removed Organization column data cell */}
+                              <TableCell className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
+                                {user.organizations?.name || "N/A"}
+                              </TableCell>
+                              <TableCell className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
+                                {lastSignIn}
+                              </TableCell>
+                              <TableCell className="px-3 py-2 text-left text-xs flex gap-1">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => loginAsUser(user.email, user.role)}
+                                  className="text-blue-600 border-blue-200 hover:bg-blue-50 text-xs px-2 py-1"
+                                >
+                                  <LogIn className="w-3 h-3 mr-1" />
+                                  Login
+                                </Button>
                                 {user.email_confirmed_at ? (
-                                  <Badge
+                                  <Button
                                     variant="outline"
-                                    className="text-green-600 border-green-200 bg-green-50 text-xs"
+                                    size="sm"
+                                    disabled
+                                    className="text-green-600 border-green-200 bg-green-50 text-xs px-2 py-1 cursor-not-allowed"
                                   >
+                                    <Mail className="w-3 h-3 mr-1" />
                                     Verified
-                                  </Badge>
+                                  </Button>
                                 ) : (
-                                  <Badge
+                                  <Button
                                     variant="outline"
-                                    className="text-orange-600 border-orange-200 bg-orange-50 text-xs"
+                                    size="sm"
+                                    onClick={() => verifyUserEmail(user.email)}
+                                    className="text-purple-600 border-purple-200 hover:bg-purple-50 text-xs px-2 py-1"
                                   >
-                                    Unverified
-                                  </Badge>
+                                    <Mail className="w-3 h-3 mr-1" />
+                                    Verify Email
+                                  </Button>
                                 )}
-                              </div>
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 capitalize">
-                              {user.role}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
-                              {user.organizations?.name || "N/A"}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
-                              {user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString() : "Never"}
-                            </td>
-                            <td className="px-3 py-2 text-left text-xs flex gap-1">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => loginAsUser(user.email, user.role)}
-                                className="text-blue-600 border-blue-200 hover:bg-blue-50 text-xs px-2 py-1"
-                              >
-                                <LogIn className="w-3 h-3 mr-1" />
-                                Login
-                              </Button>
-                              {user.email_confirmed_at ? (
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  disabled
-                                  className="text-green-600 border-green-200 bg-green-50 text-xs px-2 py-1 cursor-not-allowed"
+                                  onClick={() => resetUserPassword(user.email)}
+                                  className="text-orange-600 border-orange-200 hover:bg-orange-50 text-xs px-2 py-1"
                                 >
-                                  <Mail className="w-3 h-3 mr-1" />
-                                  Verified
+                                  <Key className="w-3 h-3 mr-1" />
+                                  Reset
                                 </Button>
-                              ) : (
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => verifyUserEmail(user.email)}
-                                  className="text-purple-600 border-purple-200 hover:bg-purple-50 text-xs px-2 py-1"
+                                  onClick={() => handleDeleteUser(user.id, user.email)}
+                                  className="text-red-600 border-red-200 hover:bg-red-50 text-xs px-2 py-1"
+                                  disabled={isProcessing}
                                 >
-                                  <Mail className="w-3 h-3 mr-1" />
-                                  Verify Email
+                                  <Trash2 className="w-3 h-3 mr-1" />
+                                  Delete
                                 </Button>
-                              )}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => resetUserPassword(user.email)}
-                                className="text-orange-600 border-orange-200 hover:bg-orange-50 text-xs px-2 py-1"
-                              >
-                                <Key className="w-3 h-3 mr-1" />
-                                Reset
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDeleteUser(user.id, user.email)}
-                                className="text-red-600 border-red-200 hover:bg-red-50 text-xs px-2 py-1"
-                                disabled={isProcessing}
-                              >
-                                <Trash2 className="w-3 h-3 mr-1" />
-                                Delete
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
                   </div>
                 </CardContent>
               </Card>

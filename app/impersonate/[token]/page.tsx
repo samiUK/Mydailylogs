@@ -1,9 +1,9 @@
 "use client"
 
 import { use, useEffect, useState } from "react"
-import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, CheckCircle, XCircle } from 'lucide-react'
+import { Loader2, CheckCircle, XCircle } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 export default function ImpersonatePage({ params }: { params: Promise<{ token: string }> }) {
   const resolvedParams = use(params)
@@ -13,6 +13,8 @@ export default function ImpersonatePage({ params }: { params: Promise<{ token: s
 
   useEffect(() => {
     const verifyAndImpersonate = async () => {
+      console.log("[v0] Starting impersonation with token:", resolvedParams.token.substring(0, 10) + "...")
+
       try {
         // Verify token with API
         const response = await fetch("/api/impersonation/verify-token", {
@@ -21,13 +23,22 @@ export default function ImpersonatePage({ params }: { params: Promise<{ token: s
           body: JSON.stringify({ token: resolvedParams.token }),
         })
 
+        console.log("[v0] Verification response status:", response.status)
+
         if (!response.ok) {
-          throw new Error("Invalid or expired token")
+          const errorData = await response.json()
+          console.error("[v0] Verification failed:", errorData)
+          throw new Error(errorData.error || "Invalid or expired token")
         }
 
-        const { impersonationData } = await response.json()
+        const { impersonationData, redirectPath } = await response.json()
 
-        // Store impersonation data in localStorage
+        console.log("[v0] Impersonation data received:", {
+          userEmail: impersonationData.userEmail,
+          userRole: impersonationData.userRole,
+          redirectPath,
+        })
+
         localStorage.setItem("masterAdminImpersonation", "true")
         localStorage.setItem("impersonatedUserEmail", impersonationData.userEmail)
         localStorage.setItem("impersonatedUserId", impersonationData.userId)
@@ -38,14 +49,17 @@ export default function ImpersonatePage({ params }: { params: Promise<{ token: s
         setStatus("success")
         setMessage(`Successfully authenticated as ${impersonationData.userEmail}`)
 
-        // Redirect to appropriate dashboard after 2 seconds
+        console.log("[v0] Redirecting to dashboard:", redirectPath)
+
         setTimeout(() => {
-          router.push(`/${impersonationData.userRole}`)
-        }, 2000)
+          window.location.href = redirectPath
+        }, 1500)
       } catch (error) {
         console.error("[v0] Impersonation error:", error)
         setStatus("error")
-        setMessage("Invalid or expired impersonation link. Please request a new one.")
+        setMessage(
+          error instanceof Error ? error.message : "Invalid or expired impersonation link. Please request a new one.",
+        )
       }
     }
 

@@ -20,8 +20,23 @@ import {
 import Link from "next/link"
 import { Footer } from "@/components/footer"
 import { FeedbackModal } from "@/components/feedback-modal"
-import CookieConsent from "@/components/cookie-consent"
+import type { Metadata } from "next"
 import { redirect } from "next/navigation"
+import { CookieConsent } from "@/components/cookie-consent"
+
+export const metadata: Metadata = {
+  title: "MyDayLogs - Mobile-Friendly Task Management & Reporting for Field Teams | UK SME Solution",
+  description:
+    "Mobile-friendly task management and compliance reporting for field teams. Perfect for construction, hospitality, healthcare, retail, and logistics teams who need to track tasks, complete checklists, and generate professional reports on mobile devices. Starting at £9/month for UK SMEs.",
+  keywords:
+    "mobile task management, field team software, mobile compliance tracking, on-the-go reporting, mobile checklists, field operations app, mobile-friendly task app, construction mobile app, retail field operations, hospitality compliance, healthcare mobile reporting, logistics tracking app, UK task management, SME software UK",
+  openGraph: {
+    title: "MyDayLogs - Mobile-Friendly Task Management for Field Teams",
+    description:
+      "Professional task management and compliance reporting on mobile devices for UK field teams. Affordable flat-rate pricing starting at £9/month.",
+    images: ["/og-image.png"],
+  },
+}
 
 export const dynamic = "force-dynamic"
 
@@ -35,7 +50,7 @@ const structuredData = {
     "@type": "AggregateOffer",
     priceCurrency: "GBP",
     lowPrice: "0",
-    highPrice: "16", // Updated from 14.99 to 16 for monthly pricing
+    highPrice: "16",
     offerCount: "3",
     offers: [
       {
@@ -47,13 +62,13 @@ const structuredData = {
       {
         "@type": "Offer",
         name: "Growth Plan",
-        price: "9", // Updated from 7.99 to 9 for monthly pricing
+        price: "9",
         priceCurrency: "GBP",
       },
       {
         "@type": "Offer",
         name: "Scale Plan",
-        price: "16", // Updated from 14.99 to 16 for monthly pricing
+        price: "16",
         priceCurrency: "GBP",
       },
     ],
@@ -64,19 +79,21 @@ const structuredData = {
     ratingCount: "127",
   },
   description:
-    "Task management and reporting platform for SMEs. Streamline team coordination, track task completion, and generate professional reports with GDPR-compliant tools.",
+    "Mobile-friendly task management and reporting platform for field teams. Streamline compliance tracking, complete checklists on mobile devices, and generate professional reports from anywhere. Perfect for construction, hospitality, healthcare, retail, and logistics operations.",
   featureList: [
+    "Mobile-Friendly Task Management",
+    "Field Team Coordination",
     "Custom Template Creation",
-    "Task Assignment & Tracking",
-    "Professional Reporting",
+    "Mobile Checklists & Reporting",
+    "Professional PDF Reports",
     "GDPR Compliance",
     "Team Management",
-    "Email Notifications",
+    "Automated Email Notifications",
     "Progress Monitoring",
   ],
   screenshot: "https://www.mydaylogs.co.uk/og-image.png",
   softwareVersion: "2.0",
-  releaseNotes: "Beta 2.0 - Enhanced compliance features and improved user experience",
+  releaseNotes: "Beta 2.0 - Enhanced mobile experience and field team features",
 }
 
 export default async function HomePage() {
@@ -242,17 +259,16 @@ export default async function HomePage() {
         </div>
       </nav>
 
-      <section className="px-4 sm:px-6 lg:px-8 py-0">
-        <div className="max-w-7xl mx-auto text-center mb-12">
-          <Badge variant="secondary" className="mb-6 text-sm font-semibold px-4 py-2">
-            🎉 Beta 2.0 Now Live - Global Launch
-          </Badge>
+      {/* Hero Section */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8 text-center">
+        <div className="max-w-4xl mx-auto">
           <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-foreground mb-6 leading-tight">
-            Professional Task Management <span className="text-accent block">& Reporting System for SMEs</span>
+            Mobile Task Management <span className="text-accent block">for On-the-Go Field Teams</span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground leading-relaxed">
-            Professional task management with detailed reporting built specifically for small and medium enterprises.
-            Streamline compliance tracking and team coordination with powerful automation tools.
+            Professional mobile-friendly task management and compliance reporting built for field teams who work
+            on-site. Complete checklists, capture photos, and generate professional reports directly from your mobile
+            device - perfect for construction, hospitality, healthcare, retail, and logistics teams.
           </p>
         </div>
       </section>
@@ -263,6 +279,80 @@ export default async function HomePage() {
           alt="MyDayLogs Admin Dashboard"
           className="w-full h-auto object-cover"
         />
+      </section>
+
+      {/* Features Overview Section */}
+      <section className="py-20 bg-muted/30" id="features">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <Badge variant="secondary" className="mb-4">
+              Built for Mobile Field Operations
+            </Badge>
+            <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
+              Mobile-Optimized Features for Field Teams
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
+              Everything your field team needs to track tasks, ensure compliance, and submit professional reports - all
+              from their mobile devices while on-site.
+            </p>
+          </div>
+
+          {/* Core Features Section */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <Card className="border-border/50 bg-card hover:shadow-lg transition-shadow duration-300">
+              <CardHeader>
+                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
+                  <CheckSquare className="w-6 h-6 text-accent" />
+                </div>
+                <CardTitle>Mobile Digital Checklists</CardTitle>
+                <CardDescription>
+                  Create custom task templates and complete them on mobile devices. Field teams can track completion
+                  status in real-time with photo evidence and timestamps - perfect for on-site compliance checks.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            <Card className="border-border/50 bg-card hover:shadow-lg transition-shadow duration-300">
+              <CardHeader>
+                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
+                  <FileText className="w-6 h-6 text-accent" />
+                </div>
+                <CardTitle>Professional Mobile Reporting</CardTitle>
+                <CardDescription>
+                  Generate professional reports with your business branding directly from mobile devices. Complete task
+                  history, photos, and timestamps submitted on-site - perfect for field documentation and audit-ready
+                  compliance records.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            <Card className="border-border/50 bg-card hover:shadow-lg transition-shadow duration-300">
+              <CardHeader>
+                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
+                  <Users className="w-6 h-6 text-accent" />
+                </div>
+                <CardTitle>Field Team Management</CardTitle>
+                <CardDescription>
+                  Manage your entire field team from one dashboard. Assign mobile tasks to on-site workers, track
+                  progress in real-time, and monitor completion rates across all team members and locations.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            <Card className="border-border/50 bg-card hover:shadow-lg transition-shadow duration-300">
+              <CardHeader>
+                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
+                  <Calendar className="w-6 h-6 text-accent" />
+                </div>
+                <CardTitle>Smart Mobile Reminders</CardTitle>
+                <CardDescription>
+                  Set up recurring tasks with customizable schedules for field teams. Automatic mobile-friendly email
+                  reminders ensure on-site teams never miss critical compliance checks or safety inspections.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </div>
+        </div>
       </section>
 
       <section className="py-2.5">

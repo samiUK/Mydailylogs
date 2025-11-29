@@ -18,11 +18,11 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.mydaylogs.co.uk"),
   title: {
-    default: "MyDayLogs - Compliance Task Management for UK SMEs | Beta 2.0",
+    default: "MyDayLogs - Mobile-First Compliance for Field Teams | Beta 2.0",
     template: "%s | MyDayLogs",
   },
   description:
-    "Compliance-first task management platform built for UK SMEs. Streamline audit-ready reporting, automate compliance tracking, and manage team tasks with GDPR-compliant tools. Free Starter plan available.",
+    "Mobile-first compliance task management for field teams and mobile workers. Complete checklists, capture photos, and generate reports from any device. Perfect for construction, hospitality, healthcare, and logistics teams on the go.",
   keywords: [
     "compliance management software",
     "task management UK",
@@ -50,9 +50,9 @@ export const metadata: Metadata = {
     locale: "en_GB",
     url: "https://www.mydaylogs.co.uk",
     siteName: "MyDayLogs",
-    title: "MyDayLogs - Compliance Task Management for UK SMEs",
+    title: "MyDayLogs - Mobile-First Compliance for Field Teams",
     description:
-      "Streamline compliance tracking and team task management with audit-ready reporting. Built specifically for UK small and medium enterprises.",
+      "Complete compliance tasks from anywhere. Mobile-optimized for field teams with offline-ready checklists, photo capture, and instant reporting.",
     images: [
       {
         url: "/og-image.png",
@@ -64,8 +64,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "MyDayLogs - Compliance Task Management for UK SMEs",
-    description: "Streamline compliance tracking and team task management with audit-ready reporting.",
+    title: "MyDayLogs - Mobile-First Compliance for Field Teams",
+    description:
+      "Complete compliance tasks from anywhere. Mobile-optimized for field teams with photo capture and instant reporting.",
     images: ["/og-image.png"],
   },
   robots: {
@@ -101,6 +102,12 @@ export default function RootLayout({
     <html lang="en-GB" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <head>
         <link rel="canonical" href="https://www.mydaylogs.co.uk" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="MyDayLogs" />
+        <meta name="theme-color" content="#059669" />
       </head>
       <body className="font-sans antialiased">
         <BrandingProvider>{children}</BrandingProvider>

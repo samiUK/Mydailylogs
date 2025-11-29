@@ -757,33 +757,33 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
   )
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-6 space-y-4 md:space-y-6">
-      <div className="space-y-4">
+    <div className="min-h-screen bg-background p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4 md:space-y-6">
+      <div className="space-y-3 sm:space-y-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground">{template.name}</h1>
-          <p className="text-sm md:text-base text-muted-foreground mt-2">{template.description}</p>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">{template.name}</h1>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1 sm:mt-2">{template.description}</p>
           <Badge variant="outline" className="mt-2 text-xs">
             {template.frequency}
           </Badge>
         </div>
 
         <div className="space-y-2">
-          <div className="w-full bg-muted rounded-full h-2">
+          <div className="w-full bg-muted rounded-full h-2.5 sm:h-2">
             <div
-              className="bg-primary h-2 rounded-full transition-all duration-300"
+              className="bg-primary h-2.5 sm:h-2 rounded-full transition-all duration-300"
               style={{ width: `${progress}%` }}
             ></div>
           </div>
-          <p className="text-xs md:text-sm text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground font-medium">
             {completedTasks} of {totalTasks} tasks completed ({Math.round(progress)}%)
           </p>
         </div>
       </div>
 
-      <div className="space-y-4 md:space-y-6">
+      <div className="space-y-3 sm:space-y-4 md:space-y-6">
         {Object.entries(tasksByCategory).map(([category, categoryTasks]) => (
-          <div key={category} className="space-y-3">
-            <h2 className="text-lg md:text-xl font-semibold text-foreground">{category}</h2>
+          <div key={category} className="space-y-2 sm:space-y-3">
+            <h2 className="text-base sm:text-lg md:text-xl font-semibold text-foreground">{category}</h2>
             <div className="space-y-3 md:space-y-4">
               {categoryTasks.map((task) => {
                 const response = responses.find((r) => r.item_id === task.id)
@@ -795,37 +795,43 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
                     key={task.id}
                     className={`${isCompleted ? "bg-green-50 border-green-300 shadow-lg" : "bg-white border-gray-300 shadow-md"} border-2 transition-all duration-200`}
                   >
-                    <CardHeader className="pb-4">
-                      <div className="flex items-start space-x-4">
-                        <div className="mt-1 flex-shrink-0 p-2 rounded-full bg-gray-100">
+                    <CardHeader className="pb-3 sm:pb-4">
+                      <div className="flex items-start space-x-3 sm:space-x-4">
+                        <div className="mt-1 flex-shrink-0 p-1.5 sm:p-2 rounded-full bg-gray-100">
                           {getTaskIcon(task.task_type)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-3 mb-2">
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
                             <CardTitle
-                              className={`text-lg md:text-xl font-bold ${isCompleted ? "line-through text-gray-500" : "text-gray-900"}`}
+                              className={`text-base sm:text-lg md:text-xl font-bold ${isCompleted ? "line-through text-gray-500" : "text-gray-900"}`}
                             >
                               {task.name}
                             </CardTitle>
                             {task.is_required && (
-                              <Badge variant="destructive" className="text-sm px-3 py-1 font-semibold">
+                              <Badge
+                                variant="destructive"
+                                className="text-xs sm:text-sm px-2 sm:px-3 py-0.5 sm:py-1 font-semibold"
+                              >
                                 Required
                               </Badge>
                             )}
                           </div>
                           <CardDescription
-                            className={`text-base ${isCompleted ? "line-through text-gray-500" : "text-gray-700"}`}
+                            className={`text-sm sm:text-base ${isCompleted ? "line-through text-gray-500" : "text-gray-700"}`}
                           >
                             {task.description}
                           </CardDescription>
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-6">
+                    <CardContent className="space-y-4 sm:space-y-6">
                       <div>{renderTaskInput(task)}</div>
 
                       <div className="space-y-2">
-                        <Label htmlFor={`notes-${task.id}`} className="text-base font-semibold text-gray-900">
+                        <Label
+                          htmlFor={`notes-${task.id}`}
+                          className="text-sm sm:text-base font-semibold text-gray-900"
+                        >
                           Additional Notes (optional)
                         </Label>
                         <Textarea
@@ -833,16 +839,19 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
                           placeholder="Add any notes or observations..."
                           value={localNotes[task.id] || ""}
                           onChange={(e) => handleTaskNotes(task.id, e.target.value)}
-                          className="text-lg border-2 shadow-md focus:ring-4 focus:ring-blue-200 min-h-[80px]"
+                          className="text-base sm:text-lg border-2 shadow-md focus:ring-4 focus:ring-blue-200 min-h-[80px] touch-manipulation"
                           rows={3}
                         />
                       </div>
 
-                      <div className="flex justify-between items-center pt-4 border-t-2 border-gray-200">
+                      <div className="flex justify-between items-center pt-3 sm:pt-4 border-t-2 border-gray-200">
                         <div className="flex items-center gap-2">
                           {isCompleted && (
-                            <Badge variant="default" className="text-sm px-4 py-2 font-semibold bg-green-600">
-                              <Check className="w-4 h-4 mr-2" />
+                            <Badge
+                              variant="default"
+                              className="text-xs sm:text-sm px-3 sm:px-4 py-1.5 sm:py-2 font-semibold bg-green-600"
+                            >
+                              <Check className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                               Completed
                             </Badge>
                           )}
@@ -854,7 +863,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
                             console.log("[v0] Mark completed button clicked for task:", task.id)
                             handleMarkCompleted(task.id)
                           }}
-                          className="h-12 px-6 text-base font-semibold shadow-md border-2"
+                          className="h-11 sm:h-12 px-4 sm:px-6 text-sm sm:text-base font-semibold shadow-md border-2 touch-manipulation"
                         >
                           {isCompleted ? "✓ Completed" : "Mark Complete"}
                         </Button>
@@ -869,18 +878,18 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
       </div>
 
       {progress === 100 && (
-        <div className="sticky bottom-4 z-10">
+        <div className="sticky bottom-3 sm:bottom-4 z-10">
           <Card className="bg-green-50 border-green-300 border-2 shadow-xl">
-            <CardContent className="pt-6">
-              <div className="text-center space-y-4">
-                <div className="text-lg font-semibold text-green-800">
+            <CardContent className="pt-4 sm:pt-6 pb-4 sm:pb-6">
+              <div className="text-center space-y-3 sm:space-y-4">
+                <div className="text-base sm:text-lg font-semibold text-green-800">
                   🎉 All tasks completed! Ready to submit your report.
                 </div>
                 <Button
                   onClick={handleCompleteChecklist}
                   disabled={isSaving}
                   size="lg"
-                  className="w-full h-16 text-xl font-bold shadow-lg bg-green-600 hover:bg-green-700"
+                  className="w-full h-14 sm:h-16 text-lg sm:text-xl font-bold shadow-lg bg-green-600 hover:bg-green-700 touch-manipulation"
                 >
                   {isSaving ? "Submitting Report..." : "Submit Report"}
                 </Button>
@@ -891,11 +900,16 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
       )}
 
       {progress < 100 && (
-        <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t">
-          <div className="text-center text-muted-foreground">
+        <div className="flex flex-col gap-3 pt-4 border-t">
+          <div className="text-center text-sm sm:text-base text-muted-foreground">
             Complete all tasks to finish this report ({Math.round(progress)}% done)
           </div>
-          <Button variant="outline" onClick={() => router.push("/staff")} size="lg" className="flex-1 sm:flex-none">
+          <Button
+            variant="outline"
+            onClick={() => router.push("/staff")}
+            size="lg"
+            className="w-full h-11 sm:h-auto touch-manipulation"
+          >
             Back to Tasks
           </Button>
         </div>

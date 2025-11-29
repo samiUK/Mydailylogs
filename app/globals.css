@@ -123,6 +123,26 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Mobile-optimized base styles for better touch experience */
+  /* Improve text rendering on mobile devices */
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Prevent text size adjustment on orientation change on mobile */
+  html {
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Better tap highlight color for mobile */
+  * {
+    -webkit-tap-highlight-color: rgba(5, 150, 105, 0.1);
+  }
 }
 
 /* Custom branded button styles */
@@ -178,6 +198,60 @@ nav a:hover {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* Mobile-first touch optimization utilities */
+/* Ensure minimum touch target size of 44x44px (Apple HIG) / 48x48px (Material Design) */
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Mobile-optimized button touch targets */
+button,
+a[role="button"],
+input[type="button"],
+input[type="submit"] {
+  touch-action: manipulation;
+}
+
+/* Prevent zoom on input focus on iOS */
+@media screen and (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Mobile-friendly form inputs with proper spacing */
+.mobile-input {
+  min-height: 44px;
+  padding: 12px 16px;
+  font-size: 16px;
+}
+
+/* Better scroll behavior on mobile */
+.mobile-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Safe area insets for notched devices (iPhone X, etc.) */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
 }
 
 /* Fixing animation keyframes and utilities - removing @utility directive which causes syntax errors in Tailwind v4 */

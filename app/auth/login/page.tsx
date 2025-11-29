@@ -315,34 +315,36 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-secondary to-accent/20 flex items-center justify-center p-6">
-      <div className="w-full max-w-sm">
-        <div className="mb-4">
+    <div className="min-h-screen bg-gradient-to-br from-secondary to-accent/20 flex items-center justify-center p-4 sm:p-6">
+      <div className="w-full max-w-md">
+        <div className="mb-3 sm:mb-4">
           <Link
             href="/"
-            className="inline-flex items-center text-sm text-muted-foreground hover:text-primary transition-colors"
+            className="inline-flex items-center text-sm text-muted-foreground hover:text-primary transition-colors touch-manipulation"
           >
             <ArrowLeft className="w-4 h-4 mr-1" />
             Back to Home
           </Link>
         </div>
         <Card>
-          <CardHeader className="text-center">
-            <div className="flex justify-center mb-4">
+          <CardHeader className="text-center space-y-2 sm:space-y-3">
+            <div className="flex justify-center mb-2 sm:mb-4">
               <Link href="/">
                 <MyDayLogsLogo size="lg" />
               </Link>
             </div>
-            <CardTitle className="text-2xl">{isMasterLogin ? "Master Admin Login" : "Welcome Back"}</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-xl sm:text-2xl">
+              {isMasterLogin ? "Master Admin Login" : "Welcome Back"}
+            </CardTitle>
+            <CardDescription className="text-sm sm:text-base">
               {isMasterLogin
                 ? `Logging in as: ${masterLoginEmail}`
                 : availableProfiles.length > 0
-                  ? `Sign in to your account`
-                  : "Sign in to your account"}
+                  ? `Sign in from any device`
+                  : "Sign in from any device"}
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4 sm:space-y-5">
             {isMasterLogin && (
               <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
                 <p className="text-sm text-orange-800">
@@ -353,7 +355,7 @@ export default function LoginPage() {
             <form onSubmit={handleLogin}>
               <div className="flex flex-col gap-6">
                 <div className="grid gap-2">
-                  <Label htmlFor="email" required>
+                  <Label htmlFor="email" required className="text-sm sm:text-base">
                     Email
                   </Label>
                   <Input
@@ -364,11 +366,14 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     disabled={isMasterLogin}
+                    className="h-11 sm:h-10 text-base touch-manipulation"
+                    autoComplete="email"
+                    inputMode="email"
                   />
                 </div>
                 {showProfileSelection && (
                   <div className="grid gap-2">
-                    <Label htmlFor="profile" required>
+                    <Label htmlFor="profile" required className="text-sm sm:text-base">
                       Select Profile
                     </Label>
                     <Select value={selectedProfile} onValueChange={setSelectedProfile}>
@@ -386,7 +391,7 @@ export default function LoginPage() {
                   </div>
                 )}
                 <div className="grid gap-2">
-                  <Label htmlFor="password" required>
+                  <Label htmlFor="password" required className="text-sm sm:text-base">
                     {isMasterLogin ? "Master Password" : "Password"}
                   </Label>
                   <Input
@@ -396,6 +401,8 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder={isMasterLogin ? "Enter master admin password" : ""}
+                    className="h-11 sm:h-10 text-base touch-manipulation"
+                    autoComplete="current-password"
                   />
                 </div>
                 {!isMasterLogin && (
@@ -437,7 +444,11 @@ export default function LoginPage() {
                   </div>
                 )}
 
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button
+                  type="submit"
+                  className="w-full h-11 sm:h-10 text-base font-semibold touch-manipulation"
+                  disabled={isLoading}
+                >
                   {isLoading ? "Signing in..." : isMasterLogin ? "Login as User" : "Sign In"}
                 </Button>
               </div>

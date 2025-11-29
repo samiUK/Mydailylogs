@@ -8,7 +8,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js"
 
 const supabaseAdmin = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-export async function startCheckoutSession(productId: string) {
+export async function startCheckoutSession(productId: string, billingInterval: "month" | "year" = "month") {
   try {
     const product = SUBSCRIPTION_PRODUCTS.find((p) => p.id === productId)
 
@@ -46,7 +46,6 @@ export async function startCheckoutSession(productId: string) {
       .eq("status", "active")
       .single()
 
-    // Allow upgrades from Starter plan (case-insensitive check)
     if (existingSubscription && existingSubscription.plan_name.toLowerCase() !== "starter") {
       throw new Error("You already have an active paid subscription. Please manage or cancel it before upgrading.")
     }
@@ -78,6 +77,8 @@ export async function startCheckoutSession(productId: string) {
       customerId = customer.id
     }
 
+    const price = billingInterval === "year" ? product.priceYearly : product.priceMonthly
+
     const session = await stripe.checkout.sessions.create({
       ui_mode: "embedded",
       redirect_on_completion: "never",
@@ -90,9 +91,9 @@ export async function startCheckoutSession(productId: string) {
               name: product.name,
               description: product.description,
             },
-            unit_amount: product.priceMonthly,
+            unit_amount: price,
             recurring: {
-              interval: "month",
+              interval: billingInterval,
             },
           },
           quantity: 1,
@@ -105,6 +106,7 @@ export async function startCheckoutSession(productId: string) {
           organization_id: profile.organization_id,
           product_id: productId,
           plan_name: product.name,
+          billing_interval: billingInterval,
         },
       },
       metadata: {
@@ -112,6 +114,7 @@ export async function startCheckoutSession(productId: string) {
         product_id: productId,
         user_id: user.id,
         plan_name: product.name,
+        billing_interval: billingInterval,
       },
     })
 

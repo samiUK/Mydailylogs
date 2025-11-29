@@ -12,16 +12,17 @@ const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
 
 interface StripeCheckoutProps {
   productId: string
+  billingInterval?: "month" | "year" // Added billing interval prop
   onClose?: () => void
 }
 
-export default function StripeCheckout({ productId, onClose }: StripeCheckoutProps) {
+export default function StripeCheckout({ productId, billingInterval = "month", onClose }: StripeCheckoutProps) {
   const [isLoading, setIsLoading] = useState(false)
 
   const fetchClientSecret = useCallback(async () => {
     setIsLoading(true)
     try {
-      const clientSecret = await startCheckoutSession(productId)
+      const clientSecret = await startCheckoutSession(productId, billingInterval)
       return clientSecret!
     } catch (error) {
       console.error("Error starting checkout:", error)
@@ -29,7 +30,7 @@ export default function StripeCheckout({ productId, onClose }: StripeCheckoutPro
     } finally {
       setIsLoading(false)
     }
-  }, [productId])
+  }, [productId, billingInterval])
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">

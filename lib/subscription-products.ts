@@ -3,11 +3,12 @@ export interface SubscriptionProduct {
   name: string
   description: string
   priceMonthly: number
+  priceYearly: number // Added yearly pricing
   trialDays: number
   maxTemplates: number
   maxTeamMembers: number
   maxAdmins: number
-  maxReportSubmissions: number | null // null means unlimited
+  maxReportSubmissions: number | null
   maxStorage: number
   maxAPIRequests: number
   features: {
@@ -33,6 +34,7 @@ export const SUBSCRIPTION_PRODUCTS: SubscriptionProduct[] = [
     name: "Starter",
     description: "Perfect for micro-businesses and startups",
     priceMonthly: 0,
+    priceYearly: 0, // Added yearly price
     trialDays: 0,
     maxTemplates: 3,
     maxTeamMembers: 5,
@@ -52,7 +54,8 @@ export const SUBSCRIPTION_PRODUCTS: SubscriptionProduct[] = [
     id: "growth",
     name: "Growth",
     description: "Ideal for growing small-medium businesses",
-    priceMonthly: 900,
+    priceMonthly: 900, // £9/month
+    priceYearly: 9600, // £96/year (£8/month) - Added yearly price
     trialDays: 30,
     maxTemplates: 10,
     maxTeamMembers: 25,
@@ -62,10 +65,7 @@ export const SUBSCRIPTION_PRODUCTS: SubscriptionProduct[] = [
     maxAPIRequests: 10000,
     features: {
       manualTaskMonitoring: true,
-      prioritySupport: true,
       taskAutomation: true,
-      aiTaskMonitoring: true,
-      smartNotifications: true,
       customBranding: true,
       contractorLinkShare: true,
       photoUpload: true,
@@ -75,7 +75,8 @@ export const SUBSCRIPTION_PRODUCTS: SubscriptionProduct[] = [
     id: "scale",
     name: "Scale",
     description: "For established SMEs ready to scale",
-    priceMonthly: 1600,
+    priceMonthly: 1600, // £16/month
+    priceYearly: 18000, // £180/year (£15/month) - Added yearly price
     trialDays: 30,
     maxTemplates: 20,
     maxTeamMembers: 75,
@@ -86,13 +87,6 @@ export const SUBSCRIPTION_PRODUCTS: SubscriptionProduct[] = [
     features: {
       manualTaskMonitoring: true,
       taskAutomation: true,
-      prioritySupport: true,
-      dedicatedAccountManager: true,
-      aiTaskMonitoring: true,
-      smartNotifications: true,
-      advancedAiMonitoring: true,
-      predictiveNotifications: true,
-      aiPerformanceInsights: true,
       customBranding: true,
       contractorLinkShare: true,
       photoUpload: true,

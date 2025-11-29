@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   CreditCard,
   CheckCircle,
@@ -34,6 +35,7 @@ export default function BillingPage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
+  const [billingInterval, setBillingInterval] = useState<"month" | "year">("year") // Added billing interval state, defaulting to yearly
   const [showCheckout, setShowCheckout] = useState(false)
   const [changingPlan, setChangingPlan] = useState<string | null>(null)
   const router = useRouter()
@@ -163,7 +165,7 @@ export default function BillingPage() {
   const isFreePlan = currentPlanName === "starter"
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-6xl mx-auto space-y-8">
       <div>
         <h1 className="text-3xl font-bold text-foreground">Billing & Subscription</h1>
         <p className="text-muted-foreground mt-2">Manage your subscription and billing information</p>
@@ -216,85 +218,114 @@ export default function BillingPage() {
         </CardContent>
       </Card>
 
-      {/* Available Plans */}
       <Card>
         <CardHeader>
           <CardTitle>Available Plans</CardTitle>
           <CardDescription>Choose the plan that fits your needs</CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="mb-6">
+            <Tabs value={billingInterval} onValueChange={(v) => setBillingInterval(v as "month" | "year")}>
+              <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
+                <TabsTrigger value="month">Monthly</TabsTrigger>
+                <TabsTrigger value="year">
+                  Yearly
+                  <Badge variant="secondary" className="ml-2 bg-green-100 text-green-800 text-xs">
+                    Save up to 20%
+                  </Badge>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+
           <div className="grid md:grid-cols-2 gap-6">
             {SUBSCRIPTION_PRODUCTS.filter((plan) => plan.id !== "starter").map((plan) => {
               const isCurrent = currentProduct?.id === plan.id
               const isUpgrade = plan.priceMonthly > currentProduct.priceMonthly
               const isDowngrade = plan.priceMonthly < currentProduct.priceMonthly && !isFreePlan
 
+              const displayPrice = billingInterval === "year" ? plan.priceYearly : plan.priceMonthly
+              const monthlyEquivalent = billingInterval === "year" ? plan.priceYearly / 12 : plan.priceMonthly
+
               return (
                 <div
                   key={plan.id}
-                  className={`border rounded-lg p-6 ${isCurrent ? "border-primary bg-primary/5" : "border-border"}`}
+                  className={`border rounded-lg p-6 ${
+                    isCurrent
+                      ? "border-primary bg-primary/5"
+                      : plan.id === "growth"
+                        ? "border-accent bg-accent/5"
+                        : "border-border"
+                  }`}
                 >
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xl font-bold">{plan.name}</h3>
                     {isCurrent && <Badge>Current</Badge>}
                   </div>
 
-                  <div className="text-3xl font-bold mb-2">
-                    {formatPrice(plan.priceMonthly)}
+                  <div className="mb-2">
+                    <span className="text-3xl font-bold">{formatPrice(Math.round(monthlyEquivalent))}</span>
                     <span className="text-lg font-normal text-muted-foreground">/month</span>
                   </div>
+                  {billingInterval === "year" && (
+                    <p className="text-sm text-muted-foreground mb-2">Billed {formatPrice(displayPrice)} yearly</p>
+                  )}
 
                   <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
-                    <p className="text-sm font-semibold text-green-800 mb-1">🎉 30-Day Free Trial</p>
-                    <p className="text-xs text-green-700">
-                      Start your trial today! You'll be charged {formatPrice(plan.priceMonthly)} on day 31. We'll email
-                      you 3 days before billing.
-                    </p>
+                    <p className="text-sm font-semibold text-green-800">First month free trial</p>
                   </div>
 
                   <p className="text-sm text-muted-foreground mb-4">{plan.description}</p>
 
                   <ul className="space-y-2 mb-6">
                     <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">
-                        {plan.maxTemplates === -1 ? "Unlimited" : plan.maxTemplates} Templates
-                      </span>
+                      <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                      <span className="text-sm">{plan.maxAdmins} admin accounts</span>
                     </li>
                     <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">
-                        {plan.maxTeamMembers === -1 ? "Unlimited" : plan.maxTeamMembers} Team Members
-                      </span>
+                      <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                      <span className="text-sm">Up to {plan.maxTeamMembers} team members</span>
                     </li>
                     <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-primary" />
+                      <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                      <span className="text-sm">{plan.maxTemplates} task templates</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
                       <span className="text-sm">
-                        {plan.maxAdmins} Admin Account{plan.maxAdmins > 1 ? "s" : ""}
+                        {plan.maxReportSubmissions
+                          ? `${plan.maxReportSubmissions} report submissions`
+                          : "Unlimited report submissions"}
                       </span>
                     </li>
                     {plan.features.taskAutomation && (
                       <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm font-semibold">⚡ Task Automation</span>
-                      </li>
-                    )}
-                    {plan.features.advancedReporting && (
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm">Advanced Reporting</span>
-                      </li>
-                    )}
-                    {plan.features.advancedAnalytics && (
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm">Advanced Analytics</span>
+                        <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                        <span className="text-sm font-semibold">⚡ Task Automation (Recurring Tasks)</span>
                       </li>
                     )}
                     {plan.features.customBranding && (
                       <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm">Custom Business Branding</span>
+                        <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                        <span className="text-sm font-semibold">🎨 Custom Business Branding</span>
+                      </li>
+                    )}
+                    {plan.features.contractorLinkShare && (
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                        <span className="text-sm font-semibold">🔗 Contractor Link Share</span>
+                      </li>
+                    )}
+                    {plan.features.photoUpload && (
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                        <span className="text-sm font-semibold">📸 Photo Upload on Reports</span>
+                      </li>
+                    )}
+                    {plan.features.reportDeletionRecovery && (
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                        <span className="text-sm font-semibold">🔄 Report Deletion Recovery (via support)</span>
                       </li>
                     )}
                   </ul>
@@ -370,6 +401,7 @@ export default function BillingPage() {
       {showCheckout && selectedPlanId && (
         <StripeCheckout
           productId={selectedPlanId}
+          billingInterval={billingInterval}
           onClose={() => {
             setShowCheckout(false)
             setSelectedPlanId(null)

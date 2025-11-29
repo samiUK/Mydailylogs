@@ -29,15 +29,49 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to generate session" }, { status: 500 })
     }
 
-    console.log("[v0] Magic link generated for user:", userEmail)
+    console.log("[v0] Magic link data structure:", JSON.stringify(linkData, null, 2))
 
-    // Extract tokens from the action link URL
-    const actionUrl = new URL(linkData.properties.action_link)
-    const accessToken = actionUrl.searchParams.get("access_token")
-    const refreshToken = actionUrl.searchParams.get("refresh_token")
+    let accessToken: string | null = null
+    let refreshToken: string | null = null
+
+    // Try to extract from properties.action_link
+    if (linkData.properties?.action_link) {
+      try {
+        const actionUrl = new URL(linkData.properties.action_link)
+        accessToken = actionUrl.searchParams.get("access_token")
+        refreshToken = actionUrl.searchParams.get("refresh_token")
+        console.log("[v0] Extracted tokens from action_link")
+      } catch (e) {
+        console.error("[v0] Failed to parse action_link:", e)
+      }
+    }
+
+    // Try to extract from hash fragment if action_link didn't work
+    if ((!accessToken || !refreshToken) && linkData.properties?.action_link) {
+      try {
+        const hashMatch = linkData.properties.action_link.match(/#(.+)$/)
+        if (hashMatch) {
+          const hashParams = new URLSearchParams(hashMatch[1])
+          accessToken = hashParams.get("access_token")
+          refreshToken = hashParams.get("refresh_token")
+          console.log("[v0] Extracted tokens from hash fragment")
+        }
+      } catch (e) {
+        console.error("[v0] Failed to parse hash fragment:", e)
+      }
+    }
+
+    // Check if tokens were provided directly
+    if (!accessToken || !refreshToken) {
+      if (linkData.access_token && linkData.refresh_token) {
+        accessToken = linkData.access_token
+        refreshToken = linkData.refresh_token
+        console.log("[v0] Using tokens directly from linkData")
+      }
+    }
 
     if (!accessToken || !refreshToken) {
-      console.error("[v0] Missing tokens in action link")
+      console.error("[v0] Missing tokens. LinkData structure:", linkData)
       return NextResponse.json({ error: "Failed to extract tokens" }, { status: 500 })
     }
 

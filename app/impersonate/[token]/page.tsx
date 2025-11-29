@@ -1,99 +1,168 @@
-"use client"
+import { createAdminClient } from "@/lib/supabase/admin"
+import { createServerClient } from "@supabase/ssr"
+import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
 
-import { use, useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, CheckCircle, XCircle } from "lucide-react"
-import { useRouter } from "next/navigation"
+export default async function ImpersonatePage({
+  params,
+}: {
+  params: { token: string }
+}) {
+  try {
+    const { token } = params
+    console.log("[v0] Impersonation page accessed with token:", token)
 
-export default function ImpersonatePage({ params }: { params: Promise<{ token: string }> }) {
-  const resolvedParams = use(params)
-  const router = useRouter()
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading")
-  const [message, setMessage] = useState("Verifying impersonation token...")
-
-  useEffect(() => {
-    const verifyAndImpersonate = async () => {
-      console.log("[v0] Starting impersonation with token:", resolvedParams.token.substring(0, 10) + "...")
-
-      try {
-        // Verify token with API
-        const response = await fetch("/api/impersonation/verify-token", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: resolvedParams.token }),
-        })
-
-        console.log("[v0] Verification response status:", response.status)
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          console.error("[v0] Verification failed:", errorData)
-          throw new Error(errorData.error || "Invalid or expired token")
-        }
-
-        const { impersonationData, redirectPath } = await response.json()
-
-        console.log("[v0] Impersonation data received:", {
-          userEmail: impersonationData.userEmail,
-          userRole: impersonationData.userRole,
-          redirectPath,
-        })
-
-        localStorage.setItem("masterAdminImpersonation", "true")
-        localStorage.setItem("impersonatedUserEmail", impersonationData.userEmail)
-        localStorage.setItem("impersonatedUserId", impersonationData.userId)
-        localStorage.setItem("impersonatedUserRole", impersonationData.userRole)
-        localStorage.setItem("impersonatedOrganizationId", impersonationData.organizationId || "")
-        localStorage.setItem("masterAdminEmail", impersonationData.masterAdminEmail)
-
-        setStatus("success")
-        setMessage(`Successfully authenticated as ${impersonationData.userEmail}`)
-
-        console.log("[v0] Redirecting to dashboard:", redirectPath)
-
-        setTimeout(() => {
-          window.location.href = redirectPath
-        }, 1500)
-      } catch (error) {
-        console.error("[v0] Impersonation error:", error)
-        setStatus("error")
-        setMessage(
-          error instanceof Error ? error.message : "Invalid or expired impersonation link. Please request a new one.",
-        )
-      }
+    if (!token) {
+      console.error("[v0] No token provided")
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-muted/30">
+          <div className="w-full max-w-md rounded-lg border bg-background p-8 text-center shadow-lg">
+            <h1 className="mb-4 text-2xl font-semibold">Master Admin Impersonation</h1>
+            <div className="mb-4 flex justify-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-destructive">
+                <span className="text-3xl text-destructive">✕</span>
+              </div>
+            </div>
+            <p className="text-muted-foreground">No impersonation token provided</p>
+          </div>
+        </div>
+      )
     }
 
-    verifyAndImpersonate()
-  }, [resolvedParams.token, router])
+    const adminClient = createAdminClient()
+    console.log("[v0] Admin client created")
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-center">Master Admin Impersonation</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col items-center gap-4">
-          {status === "loading" && (
-            <>
-              <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
-              <p className="text-center text-gray-600">{message}</p>
-            </>
-          )}
-          {status === "success" && (
-            <>
-              <CheckCircle className="h-12 w-12 text-green-600" />
-              <p className="text-center text-gray-600">{message}</p>
-              <p className="text-sm text-gray-500">Redirecting to dashboard...</p>
-            </>
-          )}
-          {status === "error" && (
-            <>
-              <XCircle className="h-12 w-12 text-red-600" />
-              <p className="text-center text-gray-600">{message}</p>
-            </>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  )
+    const { data: tokenData, error: tokenError } = await adminClient
+      .from("impersonation_tokens")
+      .select("*")
+      .eq("token", token.toUpperCase())
+      .eq("is_active", true)
+      .gt("expires_at", new Date().toISOString())
+      .is("used_at", null)
+      .single()
+
+    console.log("[v0] Token data:", { found: !!tokenData, error: tokenError?.message })
+
+    if (tokenError || !tokenData) {
+      console.error("[v0] Invalid or expired token:", tokenError)
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-muted/30">
+          <div className="w-full max-w-md rounded-lg border bg-background p-8 text-center shadow-lg">
+            <h1 className="mb-4 text-2xl font-semibold">Master Admin Impersonation</h1>
+            <div className="mb-4 flex justify-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-destructive">
+                <span className="text-3xl text-destructive">✕</span>
+              </div>
+            </div>
+            <p className="text-muted-foreground">Invalid or expired impersonation link</p>
+          </div>
+        </div>
+      )
+    }
+
+    await adminClient
+      .from("impersonation_tokens")
+      .update({
+        used_at: new Date().toISOString(),
+        is_active: false,
+      })
+      .eq("id", tokenData.id)
+
+    console.log("[v0] Token marked as used")
+
+    const { data: sessionData, error: sessionError } = await adminClient.auth.admin.createSession({
+      user_id: tokenData.target_user_id,
+    })
+
+    console.log("[v0] Session creation:", {
+      success: !!sessionData,
+      error: sessionError?.message,
+    })
+
+    if (sessionError || !sessionData) {
+      console.error("[v0] Failed to create session:", sessionError)
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-muted/30">
+          <div className="w-full max-w-md rounded-lg border bg-background p-8 text-center shadow-lg">
+            <h1 className="mb-4 text-2xl font-semibold">Master Admin Impersonation</h1>
+            <div className="mb-4 flex justify-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-destructive">
+                <span className="text-3xl text-destructive">✕</span>
+              </div>
+            </div>
+            <p className="text-muted-foreground">Failed to create impersonation session</p>
+          </div>
+        </div>
+      )
+    }
+
+    const cookieStore = cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options)
+            })
+          },
+        },
+      },
+    )
+
+    await supabase.auth.setSession({
+      access_token: sessionData.session.access_token,
+      refresh_token: sessionData.session.refresh_token,
+    })
+
+    console.log("[v0] Session established successfully, redirecting to:", `/${tokenData.target_user_role}`)
+
+    cookieStore.set("impersonation-active", "true", {
+      maxAge: 60 * 60 * 24, // 24 hours
+      path: "/",
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    })
+
+    cookieStore.set(
+      "impersonation-data",
+      JSON.stringify({
+        userId: tokenData.target_user_id,
+        userEmail: tokenData.target_user_email,
+        userRole: tokenData.target_user_role,
+        organizationId: tokenData.organization_id,
+        masterAdminEmail: tokenData.master_admin_email,
+      }),
+      {
+        maxAge: 60 * 60 * 24,
+        path: "/",
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+      },
+    )
+
+    redirect(`/${tokenData.target_user_role}`)
+  } catch (error) {
+    console.error("[v0] Impersonation error:", error)
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/30">
+        <div className="w-full max-w-md rounded-lg border bg-background p-8 text-center shadow-lg">
+          <h1 className="mb-4 text-2xl font-semibold">Master Admin Impersonation</h1>
+          <div className="mb-4 flex justify-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-destructive">
+              <span className="text-3xl text-destructive">✕</span>
+            </div>
+          </div>
+          <p className="text-muted-foreground">Internal server error</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {error instanceof Error ? error.message : "Unknown error"}
+          </p>
+        </div>
+      </div>
+    )
+  }
 }

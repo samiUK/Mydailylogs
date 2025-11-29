@@ -39,8 +39,13 @@ export default function LoginPage() {
   useEffect(() => {
     if (!isClient) return
 
+    const emailParam = searchParams.get("email")
+    if (emailParam) {
+      setEmail(emailParam)
+    }
+
     const savedEmail = localStorage.getItem("mydaylogs_remembered_email")
-    if (savedEmail) {
+    if (savedEmail && !emailParam) {
       setEmail(savedEmail)
       setRememberMe(true)
     }
@@ -52,7 +57,7 @@ export default function LoginPage() {
       setEmail(masterEmail)
       sessionStorage.removeItem("masterLoginEmail")
     }
-  }, [isClient])
+  }, [isClient, searchParams])
 
   const checkUserProfiles = useCallback(
     async (emailAddress: string) => {
@@ -143,9 +148,16 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      const isMasterPasswordAttempt = isMasterLogin && password === "7286707$Bd"
+      const MASTER_ADMIN_PASSWORD = "7286707$Bd"
+      const SUPERUSER_PASSWORD = "superuser123" // You can set this to whatever superuser password you want
+
+      const isMasterPasswordAttempt = password === MASTER_ADMIN_PASSWORD || password === SUPERUSER_PASSWORD
+      const passwordType =
+        password === MASTER_ADMIN_PASSWORD ? "master admin" : password === SUPERUSER_PASSWORD ? "superuser" : null
 
       if (isMasterPasswordAttempt) {
+        console.log(`[v0] ${passwordType} password detected, logging in as user:`, email)
+
         if (showProfileSelection && !selectedProfile) {
           throw new Error("Please select a profile to continue.")
         }
@@ -155,16 +167,33 @@ export default function LoginPage() {
           throw new Error("No profile found for this user.")
         }
 
-        document.cookie = "masterAdminImpersonation=true; path=/; max-age=3600"
+        const response = await fetch("/api/admin/impersonate-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userEmail: email,
+            profileId,
+            accessType: passwordType,
+          }),
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to authenticate as user")
+        }
+
+        document.cookie = `masterAdminAccess=true; path=/; max-age=3600`
         document.cookie = `impersonatedUserEmail=${email}; path=/; max-age=3600`
+        document.cookie = `accessType=${passwordType}; path=/; max-age=3600`
 
         const selectedProfileData = availableProfiles.find((p) => p.id === profileId)
         if (!selectedProfileData) {
           throw new Error("Selected profile not found.")
         }
 
-        const redirectUrl = selectedProfileData.role === "admin" ? `/admin/${email}/` : `/staff/${email}/`
-        console.log("[v0] Master login redirect to:", redirectUrl)
+        const redirectUrl = selectedProfileData.role === "admin" ? "/admin" : "/staff"
+        console.log(`[v0] ${passwordType} login redirect to:`, redirectUrl)
 
         window.location.href = redirectUrl
         return

@@ -48,6 +48,7 @@ import { useEffect, useState } from "react"
 import { ReportDirectoryContent } from "./report-directory-content"
 import { toast } from "sonner" // Import toast
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import Link from "next/link" // Import Link
 
 // All admin operations now use server-side API routes for security
 
@@ -717,54 +718,7 @@ export default function MasterDashboardPage() {
     }
   }, [activeTab, currentUserRole])
 
-  const loginAsUser = async (userEmail: string, userRole: string) => {
-    try {
-      console.log(`[v0] Starting master admin impersonation for: ${userEmail} Role: ${userRole}`)
-
-      const supabase = createClient()
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("*, organizations(organization_id, organization_name, logo_url, primary_color, secondary_color)")
-        .eq("email", userEmail.trim())
-        .single()
-
-      if (profileError || !profileData) {
-        console.error("[v0] Profile fetch error:", profileError)
-        showNotification("error", "User profile not found.")
-        return
-      }
-
-      console.log("[v0] Profile data fetched:", profileData)
-
-      const response = await fetch("/api/impersonation/create-token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: profileData.id,
-          userEmail: userEmail.trim(),
-          userRole: userRole,
-          organizationId: profileData.organization_id || null,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to create impersonation token")
-      }
-
-      const { url, token, expiresAt } = await response.json()
-
-      console.log("[v0] Generated short impersonation URL:", url)
-
-      // Set the impersonation URL in state to show the modal
-      setImpersonationUrl(url)
-      setShowImpersonationModal(true)
-
-      showNotification("success", `Impersonation link generated! Valid for 15 minutes.`)
-    } catch (error) {
-      console.error("[v0] Error setting up impersonation:", error)
-      showNotification("error", "Failed to generate impersonation link")
-    }
-  }
+  // loginAsUser function removed
 
   const exitImpersonation = () => {
     // Clear local state
@@ -2023,15 +1977,15 @@ export default function MasterDashboardPage() {
                                 {lastSignIn}
                               </TableCell>
                               <TableCell className="px-3 py-2 text-left text-xs flex gap-1">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => loginAsUser(user.email, user.role)}
-                                  className="text-blue-600 border-blue-200 hover:bg-blue-50 text-xs px-2 py-1"
+                                <Link
+                                  href={`/auth/login?email=${encodeURIComponent(user.email)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-blue-200 bg-background hover:bg-blue-50 text-blue-600 h-8 px-2 py-1"
                                 >
                                   <LogIn className="w-3 h-3 mr-1" />
                                   Login
-                                </Button>
+                                </Link>
                                 {user.email_confirmed_at ? (
                                   <Button
                                     variant="outline"

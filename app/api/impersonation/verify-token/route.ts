@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       throw new Error("Failed to create session")
     }
 
-    const cookieStore = await cookies()
+    const cookieStore = cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

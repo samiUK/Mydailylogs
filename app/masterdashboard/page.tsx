@@ -1020,8 +1020,15 @@ export default function MasterDashboardPage() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        showNotification("error", `Failed to send reset email: ${errorData.error}`)
+        let errorMessage = "Failed to send reset email"
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          // If response is not JSON, use status text
+          errorMessage = `Server error: ${response.statusText}`
+        }
+        showNotification("error", errorMessage)
         return
       }
 
@@ -1029,7 +1036,7 @@ export default function MasterDashboardPage() {
       showNotification("success", `Password reset email sent to ${userEmail}`)
     } catch (error) {
       console.error("[v0] Password reset error:", error)
-      showNotification("error", "Failed to send reset email")
+      showNotification("error", "Failed to send reset email. Please check if the database is properly configured.")
     }
   }
 

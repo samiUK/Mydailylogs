@@ -51,6 +51,28 @@ export default function GDPRPage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="mb-8">
+          <Link href="/">
+            <Button variant="outline" className="gap-2 bg-transparent">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m12 19-7-7 7-7" />
+                <path d="M19 12H5" />
+              </svg>
+              Back to Home
+            </Button>
+          </Link>
+        </div>
+
         <div className="text-center mb-12">
           <Shield className="w-16 h-16 text-emerald-600 mx-auto mb-4" />
           <h1 className="text-5xl font-bold text-gray-900 mb-4">UK GDPR Compliance</h1>

@@ -2,7 +2,7 @@ import { MyDayLogsLogo } from "@/components/mydaylogs-logo"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
-import { Mail, MessageSquare, FileQuestion } from 'lucide-react'
+import { Mail, MessageSquare, FileQuestion } from "lucide-react"
 
 export default function ContactPage() {
   return (
@@ -27,20 +27,38 @@ export default function ContactPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="mb-8">
+          <Link href="/">
+            <Button variant="outline" className="gap-2 bg-transparent">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m12 19-7-7 7-7" />
+                <path d="M19 12H5" />
+              </svg>
+              Back to Home
+            </Button>
+          </Link>
+        </div>
+
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold text-gray-900 mb-4">Contact Us</h1>
-          <p className="text-xl text-gray-600">
-            We're here to help. Choose the best way to reach us.
-          </p>
+          <p className="text-xl text-gray-600">We're here to help. Choose the best way to reach us.</p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 mb-12">
           <Card className="p-6 text-center hover:shadow-lg transition-shadow">
             <Mail className="w-12 h-12 text-emerald-600 mx-auto mb-4" />
             <h3 className="text-xl font-semibold mb-2">Email Support</h3>
-            <p className="text-gray-600 mb-4">
-              Get help with your account, billing, or technical issues.
-            </p>
+            <p className="text-gray-600 mb-4">Get help with your account, billing, or technical issues.</p>
             <a href="mailto:info@mydaylogs.co.uk" className="text-emerald-600 hover:text-emerald-700 font-medium">
               info@mydaylogs.co.uk
             </a>
@@ -50,9 +68,7 @@ export default function ContactPage() {
           <Card className="p-6 text-center hover:shadow-lg transition-shadow">
             <MessageSquare className="w-12 h-12 text-emerald-600 mx-auto mb-4" />
             <h3 className="text-xl font-semibold mb-2">Sales Enquiries</h3>
-            <p className="text-gray-600 mb-4">
-              Interested in MyDayLogs for your organization?
-            </p>
+            <p className="text-gray-600 mb-4">Interested in MyDayLogs for your organization?</p>
             <a href="mailto:info@mydaylogs.co.uk" className="text-emerald-600 hover:text-emerald-700 font-medium">
               info@mydaylogs.co.uk
             </a>
@@ -62,9 +78,7 @@ export default function ContactPage() {
           <Card className="p-6 text-center hover:shadow-lg transition-shadow">
             <FileQuestion className="w-12 h-12 text-emerald-600 mx-auto mb-4" />
             <h3 className="text-xl font-semibold mb-2">Help Center</h3>
-            <p className="text-gray-600 mb-4">
-              Browse documentation and common questions.
-            </p>
+            <p className="text-gray-600 mb-4">Browse documentation and common questions.</p>
             <Link href="/support" className="text-emerald-600 hover:text-emerald-700 font-medium">
               Visit Support
             </Link>
@@ -77,9 +91,7 @@ export default function ContactPage() {
           <form className="space-y-6">
             <div className="grid md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Full Name *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
                 <input
                   type="text"
                   required
@@ -88,9 +100,7 @@ export default function ContactPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Address *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email Address *</label>
                 <input
                   type="email"
                   required
@@ -100,9 +110,7 @@ export default function ContactPage() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Company Name
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Company Name</label>
               <input
                 type="text"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
@@ -110,9 +118,7 @@ export default function ContactPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Subject *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Subject *</label>
               <select
                 required
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
@@ -125,9 +131,7 @@ export default function ContactPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Message *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Message *</label>
               <textarea
                 required
                 rows={6}

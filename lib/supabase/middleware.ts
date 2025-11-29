@@ -64,16 +64,25 @@ export async function updateSession(request: NextRequest) {
       request.nextUrl.pathname.startsWith("/api") ||
       request.nextUrl.pathname.includes(".")
 
-    if (
-      !isSystemRoute &&
-      request.nextUrl.pathname !== "/" &&
-      !user &&
-      !request.nextUrl.pathname.startsWith("/login") &&
-      !request.nextUrl.pathname.startsWith("/auth") &&
-      !request.nextUrl.pathname.startsWith("/masterlogin") &&
-      !request.nextUrl.pathname.startsWith("/masterdashboard") &&
-      !request.nextUrl.pathname.startsWith("/impersonate")
-    ) {
+    // Public routes that don't require authentication
+    const isPublicRoute =
+      request.nextUrl.pathname === "/" ||
+      request.nextUrl.pathname.startsWith("/about") ||
+      request.nextUrl.pathname.startsWith("/contact") ||
+      request.nextUrl.pathname.startsWith("/support") ||
+      request.nextUrl.pathname.startsWith("/privacy") ||
+      request.nextUrl.pathname.startsWith("/terms") ||
+      request.nextUrl.pathname.startsWith("/cookies") ||
+      request.nextUrl.pathname.startsWith("/gdpr") ||
+      request.nextUrl.pathname.startsWith("/pricing") ||
+      request.nextUrl.pathname.startsWith("/login") ||
+      request.nextUrl.pathname.startsWith("/auth") ||
+      request.nextUrl.pathname.startsWith("/masterlogin") ||
+      request.nextUrl.pathname.startsWith("/masterdashboard") ||
+      request.nextUrl.pathname.startsWith("/impersonate") ||
+      request.nextUrl.pathname.startsWith("/external")
+
+    if (!isSystemRoute && !isPublicRoute && !user) {
       // no user, potentially respond by redirecting the user to the login page
       const url = request.nextUrl.clone()
       url.pathname = "/auth/login"

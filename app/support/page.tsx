@@ -2,7 +2,7 @@ import { MyDayLogsLogo } from "@/components/mydaylogs-logo"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
-import { Book, HelpCircle, Mail, FileText } from 'lucide-react'
+import { Book, HelpCircle, Mail, FileText } from "lucide-react"
 
 export default function SupportPage() {
   return (
@@ -27,11 +27,31 @@ export default function SupportPage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="mb-8">
+          <Link href="/">
+            <Button variant="outline" className="gap-2 bg-transparent">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m12 19-7-7 7-7" />
+                <path d="M19 12H5" />
+              </svg>
+              Back to Home
+            </Button>
+          </Link>
+        </div>
+
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold text-gray-900 mb-4">Support Center</h1>
-          <p className="text-xl text-gray-600">
-            Find answers, get help, and learn how to make the most of MyDayLogs.
-          </p>
+          <p className="text-xl text-gray-600">Find answers, get help, and learn how to make the most of MyDayLogs.</p>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6 mb-12">
@@ -52,9 +72,7 @@ export default function SupportPage() {
           <Card className="p-6 hover:shadow-lg transition-shadow">
             <HelpCircle className="w-12 h-12 text-emerald-600 mb-4" />
             <h3 className="text-xl font-semibold mb-2">Frequently Asked Questions</h3>
-            <p className="text-gray-600 mb-4">
-              Quick answers to common questions about MyDayLogs.
-            </p>
+            <p className="text-gray-600 mb-4">Quick answers to common questions about MyDayLogs.</p>
             <ul className="space-y-2 text-gray-700">
               <li>• How do I upgrade my plan?</li>
               <li>• Can I export my data?</li>
@@ -66,9 +84,7 @@ export default function SupportPage() {
           <Card className="p-6 hover:shadow-lg transition-shadow">
             <Mail className="w-12 h-12 text-emerald-600 mb-4" />
             <h3 className="text-xl font-semibold mb-2">Email Support</h3>
-            <p className="text-gray-600 mb-4">
-              Can't find what you're looking for? Our support team is here to help.
-            </p>
+            <p className="text-gray-600 mb-4">Can't find what you're looking for? Our support team is here to help.</p>
             <div className="space-y-3">
               <div>
                 <p className="font-medium text-gray-700">General Support</p>
@@ -83,9 +99,7 @@ export default function SupportPage() {
           <Card className="p-6 hover:shadow-lg transition-shadow">
             <FileText className="w-12 h-12 text-emerald-600 mb-4" />
             <h3 className="text-xl font-semibold mb-2">Account & Billing</h3>
-            <p className="text-gray-600 mb-4">
-              Manage your subscription, billing, and account settings.
-            </p>
+            <p className="text-gray-600 mb-4">Manage your subscription, billing, and account settings.</p>
             <ul className="space-y-2 text-gray-700">
               <li>• Subscription management</li>
               <li>• Payment methods</li>
@@ -139,9 +153,7 @@ export default function SupportPage() {
 
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-4">Still need help?</h2>
-          <p className="text-gray-600 mb-6">
-            Our support team is ready to assist you with any questions or issues.
-          </p>
+          <p className="text-gray-600 mb-6">Our support team is ready to assist you with any questions or issues.</p>
           <Link href="/contact">
             <Button size="lg" className="bg-emerald-600 hover:bg-emerald-700">
               Contact Support

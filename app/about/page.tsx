@@ -47,6 +47,28 @@ export default function AboutPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="mb-8">
+          <Link href="/">
+            <Button variant="outline" className="gap-2 bg-transparent">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m12 19-7-7 7-7" />
+                <path d="M19 12H5" />
+              </svg>
+              Back to Home
+            </Button>
+          </Link>
+        </div>
+
         <div className="text-center mb-16">
           <h1 className="text-5xl font-bold text-gray-900 mb-4">About MyDayLogs</h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
@@ -55,68 +77,79 @@ export default function AboutPage() {
           </p>
         </div>
 
-        <div className="prose prose-lg max-w-4xl mx-auto mb-16">
-          <h2>Our Mission</h2>
-          <p>
-            MyDayLogs was founded to address a critical need in UK industries: a comprehensive, compliant, and intuitive
-            platform for managing daily operations, tasks, and team accountability. We believe that effective task
-            management shouldn't be complicated, and compliance shouldn't be a burden.
-          </p>
+        <div className="max-w-4xl mx-auto mb-16 space-y-12">
+          <section className="space-y-4">
+            <h2 className="text-3xl font-bold text-gray-900">Our Mission</h2>
+            <p className="text-lg text-gray-700 leading-relaxed">
+              MyDayLogs was founded to address a critical need in UK industries: a comprehensive, compliant, and
+              intuitive platform for managing daily operations, tasks, and team accountability. We believe that
+              effective task management shouldn't be complicated, and compliance shouldn't be a burden.
+            </p>
+          </section>
 
-          <h2>What We Do</h2>
-          <p>
-            We provide organizations with the tools they need to streamline operations, maintain compliance records, and
-            empower teams to work more efficiently. Our platform serves businesses across construction, healthcare,
-            education, retail, and professional services sectors throughout the UK.
-          </p>
+          <section className="space-y-4">
+            <h2 className="text-3xl font-bold text-gray-900">What We Do</h2>
+            <p className="text-lg text-gray-700 leading-relaxed">
+              We provide organizations with the tools they need to streamline operations, maintain compliance records,
+              and empower teams to work more efficiently. Our platform serves businesses across construction,
+              healthcare, education, retail, and professional services sectors throughout the UK.
+            </p>
+          </section>
 
-          <h2>Why Choose MyDayLogs</h2>
-          <div className="grid md:grid-cols-3 gap-6 not-prose my-8">
-            <div className="bg-white p-6 rounded-lg border border-gray-200">
-              <Shield className="w-12 h-12 text-emerald-600 mb-4" />
-              <h3 className="text-xl font-semibold mb-2">UK GDPR Compliant</h3>
-              <p className="text-gray-600">
-                Built with UK data protection regulations at the core, ensuring your data is secure and compliant.
+          <section className="space-y-6">
+            <h2 className="text-3xl font-bold text-gray-900">Why Choose MyDayLogs?</h2>
+            <div className="grid md:grid-cols-3 gap-6 mt-8">
+              <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+                <Shield className="w-12 h-12 text-emerald-600 mb-4" />
+                <h3 className="text-xl font-semibold mb-3 text-gray-900">UK GDPR Compliant</h3>
+                <p className="text-base text-gray-600 leading-relaxed">
+                  Built with UK data protection regulations at the core, ensuring your data is secure and compliant.
+                </p>
+              </div>
+              <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+                <Users className="w-12 h-12 text-emerald-600 mb-4" />
+                <h3 className="text-xl font-semibold mb-3 text-gray-900">Team-Focused</h3>
+                <p className="text-base text-gray-600 leading-relaxed">
+                  Designed for organizations with multiple teams, roles, and complex workflows.
+                </p>
+              </div>
+              <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+                <Zap className="w-12 h-12 text-emerald-600 mb-4" />
+                <h3 className="text-xl font-semibold mb-3 text-gray-900">Easy to Use</h3>
+                <p className="text-base text-gray-600 leading-relaxed">
+                  Intuitive interface that your team can start using immediately, with minimal training required.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-3xl font-bold text-gray-900">Our Commitment</h2>
+            <p className="text-lg text-gray-700 leading-relaxed">
+              We are committed to providing UK businesses with a reliable, secure, and continuously improving platform.
+              Our team is based in the UK and understands the unique challenges faced by British enterprises. We comply
+              with all relevant UK regulations including UK GDPR, and we're dedicated to protecting your data and
+              privacy.
+            </p>
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-3xl font-bold text-gray-900">Company Information</h2>
+            <div className="bg-gray-50 p-8 rounded-lg space-y-3">
+              <p className="text-base text-gray-700">
+                <strong className="font-semibold text-gray-900">Registered Name:</strong> MyDayLogs Ltd
+              </p>
+              <p className="text-base text-gray-700">
+                <strong className="font-semibold text-gray-900">Location:</strong> United Kingdom
+              </p>
+              <p className="text-base text-gray-700">
+                <strong className="font-semibold text-gray-900">Email:</strong> info@mydaylogs.co.uk
+              </p>
+              <p className="text-base text-gray-700">
+                <strong className="font-semibold text-gray-900">Data Protection:</strong> UK GDPR Compliant
               </p>
             </div>
-            <div className="bg-white p-6 rounded-lg border border-gray-200">
-              <Users className="w-12 h-12 text-emerald-600 mb-4" />
-              <h3 className="text-xl font-semibold mb-2">Team-Focused</h3>
-              <p className="text-gray-600">
-                Designed for organizations with multiple teams, roles, and complex workflows.
-              </p>
-            </div>
-            <div className="bg-white p-6 rounded-lg border border-gray-200">
-              <Zap className="w-12 h-12 text-emerald-600 mb-4" />
-              <h3 className="text-xl font-semibold mb-2">Easy to Use</h3>
-              <p className="text-gray-600">
-                Intuitive interface that your team can start using immediately, with minimal training required.
-              </p>
-            </div>
-          </div>
-
-          <h2>Our Commitment</h2>
-          <p>
-            We are committed to providing UK businesses with a reliable, secure, and continuously improving platform.
-            Our team is based in the UK and understands the unique challenges faced by British enterprises. We comply
-            with all relevant UK regulations including UK GDPR, and we're dedicated to protecting your data and privacy.
-          </p>
-
-          <h2>Company Information</h2>
-          <div className="bg-gray-50 p-6 rounded-lg">
-            <p className="mb-2">
-              <strong>Registered Name:</strong> MyDayLogs Ltd
-            </p>
-            <p className="mb-2">
-              <strong>Location:</strong> United Kingdom
-            </p>
-            <p className="mb-2">
-              <strong>Email:</strong> info@mydaylogs.co.uk
-            </p>
-            <p className="mb-2">
-              <strong>Data Protection:</strong> UK GDPR Compliant
-            </p>
-          </div>
+          </section>
         </div>
 
         <div className="text-center">

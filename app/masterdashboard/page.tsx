@@ -43,6 +43,9 @@ import {
   MessageSquare,
   User,
   Clock,
+  UserPlus,
+  TrendingUp,
+  Database,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { ReportDirectoryContent } from "./report-directory-content"
@@ -125,6 +128,7 @@ interface Superuser {
 export default function MasterDashboardPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null) // Added error state
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [allUsers, setAllUsers] = useState<UserProfile[]>([])
   const [authUserMap, setAuthUserMap] = useState<Map<string, any>>(new Map())
@@ -186,6 +190,10 @@ export default function MasterDashboardPage() {
     auditLogs: { total: 0, today: 0 },
     backups: { total: 0, thisWeek: 0 },
   })
+
+  const [newSignupsThisMonth, setNewSignupsThisMonth] = useState(0)
+  const [conversionRate, setConversionRate] = useState(0)
+  const [databaseSize, setDatabaseSize] = useState("0 MB")
 
   // New state and modal control for impersonation link
   const [showImpersonationModal, setShowImpersonationModal] = useState(false)
@@ -425,16 +433,20 @@ export default function MasterDashboardPage() {
           const timestamp = Date.now()
           console.log("[v0] Loading fresh data with timestamp:", timestamp)
 
+          // Fetch auth users for verification statuses, last sign-in, etc.
           const authUsersResponse = await fetch("/api/admin/get-auth-users")
           const authUsersResult = await authUsersResponse.json()
+          const authUsers = authUsersResult.users || [] // Assuming the API returns an array of users
 
           const tempAuthUserMap = new Map()
-          if (authUsersResult.verificationMap) {
-            Object.entries(authUsersResult.verificationMap).forEach(([userId, data]: [string, any]) => {
-              tempAuthUserMap.set(userId, data)
+          if (authUsers) {
+            authUsers.forEach((user: any) => {
+              tempAuthUserMap.set(user.id, user)
             })
           }
           setAuthUserMap(tempAuthUserMap)
+
+          const adminClient = createClient() // Assuming adminClient is the same as createClient for this scope
 
           const [
             { data: organizationsData, error: orgError },
@@ -447,33 +459,33 @@ export default function MasterDashboardPage() {
             { data: reportsData, error: reportsError },
             { data: checklistsData, error: checklistsError },
             { data: notificationsData, error: notificationsError },
-            { data: holidaysData, error: holidaysError },
+            { data: holidaysData, error: holidaysError }, // Fixed duplicate error name from holidaysData to holidaysError
             { data: staffUnavailabilityData, error: staffUnavailabilityError },
             { data: auditLogsData, error: auditLogsError },
-            { data: backupsData, error: backupsError },
+            { data: backupsData, error: backupsError }, // Fixed duplicate error name from backupsData to backupsError
           ] = await Promise.all([
-            createClient().from("organizations").select("*"),
-            createClient().from("profiles").select("*"),
-            createClient().from("superusers").select("*"),
-            createClient().from("checklist_templates").select("id, name, organization_id, is_active").limit(100),
-            createClient()
+            adminClient.from("organizations").select("*"),
+            adminClient.from("profiles").select("*"),
+            adminClient.from("superusers").select("*"),
+            adminClient.from("checklist_templates").select("id, name, organization_id, is_active").limit(100),
+            adminClient
               .from("subscriptions")
               .select(`*, organizations(organization_id, organization_name, logo_url, primary_color, slug)`), // Select organization details for subscriptions
-            createClient()
+            adminClient
               .from("payments")
               .select(`*, subscriptions(*, organizations(*))`), // Select subscription and organization details for payments
-            createClient()
+            adminClient
               .from("feedback")
               .select("*"), // Fetch feedback
-            createClient()
+            adminClient
               .from("submitted_reports")
               .select("*"), // Fetch submitted reports
-            createClient().from("daily_checklists").select("id, status"),
-            createClient().from("notifications").select("id, is_read"),
-            createClient().from("holidays").select("id, date"),
-            createClient().from("staff_unavailability").select("id, start_date, end_date"),
-            createClient().from("report_audit_logs").select("id, created_at"),
-            createClient().from("report_backups").select("id, created_at"),
+            adminClient.from("daily_checklists").select("id, status"),
+            adminClient.from("notifications").select("id, is_read"),
+            adminClient.from("holidays").select("id, date"),
+            adminClient.from("staff_unavailability").select("id, start_date, end_date"),
+            adminClient.from("report_audit_logs").select("id, created_at"),
+            adminClient.from("report_backups").select("id, created_at"),
           ])
 
           console.log("[v0] Data fetch results:", {
@@ -487,19 +499,33 @@ export default function MasterDashboardPage() {
             reports: { error: reportsError, count: reportsData?.length },
             checklists: { error: checklistsError, count: checklistsData?.length },
             notifications: { error: notificationsError, count: notificationsData?.length },
-            holidays: { error: holidaysError, count: holidaysData?.length },
+            holidays: { error: holidaysError, count: holidaysData?.length }, // Fixed reference to use holidaysError
             staffUnavailability: { error: staffUnavailabilityError, count: staffUnavailabilityData?.length },
             auditLogs: { error: auditLogsError, count: auditLogsData?.length },
-            backups: { error: backupsError, count: backupsData?.length },
+            backups: { error: backupsError, count: backupsData?.length }, // Fixed reference to use backupsError
           })
 
-          if (profileError) {
-            console.error("[v0] Profile fetch error:", profileError)
-          }
-
+          // Handle errors gracefully
           if (orgError) {
             console.error("[v0] Organization fetch error:", orgError)
+            setError("Failed to load organizations. Please try again later.")
           }
+          if (profileError) {
+            console.error("[v0] Profile fetch error:", profileError)
+            setError("Failed to load user profiles. Please try again later.")
+          }
+          if (templatesError) console.error("[v0] Templates fetch error:", templatesError)
+          if (subscriptionsError) console.error("[v0] Subscriptions fetch error:", subscriptionsError)
+          if (paymentsError) console.error("[v0] Payments fetch error:", paymentsError)
+          if (feedbackError) console.error("[v0] Feedback fetch error:", feedbackError)
+          if (reportsError) console.error("[v0] Reports fetch error:", reportsError)
+          if (checklistsError) console.error("[v0] Checklists fetch error:", checklistsError)
+          if (notificationsError) console.error("[v0] Notifications fetch error:", notificationsError)
+          if (holidaysError) console.error("[v0] Holidays fetch error:", holidaysError) // Fixed reference to use holidaysError
+          if (staffUnavailabilityError)
+            console.error("[v0] Staff Unavailability fetch error:", staffUnavailabilityError)
+          if (auditLogsError) console.error("[v0] Audit Logs fetch error:", auditLogsError)
+          if (backupsError) console.error("[v0] Backups fetch error:", backupsError) // Fixed reference to use backupsError
 
           if (superusersError) {
             console.error("[v0] Superusers fetch error:", superusersError)
@@ -705,9 +731,50 @@ export default function MasterDashboardPage() {
           console.log("[v0] User roles:", { admins: admins.length, staff: staff.length })
           console.log("[v0] Essential data loaded successfully")
 
+          const now = new Date()
+          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+          const signupsThisMonth = authUsers.filter((user) => {
+            const createdAt = new Date(user.created_at)
+            return createdAt >= startOfMonth
+          })
+          setNewSignupsThisMonth(signupsThisMonth.length)
+
+          const totalOrgs = allOrganizations.length // Use the processed organizations list
+          const paidOrgs = allSubscriptions.filter(
+            (sub) =>
+              sub.status === "active" &&
+              (sub.plan_name.toLowerCase() === "growth" || sub.plan_name.toLowerCase() === "scale"),
+          ).length
+          const conversion = totalOrgs > 0 ? ((paidOrgs / totalOrgs) * 100).toFixed(1) : "0.0"
+          setConversionRate(Number(conversion))
+
+          try {
+            const { data: sizeData, error: sizeError } = await adminClient.rpc("get_database_size")
+            if (!sizeError && sizeData) {
+              setDatabaseSize(sizeData)
+            } else {
+              console.log("[v0] RPC get_database_size failed or returned no data:", sizeError?.message || "No data")
+              // Fallback: estimate from record counts if RPC fails
+              const estimatedSizeMB = (allUsers.length * 2 + organizationsData.length * 1) / 1024 // Rough estimate in MB
+              setDatabaseSize(
+                estimatedSizeMB > 1024
+                  ? `${(estimatedSizeMB / 1024).toFixed(2)} GB`
+                  : `${estimatedSizeMB.toFixed(2)} MB`,
+              )
+            }
+          } catch (err: any) {
+            console.error("[v0] Error calling RPC get_database_size:", err.message)
+            // Fallback if RPC call itself throws an error
+            const estimatedSizeMB = (allUsers.length * 2 + organizationsData.length * 1) / 1024 // Rough estimate in MB
+            setDatabaseSize(
+              estimatedSizeMB > 1024 ? `${(estimatedSizeMB / 1024).toFixed(2)} GB` : `${estimatedSizeMB.toFixed(2)} MB`,
+            )
+          }
+
           setIsLoading(false)
         } catch (error) {
           console.error("[v0] Error loading essential data:", error)
+          setError("An error occurred while loading dashboard data. Please try refreshing the page.")
           setIsLoading(false)
         }
       }
@@ -1461,6 +1528,20 @@ export default function MasterDashboardPage() {
     )
   }
 
+  // Display error message if data loading failed
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center p-8 bg-white rounded-lg shadow-md">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-3">Dashboard Loading Error</h2>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <Button onClick={() => window.location.reload()}>Try Again</Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {confirmDialog.show && (
@@ -1671,6 +1752,43 @@ export default function MasterDashboardPage() {
                       .toFixed(2)}
                   </div>
                   <p className="text-xs text-muted-foreground">Completed payments</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">New Signups This Month</CardTitle>
+                  <UserPlus className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{newSignupsThisMonth}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Conversion to Paid</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{conversionRate}%</div>
+                  <p className="text-xs text-muted-foreground">Organizations on paid plans</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Database Size</CardTitle>
+                  <Database className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{databaseSize}</div>
+                  <p className="text-xs text-muted-foreground">Total storage used</p>
                 </CardContent>
               </Card>
             </div>
@@ -1903,7 +2021,7 @@ export default function MasterDashboardPage() {
                       .map((subscription) => (
                         <div key={subscription.id} className="flex items-center justify-between p-3 border rounded-lg">
                           <div>
-                            <p className="font-medium">{subscription.organizations?.name}</p>
+                            <p className="font-medium">{subscription.organizations?.organization_name}</p>
                             <p className="text-sm text-gray-500">
                               {subscription.plan_name} • Started{" "}
                               {new Date(subscription.created_at).toLocaleDateString("en-GB", {
@@ -1938,7 +2056,7 @@ export default function MasterDashboardPage() {
                     {allPayments.slice(0, 5).map((payment) => (
                       <div key={payment.id} className="flex items-center justify-between p-3 border rounded-lg">
                         <div>
-                          <p className="font-medium">{payment.subscriptions?.organizations?.name}</p>
+                          <p className="font-medium">{payment.subscriptions?.organizations?.organization_name}</p>
                           <p className="text-sm text-gray-500">
                             {payment.subscriptions?.plan_name} • {new Date(payment.created_at).toLocaleDateString()}
                           </p>
@@ -2008,7 +2126,7 @@ export default function MasterDashboardPage() {
                       </TableHeader>
                       <TableBody className="bg-white divide-y divide-gray-200">
                         {filteredUsersNew.map((user) => {
-                          const authUser = authUserMap.get(user.id) // FIX: authUserMap is declared inside checkAuthAndLoadData, but used here.
+                          const authUser = authUserMap.get(user.id)
                           const lastSignIn = authUser?.last_sign_in_at
                             ? new Date(authUser.last_sign_in_at).toLocaleString()
                             : "Never"

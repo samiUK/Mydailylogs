@@ -3,6 +3,31 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
 import { Mail, MessageSquare, FileQuestion } from "lucide-react"
+import type { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: "Contact Us | MyDayLogs - Get in Touch with Our Team",
+  description:
+    "Contact MyDayLogs for support, sales enquiries, or general questions. Email us at info@mydaylogs.co.uk or use our contact form. Response within 24 hours.",
+  keywords: [
+    "contact mydaylogs",
+    "compliance software support",
+    "uk compliance help",
+    "task management contact",
+    "business hours",
+    "email support",
+  ],
+  openGraph: {
+    title: "Contact MyDayLogs - UK Compliance & Task Management Support",
+    description:
+      "Reach out to our team for help with your compliance and task management needs. Fast response times and dedicated support.",
+    url: "https://www.mydaylogs.co.uk/contact",
+    type: "website",
+  },
+  alternates: {
+    canonical: "https://www.mydaylogs.co.uk/contact",
+  },
+}
 
 export default function ContactPage() {
   return (

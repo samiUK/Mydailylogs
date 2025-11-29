@@ -3,6 +3,31 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
 import { Book, HelpCircle, Mail, FileText } from "lucide-react"
+import type { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: "Support Center | MyDayLogs - Help & Documentation",
+  description:
+    "Find answers in the MyDayLogs support center. Get help with setup, FAQs, troubleshooting, account management, and GDPR compliance. UK business support.",
+  keywords: [
+    "mydaylogs support",
+    "compliance software help",
+    "task management faq",
+    "uk gdpr compliance",
+    "business task logging help",
+    "team management support",
+  ],
+  openGraph: {
+    title: "MyDayLogs Support Center - Help & Resources",
+    description:
+      "Browse our comprehensive support resources including getting started guides, FAQs, troubleshooting tips, and compliance documentation.",
+    url: "https://www.mydaylogs.co.uk/support",
+    type: "website",
+  },
+  alternates: {
+    canonical: "https://www.mydaylogs.co.uk/support",
+  },
+}
 
 export default function SupportPage() {
   return (

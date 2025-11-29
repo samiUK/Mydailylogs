@@ -4,7 +4,7 @@ import { useBranding } from "@/components/branding-provider"
 import Link from "next/link"
 import { createBrowserClient } from "@supabase/ssr"
 import { useEffect, useState } from "react"
-import { Check } from 'lucide-react'
+import { Check } from "lucide-react"
 
 export function Footer() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -91,9 +91,9 @@ export function Footer() {
               <h3 className="font-semibold text-sidebar-foreground mb-4">Resources</h3>
               <ul className="space-y-2 text-sidebar-foreground/70">
                 <li>
-                  <a href="/#features" className="hover:text-sidebar-foreground">
-                    Features
-                  </a>
+                  <Link href="/use-cases" className="hover:text-sidebar-foreground">
+                    Use Cases
+                  </Link>
                 </li>
                 <li>
                   <a href="/#pricing" className="hover:text-sidebar-foreground">

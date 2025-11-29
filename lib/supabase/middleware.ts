@@ -75,6 +75,7 @@ export async function updateSession(request: NextRequest) {
       request.nextUrl.pathname.startsWith("/cookies") ||
       request.nextUrl.pathname.startsWith("/gdpr") ||
       request.nextUrl.pathname.startsWith("/pricing") ||
+      request.nextUrl.pathname.startsWith("/use-cases") || // Added /use-cases to public routes
       request.nextUrl.pathname.startsWith("/login") ||
       request.nextUrl.pathname.startsWith("/auth") ||
       request.nextUrl.pathname.startsWith("/masterlogin") ||
@@ -83,9 +84,8 @@ export async function updateSession(request: NextRequest) {
       request.nextUrl.pathname.startsWith("/external")
 
     if (!isSystemRoute && !isPublicRoute && !user) {
-      // no user, potentially respond by redirecting the user to the login page
       const url = request.nextUrl.clone()
-      url.pathname = "/auth/login"
+      url.pathname = "/"
       return NextResponse.redirect(url)
     }
   } catch (error) {

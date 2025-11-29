@@ -177,10 +177,16 @@ export default function LoginPage() {
           }),
         })
 
-        const data = await response.json()
+        let data
+        try {
+          data = await response.json()
+        } catch (parseError) {
+          console.error("[v0] Failed to parse response:", parseError)
+          throw new Error("Failed to process server response")
+        }
 
         if (!response.ok) {
-          throw new Error(data.error || "Failed to authenticate as user")
+          throw new Error(data?.error || "Failed to authenticate as user")
         }
 
         document.cookie = `masterAdminAccess=true; path=/; max-age=3600`

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
+import { getSubscriptionLimits } from "@/lib/subscription-limits"
 
 export const runtime = "edge"
 
@@ -19,19 +20,27 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
     const today = new Date().toISOString().split("T")[0]
 
-    console.log(`[v0] Starting daily task recreation for ${today}`)
+    console.log(`[v0] Starting automated task creation for ${today}`)
 
     const { data: templates, error: templatesError } = await supabase
       .from("checklist_templates")
       .select(`
-        *,
+        id,
+        name,
+        organization_id,
+        is_recurring,
+        recurrence_type,
+        created_at,
         template_assignments!inner(
           id,
           assigned_to,
+          is_active,
           profiles!inner(id, organization_id)
         )
       `)
       .eq("is_recurring", true)
+      .eq("is_active", true)
+      .eq("template_assignments.is_active", true)
       .in("recurrence_type", ["daily", "weekly", "monthly"])
 
     if (templatesError) {
@@ -40,10 +49,21 @@ export async function GET(request: NextRequest) {
     }
 
     let createdTasks = 0
+    let skippedTasks = 0
     const errors: string[] = []
 
     for (const template of templates || []) {
       try {
+        const limits = await getSubscriptionLimits(template.organization_id)
+
+        if (!limits.hasTaskAutomation) {
+          console.log(
+            `[v0] Skipping template ${template.id} - organization ${template.organization_id} doesn't have task automation feature`,
+          )
+          skippedTasks++
+          continue
+        }
+
         const shouldRunToday = await checkIfShouldRunToday(template, today, supabase)
 
         if (!shouldRunToday) {
@@ -89,16 +109,19 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log(`[v0] Daily task recreation completed. Created ${createdTasks} tasks with ${errors.length} errors`)
+    console.log(
+      `[v0] Automated task creation completed. Created ${createdTasks} tasks, skipped ${skippedTasks} (no task automation), with ${errors.length} errors`,
+    )
 
     return NextResponse.json({
       success: true,
       date: today,
       createdTasks,
+      skippedTasks,
       errors: errors.length > 0 ? errors : undefined,
     })
   } catch (error) {
-    console.error("[v0] Daily task recreation failed:", error)
+    console.error("[v0] Automated task creation failed:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
@@ -110,7 +133,7 @@ async function checkIfShouldRunToday(template: any, today: string, supabase: any
   const { data: holidays } = await supabase
     .from("holidays")
     .select("date")
-    .eq("organization_id", template.template_assignments[0]?.profiles?.organization_id)
+    .eq("organization_id", template.organization_id)
     .eq("date", today)
 
   if (holidays && holidays.length > 0) {

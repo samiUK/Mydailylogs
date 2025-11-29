@@ -6,8 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { CheckCircle, CreditCard, Download, Calendar, AlertCircle, Sparkles, ExternalLink, Loader2 } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { CheckCircle, CreditCard, Download, Calendar, AlertCircle, Sparkles, ExternalLink, Loader2 } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { SUBSCRIPTION_PRODUCTS, formatPrice } from "@/lib/subscription-products"
 import StripeCheckout from "@/components/stripe-checkout"
 import { cancelSubscription, createBillingPortalSession } from "@/app/actions/stripe"
@@ -55,7 +55,7 @@ export default function BillingPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser()
-      
+
       if (!user) {
         router.push("/auth/login")
         return
@@ -115,7 +115,7 @@ export default function BillingPage() {
       }
 
       setSubscription(finalSubscription)
-      
+
       if (finalSubscription?.id && finalSubscription.id !== "temp") {
         const { data: paymentsData } = await supabase
           .from("payments")
@@ -149,7 +149,10 @@ export default function BillingPage() {
   }
 
   const handleCancel = async () => {
-    if (!subscription || !confirm("Are you sure you want to cancel your subscription? You'll lose access to premium features.")) {
+    if (
+      !subscription ||
+      !confirm("Are you sure you want to cancel your subscription? You'll lose access to premium features.")
+    ) {
       return
     }
 
@@ -251,20 +254,25 @@ export default function BillingPage() {
                     • {currentProduct.maxTeamMembers === -1 ? "Unlimited" : currentProduct.maxTeamMembers} team members
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    • {currentProduct.maxAdmins} admin account{currentProduct.maxAdmins > 1 ? 's' : ''}
+                    • {currentProduct.maxAdmins} admin account{currentProduct.maxAdmins > 1 ? "s" : ""}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    • {currentProduct.maxStorage === -1 ? "Unlimited" : currentProduct.maxStorage} GB storage
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    • {currentProduct.maxAPIRequests === -1 ? "Unlimited" : currentProduct.maxAPIRequests} API requests
                   </p>
                 </div>
-                
+
                 {!isFreePlan && subscription?.current_period_end && (
                   <p className="text-sm text-muted-foreground flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
-                    {subscription.status === "active" 
+                    {subscription.status === "active"
                       ? `Renews on ${new Date(subscription.current_period_end).toLocaleDateString()}`
-                      : `Expires on ${new Date(subscription.current_period_end).toLocaleDateString()}`
-                    }
+                      : `Expires on ${new Date(subscription.current_period_end).toLocaleDateString()}`}
                   </p>
                 )}
-                
+
                 {isFreePlan && (
                   <p className="text-sm text-muted-foreground">
                     All organizations start with the Starter plan. Upgrade anytime to unlock premium features.
@@ -275,11 +283,7 @@ export default function BillingPage() {
 
             {!isFreePlan && subscription?.status === "active" && (
               <div className="flex gap-3 pt-4 border-t">
-                <Button
-                  variant="outline"
-                  onClick={handleManageBilling}
-                  disabled={processing}
-                >
+                <Button variant="outline" onClick={handleManageBilling} disabled={processing}>
                   {processing ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
@@ -287,11 +291,7 @@ export default function BillingPage() {
                   )}
                   Manage Billing
                 </Button>
-                <Button
-                  variant="destructive"
-                  onClick={handleCancel}
-                  disabled={processing}
-                >
+                <Button variant="destructive" onClick={handleCancel} disabled={processing}>
                   Cancel Subscription
                 </Button>
               </div>
@@ -307,7 +307,7 @@ export default function BillingPage() {
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-2 gap-6">
-            {SUBSCRIPTION_PRODUCTS.filter(plan => plan.id !== "starter").map((plan) => {
+            {SUBSCRIPTION_PRODUCTS.filter((plan) => plan.id !== "starter").map((plan) => {
               const isCurrent = currentProduct?.id === plan.id
 
               return (
@@ -320,7 +320,7 @@ export default function BillingPage() {
                   {plan.id === "growth" && (
                     <Badge className="mb-2 bg-accent text-accent-foreground">Best for SMEs</Badge>
                   )}
-                  
+
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xl font-bold">{plan.name}</h3>
                     {isCurrent && <Badge>Current Plan</Badge>}
@@ -333,106 +333,39 @@ export default function BillingPage() {
 
                   <p className="text-sm text-muted-foreground mb-4">{plan.description}</p>
 
-                  <ul className="space-y-2 mb-6">
+                  <ul className="space-y-2 flex-1">
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">{plan.maxTemplates} Templates</span>
+                      <span className="text-sm">Basic Reporting</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">Up to {plan.maxTeamMembers} Team Members</span>
+                      <span className="text-sm">Advanced Reporting</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-primary" />
+                      <span className="text-sm">Advanced Analytics</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-semibold">⚡ Task Automation</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-primary" />
+                      <span className="text-sm">Custom Business Branding</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
                       <span className="text-sm">
-                        {plan.maxAdmins === 1 ? "1 Admin Account" : `Up to ${plan.maxAdmins} Admin Accounts`}
+                        {plan.maxStorage === -1 ? "Unlimited" : plan.maxStorage} GB storage
                       </span>
                     </li>
-                    {plan.features.basicReporting && (
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm">Basic Reporting</span>
-                      </li>
-                    )}
-                    {plan.features.advancedReporting && (
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm">Advanced Reporting</span>
-                      </li>
-                    )}
-                    {plan.features.advancedAnalytics && (
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm">Advanced Analytics</span>
-                      </li>
-                    )}
-                    {plan.features.prioritySupport && (
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm">Priority Email Support</span>
-                      </li>
-                    )}
-                    {plan.features.dedicatedAccountManager && (
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm">Dedicated Account Manager</span>
-                      </li>
-                    )}
-                    {plan.features.aiTaskMonitoring && (
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm flex items-center gap-1">
-                          AI Task Monitoring
-                          <Badge variant="secondary" className="text-xs ml-1">
-                            Coming Soon
-                          </Badge>
-                        </span>
-                      </li>
-                    )}
-                    {plan.features.smartNotifications && (
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm flex items-center gap-1">
-                          Smart Notifications
-                          <Badge variant="secondary" className="text-xs ml-1">
-                            Coming Soon
-                          </Badge>
-                        </span>
-                      </li>
-                    )}
-                    {plan.features.advancedAiMonitoring && (
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm flex items-center gap-1">
-                          Advanced AI Monitoring
-                          <Badge variant="secondary" className="text-xs ml-1">
-                            Coming Soon
-                          </Badge>
-                        </span>
-                      </li>
-                    )}
-                    {plan.features.predictiveNotifications && (
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm flex items-center gap-1">
-                          Predictive Notifications
-                          <Badge variant="secondary" className="text-xs ml-1">
-                            Coming Soon
-                          </Badge>
-                        </span>
-                      </li>
-                    )}
-                    {plan.features.aiPerformanceInsights && (
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm flex items-center gap-1">
-                          AI Performance Insights
-                          <Badge variant="secondary" className="text-xs ml-1">
-                            Coming Soon
-                          </Badge>
-                        </span>
-                      </li>
-                    )}
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-primary" />
+                      <span className="text-sm">
+                        {plan.maxAPIRequests === -1 ? "Unlimited" : plan.maxAPIRequests} API requests
+                      </span>
+                    </li>
                   </ul>
 
                   {!isCurrent && (
@@ -466,32 +399,35 @@ export default function BillingPage() {
           <CardContent>
             <div className="space-y-4">
               {billingHistory.map((payment) => (
-                <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                <div
+                  key={payment.id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                >
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-1">
                       <p className="font-medium">
                         {Number(payment.amount) < 0 ? "Refund: " : ""}
                         {formatPrice(Math.abs(Number(payment.amount)) * 100)} {payment.currency?.toUpperCase()}
                       </p>
-                      <Badge 
+                      <Badge
                         variant={
-                          payment.status === "succeeded" || payment.status === "completed" 
-                            ? "default" 
-                            : payment.status === "refunded" 
-                            ? "secondary" 
-                            : "destructive"
+                          payment.status === "succeeded" || payment.status === "completed"
+                            ? "default"
+                            : payment.status === "refunded"
+                              ? "secondary"
+                              : "destructive"
                         }
                       >
                         {payment.status}
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {new Date(payment.created_at).toLocaleDateString('en-GB', { 
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
+                      {new Date(payment.created_at).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
                       })}
                     </p>
                   </div>
@@ -511,7 +447,7 @@ export default function BillingPage() {
                 </div>
               ))}
             </div>
-            
+
             {subscription?.stripe_subscription_id && (
               <div className="mt-6 pt-6 border-t">
                 <p className="text-sm text-muted-foreground mb-3">
@@ -521,7 +457,7 @@ export default function BillingPage() {
                   variant="outline"
                   onClick={handleManageBilling}
                   disabled={processing}
-                  className="w-full sm:w-auto"
+                  className="w-full sm:w-auto bg-transparent"
                 >
                   {processing ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />

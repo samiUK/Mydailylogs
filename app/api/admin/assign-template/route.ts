@@ -5,7 +5,7 @@ import { formatUKDate } from "@/lib/date-formatter"
 
 export async function POST(request: NextRequest) {
   try {
-    const { templateId, memberIds } = await request.json()
+    const { templateId, memberIds, dueDate } = await request.json()
 
     if (!templateId || !memberIds || !Array.isArray(memberIds)) {
       return NextResponse.json({ error: "Template ID and member IDs are required" }, { status: 400 })
@@ -42,47 +42,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Template not found" }, { status: 404 })
     }
 
-    const { data: existingAssignments } = await supabase
-      .from("template_assignments")
-      .select("assigned_to")
-      .eq("template_id", templateId)
-      .in("assigned_to", memberIds)
+    const assignmentDueDate = dueDate || template.specific_date || template.deadline_date
 
-    const existingMemberIds = existingAssignments?.map((a) => a.assigned_to) || []
-    const newMemberIds = memberIds.filter((id: string) => !existingMemberIds.includes(id))
-
-    if (newMemberIds.length === 0) {
-      return NextResponse.json({ success: true, message: "All members already assigned" })
-    }
-
-    // Create assignments for new members only
-    const assignments = newMemberIds.map((memberId: string) => ({
+    const assignments = memberIds.map((memberId: string) => ({
       template_id: templateId,
       assigned_to: memberId,
       assigned_by: user.id,
       organization_id: profile.organization_id,
       assigned_at: new Date().toISOString(),
+      due_date: assignmentDueDate,
       is_active: true,
     }))
 
-    const { error } = await supabase.from("template_assignments").insert(assignments)
+    const { error: createError } = await supabase.from("template_assignments").insert(assignments)
 
-    if (error) {
-      console.error("Database error:", error)
-      return NextResponse.json({ error: "Failed to assign template" }, { status: 500 })
+    if (createError) {
+      console.error("[v0] Database error (create):", createError)
+      return NextResponse.json({ error: "Failed to create assignments" }, { status: 500 })
     }
+
+    console.log(`[v0] Created ${assignments.length} new assignments`)
 
     const { data: assignedMembers } = await supabase
       .from("profiles")
       .select("id, email, full_name, first_name, last_name")
-      .in("id", newMemberIds)
+      .in("id", memberIds)
 
     if (assignedMembers && assignedMembers.length > 0) {
-      const dueDateText = template.specific_date
-        ? ` by ${formatUKDate(template.specific_date)}`
-        : template.deadline_date
-          ? ` by ${formatUKDate(template.deadline_date)}`
-          : ""
+      const dueDateText = assignmentDueDate ? ` by ${formatUKDate(assignmentDueDate)}` : ""
 
       const notifications = assignedMembers.map((member) => ({
         user_id: member.id,
@@ -112,10 +99,7 @@ export async function POST(request: NextRequest) {
             userName: memberFullName,
             taskName: template.name,
             taskDescription: template.description,
-            dueDate:
-              template.specific_date || template.deadline_date
-                ? formatUKDate(template.specific_date || template.deadline_date)
-                : undefined,
+            dueDate: assignmentDueDate ? formatUKDate(assignmentDueDate) : undefined,
             assignedBy: adminFullName,
           })
 
@@ -132,7 +116,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, assignedCount: newMemberIds.length })
+    return NextResponse.json({ success: true, assignedCount: assignments.length })
   } catch (error) {
     console.error("Error assigning template:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

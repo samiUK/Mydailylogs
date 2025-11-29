@@ -9,12 +9,13 @@ import {
   Shield,
   BarChart3,
   Users,
-  Clock,
-  FileText,
   Star,
   Menu,
   MessageSquare,
   ArrowRight,
+  CheckSquare,
+  FileText,
+  Calendar,
 } from "lucide-react"
 import Link from "next/link"
 import { Footer } from "@/components/footer"
@@ -34,7 +35,7 @@ const structuredData = {
     "@type": "AggregateOffer",
     priceCurrency: "GBP",
     lowPrice: "0",
-    highPrice: "79",
+    highPrice: "16", // Updated from 14.99 to 16 for monthly pricing
     offerCount: "3",
     offers: [
       {
@@ -46,13 +47,13 @@ const structuredData = {
       {
         "@type": "Offer",
         name: "Growth Plan",
-        price: "29",
+        price: "9", // Updated from 7.99 to 9 for monthly pricing
         priceCurrency: "GBP",
       },
       {
         "@type": "Offer",
         name: "Scale Plan",
-        price: "79",
+        price: "16", // Updated from 14.99 to 16 for monthly pricing
         priceCurrency: "GBP",
       },
     ],
@@ -242,19 +243,16 @@ export default async function HomePage() {
       </nav>
 
       <section className="px-4 sm:px-6 lg:px-8 py-0">
-        <div className="max-w-7xl mx-auto text-center">
-          <Badge variant="secondary" className="mb-4 text-sm font-semibold">
-            🎉 Now in Beta 2.0
+        <div className="max-w-7xl mx-auto text-center mb-12">
+          <Badge variant="secondary" className="mb-6 text-sm font-semibold px-4 py-2">
+            🎉 Beta 2.0 Now Live - Global Launch
           </Badge>
-          <h1 className="text-4xl md:text-6xl font-bold text-foreground py-1 mb-7 mt-[70px]">
-            Compliance-Ready Task Management
-            <span className="text-accent block">& Reporting System for UK SMEs</span>
+          <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-foreground mb-6 leading-tight">
+            Professional Task Management <span className="text-accent block">& Reporting System for SMEs</span>
           </h1>
-          <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-            Professional task management with audit-ready reporting built specifically for UK small and medium
-            enterprises. Generate compliance reports with business letterheads, timestamps, and signatures that meet
-            regulatory standards. Automate workflows, track deadlines, and maintain complete audit trails—all without
-            enterprise complexity or cost.
+          <p className="text-lg md:text-xl text-muted-foreground leading-relaxed">
+            Professional task management with audit-ready reporting built specifically for small and medium enterprises.
+            Streamline compliance tracking and team coordination with powerful automation tools.
           </p>
         </div>
       </section>
@@ -339,8 +337,8 @@ export default async function HomePage() {
                   Professional, Audit-Ready Reports
                 </h3>
                 <p className="text-lg text-muted-foreground mb-6">
-                  Generate industry-standard compliance reports with your business letterhead, digital signatures, and
-                  complete audit trails. Perfect for health & safety, ISO audits, GDPR documentation, and regulatory
+                  Generate industry-standard compliance reports with your business branding, complete audit trails, and
+                  digital signatures. Perfect for health & safety, ISO audits, GDPR documentation, and regulatory
                   inspections.
                 </p>
                 <ul className="space-y-3 mb-8">
@@ -395,138 +393,59 @@ export default async function HomePage() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <Card>
+          {/* Core Features Section */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <Card className="border-border/50 bg-card hover:shadow-lg transition-shadow duration-300">
               <CardHeader>
-                <CheckCircle className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>Compliance Templates</CardTitle>
-                <CardDescription>
-                  Pre-built templates for health & safety, GDPR, ISO standards, and custom compliance workflows. No
-                  complex setup - just assign and track
-                </CardDescription>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <Shield className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>Audit-Ready Reports</CardTitle>
-                <CardDescription>
-                  Generate professional, timestamped reports that auditors love. Complete audit trail with submission
-                  history and digital signatures
-                </CardDescription>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <BarChart3 className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>Automated Tracking</CardTitle>
-                <CardDescription>
-                  Never miss a deadline again. Automated reminders, overdue alerts, and real-time compliance dashboards
-                  keep your team on track
-                </CardDescription>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <Users className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>Team Accountability</CardTitle>
-                <CardDescription>
-                  Clear task assignment with email notifications. Track who did what and when - perfect for
-                  demonstrating due diligence
-                </CardDescription>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <Clock className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>Save 10+ Hours/Week</CardTitle>
-                <CardDescription>
-                  Eliminate manual checklists, spreadsheets, and chasing emails. Automated workflows that actually work
-                  for small teams
-                </CardDescription>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <Shield className="w-10 h-10 text-accent mb-4" />
-                <CardTitle>UK GDPR Compliant</CardTitle>
-                <CardDescription>
-                  Built with UK data protection standards in mind. Secure UK-based data storage with full GDPR
-                  compliance and ICO-ready documentation
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </div>
-
-          <div className="mt-16">
-            <div className="text-center mb-8">
-              <Badge variant="secondary" className="mb-4">
-                Coming Soon
-              </Badge>
-              <h3 className="text-2xl font-bold text-foreground mb-4">Premium Features</h3>
-              <p className="text-muted-foreground">Advanced capabilities launching in the coming months</p>
-            </div>
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card className="relative opacity-75">
-                <div className="absolute top-4 right-4">
-                  <Badge variant="outline" className="text-xs">
-                    Coming Soon
-                  </Badge>
+                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
+                  <CheckSquare className="w-6 h-6 text-accent" />
                 </div>
-                <CardHeader>
-                  <FileText className="w-8 h-8 text-muted-foreground mb-3" />
-                  <CardTitle className="text-lg">White Label Branding</CardTitle>
-                  <CardDescription className="text-sm">
-                    Complete white-label solution to brand the platform as your own and offer premium services
-                  </CardDescription>
-                </CardHeader>
-              </Card>
+                <CardTitle>Digital Task Checklists</CardTitle>
+                <CardDescription>
+                  Create custom task templates and assign them to your team. Track completion status in real-time with
+                  photo evidence and digital signatures.
+                </CardDescription>
+              </CardHeader>
+            </Card>
 
-              <Card className="relative opacity-75">
-                <div className="absolute top-4 right-4">
-                  <Badge variant="outline" className="text-xs">
-                    Coming Soon
-                  </Badge>
+            <Card className="border-border/50 bg-card hover:shadow-lg transition-shadow duration-300">
+              <CardHeader>
+                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
+                  <FileText className="w-6 h-6 text-accent" />
                 </div>
-                <CardHeader>
-                  <Shield className="w-8 h-8 text-muted-foreground mb-3" />
-                  <CardTitle className="text-lg">Enhanced Security Audit</CardTitle>
-                  <CardDescription className="text-sm">
-                    Advanced audit logging with risk assessment and anomaly detection for enhanced security compliance
-                  </CardDescription>
-                </CardHeader>
-              </Card>
+                <CardTitle>Automated Compliance Reports</CardTitle>
+                <CardDescription>
+                  Generate professional audit reports with your business branding, complete audit trails, and digital
+                  signatures. Perfect for ISO, H&S, and regulatory audits.
+                </CardDescription>
+              </CardHeader>
+            </Card>
 
-              <Card className="relative opacity-75">
-                <div className="absolute top-4 right-4">
-                  <Badge variant="outline" className="text-xs">
-                    Coming Soon
-                  </Badge>
+            <Card className="border-border/50 bg-card hover:shadow-lg transition-shadow duration-300">
+              <CardHeader>
+                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
+                  <Users className="w-6 h-6 text-accent" />
                 </div>
-                <CardHeader>
-                  <BarChart3 className="w-8 h-8 text-muted-foreground mb-3" />
-                  <CardTitle className="text-lg">Automated Backups</CardTitle>
-                  <CardDescription className="text-sm">
-                    Automated backup systems with one-click recovery to protect your valuable compliance data
-                  </CardDescription>
-                </CardHeader>
-              </Card>
+                <CardTitle>Multi-User Management</CardTitle>
+                <CardDescription>
+                  Manage your entire team from one dashboard. Assign tasks, track progress, and monitor completion rates
+                  across all team members and departments.
+                </CardDescription>
+              </CardHeader>
+            </Card>
 
-              <Card className="relative opacity-75">
-                <div className="absolute top-4 right-4">
-                  <Badge variant="outline" className="text-xs">
-                    Coming Soon
-                  </Badge>
+            <Card className="border-border/50 bg-card hover:shadow-lg transition-shadow duration-300">
+              <CardHeader>
+                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
+                  <Calendar className="w-6 h-6 text-accent" />
                 </div>
-                <CardHeader>
-                  <Users className="w-8 h-8 text-muted-foreground mb-3" />
-                  <CardTitle className="text-lg">External Sharing</CardTitle>
-                  <CardDescription className="text-sm">
-                    Share forms with contractors and external auditors without requiring full account access
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-            </div>
+                <CardTitle>Smart Scheduling & Reminders</CardTitle>
+                <CardDescription>
+                  Set up recurring tasks with customizable schedules. Automatic email reminders ensure nothing falls
+                  through the cracks - perfect for regular compliance checks.
+                </CardDescription>
+              </CardHeader>
+            </Card>
           </div>
         </div>
       </section>
@@ -540,97 +459,76 @@ export default async function HomePage() {
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            <Card className="relative flex flex-col">
-              <CardHeader>
+            {/* Starter Plan */}
+            <Card className="hover:shadow-xl hover:scale-[1.02] transition-all duration-300">
+              <CardHeader className="pb-4">
                 <CardTitle className="text-2xl">Starter</CardTitle>
-                <div className="text-3xl font-bold">
-                  £0<span className="text-lg font-normal text-muted-foreground">/month</span>
+                <CardDescription className="text-base">Perfect for micro-businesses and startups</CardDescription>
+                <div className="mt-4">
+                  <span className="text-5xl font-bold text-foreground">Free</span>
+                  <p className="text-sm text-muted-foreground mt-2">Forever free</p>
                 </div>
-                <CardDescription>Perfect for micro-businesses and startups</CardDescription>
               </CardHeader>
-              <CardContent className="flex-1 flex flex-col">
-                <ul className="space-y-3 mb-8 flex-1">
+              <CardContent className="space-y-4">
+                <ul className="space-y-3">
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />3 Templates
+                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <span>Up to 5 team members</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    Up to 5 Team Members
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />1 Admin Account
+                    <span>3 task templates</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    Basic reporting
+                    <span>Basic reporting</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    Manual Task Monitoring
+                    <span>Manual task assignments</span>
                   </li>
                 </ul>
                 <Link href="/auth/sign-up" className="mt-auto">
-                  <Button className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-accent to-accent/90 hover:from-accent/90 hover:to-accent text-accent-foreground shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105">
-                    🚀 Get Started FREE
+                  <Button variant="outline" className="w-full h-12 text-lg font-semibold bg-transparent">
+                    Get Started Free
                   </Button>
                 </Link>
               </CardContent>
             </Card>
 
-            <Card className="relative border-accent border-2 shadow-xl flex flex-col">
-              <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-accent text-accent-foreground px-4 py-1">
-                Best for SMEs
-              </Badge>
-              <CardHeader>
+            {/* Growth Plan */}
+            <Card className="group hover:shadow-lg hover:scale-[1.02] transition-all duration-300 border-2 border-accent/50 bg-gradient-to-br from-accent/5 to-transparent">
+              <CardHeader className="pb-4">
                 <CardTitle className="text-2xl">Growth</CardTitle>
-                <div>
-                  <Badge className="mb-2 bg-green-100 text-green-800 border-green-200">🎉 1 Month FREE Trial</Badge>
-                  <div className="text-3xl font-bold">
-                    £9.99<span className="text-lg font-normal text-muted-foreground">/month</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">Try free for 30 days, then £9.99/month</p>
+                <CardDescription className="text-base">Ideal for growing small-medium businesses</CardDescription>
+                <div className="mt-4">
+                  <span className="text-5xl font-bold text-foreground">£9</span>
+                  <span className="text-muted-foreground text-lg">/month</span>
+                  <p className="text-sm text-muted-foreground mt-2">or £8/month billed yearly (£96/year)</p>
+                  <p className="text-sm font-semibold text-accent mt-1">First month free trial</p>
                 </div>
-                <CardDescription>Ideal for growing small-medium businesses</CardDescription>
               </CardHeader>
-              <CardContent className="flex-1 flex flex-col">
-                <ul className="space-y-3 mb-8 flex-1">
+              <CardContent className="space-y-4">
+                <ul className="space-y-3">
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    10 Templates
+                    <span>Up to 25 team members</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    Up to 30 Team Members
+                    <span>10 task templates</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    Up to 3 Admin Accounts
+                    <span>Advanced reporting & analytics</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    Advanced Reporting
+                    <span className="font-semibold">⚡ Task Automation (Recurring Tasks)</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    Priority Email Support
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span className="flex items-center">
-                      🤖 AI Task Monitoring
-                      <Badge variant="secondary" className="ml-2 text-xs">
-                        Coming Soon
-                      </Badge>
-                    </span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span className="flex items-center">
-                      🔔 Smart Notifications
-                      <Badge variant="secondary" className="ml-2 text-xs">
-                        Coming Soon
-                      </Badge>
-                    </span>
+                    <span>Custom business branding</span>
                   </li>
                 </ul>
                 <Link href="/auth/sign-up" className="mt-auto">
@@ -641,66 +539,43 @@ export default async function HomePage() {
               </CardContent>
             </Card>
 
-            <Card className="relative flex flex-col">
-              <CardHeader>
+            {/* Scale Plan */}
+            <Card className="hover:shadow-xl hover:scale-[1.02] transition-all duration-300">
+              <CardHeader className="pb-4">
                 <CardTitle className="text-2xl">Scale</CardTitle>
-                <div>
-                  <Badge className="mb-2 bg-green-100 text-green-800 border-green-200">🎉 1 Month FREE Trial</Badge>
-                  <div className="text-3xl font-bold">
-                    £19.99<span className="text-lg font-normal text-muted-foreground">/month</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">Try free for 30 days, then £19.99/month</p>
+                <CardDescription className="text-base">For established SMEs ready to scale</CardDescription>
+                <div className="mt-4">
+                  <span className="text-5xl font-bold text-foreground">£16</span>
+                  <span className="text-muted-foreground text-lg">/month</span>
+                  <p className="text-sm text-muted-foreground mt-2">or £15/month billed yearly (£180/year)</p>
+                  <p className="text-sm font-semibold text-accent mt-1">First month free trial</p>
                 </div>
-                <CardDescription>For established SMEs ready to scale</CardDescription>
               </CardHeader>
-              <CardContent className="flex-1 flex flex-col">
-                <ul className="space-y-3 mb-8 flex-1">
+              <CardContent className="space-y-4">
+                <ul className="space-y-3">
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    30 Templates
+                    <span>Up to 75 team members</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    Up to 100 Team Members
+                    <span>20 task templates</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    Up to 10 Admin Accounts
+                    <span>Everything in Growth, plus:</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    Advanced Analytics
+                    <span>Advanced analytics dashboard</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    Dedicated Account Manager
+                    <span className="font-semibold">⚡ Task Automation (Recurring Tasks)</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span className="flex items-center">
-                      🤖 Advanced AI Monitoring
-                      <Badge variant="secondary" className="ml-2 text-xs">
-                        Coming Soon
-                      </Badge>
-                    </span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span className="flex items-center">
-                      🔔 Predictive Notifications
-                      <Badge variant="secondary" className="ml-2 text-xs">
-                        Coming Soon
-                      </Badge>
-                    </span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span className="flex items-center">
-                      📊 AI Performance Insights
-                      <Badge variant="secondary" className="ml-2 text-xs">
-                        Coming Soon
-                      </Badge>
-                    </span>
+                    <span>Custom business branding</span>
                   </li>
                 </ul>
                 <Link href="/auth/sign-up" className="mt-auto">
@@ -743,11 +618,13 @@ export default async function HomePage() {
                   ))}
                 </div>
                 <p className="text-muted-foreground mb-4">
-                  "The white-label feature lets us offer premium consulting services to our clients. We look like a big
-                  consultancy but with SME agility and pricing."
+                  "Perfect for our growing manufacturing business. Easy compliance tracking without the complexity of
+                  enterprise software. Our team of 25 loves how simple it is."
                 </p>
-                <div className="font-semibold">Michael Chen</div>
-                <div className="text-sm text-muted-foreground">Director, SME Business Solutions (8 employees)</div>
+                <div className="font-semibold">Emma Williams</div>
+                <div className="text-sm text-muted-foreground">
+                  Operations Manager, Precision Manufacturing (25 employees)
+                </div>
               </CardContent>
             </Card>
             <Card>
@@ -758,12 +635,12 @@ export default async function HomePage() {
                   ))}
                 </div>
                 <p className="text-muted-foreground mb-4">
-                  "Perfect for our growing manufacturing business. Easy compliance tracking without the complexity of
-                  enterprise software. Our team of 25 loves how simple it is."
+                  "The business branding features let us add our company logo and name to all reports.
+                  Professional-looking documentation that our clients love to see."
                 </p>
-                <div className="font-semibold">Emma Williams</div>
+                <div className="font-semibold">Michael Chen</div>
                 <div className="text-sm text-muted-foreground">
-                  Operations Manager, Precision Manufacturing (25 employees)
+                  Director, Facilities Management Company (40 employees)
                 </div>
               </CardContent>
             </Card>

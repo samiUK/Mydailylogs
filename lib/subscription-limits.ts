@@ -5,6 +5,7 @@ export interface SubscriptionLimits {
   maxTeamMembers: number
   maxAdmins: number // Added admin limit
   hasCustomBranding: boolean
+  hasTaskAutomation: boolean // Added task automation flag to limits
   planName: string
 }
 
@@ -27,20 +28,23 @@ export async function getSubscriptionLimits(organizationId: string): Promise<Sub
           maxTeamMembers: 5,
           maxAdmins: 1,
           hasCustomBranding: false,
+          hasTaskAutomation: false, // Free plan does NOT have task automation
           planName: "Starter",
         },
         growth: {
           maxTemplates: 10,
-          maxTeamMembers: 30,
+          maxTeamMembers: 25, // Reduced from 30 to 25 team members
           maxAdmins: 3,
-          hasCustomBranding: false,
+          hasCustomBranding: true,
+          hasTaskAutomation: true, // Growth plan HAS task automation
           planName: "Growth",
         },
         scale: {
-          maxTemplates: 30,
-          maxTeamMembers: 100,
+          maxTemplates: 20, // Reduced from 30 to 20 templates
+          maxTeamMembers: 75, // Reduced from 100 to 75 team members
           maxAdmins: 10,
           hasCustomBranding: true,
+          hasTaskAutomation: true, // Scale plan HAS task automation
           planName: "Scale",
         },
       }
@@ -57,6 +61,7 @@ export async function getSubscriptionLimits(organizationId: string): Promise<Sub
     maxTeamMembers: 5,
     maxAdmins: 1,
     hasCustomBranding: false,
+    hasTaskAutomation: false, // Default to no task automation
     planName: "Starter",
   }
 }
@@ -155,8 +160,8 @@ export async function checkCanCreateAdmin(organizationId: string): Promise<{
     reason: canCreate
       ? undefined
       : limits.planName === "Starter"
-      ? "Starter plan only includes 1 admin account. Upgrade to Growth or Scale to add more admins."
-      : `You've reached your plan limit of ${limits.maxAdmins} admin accounts. Upgrade to add more.`,
+        ? "Starter plan only includes 1 admin account. Upgrade to Growth or Scale to add more admins."
+        : `You've reached your plan limit of ${limits.maxAdmins} admin accounts. Upgrade to add more.`,
     currentCount: usage.adminCount,
     maxAllowed: limits.maxAdmins,
     requiresUpgrade: !canCreate,

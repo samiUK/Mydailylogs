@@ -2,15 +2,9 @@ interface MyDayLogsLogoProps {
   className?: string
   size?: "sm" | "md" | "lg" | "xl"
   showText?: boolean
-  text?: string // Added text prop for white-label use
 }
 
-export function MyDayLogsLogo({
-  className = "",
-  size = "md",
-  showText = true,
-  text = "MyDayLogs",
-}: MyDayLogsLogoProps) {
+export function MyDayLogsLogo({ className = "", size = "md", showText = true }: MyDayLogsLogoProps) {
   const sizeClasses = {
     sm: "w-8 h-8",
     md: "w-10 h-10",
@@ -30,7 +24,7 @@ export function MyDayLogsLogo({
       <img src="/mydaylogs-logo.png" alt="MyDayLogs Logo" className={`${sizeClasses[size]} object-contain`} />
 
       {/* Brand Text */}
-      {showText && <span className={`font-bold text-emerald-600 ${textSizeClasses[size]}`}>{text}</span>}
+      {showText && <span className={`font-bold text-emerald-600 ${textSizeClasses[size]}`}>MyDayLogs</span>}
     </div>
   )
 }

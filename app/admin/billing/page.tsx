@@ -207,7 +207,7 @@ export default function BillingPage() {
                 <div className="mt-4 p-3 bg-primary/10 rounded-lg border border-primary/20">
                   <p className="text-sm text-primary font-medium">✨ Premium Features Enabled</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Custom branding, unlimited templates, and priority support are now available.
+                    Custom branding, task automation, and advanced reporting are now available.
                   </p>
                 </div>
               )}
@@ -273,16 +273,16 @@ export default function BillingPage() {
                         {plan.maxAdmins} Admin Account{plan.maxAdmins > 1 ? "s" : ""}
                       </span>
                     </li>
-                    {plan.features.customBranding && (
+                    {plan.features.taskAutomation && (
                       <li className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm">Custom Branding</span>
+                        <span className="text-sm font-semibold">⚡ Task Automation</span>
                       </li>
                     )}
-                    {plan.features.prioritySupport && (
+                    {plan.features.advancedReporting && (
                       <li className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm">Priority Support</span>
+                        <span className="text-sm">Advanced Reporting</span>
                       </li>
                     )}
                     {plan.features.advancedAnalytics && (
@@ -291,10 +291,10 @@ export default function BillingPage() {
                         <span className="text-sm">Advanced Analytics</span>
                       </li>
                     )}
-                    {plan.features.apiAccess && (
+                    {plan.features.customBranding && (
                       <li className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm">API Access</span>
+                        <span className="text-sm">Custom Business Branding</span>
                       </li>
                     )}
                   </ul>

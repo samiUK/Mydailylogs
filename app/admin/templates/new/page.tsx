@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { toast } from "react-toastify"
 
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -67,8 +68,11 @@ export default function NewTemplatePage() {
     "Technician",
   ]
 
+  const [hasTaskAutomation, setHasTaskAutomation] = useState(false)
+  const [loadingLimits, setLoadingLimits] = useState(true)
+
   useEffect(() => {
-    async function checkLimitsAndGetProfile() {
+    async function loadUserAndLimits() {
       try {
         console.log("[v0] Starting authentication check...")
         const supabase = createClient()
@@ -133,6 +137,8 @@ export default function NewTemplatePage() {
           } else {
             console.log("[v0] Can create template - ready to go!")
           }
+
+          setHasTaskAutomation(limits.hasTaskAutomation)
         } else {
           console.log("[v0] No organization_id found in profile")
           setError("No organization found for user")
@@ -140,10 +146,12 @@ export default function NewTemplatePage() {
       } catch (error) {
         console.log("[v0] Error in authentication check:", error)
         setError("Failed to load page. Please try refreshing.")
+      } finally {
+        setLoadingLimits(false)
       }
     }
-    checkLimitsAndGetProfile()
-  }, [])
+    loadUserAndLimits()
+  }, [router])
 
   const addCategory = () => {
     if (newCategory.trim() && !categories.includes(newCategory.trim())) {
@@ -259,6 +267,11 @@ export default function NewTemplatePage() {
     if (!limitCheck.canCreate) {
       console.log("[v0] Final limit check failed:", limitCheck.reason)
       setError(limitCheck.reason || "Cannot create template due to plan limits")
+      return
+    }
+
+    if (scheduleType === "recurring" && !hasTaskAutomation) {
+      toast.error("Task Automation is a premium feature. Upgrade to Growth or Scale plan to create recurring tasks.")
       return
     }
 
@@ -443,17 +456,36 @@ export default function NewTemplatePage() {
                   <Label htmlFor="scheduleType" required>
                     Schedule Type
                   </Label>
-                  <Select value={scheduleType} onValueChange={setScheduleType} required>
+                  <Select value={scheduleType} onValueChange={setScheduleType} required disabled={loadingLimits}>
                     <SelectTrigger className="bg-white border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200">
                       <SelectValue placeholder="How should this be scheduled?" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="recurring">Recurring (Daily/Weekly/Monthly)</SelectItem>
+                      <SelectItem value="recurring" disabled={!hasTaskAutomation}>
+                        Recurring (Daily/Weekly/Monthly)
+                        {!hasTaskAutomation && " 👑 Premium"}
+                      </SelectItem>
                       <SelectItem value="specific_date">Specific Date</SelectItem>
                       <SelectItem value="deadline">Deadline</SelectItem>
                       <SelectItem value="one-off">One-off</SelectItem>
                     </SelectContent>
                   </Select>
+                  {scheduleType === "recurring" && !hasTaskAutomation && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-sm text-amber-800 font-medium">🔒 Task Automation is a Premium Feature</p>
+                      <p className="text-xs text-amber-700 mt-1">
+                        Upgrade to Growth or Scale plan to automate recurring tasks and reduce admin workload.
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="mt-2 bg-amber-600 hover:bg-amber-700"
+                        onClick={() => router.push("/admin/billing")}
+                      >
+                        Upgrade Now
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {scheduleType === "recurring" && (

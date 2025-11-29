@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Eye, EyeOff, Lock } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 export default function ResetPasswordPage() {
   const [newPassword, setNewPassword] = useState("")
@@ -18,43 +18,63 @@ export default function ResetPasswordPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState("")
-  const [isValidSession, setIsValidSession] = useState(false)
-  const [checkingSession, setCheckingSession] = useState(true)
+  const [isValidToken, setIsValidToken] = useState(false)
+  const [checkingToken, setCheckingToken] = useState(true)
+  const [tokenData, setTokenData] = useState<{ user_id: string; user_email: string } | null>(null)
 
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
   useEffect(() => {
-    const checkSession = async () => {
-      console.log("[v0] Reset password page loaded, checking session...")
+    const validateToken = async () => {
+      const token = searchParams.get("token")
+      console.log("[v0] Reset password page loaded, validating token...")
 
-      let attempts = 0
-      let session = null
-
-      while (attempts < 5 && !session) {
-        await new Promise((resolve) => setTimeout(resolve, 500))
-        const {
-          data: { session: currentSession },
-        } = await supabase.auth.getSession()
-        session = currentSession
-        attempts++
-        console.log("[v0] Session check attempt", attempts, ":", session ? "valid session" : "no session")
-      }
-
-      if (session) {
-        console.log("[v0] Valid recovery session found, user can reset password")
-        setIsValidSession(true)
-      } else {
-        console.log("[v0] No valid session after", attempts, "attempts, link may be invalid or expired")
+      if (!token) {
+        console.error("[v0] No token found in URL")
         setMessage("Invalid or expired password reset link. Please request a new one.")
-        setIsValidSession(false)
+        setIsValidToken(false)
+        setCheckingToken(false)
+        return
       }
 
-      setCheckingSession(false)
+      try {
+        // Validate token from database
+        const { data: tokenRecord, error } = await supabase
+          .from("password_reset_tokens")
+          .select("*")
+          .eq("token", token)
+          .eq("is_active", true)
+          .is("used_at", null)
+          .gt("expires_at", new Date().toISOString())
+          .single()
+
+        if (error || !tokenRecord) {
+          console.error("[v0] Invalid or expired token:", error)
+          setMessage("Invalid or expired password reset link. Please request a new one.")
+          setIsValidToken(false)
+          setCheckingToken(false)
+          return
+        }
+
+        console.log("[v0] Valid token found for user:", tokenRecord.user_email)
+        setTokenData({
+          user_id: tokenRecord.user_id,
+          user_email: tokenRecord.user_email,
+        })
+        setIsValidToken(true)
+        setCheckingToken(false)
+      } catch (err) {
+        console.error("[v0] Error validating token:", err)
+        setMessage("An error occurred validating your reset link. Please request a new one.")
+        setIsValidToken(false)
+        setCheckingToken(false)
+      }
     }
 
-    checkSession()
-  }, [supabase])
+    validateToken()
+  }, [searchParams, supabase])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -73,45 +93,52 @@ export default function ResetPasswordPage() {
       return
     }
 
+    if (!tokenData) {
+      setMessage("Invalid session. Please request a new reset link.")
+      setLoading(false)
+      return
+    }
+
     try {
-      console.log("[v0] Updating password...")
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
+      console.log("[v0] Updating password for user:", tokenData.user_email)
+
+      const token = searchParams.get("token")
+      const response = await fetch("/api/auth/update-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token,
+          newPassword,
+        }),
       })
 
-      if (error) throw error
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Failed to update password")
+      }
 
       console.log("[v0] Password updated successfully, fetching user profile...")
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+      // Get user role for redirect
+      const { data: profile } = await supabase.from("profiles").select("role").eq("id", tokenData.user_id).single()
 
-      if (user) {
-        const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
+      console.log("[v0] User role:", profile?.role)
 
-        console.log("[v0] User role:", profile?.role)
+      setMessage("Password updated successfully! Redirecting to your dashboard...")
 
-        setMessage("Password updated successfully! Redirecting to your dashboard...")
-
-        setTimeout(() => {
-          if (profile?.role === "admin") {
-            console.log("[v0] Redirecting to admin dashboard")
-            router.push("/admin")
-          } else if (profile?.role === "staff") {
-            console.log("[v0] Redirecting to staff dashboard")
-            router.push("/staff")
-          } else {
-            console.log("[v0] Unknown role, redirecting to login")
-            router.push("/auth/login")
-          }
-        }, 1500)
-      } else {
-        setMessage("Password updated successfully! Redirecting to login...")
-        setTimeout(() => {
+      setTimeout(() => {
+        if (profile?.role === "admin") {
+          console.log("[v0] Redirecting to admin dashboard")
+          router.push("/admin")
+        } else if (profile?.role === "staff") {
+          console.log("[v0] Redirecting to staff dashboard")
+          router.push("/staff")
+        } else {
+          console.log("[v0] Unknown role, redirecting to login")
           router.push("/auth/login")
-        }, 1500)
-      }
+        }
+      }, 1500)
     } catch (error) {
       console.error("[v0] Error updating password:", error)
       setMessage(`Error: ${error instanceof Error ? error.message : "An unexpected error occurred"}`)
@@ -120,7 +147,7 @@ export default function ResetPasswordPage() {
     }
   }
 
-  if (checkingSession) {
+  if (checkingToken) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="animate-pulse text-center">
@@ -143,7 +170,7 @@ export default function ResetPasswordPage() {
             <CardDescription>Enter your new password below</CardDescription>
           </CardHeader>
           <CardContent>
-            {isValidSession ? (
+            {isValidToken ? (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="newPassword">New Password</Label>
@@ -213,7 +240,7 @@ export default function ResetPasswordPage() {
               </div>
             )}
 
-            {message && isValidSession && (
+            {message && isValidToken && (
               <div
                 className={`mt-4 p-3 rounded-md text-sm ${
                   message.includes("Error") || message.includes("do not match") || message.includes("must be")

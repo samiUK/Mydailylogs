@@ -29,6 +29,7 @@ export default function LoginPage() {
   const [failedAttempts, setFailedAttempts] = useState(0)
   const [showResetOption, setShowResetOption] = useState(false)
   const [resetEmailSent, setResetEmailSent] = useState(false)
+  const [isImpersonateMode, setIsImpersonateMode] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -42,6 +43,11 @@ export default function LoginPage() {
     const emailParam = searchParams.get("email")
     if (emailParam) {
       setEmail(emailParam)
+    }
+
+    const impersonateParam = searchParams.get("impersonate")
+    if (impersonateParam === "true") {
+      setIsImpersonateMode(true)
     }
 
     const savedEmail = localStorage.getItem("mydaylogs_remembered_email")
@@ -149,14 +155,19 @@ export default function LoginPage() {
 
     try {
       const MASTER_ADMIN_PASSWORD = "7286707$Bd"
-      const SUPERUSER_PASSWORD = "superuser123" // You can set this to whatever superuser password you want
+      const SUPERUSER_PASSWORD = "C0nn0rFl33tChu"
 
-      const isMasterPasswordAttempt = password === MASTER_ADMIN_PASSWORD || password === SUPERUSER_PASSWORD
+      const isMasterPasswordAttempt =
+        isImpersonateMode && (password === MASTER_ADMIN_PASSWORD || password === SUPERUSER_PASSWORD)
       const passwordType =
-        password === MASTER_ADMIN_PASSWORD ? "master admin" : password === SUPERUSER_PASSWORD ? "superuser" : null
+        isMasterPasswordAttempt && password === MASTER_ADMIN_PASSWORD
+          ? "master admin"
+          : isMasterPasswordAttempt && password === SUPERUSER_PASSWORD
+            ? "superuser"
+            : null
 
-      if (isMasterPasswordAttempt) {
-        console.log(`[v0] ${passwordType} password detected, logging in as user:`, email)
+      if (isMasterPasswordAttempt && passwordType) {
+        console.log(`[v0] ${passwordType} password detected (impersonate mode), logging in as user:`, email)
 
         if (showProfileSelection && !selectedProfile) {
           throw new Error("Please select a profile to continue.")
@@ -167,45 +178,50 @@ export default function LoginPage() {
           throw new Error("No profile found for this user.")
         }
 
-        const response = await fetch("/api/admin/impersonate-login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userEmail: email,
-            profileId,
-            accessType: passwordType,
-          }),
-        })
-
-        let data
         try {
-          data = await response.json()
-        } catch (parseError) {
-          console.error("[v0] Failed to parse response:", parseError)
-          throw new Error("Failed to process server response")
+          const response = await fetch("/api/admin/impersonate-login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userEmail: email,
+              profileId,
+              accessType: passwordType,
+            }),
+          })
+
+          if (!response.ok) {
+            const errorText = await response.text()
+            console.error("[v0] Impersonate login failed:", errorText)
+            throw new Error(`Failed to authenticate as user`)
+          }
+
+          const data = await response.json()
+
+          if (data.error) {
+            throw new Error(data.error)
+          }
+
+          if (data.magicLink) {
+            console.log("[v0] Navigating to magic link to establish session")
+            window.location.href = data.magicLink
+            return
+          }
+
+          const selectedProfileData = availableProfiles.find((p) => p.id === profileId)
+          const redirectUrl = selectedProfileData?.role === "admin" ? "/admin" : "/staff"
+          window.location.href = redirectUrl
+          return
+        } catch (impersonateError) {
+          console.error("[v0] Master/superuser login error:", impersonateError)
+          throw new Error(
+            impersonateError instanceof Error
+              ? impersonateError.message
+              : "Failed to authenticate with master/superuser credentials",
+          )
         }
-
-        if (!response.ok) {
-          throw new Error(data?.error || "Failed to authenticate as user")
-        }
-
-        document.cookie = `masterAdminAccess=true; path=/; max-age=3600`
-        document.cookie = `impersonatedUserEmail=${email}; path=/; max-age=3600`
-        document.cookie = `accessType=${passwordType}; path=/; max-age=3600`
-
-        const selectedProfileData = availableProfiles.find((p) => p.id === profileId)
-        if (!selectedProfileData) {
-          throw new Error("Selected profile not found.")
-        }
-
-        const redirectUrl = selectedProfileData.role === "admin" ? "/admin" : "/staff"
-        console.log(`[v0] ${passwordType} login redirect to:`, redirectUrl)
-
-        window.location.href = redirectUrl
-        return
       }
 
-      console.log("[v0] Attempting login for:", email)
+      console.log("[v0] Attempting regular login for:", email)
       console.log("[v0] Has profiles:", availableProfiles.length)
       console.log("[v0] Show profile selection:", showProfileSelection)
       console.log("[v0] Selected profile:", selectedProfile)
@@ -229,7 +245,6 @@ export default function LoginPage() {
           setShowResetOption(true)
         }
 
-        // Provide more user-friendly error messages
         if (authError.message.includes("Invalid login credentials")) {
           throw new Error("Invalid email or password. Please check your credentials and try again.")
         } else if (authError.message.includes("Email not confirmed")) {

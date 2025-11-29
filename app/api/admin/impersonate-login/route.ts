@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { createClient } from "@/lib/supabase/server"
 
 export async function POST(request: Request) {
   try {
@@ -16,84 +15,38 @@ export async function POST(request: Request) {
 
     const adminClient = createAdminClient()
 
+    // Get the user first
+    const { data: usersData, error: usersError } = await adminClient.auth.admin.listUsers()
+
+    if (usersError) {
+      console.error("[v0] Error listing users:", usersError)
+      return NextResponse.json({ error: "Failed to find user" }, { status: 500 })
+    }
+
+    const targetUser = usersData.users.find((u) => u.email === userEmail)
+
+    if (!targetUser) {
+      console.error("[v0] User not found:", userEmail)
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
+    console.log("[v0] Target user found:", targetUser.id)
+
     const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
-      type: "magiclink",
+      type: "recovery",
       email: userEmail,
-      options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
-      },
     })
 
     if (linkError || !linkData) {
-      console.error("[v0] Error generating link:", linkError)
+      console.error("[v0] Error generating recovery link:", linkError)
       return NextResponse.json({ error: "Failed to generate session" }, { status: 500 })
     }
 
-    console.log("[v0] Magic link data structure:", JSON.stringify(linkData, null, 2))
+    console.log("[v0] Recovery link generated successfully")
 
-    let accessToken: string | null = null
-    let refreshToken: string | null = null
-
-    // Try to extract from properties.action_link
-    if (linkData.properties?.action_link) {
-      try {
-        const actionUrl = new URL(linkData.properties.action_link)
-        accessToken = actionUrl.searchParams.get("access_token")
-        refreshToken = actionUrl.searchParams.get("refresh_token")
-        console.log("[v0] Extracted tokens from action_link")
-      } catch (e) {
-        console.error("[v0] Failed to parse action_link:", e)
-      }
-    }
-
-    // Try to extract from hash fragment if action_link didn't work
-    if ((!accessToken || !refreshToken) && linkData.properties?.action_link) {
-      try {
-        const hashMatch = linkData.properties.action_link.match(/#(.+)$/)
-        if (hashMatch) {
-          const hashParams = new URLSearchParams(hashMatch[1])
-          accessToken = hashParams.get("access_token")
-          refreshToken = hashParams.get("refresh_token")
-          console.log("[v0] Extracted tokens from hash fragment")
-        }
-      } catch (e) {
-        console.error("[v0] Failed to parse hash fragment:", e)
-      }
-    }
-
-    // Check if tokens were provided directly
-    if (!accessToken || !refreshToken) {
-      if (linkData.access_token && linkData.refresh_token) {
-        accessToken = linkData.access_token
-        refreshToken = linkData.refresh_token
-        console.log("[v0] Using tokens directly from linkData")
-      }
-    }
-
-    if (!accessToken || !refreshToken) {
-      console.error("[v0] Missing tokens. LinkData structure:", linkData)
-      return NextResponse.json({ error: "Failed to extract tokens" }, { status: 500 })
-    }
-
-    console.log("[v0] Tokens extracted successfully")
-
-    const serverClient = createClient()
-    const { error: sessionError } = await serverClient.auth.setSession({
-      access_token: accessToken,
-      refresh_token: refreshToken,
-    })
-
-    if (sessionError) {
-      console.error("[v0] Error setting session:", sessionError)
-      return NextResponse.json({ error: "Failed to set session" }, { status: 500 })
-    }
-
-    console.log("[v0] Session set successfully for user:", userEmail)
-
-    // Log the access in audit logs
     const { error: auditError } = await adminClient.from("audit_logs").insert({
       action: `${accessType}_access`,
-      user_id: linkData.user.id,
+      user_id: targetUser.id,
       details: {
         accessed_by: accessType,
         target_email: userEmail,
@@ -108,10 +61,11 @@ export async function POST(request: Request) {
 
     console.log("[v0] Admin access logged successfully")
 
+    // This URL will automatically establish the session when visited
     return NextResponse.json({
       success: true,
       message: `Successfully authenticated as ${userEmail} using ${accessType} credentials`,
-      redirectUrl: linkData.user.user_metadata?.role === "admin" ? "/admin" : "/staff",
+      magicLink: linkData.properties.action_link,
     })
   } catch (error) {
     console.error("[v0] Impersonate login error:", error)

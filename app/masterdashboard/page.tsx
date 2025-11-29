@@ -1978,7 +1978,7 @@ export default function MasterDashboardPage() {
                               </TableCell>
                               <TableCell className="px-3 py-2 text-left text-xs flex gap-1">
                                 <Link
-                                  href={`/auth/login?email=${encodeURIComponent(user.email)}`}
+                                  href={`/auth/login?email=${encodeURIComponent(user.email)}&impersonate=true`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-blue-200 bg-background hover:bg-blue-50 text-blue-600 h-8 px-2 py-1"

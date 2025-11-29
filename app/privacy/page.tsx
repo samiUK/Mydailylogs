@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 }
 
 export default function PrivacyPage() {
-  const lastUpdated = "17 November 2024"
+  const lastUpdated = "29 November 2024"
 
   return (
     <div className="min-h-screen bg-white">
@@ -137,6 +137,10 @@ export default function PrivacyPage() {
               <li>
                 <strong>Security:</strong> To detect, prevent, and address security issues
               </li>
+              <li>
+                <strong>Customer Support:</strong> To provide technical assistance, troubleshoot issues, and respond to
+                support requests
+              </li>
             </ul>
           </section>
 
@@ -175,7 +179,7 @@ export default function PrivacyPage() {
                 <strong>Payments:</strong> Stripe (payment processing)
               </li>
               <li>
-                <strong>Email:</strong> Zoho Mail (transactional emails)
+                <strong>Email:</strong> Resend (transactional emails)
               </li>
             </ul>
 
@@ -193,7 +197,61 @@ export default function PrivacyPage() {
           </section>
 
           <section className="mb-8">
-            <h2>7. Data Retention</h2>
+            <h2>7. Administrative Access and Support</h2>
+
+            <h3>7.1 Access for Technical Support</h3>
+            <p>
+              To provide technical support, troubleshoot issues, and maintain service quality, authorized administrators
+              may occasionally need to access user accounts. This access is conducted under the following conditions:
+            </p>
+            <ul>
+              <li>
+                <strong>Legitimate Purpose:</strong> Access is only granted for legitimate purposes including technical
+                support, troubleshooting system issues, resolving billing inquiries, investigating security incidents,
+                or ensuring regulatory compliance
+              </li>
+              <li>
+                <strong>Authorized Personnel Only:</strong> Only specifically authorized senior administrators with
+                proper security clearance can access user accounts
+              </li>
+              <li>
+                <strong>Secure Authentication:</strong> Administrative access requires secure authentication credentials
+                that are separate from user passwords. Your password remains encrypted and is never visible to
+                administrators
+              </li>
+              <li>
+                <strong>Complete Audit Trail:</strong> All administrative access to user accounts is automatically
+                logged with timestamps, administrator identity, and purpose. These logs are retained for compliance
+                purposes
+              </li>
+              <li>
+                <strong>Minimal Data Viewing:</strong> Administrators only view the minimum data necessary to resolve
+                the specific issue or provide the requested support
+              </li>
+              <li>
+                <strong>Confidentiality:</strong> All administrators are bound by strict confidentiality agreements and
+                data protection policies
+              </li>
+            </ul>
+
+            <h3>7.2 Your Rights Regarding Administrative Access</h3>
+            <p>You have the right to:</p>
+            <ul>
+              <li>Request information about whether your account has been accessed by administrators</li>
+              <li>
+                Request copies of audit logs showing administrative access to your account (Subject Access Request)
+              </li>
+              <li>Object to administrative access except where required for legal compliance or security purposes</li>
+              <li>Lodge a complaint with the ICO if you believe access was inappropriate</li>
+            </ul>
+            <p>
+              To request information about administrative access to your account, please contact us at
+              info@mydaylogs.co.uk with "Administrative Access Request" in the subject line.
+            </p>
+          </section>
+
+          <section className="mb-8">
+            <h2>8. Data Retention</h2>
             <p>
               We retain your personal information for as long as necessary to provide the Service and comply with legal
               obligations. When you delete your account, we will delete or anonymize your personal data within 30 days,
@@ -201,12 +259,13 @@ export default function PrivacyPage() {
             </p>
             <p>
               Task logs and organizational data are retained according to your subscription plan and may be retained for
-              audit purposes as required by law.
+              audit purposes as required by law. Administrative access logs are retained for a minimum of 3 years for
+              compliance and security purposes.
             </p>
           </section>
 
           <section className="mb-8">
-            <h2>8. Your Rights Under UK GDPR</h2>
+            <h2>9. Your Rights Under UK GDPR</h2>
             <p>You have the following rights regarding your personal data:</p>
             <ul>
               <li>
@@ -235,7 +294,7 @@ export default function PrivacyPage() {
           </section>
 
           <section className="mb-8">
-            <h2>9. Data Security</h2>
+            <h2>10. Data Security</h2>
             <p>
               We implement appropriate technical and organizational measures to protect your personal information,
               including:
@@ -246,6 +305,9 @@ export default function PrivacyPage() {
               <li>Access controls and authentication</li>
               <li>Secure data centers in the UK/EU</li>
               <li>Employee training on data protection</li>
+              <li>Password hashing using industry-standard algorithms (bcrypt)</li>
+              <li>Comprehensive audit logging of all administrative actions</li>
+              <li>Multi-factor authentication for administrative accounts</li>
             </ul>
             <p>
               While we strive to protect your personal information, no method of transmission over the internet is 100%
@@ -254,7 +316,7 @@ export default function PrivacyPage() {
           </section>
 
           <section className="mb-8">
-            <h2>10. International Data Transfers</h2>
+            <h2>11. International Data Transfers</h2>
             <p>
               Your data is primarily stored and processed in the UK and EU. If we transfer data outside the UK, we
               ensure appropriate safeguards are in place, including:
@@ -267,7 +329,7 @@ export default function PrivacyPage() {
           </section>
 
           <section className="mb-8">
-            <h2>11. Children's Privacy</h2>
+            <h2>12. Children's Privacy</h2>
             <p>
               Our Service is not intended for individuals under 18 years of age. We do not knowingly collect personal
               information from children. If you believe we have collected information from a child, please contact us
@@ -276,7 +338,7 @@ export default function PrivacyPage() {
           </section>
 
           <section className="mb-8">
-            <h2>12. Cookies and Tracking Technologies</h2>
+            <h2>13. Cookies and Tracking Technologies</h2>
             <p>
               We use cookies and similar technologies to improve your experience. Essential cookies are necessary for
               the Service to function. You can control non-essential cookies through our cookie banner and browser
@@ -285,7 +347,7 @@ export default function PrivacyPage() {
           </section>
 
           <section className="mb-8">
-            <h2>13. Changes to This Privacy Policy</h2>
+            <h2>14. Changes to This Privacy Policy</h2>
             <p>
               We may update this Privacy Policy from time to time. We will notify you of any material changes by posting
               the new policy on this page and updating the "Last updated" date. Continued use of the Service after
@@ -294,7 +356,7 @@ export default function PrivacyPage() {
           </section>
 
           <section className="mb-8">
-            <h2>14. Contact Us and Complaints</h2>
+            <h2>15. Contact Us and Complaints</h2>
             <p>
               If you have questions, concerns, or complaints about this Privacy Policy or our data practices, please
               contact us at:

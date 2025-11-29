@@ -441,10 +441,16 @@ export default function MasterDashboardPage() {
             { data: profilesData, error: profileError },
             { data: superusersData, error: superusersError },
             { data: templatesData, error: templatesError },
-            { data: subscriptionsData, error: subscriptionsError }, // Fetch subscriptions
-            { data: paymentsData, error: paymentsError }, // Fetch payments
-            { data: feedbackData, error: feedbackError }, // Fetch feedback
-            { data: reportsData, error: reportsError }, // Fetch submitted reports
+            { data: subscriptionsData, error: subscriptionsError },
+            { data: paymentsData, error: paymentsError },
+            { data: feedbackData, error: feedbackError },
+            { data: reportsData, error: reportsError },
+            { data: checklistsData, error: checklistsError },
+            { data: notificationsData, error: notificationsError },
+            { data: holidaysData, error: holidaysError },
+            { data: staffUnavailabilityData, error: staffUnavailabilityError },
+            { data: auditLogsData, error: auditLogsError },
+            { data: backupsData, error: backupsError },
           ] = await Promise.all([
             createClient().from("organizations").select("*"),
             createClient().from("profiles").select("*"),
@@ -462,6 +468,12 @@ export default function MasterDashboardPage() {
             createClient()
               .from("submitted_reports")
               .select("*"), // Fetch submitted reports
+            createClient().from("daily_checklists").select("id, status"),
+            createClient().from("notifications").select("id, is_read"),
+            createClient().from("holidays").select("id, date"),
+            createClient().from("staff_unavailability").select("id, start_date, end_date"),
+            createClient().from("report_audit_logs").select("id, created_at"),
+            createClient().from("report_backups").select("id, created_at"),
           ])
 
           console.log("[v0] Data fetch results:", {
@@ -473,6 +485,12 @@ export default function MasterDashboardPage() {
             payments: { error: paymentsError, count: paymentsData?.length },
             feedback: { error: feedbackError, count: feedbackData?.length },
             reports: { error: reportsError, count: reportsData?.length },
+            checklists: { error: checklistsError, count: checklistsData?.length },
+            notifications: { error: notificationsError, count: notificationsData?.length },
+            holidays: { error: holidaysError, count: holidaysData?.length },
+            staffUnavailability: { error: staffUnavailabilityError, count: staffUnavailabilityData?.length },
+            auditLogs: { error: auditLogsError, count: auditLogsData?.length },
+            backups: { error: backupsError, count: backupsData?.length },
           })
 
           if (profileError) {
@@ -533,6 +551,62 @@ export default function MasterDashboardPage() {
           } else {
             setTotalSubmittedReports(reportsData?.length || 0)
           }
+
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+          const oneWeekAgo = new Date(today)
+          oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+
+          setDatabaseStats({
+            checklists: {
+              total: checklistsData?.length || 0,
+              completed: checklistsData?.filter((c) => c.status === "completed").length || 0,
+              pending: checklistsData?.filter((c) => c.status === "pending" || c.status === "in_progress").length || 0,
+            },
+            templates: {
+              total: templatesData?.length || 0,
+              active: templatesData?.filter((t) => t.is_active).length || 0,
+              inactive: templatesData?.filter((t) => !t.is_active).length || 0,
+            },
+            notifications: {
+              total: notificationsData?.length || 0,
+              unread: notificationsData?.filter((n) => !n.is_read).length || 0,
+            },
+            holidays: {
+              total: holidaysData?.length || 0,
+              upcoming:
+                holidaysData?.filter((h) => {
+                  const holidayDate = new Date(h.date)
+                  return holidayDate >= today
+                }).length || 0,
+            },
+            staffUnavailability: {
+              total: staffUnavailabilityData?.length || 0,
+              current:
+                staffUnavailabilityData?.filter((s) => {
+                  const startDate = new Date(s.start_date)
+                  const endDate = new Date(s.end_date)
+                  return startDate <= today && endDate >= today
+                }).length || 0,
+            },
+            auditLogs: {
+              total: auditLogsData?.length || 0,
+              today:
+                auditLogsData?.filter((a) => {
+                  const logDate = new Date(a.created_at)
+                  logDate.setHours(0, 0, 0, 0)
+                  return logDate.getTime() === today.getTime()
+                }).length || 0,
+            },
+            backups: {
+              total: backupsData?.length || 0,
+              thisWeek:
+                backupsData?.filter((b) => {
+                  const backupDate = new Date(b.created_at)
+                  return backupDate >= oneWeekAgo
+                }).length || 0,
+            },
+          })
 
           // Create organization map with profiles
           const organizationMap = new Map()

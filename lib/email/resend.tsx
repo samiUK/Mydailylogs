@@ -97,22 +97,20 @@ export async function sendEmail({
 }
 
 // Send verification email
-export async function sendVerificationEmail(email: string, token: string) {
-  const verifyUrl = `${getBaseUrl()}/auth/callback?token=${token}&type=signup`
-
+export async function sendVerificationEmail(email: string, userName: string, verificationUrl: string) {
   const html = getEmailLayout(
     `
       <h1 style="color: #059669; margin-bottom: 24px;">Verify Your Email</h1>
-      <p>Hi there,</p>
+      <p>Hi ${userName || "there"},</p>
       <p>Thank you for signing up for MyDayLogs! Please verify your email address to get started.</p>
       <p>Click the button below to verify your email:</p>
-      <a href="${verifyUrl}" class="button">Verify Email Address</a>
+      <a href="${verificationUrl}" class="button">Verify Email Address</a>
       <div class="security-note">
         <p style="margin: 0;"><strong>Security Note:</strong> This link will expire in 24 hours for your protection.</p>
       </div>
       <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">
         If the button doesn't work, copy and paste this link into your browser:<br>
-        <a href="${verifyUrl}" style="color: #059669; word-break: break-all;">${verifyUrl}</a>
+        <a href="${verificationUrl}" style="color: #059669; word-break: break-all;">${verificationUrl}</a>
       </p>
       <p style="margin-top: 32px; color: #6b7280;">
         If you didn't request this verification, you can safely ignore this email.

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { cookies } from "next/headers"
 
 export async function POST(request: Request) {
@@ -14,8 +14,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // Create admin client
-    const supabase = createClient()
+    const supabase = createAdminClient()
 
     // Get the user by email using admin client
     const {
@@ -48,7 +47,6 @@ export async function POST(request: Request) {
 
     console.log("[v0] Session created successfully for user:", targetUser.id)
 
-    // Set the session cookies
     const cookieStore = cookies()
     cookieStore.set({
       name: "sb-access-token",

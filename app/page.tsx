@@ -275,8 +275,8 @@ export default async function HomePage() {
 
       <section className="w-full">
         <img
-          src="/images/design-mode-images-ss-20on-20a-20laptop.png"
-          alt="MyDayLogs Admin Dashboard"
+          src="/images/mydaylogs-showcase.png"
+          alt="MyDayLogs platform shown on laptop and mobile - Admin dashboard on desktop and mobile checklist interface demonstrating mobile-friendly field team capabilities"
           className="w-full h-auto object-cover"
         />
       </section>
@@ -285,9 +285,6 @@ export default async function HomePage() {
       <section className="py-20 bg-muted/30" id="features">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <Badge variant="secondary" className="mb-4">
-              Built for Mobile Field Operations
-            </Badge>
             <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
               Mobile-Optimized Features for Field Teams
             </h2>

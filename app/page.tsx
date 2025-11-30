@@ -2,15 +2,15 @@ import type { Metadata } from "next"
 import HomePageClient from "./page-client"
 
 export const metadata: Metadata = {
-  title: "MyDayLogs - Mobile-Friendly Task Management & Reporting for Field Teams | UK SME Solution",
+  title: "MyDayLogs - Task Management & Digital Reporting for Growing Teams Worldwide",
   description:
-    "Mobile-friendly task management and compliance reporting for field teams. Perfect for construction, hospitality, healthcare, retail, and logistics teams who need to track tasks, complete checklists, and generate professional reports on mobile devices. Starting at £9/month for UK SMEs.",
+    "Streamline your team operations with digital task management and professional reporting. Perfect for businesses worldwide with 1-7 managers coordinating field teams. Automated recurring tasks, mobile checklists, and instant reports. Free forever plan available.",
   keywords:
-    "mobile task management, field team software, mobile compliance tracking, on-the-go reporting, mobile checklists, field operations app, mobile-friendly task app, construction mobile app, retail field operations, hospitality compliance, healthcare mobile reporting, logistics tracking app, UK task management, SME software UK",
+    "task management software, team coordination, digital reporting, field operations, mobile checklists, recurring tasks, business automation, manager tools, team management app, compliance tracking, construction management, hospitality operations, healthcare coordination, retail management, logistics tracking, SME software, small business tools",
   openGraph: {
-    title: "MyDayLogs - Mobile-Friendly Task Management for Field Teams",
+    title: "MyDayLogs - Task Management for Growing Teams Worldwide",
     description:
-      "Professional task management and compliance reporting on mobile devices for UK field teams. Affordable flat-rate pricing starting at £9/month.",
+      "Professional task management and digital reporting for businesses worldwide. Support 1-7 managers with automated tasks, mobile checklists, and instant reports. Free plan available.",
     images: ["/og-image.png"],
   },
 }
@@ -35,18 +35,21 @@ const structuredData = {
         name: "Starter Plan",
         price: "0",
         priceCurrency: "GBP",
+        description: "Free forever - 1 manager, up to 5 team members",
       },
       {
         "@type": "Offer",
         name: "Growth Plan",
         price: "9",
         priceCurrency: "GBP",
+        description: "3 managers, up to 25 team members",
       },
       {
         "@type": "Offer",
         name: "Scale Plan",
         price: "16",
         priceCurrency: "GBP",
+        description: "7 managers, up to 75 team members",
       },
     ],
   },
@@ -56,21 +59,22 @@ const structuredData = {
     ratingCount: "127",
   },
   description:
-    "Mobile-friendly task management and reporting platform for field teams. Streamline compliance tracking, complete checklists on mobile devices, and generate professional reports from anywhere. Perfect for construction, hospitality, healthcare, retail, and logistics operations.",
+    "Task management and digital reporting platform for growing teams worldwide. Automate recurring tasks, coordinate 1-7 managers, complete mobile checklists, and generate professional reports instantly. Perfect for construction, hospitality, healthcare, retail, and logistics operations.",
   featureList: [
-    "Mobile-Friendly Task Management",
-    "Field Team Coordination",
-    "Custom Template Creation",
+    "Automated Recurring Tasks",
+    "Multi-Manager Coordination",
+    "Custom Task Templates",
     "Mobile Checklists & Reporting",
     "Professional PDF Reports",
-    "GDPR Compliance",
-    "Team Management",
-    "Automated Email Notifications",
-    "Progress Monitoring",
+    "Team Management Dashboard",
+    "Email Notifications",
+    "Photo Upload on Reports",
+    "90-day Report Storage",
+    "Contractor Link Sharing",
   ],
   screenshot: "https://www.mydaylogs.co.uk/og-image.png",
   softwareVersion: "2.0",
-  releaseNotes: "Beta 2.0 - Enhanced mobile experience and field team features",
+  releaseNotes: "Beta 2.0 - Manager roles and global operations support",
 }
 
 export default function HomePage() {

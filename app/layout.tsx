@@ -18,24 +18,24 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.mydaylogs.co.uk"),
   title: {
-    default: "MyDayLogs - Mobile-First Compliance for Field Teams | Beta 2.0",
+    default: "MyDayLogs - Task Management for Growing Teams | Beta 2.0",
     template: "%s | MyDayLogs",
   },
   description:
-    "Mobile-first compliance task management for field teams and mobile workers. Complete checklists, capture photos, and generate reports from any device. Perfect for construction, hospitality, healthcare, and logistics teams on the go.",
+    "Streamline team operations with automated task management and digital reporting. Support 1-7 managers coordinating field teams worldwide. Complete checklists, capture photos, and generate reports from any device. Free forever plan available.",
   keywords: [
-    "compliance management software",
-    "task management UK",
-    "audit reporting tool",
-    "GDPR compliance software",
-    "SME task management",
-    "business compliance tracking",
-    "team task assignment",
-    "compliance checklist software",
-    "UK business productivity",
-    "regulatory compliance tool",
-    "audit-ready reports",
-    "compliance automation",
+    "task management software",
+    "team coordination",
+    "digital reporting",
+    "manager tools",
+    "automated recurring tasks",
+    "business operations software",
+    "field team management",
+    "mobile checklists",
+    "team productivity",
+    "small business software",
+    "compliance tracking",
+    "report automation",
   ],
   authors: [{ name: "MyDayLogs" }],
   creator: "MyDayLogs",
@@ -47,26 +47,26 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    locale: "en_GB",
+    locale: "en_US",
     url: "https://www.mydaylogs.co.uk",
     siteName: "MyDayLogs",
-    title: "MyDayLogs - Mobile-First Compliance for Field Teams",
+    title: "MyDayLogs - Task Management for Growing Teams",
     description:
-      "Complete compliance tasks from anywhere. Mobile-optimized for field teams with offline-ready checklists, photo capture, and instant reporting.",
+      "Automate recurring tasks and coordinate 1-7 managers with mobile checklists, photo capture, and instant reporting. Free plan available.",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "MyDayLogs - Compliance Task Management Platform",
+        alt: "MyDayLogs - Task Management & Digital Reporting Platform",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "MyDayLogs - Mobile-First Compliance for Field Teams",
+    title: "MyDayLogs - Task Management for Growing Teams",
     description:
-      "Complete compliance tasks from anywhere. Mobile-optimized for field teams with photo capture and instant reporting.",
+      "Automate recurring tasks and coordinate teams with mobile checklists, photo capture, and instant reporting. Free forever plan.",
     images: ["/og-image.png"],
   },
   robots: {
@@ -99,7 +99,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en-GB" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <head>
         <link rel="canonical" href="https://www.mydaylogs.co.uk" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes" />

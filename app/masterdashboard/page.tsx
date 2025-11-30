@@ -477,14 +477,11 @@ export default function MasterDashboardPage() {
             { data: reportsData, error: reportsError },
             { data: checklistsData, error: checklistsError },
             { data: notificationsData, error: notificationsError },
-            { data: holidaysData, error: holidaysError }, // Fixed duplicate error name from holidaysData to holidaysError
+            { data: holidaysData, error: holidaysError },
             { data: staffUnavailabilityData, error: staffUnavailabilityError },
             { data: auditLogsData, error: auditLogsError },
-            { data: backupsData, error: backupsError }, // Fixed duplicate error name from backupsData to backupsError
-            // Added fetch for database size and related stats
-            { data: dbSizeData, error: dbSizeError },
-            { data: bandwidthData, error: bandwidthError },
-            { data: emailsSentData, error: emailsSentError },
+            { data: backupsData, error: backupsError },
+            // These will be added back via API routes later
           ] = await Promise.all([
             adminClient.from("organizations").select("*"),
             adminClient.from("profiles").select("*"),
@@ -492,25 +489,21 @@ export default function MasterDashboardPage() {
             adminClient.from("checklist_templates").select("id, name, organization_id, is_active").limit(100),
             adminClient
               .from("subscriptions")
-              .select(`*, organizations(organization_id, organization_name, logo_url, primary_color, slug)`), // Select organization details for subscriptions
-            adminClient
-              .from("payments")
-              .select(`*, subscriptions(*, organizations(*))`), // Select subscription and organization details for payments
-            adminClient
-              .from("feedback")
-              .select("*"), // Fetch feedback
-            adminClient
-              .from("submitted_reports")
-              .select("*"), // Fetch submitted reports
+              .select(`*, organizations(organization_id, organization_name, logo_url, primary_color, slug)`),
+            adminClient.from("payments").select(`*, subscriptions(*, organizations(*))`),
+            adminClient.from("feedback").select("*"),
+            adminClient.from("submitted_reports").select("*"),
             adminClient.from("daily_checklists").select("id, status"),
             adminClient.from("notifications").select("id, is_read"),
             adminClient.from("holidays").select("id, date"),
             adminClient.from("staff_unavailability").select("id, start_date, end_date"),
             adminClient.from("report_audit_logs").select("id, created_at"),
-            adminClient.from("report_backups").select("id, created_at"),
-            adminClient.rpc("get_database_size"), // Fetch database size
-            adminClient.rpc("get_vercel_bandwidth"), // Fetch Vercel bandwidth (placeholder)
-            adminClient.rpc("get_resend_emails_sent"), // Fetch Resend emails sent (placeholder)
+            adminClient
+              .from("report_backups")
+              .select("id, created_at"),
+            // adminClient.rpc("get_database_size"),
+            // adminClient.rpc("get_vercel_bandwidth"),
+            // adminClient.rpc("get_resend_emails_sent"),
           ])
 
           console.log("[v0] Data fetch results:", {
@@ -524,13 +517,10 @@ export default function MasterDashboardPage() {
             reports: { error: reportsError, count: reportsData?.length },
             checklists: { error: checklistsError, count: checklistsData?.length },
             notifications: { error: notificationsError, count: notificationsData?.length },
-            holidays: { error: holidaysError, count: holidaysData?.length }, // Fixed reference to use holidaysError
+            holidays: { error: holidaysError, count: holidaysData?.length }, // Fixed duplicate error name from holidaysData to holidaysError
             staffUnavailability: { error: staffUnavailabilityError, count: staffUnavailabilityData?.length },
             auditLogs: { error: auditLogsError, count: auditLogsData?.length },
-            backups: { error: backupsError, count: backupsData?.length }, // Fixed reference to use backupsError
-            dbSize: { error: dbSizeError, data: dbSizeData },
-            bandwidth: { error: bandwidthError, data: bandwidthData },
-            emailsSent: { error: emailsSentError, data: emailsSentData },
+            backups: { error: backupsError, count: backupsData?.length }, // Fixed duplicate error name from backupsData to backupsError
           })
 
           console.log("[v0] Checklists data:", {
@@ -671,10 +661,10 @@ export default function MasterDashboardPage() {
                   return backupDate >= oneWeekAgo
                 }).length || 0,
             },
-            // Update server management stats
-            totalSize: dbSizeData ? dbSizeData.total_size_bytes : 0, // Assuming RPC returns total_size_bytes
-            totalBandwidth: bandwidthData ? bandwidthData.total_bandwidth_bytes : 0, // Placeholder
-            sentEmails: emailsSentData ? emailsSentData.emails_sent_count : 0, // Placeholder
+            // Update server management stats - these will now be fetched via API routes if needed
+            totalSize: 0, // Placeholder, as RPC is removed
+            totalBandwidth: 0, // Placeholder, as RPC is removed
+            sentEmails: 0, // Placeholder, as RPC is removed
           })
 
           // Create organization map with profiles
@@ -791,27 +781,34 @@ export default function MasterDashboardPage() {
           const conversion = totalOrgs > 0 ? ((paidOrgs / totalOrgs) * 100).toFixed(1) : "0.0"
           setConversionRate(Number(conversion))
 
+          // Fetch database size and related stats via API route
           try {
-            const { data, error } = await adminClient.rpc("get_database_size")
-            if (!error && data) {
-              setDatabaseSize(data) // Assuming RPC returns formatted string like "1.23 MB"
-            } else {
-              console.log("[v0] RPC get_database_size failed or returned no data:", error?.message || "No data")
-              // Fallback: estimate from record counts if RPC fails
-              const estimatedSizeMB = (allUsers.length * 2 + (organizationsData?.length ?? 0) * 1) / 1024 // Rough estimate in MB
-              setDatabaseSize(
-                estimatedSizeMB > 1024
-                  ? `${(estimatedSizeMB / 1024).toFixed(2)} GB`
-                  : `${estimatedSizeMB.toFixed(2)} MB`,
-              )
+            const response = await fetch("/api/admin/database-stats")
+            const data = await response.json()
+            if (!response.ok) {
+              throw new Error(data.error || "Failed to fetch database stats")
             }
+            setDatabaseSize(data.databaseSize || "0 MB") // Assuming API returns databaseSize
+            setDatabaseStats((prevStats) => ({
+              ...prevStats,
+              totalSize: data.totalSizeBytes || 0,
+              totalBandwidth: data.totalBandwidthBytes || 0,
+              sentEmails: data.sentEmailsCount || 0,
+            }))
           } catch (err: any) {
-            console.error("[v0] Error calling RPC get_database_size:", err.message)
-            // Fallback if RPC call itself throws an error
+            console.error("[v0] Error fetching database stats via API:", err.message)
+            // Fallback: estimate from record counts if API fails
             const estimatedSizeMB = (allUsers.length * 2 + (organizationsData?.length ?? 0) * 1) / 1024 // Rough estimate in MB
             setDatabaseSize(
               estimatedSizeMB > 1024 ? `${(estimatedSizeMB / 1024).toFixed(2)} GB` : `${estimatedSizeMB.toFixed(2)} MB`,
             )
+            // Set placeholders for other stats if API fails
+            setDatabaseStats((prevStats) => ({
+              ...prevStats,
+              totalSize: 0,
+              totalBandwidth: 0,
+              sentEmails: 0,
+            }))
           }
 
           setIsLoading(false)

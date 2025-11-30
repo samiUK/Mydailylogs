@@ -130,6 +130,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (emailsSent > 0) {
+      await supabase
+        .from("organizations")
+        .update({ last_report_email_sent: new Date().toISOString() })
+        .eq("organization_id", organizationId)
+    }
+
     return NextResponse.json({
       success: true,
       message: `Sent ${emailsSent} report summary email(s) to admins/managers`,

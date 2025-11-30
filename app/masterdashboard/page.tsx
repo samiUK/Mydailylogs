@@ -69,6 +69,7 @@ interface Organization {
   slug?: string | null // Added slug field
   reportCount?: number // Added reportCount field
   subscription_tier?: string // Added subscription_tier field
+  last_report_email_sent?: string // Added last_report_email_sent field
 }
 
 interface UserProfile {
@@ -729,6 +730,11 @@ export default function MasterDashboardPage() {
             org.reportCount =
               reportsData?.filter((report) => report.organization_id === org.organization_id)?.length || 0
             org.subscription_tier = activeSubscription ? activeSubscription.plan_name.toLowerCase() : "starter"
+            // Find the latest report email sent for this organization
+            const lastSentReport = reportsData
+              ?.filter((report) => report.organization_id === org.organization_id)
+              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
+            org.last_report_email_sent = lastSentReport?.created_at // Assuming reports have a created_at field
           })
 
           setOrganizations(allOrganizations)
@@ -893,8 +899,13 @@ export default function MasterDashboardPage() {
     fetchCurrentUserRole()
   }, []) // Removed getCookie, localStorage, createClient as dependencies
 
+  const fetchDashboardData = () => {
+    setIsLoading(true)
+    checkAuthAndLoadData().finally(() => setIsLoading(false))
+  }
+
   useEffect(() => {
-    checkAuthAndLoadData()
+    fetchDashboardData()
 
     // Cleanup function to prevent memory leaks
     return () => {
@@ -2570,6 +2581,15 @@ export default function MasterDashboardPage() {
                                   Reports: {org.reportCount || 0} (last 90 days) • Retention:{" "}
                                   {org.subscription_tier === "starter" ? "30" : "90"} days
                                 </p>
+                                {org.last_report_email_sent && (
+                                  <p className="text-xs text-blue-600 mt-1">
+                                    Last emailed: {new Date(org.last_report_email_sent).toLocaleDateString()}{" "}
+                                    {new Date(org.last_report_email_sent).toLocaleTimeString([], {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </p>
+                                )}
                               </div>
                               <Button
                                 variant="outline"
@@ -2597,6 +2617,7 @@ export default function MasterDashboardPage() {
                                       alert(
                                         `✓ Success!\n\n${data.message}\nReports: ${data.reportCount}\nEmails sent: ${data.emailsSent}`,
                                       )
+                                      fetchDashboardData()
                                     } else {
                                       alert(`Error: ${data.error}`)
                                     }

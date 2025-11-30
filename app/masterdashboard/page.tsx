@@ -663,7 +663,7 @@ export default function MasterDashboardPage() {
                 }).length || 0,
             },
             // Update server management stats
-            // Removed database size and bandwidth as they rely on RPC calls
+            // Removed database size and bandwidth as they relied on RPC
             totalSize: 0, // Placeholder
             totalBandwidth: 0, // Placeholder
             sentEmails: 0, // Placeholder
@@ -859,8 +859,15 @@ export default function MasterDashboardPage() {
     fetchCurrentUserRole()
   }, []) // Removed getCookie, localStorage, createClient as dependencies
 
+  const fetchDashboardData = async () => {
+    // This function acts as a wrapper to reload all necessary data
+    await checkAuthAndLoadData()
+    await loadAllPayments()
+    await fetchActivityLogs()
+  }
+
   useEffect(() => {
-    checkAuthAndLoadData()
+    fetchDashboardData()
 
     // Cleanup function to prevent memory leaks
     return () => {
@@ -928,7 +935,7 @@ export default function MasterDashboardPage() {
         throw new Error(result.error || "Failed to start trial")
       }
 
-      await checkAuthAndLoadData()
+      await fetchDashboardData()
       showNotification("success", result.message)
     } catch (error: any) {
       console.error("Error upgrading subscription:", error)
@@ -964,7 +971,7 @@ export default function MasterDashboardPage() {
         throw new Error(result.error || "Failed to cancel subscription")
       }
 
-      await checkAuthAndLoadData()
+      await fetchDashboardData()
       showNotification("success", result.message)
     } catch (error: any) {
       console.error("Error cancelling subscription:", error)
@@ -997,7 +1004,7 @@ export default function MasterDashboardPage() {
         throw new Error(result.error || "Failed to downgrade")
       }
 
-      await checkAuthAndLoadData()
+      await fetchDashboardData()
       showNotification("success", result.message)
     } catch (error: any) {
       console.error("Error downgrading subscription:", error)
@@ -1008,29 +1015,34 @@ export default function MasterDashboardPage() {
   }
 
   const addSubscription = async (organizationId: string, planName: string) => {
-    setIsProcessing(true)
+    setIsProcessing(true) // Add processing state for API call
     try {
-      const supabase = createClient()
-
-      const { error } = await supabase.from("subscriptions").insert({
-        organization_id: organizationId,
-        plan_name: planName,
-        status: "active",
-        current_period_start: new Date().toISOString(),
-        current_period_end: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year
+      const response = await fetch("/api/master/manage-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "add",
+          organizationId,
+          planName,
+        }),
       })
 
-      if (error) throw error
+      const result = await response.json() // Get JSON response
 
-      // Refresh data
-      checkAuthAndLoadData()
+      if (!response.ok) {
+        // Throw error with message from API response
+        throw new Error(result.error || "Failed to add subscription")
+      }
+
       showNotification("success", `${planName} subscription added successfully`)
-      setNewSubscriptionPlan("")
-    } catch (error) {
+      await fetchDashboardData() // Refresh data
+      setNewSubscriptionPlan("") // Clear input
+    } catch (error: any) {
+      // Catch any errors
       console.error("Error adding subscription:", error)
-      showNotification("error", "Failed to add subscription")
+      showNotification("error", error.message || "Failed to add subscription")
     } finally {
-      setIsProcessing(false)
+      setIsProcessing(false) // End processing state
     }
   }
 
@@ -1070,181 +1082,6 @@ export default function MasterDashboardPage() {
     }
   }
 
-  const deleteUser = async (userId: string) => {
-    if (!confirm("Are you sure you want to delete this user? This action cannot be undone.")) return
-
-    setIsProcessing(true)
-    try {
-      const supabase = createClient()
-
-      // Delete user from auth
-      const { error: authError } = await supabase.auth.admin.deleteUser(userId)
-      if (authError) throw authError
-
-      // Delete user profile
-      const { error: profileError } = await supabase.from("profiles").delete().eq("id", userId)
-
-      if (profileError) throw profileError
-
-      // Refresh data
-      checkAuthAndLoadData()
-      alert("User deleted successfully")
-    } catch (error) {
-      console.error("Error deleting user:", error)
-      alert("Failed to delete user")
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  useEffect(() => {}, [])
-
-  useEffect(() => {
-    if (activeTab === "login-as" && currentUserRole === "masteradmin") {
-      fetchActivityLogs()
-    }
-  }, [activeTab, currentUserRole])
-
-  useEffect(() => {
-    console.log("[v0] Calculating stats - Organizations:", organizations.length, "Users:", allUsers.length)
-    if (organizations.length === 0) {
-      setOrganizationStats({
-        total: 0,
-        active: 0,
-        withSubscriptions: 0,
-        totalUsers: 0,
-        totalAdmins: 0,
-        totalStaff: 0,
-      })
-      return
-    }
-
-    const orgsWithSubs = new Set(allSubscriptions.map((sub) => sub.organization_id)).size
-
-    const stats = {
-      total: organizations.length,
-      active: organizations.length, // Simplified calculation
-      withSubscriptions: orgsWithSubs, // Count unique organizations with subscriptions
-      totalUsers: allUsers.length,
-      totalAdmins: allUsers.filter((user) => user.role === "admin").length,
-      totalStaff: allUsers.filter((user) => user.role === "staff").length,
-    }
-    setOrganizationStats(stats)
-  }, [organizations, allUsers, allSubscriptions]) // Added allSubscriptions dependency for accurate counts
-
-  const handleSignOut = async () => {
-    document.cookie = "masterAdminImpersonation=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-    document.cookie = "masterAdminEmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-    document.cookie = "userType=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-    document.cookie = "masterAdminType=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-    document.cookie = "impersonatedUserEmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-    document.cookie = "impersonatedUserRole=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-    document.cookie = "impersonatedOrganizationId=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-    document.cookie = "impersonatedOrganizationSlug=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-
-    localStorage.removeItem("masterAdminAuth")
-    localStorage.removeItem("masterAdminEmail")
-    router.push("/masterlogin")
-  }
-
-  const testApiRoute = async () => {
-    try {
-      console.log("[v0] Testing API route connectivity")
-      const response = await fetch("/api/test", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-
-      console.log("[v0] Test API response status:", response.status)
-      const data = await response.json()
-      console.log("[v0] Test API response data:", data)
-      alert("API test result: " + JSON.stringify(data))
-    } catch (error) {
-      console.error("[v0] Test API error:", error)
-      alert("Test API failed: " + error.message)
-    }
-  }
-
-  const resetUserPassword = async (userEmail: string) => {
-    if (!userEmail) {
-      showNotification("error", "Please enter a user email")
-      return
-    }
-
-    try {
-      console.log("[v0] Starting password reset for:", userEmail)
-
-      const response = await fetch("/api/admin/reset-password", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userEmail }),
-      })
-
-      if (!response.ok) {
-        let errorMessage = "Failed to send reset email"
-        try {
-          const errorData = await response.json()
-          errorMessage = errorData.error || errorMessage
-        } catch {
-          // If response is not JSON, use status text
-          errorMessage = `Server error: ${response.statusText}`
-        }
-        showNotification("error", errorMessage)
-        return
-      }
-
-      const data = await response.json()
-      showNotification("success", `Password reset email sent to ${userEmail}`)
-    } catch (error) {
-      console.error("[v0] Password reset error:", error)
-      showNotification("error", "Failed to send reset email. Please check if the database is properly configured.")
-    }
-  }
-
-  const verifyUserEmail = async (userEmail: string) => {
-    if (!userEmail) {
-      showNotification("error", "Please enter a user email")
-      return
-    }
-
-    try {
-      console.log("[v0] Starting email verification for:", userEmail)
-
-      const response = await fetch("/api/admin/verify-email", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userEmail }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        showNotification("error", `Failed to verify email: ${errorData.error}`)
-        return
-      }
-
-      const data = await response.json()
-      showNotification("success", `Email verified successfully for ${userEmail}`)
-
-      setAllUsers((prevUsers) =>
-        prevUsers.map((user) =>
-          user.email === userEmail ? { ...user, email_confirmed_at: new Date().toISOString() } : user,
-        ),
-      )
-
-      // Refresh the data to show updated verification status
-      checkAuthAndLoadData()
-    } catch (error) {
-      console.error("[v0] Email verification error:", error)
-      showNotification("error", "Failed to verify email")
-    }
-  }
-
   const handleDeleteUser = async (userId: string, userEmail: string) => {
     const confirmed = confirm(
       `⚠️ GDPR DELETION WARNING ⚠️\n\n` +
@@ -1272,8 +1109,8 @@ export default function MasterDashboardPage() {
     setIsProcessing(true)
 
     try {
-      const response = await fetch("/api/admin/delete-user", {
-        method: "DELETE",
+      const response = await fetch("/api/master/delete-user", {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
@@ -1288,7 +1125,7 @@ export default function MasterDashboardPage() {
       }
 
       // Refresh data
-      await checkAuthAndLoadData()
+      await fetchDashboardData()
       showNotification("success", `User ${userEmail} and all associated data deleted successfully (GDPR compliant)`)
     } catch (error) {
       console.error("[v0] Error deleting user:", error)
@@ -1315,20 +1152,28 @@ export default function MasterDashboardPage() {
     }
   }
 
-  const deleteFeedback = async (feedbackId: string) => {
+  const handleDeleteFeedback = async (feedbackId: string) => {
+    if (!confirm("Are you sure you want to delete this feedback?")) {
+      return
+    }
+
     try {
-      const supabase = createClient()
-      const { error } = await supabase.from("feedback").delete().eq("id", feedbackId)
+      const response = await fetch("/api/master/delete-feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ feedbackId }),
+      })
 
-      if (error) throw error
-
-      const deletedFeedback = feedback.find((f) => f.id === feedbackId)
-      setFeedback((prev) => prev.filter((f) => f.id !== feedbackId))
-      if (deletedFeedback?.status === "unread") {
-        setUnreadFeedbackCount((prev) => Math.max(0, prev - 1))
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to delete feedback")
       }
-    } catch (error) {
-      console.error("Error deleting feedback:", error)
+
+      showNotification("success", "Feedback deleted successfully")
+      await fetchDashboardData() // Reload all data
+    } catch (error: any) {
+      console.error("[v0] Error deleting feedback:", error)
+      showNotification("error", error.message || "Failed to delete feedback")
     }
   }
 
@@ -1431,7 +1276,7 @@ export default function MasterDashboardPage() {
       }
 
       // Refresh superusers list
-      checkAuthAndLoadData()
+      fetchDashboardData() // Use fetchDashboardData to refresh all data
       setNewSuperuserEmail("")
       setNewSuperuserPassword("")
       alert("Superuser added successfully")
@@ -1466,7 +1311,7 @@ export default function MasterDashboardPage() {
       }
 
       // Refresh superusers list
-      checkAuthAndLoadData()
+      fetchDashboardData() // Use fetchDashboardData to refresh all data
       alert("Superuser removed successfully")
     } catch (error) {
       console.error("Error removing superuser:", error)
@@ -1498,7 +1343,7 @@ export default function MasterDashboardPage() {
       }
 
       // Refresh superusers list
-      checkAuthAndLoadData()
+      fetchDashboardData() // Use fetchDashboardData to refresh all data
       setEditingSuperuser(null)
       setNewSuperuserPassword("")
       alert("Superuser updated successfully")
@@ -1576,6 +1421,71 @@ export default function MasterDashboardPage() {
       setActivityLogs([])
     } finally {
       setActivityLogsLoading(false)
+    }
+  }
+
+  const handleSignOut = () => {
+    // Clear all session-related items
+    localStorage.removeItem("masterAdminAuth")
+    localStorage.removeItem("masterAdminEmail")
+    localStorage.removeItem("impersonatedUser")
+    localStorage.removeItem("impersonatedUserData")
+
+    // Clear all cookies
+    document.cookie = "masterAdminImpersonation=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+    document.cookie = "masterAdminEmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+    document.cookie = "impersonatedUserEmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+    document.cookie = "impersonatedUserRole=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+    document.cookie = "impersonatedOrganizationId=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+    document.cookie = "impersonatedOrganizationSlug=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+
+    console.log("[v0] Cleared session data and cookies.")
+    router.push("/masterlogin") // Redirect to login page
+  }
+
+  const verifyUserEmail = async (email: string) => {
+    try {
+      const response = await fetch("/api/admin/verify-user-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to send verification email")
+      }
+
+      const data = await response.json()
+      showNotification("success", `Verification email sent to ${email}. ${data.message}`)
+    } catch (error: any) {
+      console.error("Error sending verification email:", error)
+      showNotification("error", error.message || "Failed to send verification email")
+    }
+  }
+
+  const resetUserPassword = async (email: string) => {
+    try {
+      const response = await fetch("/api/admin/reset-user-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to reset password")
+      }
+
+      const data = await response.json()
+      showNotification("success", `Password reset link sent to ${email}. ${data.message}`)
+    } catch (error: any) {
+      console.error("Error resetting password:", error)
+      showNotification("error", error.message || "Failed to reset password")
     }
   }
 
@@ -2511,9 +2421,7 @@ export default function MasterDashboardPage() {
                             size="sm"
                             variant="destructive"
                             onClick={() => {
-                              if (confirm("Are you sure you want to delete this feedback?")) {
-                                deleteFeedback(item.id)
-                              }
+                              handleDeleteFeedback(item.id) // Use the updated API call
                             }}
                           >
                             <Trash2 className="w-4 h-4 mr-1" />

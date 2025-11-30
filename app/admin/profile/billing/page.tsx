@@ -11,6 +11,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import StripeCheckout from "@/components/stripe-checkout"
 import { SUBSCRIPTION_PRODUCTS, formatPrice } from "@/lib/subscription-products"
 import { createBillingPortalSession } from "@/lib/stripe-utils" // Import the missing functions
+import { toast } from "@/components/ui/use-toast"
 
 interface Subscription {
   id: string
@@ -93,6 +94,7 @@ export default function BillingPage() {
         return
       }
 
+      console.log("[v0] Billing page - User ID from auth:", user.id)
       setUserId(user.id) // Store the actual user ID from auth
 
       const { data: userProfile, error: profileError } = await supabase
@@ -105,6 +107,11 @@ export default function BillingPage() {
         throw new Error("Unable to load organization information")
       }
 
+      console.log("[v0] Billing page - Profile loaded:", {
+        organization_id: userProfile.organization_id,
+        email: userProfile.email,
+        full_name: userProfile.full_name,
+      })
       setProfile(userProfile)
 
       const { data: subscriptionData, error: subError } = await supabase
@@ -174,7 +181,23 @@ export default function BillingPage() {
     }
   }
 
-  const handleUpgrade = (planId: string) => {
+  function handleUpgrade(planId: string) {
+    console.log("[v0] handleUpgrade called with planId:", planId)
+    console.log("[v0] Current state:", {
+      profile: profile,
+      userId: userId,
+      organizationId: profile?.organization_id,
+    })
+
+    if (!profile?.organization_id || !userId) {
+      toast({
+        title: "Loading",
+        description: "Please wait for your account information to load...",
+        variant: "destructive",
+      })
+      return
+    }
+
     setSelectedPlanId(planId)
     setShowCheckout(true)
   }
@@ -512,7 +535,11 @@ export default function BillingPage() {
                   </ul>
 
                   {!isCurrent && (
-                    <Button className="w-full" onClick={() => handleUpgrade(plan.id)} disabled={processing}>
+                    <Button
+                      className="w-full"
+                      onClick={() => handleUpgrade(plan.id)}
+                      disabled={processing || !profile?.organization_id || !userId}
+                    >
                       <Sparkles className="w-4 h-4 mr-2" />
                       Upgrade to {plan.name}
                     </Button>
@@ -616,13 +643,13 @@ export default function BillingPage() {
         </Card>
       )}
 
-      {showCheckout && selectedPlanId && profile?.organization_id && userId && (
+      {showCheckout && selectedPlanId && profile?.organization_id && profile?.email && userId && profile && (
         <StripeCheckout
           productType={selectedPlanId as "growth" | "scale"}
           interval={billingPeriod === "monthly" ? "month" : "year"}
           organizationId={profile.organization_id}
           userEmail={profile.email}
-          userId={userId} // Using actual userId from auth
+          userId={userId}
           userName={profile.full_name || profile.email}
           currency={currency}
           onClose={() => {

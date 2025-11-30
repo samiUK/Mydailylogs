@@ -17,10 +17,22 @@ const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : 
 interface StripeCheckoutProps {
   productId: string
   billingInterval?: "month" | "year"
+  organizationId: string
+  userEmail: string
+  userId: string
+  userName?: string
   onClose?: () => void
 }
 
-export default function StripeCheckout({ productId, billingInterval = "month", onClose }: StripeCheckoutProps) {
+export default function StripeCheckout({
+  productId,
+  billingInterval = "month",
+  organizationId,
+  userEmail,
+  userId,
+  userName,
+  onClose,
+}: StripeCheckoutProps) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -48,9 +60,15 @@ export default function StripeCheckout({ productId, billingInterval = "month", o
     setError(null)
     console.log("[v0] Starting checkout session for product:", productId, "interval:", billingInterval)
     try {
-      const clientSecret = await startCheckoutSession(productId, billingInterval)
+      const clientSecret = await startCheckoutSession(
+        productId,
+        billingInterval,
+        organizationId,
+        userEmail,
+        userId,
+        userName,
+      )
       console.log("[v0] Client secret received:", clientSecret ? "Yes" : "No")
-      console.log("[v0] Client secret length:", clientSecret?.length)
       if (!clientSecret) {
         throw new Error("No client secret returned from server")
       }
@@ -61,7 +79,7 @@ export default function StripeCheckout({ productId, billingInterval = "month", o
       setError(errorMessage)
       throw error
     }
-  }, [productId, billingInterval])
+  }, [productId, billingInterval, organizationId, userEmail, userId, userName])
 
   if (!stripePromise) {
     return (

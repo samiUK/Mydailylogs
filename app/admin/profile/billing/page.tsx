@@ -40,6 +40,8 @@ export default function BillingPage() {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
   const searchParams = useSearchParams()
   const [currency, setCurrency] = useState<"GBP" | "USD">("GBP")
+  const [profile, setProfile] = useState<any | null>(null)
+  const [billingPeriod, setBillingPeriod] = useState<string>("monthly")
 
   useEffect(() => {
     const detectCurrency = async () => {
@@ -90,20 +92,22 @@ export default function BillingPage() {
         return
       }
 
-      const { data: profile, error: profileError } = await supabase
+      const { data: userProfile, error: profileError } = await supabase
         .from("profiles")
-        .select("organization_id")
+        .select("organization_id, email, full_name")
         .eq("id", user.id)
         .single()
 
-      if (profileError || !profile?.organization_id) {
+      if (profileError || !userProfile) {
         throw new Error("Unable to load organization information")
       }
+
+      setProfile(userProfile)
 
       const { data: subscriptionData, error: subError } = await supabase
         .from("subscriptions")
         .select("*")
-        .eq("organization_id", profile.organization_id)
+        .eq("organization_id", userProfile.organization_id)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -119,7 +123,7 @@ export default function BillingPage() {
         const { data: newSub, error: insertError } = await supabase
           .from("subscriptions")
           .insert({
-            organization_id: profile.organization_id,
+            organization_id: userProfile.organization_id,
             plan_name: "starter",
             status: "active",
             current_period_start: new Date().toISOString(),
@@ -550,6 +554,11 @@ export default function BillingPage() {
       {showCheckout && selectedPlanId && (
         <StripeCheckout
           productId={selectedPlanId}
+          billingInterval={billingPeriod}
+          organizationId={profile?.organization_id || ""}
+          userEmail={profile?.email || ""}
+          userId={profile?.id || ""}
+          userName={profile?.full_name}
           onClose={() => {
             setShowCheckout(false)
             setSelectedPlanId(null)

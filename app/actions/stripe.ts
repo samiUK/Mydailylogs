@@ -8,8 +8,15 @@ import { createClient as createServiceClient } from "@supabase/supabase-js"
 
 const supabaseAdmin = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-export async function startCheckoutSession(productId: string, billingInterval: "month" | "year" = "month") {
-  console.log("[v0] Server action called - startCheckoutSession:", { productId, billingInterval })
+export async function startCheckoutSession(
+  productId: string,
+  billingInterval: "month" | "year" = "month",
+  organizationId: string,
+  userEmail: string,
+  userId: string,
+  userName?: string,
+) {
+  console.log("[v0] Server action called - startCheckoutSession:", { productId, billingInterval, organizationId })
 
   try {
     const product = SUBSCRIPTION_PRODUCTS.find((p) => p.id === productId)
@@ -26,39 +33,10 @@ export async function startCheckoutSession(productId: string, billingInterval: "
 
     console.log("[v0] Product validated:", product.name)
 
-    const supabase = await createClient()
-
-    console.log("[v0] Supabase client created")
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      console.error("[v0] Auth error:", authError)
-      throw new Error("Please log in to continue")
-    }
-
-    console.log("[v0] User authenticated:", user.id)
-
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("organization_id, email, full_name")
-      .eq("id", user.id)
-      .single()
-
-    if (profileError || !profile?.organization_id) {
-      console.error("[v0] Profile error:", profileError)
-      throw new Error("Organization not found. Please complete your profile setup.")
-    }
-
-    console.log("[v0] Profile found - Email:", profile.email, "Org ID:", profile.organization_id)
-
-    const { data: existingSubscription, error: subError } = await supabase
+    const { data: existingSubscription, error: subError } = await supabaseAdmin
       .from("subscriptions")
       .select("id, plan_name, status")
-      .eq("organization_id", profile.organization_id)
+      .eq("organization_id", organizationId)
       .eq("status", "active")
       .maybeSingle()
 
@@ -72,20 +50,20 @@ export async function startCheckoutSession(productId: string, billingInterval: "
       throw new Error("You already have an active paid subscription. Please manage it from your billing page.")
     }
 
-    const { data: org } = await supabase
+    const { data: org } = await supabaseAdmin
       .from("organizations")
       .select("organization_name")
-      .eq("organization_id", profile.organization_id)
+      .eq("organization_id", organizationId)
       .single()
 
     console.log("[v0] Organization name:", org?.organization_name)
 
     let customerId: string
 
-    console.log("[v0] Looking up Stripe customer by email:", profile.email)
+    console.log("[v0] Looking up Stripe customer by email:", userEmail)
 
     const customers = await stripe.customers.list({
-      email: profile.email,
+      email: userEmail,
       limit: 1,
     })
 
@@ -95,11 +73,11 @@ export async function startCheckoutSession(productId: string, billingInterval: "
     } else {
       console.log("[v0] Creating new Stripe customer")
       const customer = await stripe.customers.create({
-        email: profile.email,
-        name: profile.full_name || org?.organization_name || "Unknown",
+        email: userEmail,
+        name: userName || org?.organization_name || "Unknown",
         metadata: {
-          organization_id: profile.organization_id,
-          user_id: user.id,
+          organization_id: organizationId,
+          user_id: userId,
         },
       })
       customerId = customer.id
@@ -133,16 +111,16 @@ export async function startCheckoutSession(productId: string, billingInterval: "
       subscription_data: {
         trial_period_days: 30,
         metadata: {
-          organization_id: profile.organization_id,
+          organization_id: organizationId,
           product_id: productId,
           plan_name: product.name,
           billing_interval: billingInterval,
         },
       },
       metadata: {
-        organization_id: profile.organization_id,
+        organization_id: organizationId,
         product_id: productId,
-        user_id: user.id,
+        user_id: userId,
         plan_name: product.name,
         billing_interval: billingInterval,
       },

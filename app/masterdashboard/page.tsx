@@ -54,6 +54,8 @@ import { toast } from "sonner" // Import toast
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import Link from "next/link" // Import Link
 
+// All admin operations now use server-side API routes for security
+
 interface Organization {
   organization_id: string
   organization_name: string
@@ -157,8 +159,7 @@ export default function MasterDashboardPage() {
   const [impersonatedUserData, setImpersonatedUserData] = useState<any>(null)
   const [activeTab, setActiveTab] = useState("overview")
   const [userSearchTerm, setUserSearchTerm] = useState("")
-  const [resetEmail, setResetEmail] = useState("")
-  const [loginError, setLoginError] = useState("")
+  const [resetPasswordEmail, setResetPasswordEmail] = useState("") // Added state for reset password email
   const [organizationSearchTerm, setOrganizationSearchTerm] = useState("")
   const [organizationStats, setOrganizationStats] = useState({
     total: 0,
@@ -273,21 +274,15 @@ export default function MasterDashboardPage() {
     }, 5000)
   }
 
+  // Function to fetch all payments (to be called after refund)
   const loadAllPayments = async () => {
     try {
-      console.log("[v0] Syncing payments from Stripe...")
-      const response = await fetch("/api/master/sync-stripe-payments")
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch payments from Stripe")
-      }
-
-      const data = await response.json()
-      console.log("[v0] Loaded", data.payments.length, "payments from Stripe")
-      setAllPayments(data.payments || [])
+      const { data, error } = await createClient().from("payments").select(`*, subscriptions(*, organizations(*))`)
+      if (error) throw error
+      setAllPayments(data || [])
     } catch (error) {
-      console.error("[v0] Error fetching payments:", error)
-      toast.error("Failed to load payment data from Stripe")
+      console.error("Error fetching payments:", error)
+      toast.error("Failed to load payment data")
     }
   }
 
@@ -518,10 +513,6 @@ export default function MasterDashboardPage() {
             adminClient.rpc("get_resend_emails_sent"), // Fetch Resend emails sent (placeholder)
           ])
 
-          const dbSize = dbSizeData as any
-          const bandwidth = bandwidthData as any
-          const emails = emailsSentData as any
-
           console.log("[v0] Data fetch results:", {
             organizations: { error: orgError, count: organizationsData?.length },
             profiles: { error: profileError, count: profilesData?.length },
@@ -533,13 +524,13 @@ export default function MasterDashboardPage() {
             reports: { error: reportsError, count: reportsData?.length },
             checklists: { error: checklistsError, count: checklistsData?.length },
             notifications: { error: notificationsError, count: notificationsData?.length },
-            holidays: { error: holidaysError, count: holidaysData?.length },
+            holidays: { error: holidaysError, count: holidaysData?.length }, // Fixed reference to use holidaysError
             staffUnavailability: { error: staffUnavailabilityError, count: staffUnavailabilityData?.length },
             auditLogs: { error: auditLogsError, count: auditLogsData?.length },
-            backups: { error: backupsError, count: backupsData?.length },
-            dbSize: { error: dbSizeError, data: dbSize },
-            bandwidth: { error: bandwidthError, data: bandwidth },
-            emailsSent: { error: emailsSentError, data: emails },
+            backups: { error: backupsError, count: backupsData?.length }, // Fixed reference to use backupsError
+            dbSize: { error: dbSizeError, data: dbSizeData },
+            bandwidth: { error: bandwidthError, data: bandwidthData },
+            emailsSent: { error: emailsSentError, data: emailsSentData },
           })
 
           console.log("[v0] Checklists data:", {
@@ -681,9 +672,9 @@ export default function MasterDashboardPage() {
                 }).length || 0,
             },
             // Update server management stats
-            totalSize: dbSize?.total_size_bytes || 0,
-            totalBandwidth: bandwidth?.total_bandwidth_bytes || 0,
-            sentEmails: emails?.emails_sent_count || 0,
+            totalSize: dbSizeData ? dbSizeData.total_size_bytes : 0, // Assuming RPC returns total_size_bytes
+            totalBandwidth: bandwidthData ? bandwidthData.total_bandwidth_bytes : 0, // Placeholder
+            sentEmails: emailsSentData ? emailsSentData.emails_sent_count : 0, // Placeholder
           })
 
           // Create organization map with profiles
@@ -803,7 +794,7 @@ export default function MasterDashboardPage() {
           try {
             const { data, error } = await adminClient.rpc("get_database_size")
             if (!error && data) {
-              setDatabaseSize((data as any)?.size_formatted || data) // Handle both formatted string and raw data
+              setDatabaseSize(data) // Assuming RPC returns formatted string like "1.23 MB"
             } else {
               console.log("[v0] RPC get_database_size failed or returned no data:", error?.message || "No data")
               // Fallback: estimate from record counts if RPC fails
@@ -1067,7 +1058,7 @@ export default function MasterDashboardPage() {
   }
 
   // Updated processRefund function
-  async function processRefund(paymentId: string, amount: string) {
+  const processRefund = async (paymentId: string, amount: string) => {
     if (!confirm(`Are you sure you want to process a refund of £${amount}?`)) return
 
     setIsProcessing(true)

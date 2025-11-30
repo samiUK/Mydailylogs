@@ -22,6 +22,7 @@ import {
 import Link from "next/link"
 import { Footer } from "@/components/footer"
 import { FeedbackModal } from "@/components/feedback-modal"
+import { redirect } from "next/navigation"
 import { CookieConsent } from "@/components/cookie-consent"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -61,20 +62,20 @@ export default function HomePageClient() {
 
       if (userProfiles && userProfiles.length > 0) {
         if (userProfiles.length > 1) {
-          router.push("/profile")
+          redirect("/profile")
         } else {
           const profile = userProfiles[0]
 
           if (profile.role === "admin") {
-            router.push(`/admin`)
+            redirect(`/admin`)
           } else if (profile.role === "staff") {
-            router.push(`/staff`)
+            redirect(`/staff`)
           } else {
-            router.push(`/admin`)
+            redirect(`/admin`)
           }
         }
       } else {
-        router.push("/auth/login?error=no_profile_found")
+        redirect("/auth/login?error=no_profile_found")
       }
     }
   }
@@ -206,7 +207,7 @@ export default function HomePageClient() {
       <section className="py-20 px-4 sm:px-6 lg:px-8 text-center">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-foreground mb-6 leading-tight">
-            Mobile ready Task management <span className="text-accent block">and Team Reporting On-the-Go</span>
+            Mobile Task Management <span className="text-accent block">for On-the-Go Field Teams</span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground leading-relaxed">
             Professional mobile-friendly task management and compliance reporting built for field teams who work

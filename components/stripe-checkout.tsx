@@ -13,24 +13,24 @@ console.log("[v0] Stripe publishable key present:", !!stripePublishableKey)
 const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null
 
 interface StripeCheckoutProps {
-  productId: string
-  billingInterval?: "month" | "year"
+  productType: string // Changed from productId to productType to match caller
+  interval?: "month" | "year" // Changed from billingInterval to interval
   organizationId: string
   userEmail: string
   userId: string
   userName?: string
-  currency?: "GBP" | "USD" // Added currency prop
+  currency?: "GBP" | "USD"
   onClose?: () => void
 }
 
 export default function StripeCheckout({
-  productId,
-  billingInterval = "month",
+  productType, // Changed from productId
+  interval = "month", // Changed from billingInterval
   organizationId,
   userEmail,
   userId,
   userName,
-  currency = "GBP", // Added currency with default
+  currency = "GBP",
   onClose,
 }: StripeCheckoutProps) {
   const [error, setError] = useState<string | null>(null)
@@ -58,7 +58,17 @@ export default function StripeCheckout({
 
   const fetchClientSecret = useCallback(async () => {
     setError(null)
-    console.log("[v0] Starting checkout session for product:", productId, "interval:", billingInterval)
+    console.log("[v0] Starting checkout session for product:", productType, "interval:", interval)
+    console.log("[v0] Checkout params:", {
+      productType,
+      interval,
+      organizationId,
+      userEmail,
+      userId,
+      userName,
+      currency,
+    }) // Added detailed logging
+
     try {
       const response = await fetch("/api/checkout/create-session", {
         method: "POST",
@@ -66,13 +76,13 @@ export default function StripeCheckout({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          productType: productId,
-          interval: billingInterval,
+          productType,
+          interval,
           organizationId,
           userEmail,
           userId,
-          userName,
-          currency, // Pass currency to API
+          userName: userName || userEmail, // Fallback to email if userName is empty
+          currency,
         }),
       })
 
@@ -95,7 +105,7 @@ export default function StripeCheckout({
       setError(errorMessage)
       throw error
     }
-  }, [productId, billingInterval, organizationId, userEmail, userId, userName, currency]) // Added currency to dependencies
+  }, [productType, interval, organizationId, userEmail, userId, userName, currency])
 
   if (!stripePromise) {
     return (

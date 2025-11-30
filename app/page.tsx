@@ -69,7 +69,7 @@ const structuredData = {
     "Team Management Dashboard",
     "Email Notifications",
     "Photo Upload on Reports",
-    "90-day Report Storage",
+    "30-day Report Storage",
     "Contractor Link Sharing",
   ],
   screenshot: "https://www.mydaylogs.co.uk/og-image.png",

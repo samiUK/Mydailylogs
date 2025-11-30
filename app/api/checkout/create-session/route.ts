@@ -7,12 +7,36 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { productType, interval, organizationId, userEmail, userId, userName, currency = "GBP" } = body // Added currency parameter
 
-    console.log("[v0] Creating checkout session:", { productType, interval, organizationId, userEmail, currency })
+    console.log("[v0] Received checkout request with parameters:", {
+      productType,
+      interval,
+      organizationId,
+      userEmail,
+      userId,
+      userName,
+      currency,
+    })
 
-    // Validate inputs
+    // Validate inputs - userName is optional
     if (!productType || !interval || !organizationId || !userEmail || !userId) {
-      return NextResponse.json({ error: "Missing required parameters" }, { status: 400 })
+      const missing = []
+      if (!productType) missing.push("productType")
+      if (!interval) missing.push("interval")
+      if (!organizationId) missing.push("organizationId")
+      if (!userEmail) missing.push("userEmail")
+      if (!userId) missing.push("userId")
+
+      console.error("[v0] Missing required parameters:", missing.join(", "))
+      return NextResponse.json(
+        {
+          error: "Missing required parameters",
+          missing: missing,
+        },
+        { status: 400 },
+      )
     }
+
+    console.log("[v0] All required parameters present, creating checkout session")
 
     // Get organization details
     const { data: org, error: orgError } = await supabaseAdmin

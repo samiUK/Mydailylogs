@@ -552,7 +552,7 @@ export default function HomePageClient() {
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span>90-day report storage</span>
+                    <span>30-day report storage</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
@@ -635,7 +635,7 @@ export default function HomePageClient() {
                   disabled={checkingAuth}
                   className="w-full h-12 text-lg font-semibold bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
                 >
-                  {checkingAuth ? "Loading..." : "Get Started"}
+                  {checkingAuth ? "Loading..." : "Get Started Free"}
                 </Button>
               </CardContent>
             </Card>
@@ -708,7 +708,7 @@ export default function HomePageClient() {
                   disabled={checkingAuth}
                   className="w-full h-12 text-lg font-semibold bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
                 >
-                  {checkingAuth ? "Loading..." : "Get Started"}
+                  {checkingAuth ? "Loading..." : "Get Started Free"}
                 </Button>
               </CardContent>
             </Card>

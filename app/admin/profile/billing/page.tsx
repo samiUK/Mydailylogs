@@ -42,6 +42,7 @@ export default function BillingPage() {
   const [currency, setCurrency] = useState<"GBP" | "USD">("GBP")
   const [profile, setProfile] = useState<any | null>(null)
   const [billingPeriod, setBillingPeriod] = useState<string>("monthly")
+  const [userId, setUserId] = useState<string | null>(null) // Added userId state
 
   useEffect(() => {
     const detectCurrency = async () => {
@@ -91,6 +92,8 @@ export default function BillingPage() {
         router.push("/auth/login")
         return
       }
+
+      setUserId(user.id) // Store the actual user ID from auth
 
       const { data: userProfile, error: profileError } = await supabase
         .from("profiles")
@@ -551,19 +554,18 @@ export default function BillingPage() {
         </Card>
       )}
 
-      {showCheckout && selectedPlanId && (
+      {showCheckout && selectedPlanId && profile?.organization_id && userId && (
         <StripeCheckout
-          productId={selectedPlanId}
-          billingInterval={billingPeriod}
-          organizationId={profile?.organization_id || ""}
-          userEmail={profile?.email || ""}
-          userId={profile?.id || ""}
-          userName={profile?.full_name}
-          currency={currency} // Pass detected currency to Stripe checkout
+          productType={selectedPlanId as "growth" | "scale"}
+          interval={billingPeriod as "month" | "year"}
+          organizationId={profile.organization_id}
+          userEmail={profile.email}
+          userId={userId} // Using actual userId from auth
+          userName={profile.full_name || profile.email}
+          currency={currency}
           onClose={() => {
             setShowCheckout(false)
             setSelectedPlanId(null)
-            loadBillingData()
           }}
         />
       )}

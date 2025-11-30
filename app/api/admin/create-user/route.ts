@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
 
     const { data: requestingProfile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
 
-    if (requestingProfile?.role !== "admin") {
-      return NextResponse.json({ message: "Only admins can create team members" }, { status: 403 })
+    if (requestingProfile?.role !== "admin" && requestingProfile?.role !== "manager") {
+      return NextResponse.json({ message: "Only admins and managers can create team members" }, { status: 403 })
     }
 
     const adminSupabase = createAdminClient()

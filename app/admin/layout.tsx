@@ -47,7 +47,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect("/auth/login")
   }
 
-  if (profile.role !== "admin" && profile.role !== "master_admin") {
+  if (profile.role !== "admin" && profile.role !== "manager" && profile.role !== "master_admin") {
     redirect("/unauthorized")
   }
 

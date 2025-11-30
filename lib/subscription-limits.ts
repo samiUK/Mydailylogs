@@ -3,12 +3,13 @@ import { createClient } from "@/lib/supabase/client"
 export interface SubscriptionLimits {
   maxTemplates: number
   maxTeamMembers: number
-  maxAdmins: number
+  maxAdminAccounts: number
   hasCustomBranding: boolean
   hasTaskAutomation: boolean
   maxReportSubmissions: number | null // null means unlimited
   hasContractorLinkShare: boolean
   hasPhotoUpload: boolean
+  reportRetentionDays: number
   planName: string
 }
 
@@ -33,34 +34,37 @@ export async function getSubscriptionLimits(organizationId: string): Promise<Sub
         starter: {
           maxTemplates: 3,
           maxTeamMembers: 5,
-          maxAdmins: 1,
+          maxAdminAccounts: 1,
           hasCustomBranding: false,
           hasTaskAutomation: false,
           maxReportSubmissions: 50,
           hasContractorLinkShare: false,
           hasPhotoUpload: false,
+          reportRetentionDays: 30,
           planName: "Starter",
         },
         growth: {
           maxTemplates: 10,
           maxTeamMembers: 25,
-          maxAdmins: 3,
+          maxAdminAccounts: 3,
           hasCustomBranding: true,
           hasTaskAutomation: true,
           maxReportSubmissions: null,
           hasContractorLinkShare: true,
           hasPhotoUpload: true,
+          reportRetentionDays: 90,
           planName: "Growth",
         },
         scale: {
           maxTemplates: 20,
           maxTeamMembers: 75,
-          maxAdmins: 10,
+          maxAdminAccounts: 7,
           hasCustomBranding: true,
           hasTaskAutomation: true,
           maxReportSubmissions: null,
           hasContractorLinkShare: true,
           hasPhotoUpload: true,
+          reportRetentionDays: 90,
           planName: "Scale",
         },
       }
@@ -86,12 +90,13 @@ export async function getSubscriptionLimits(organizationId: string): Promise<Sub
   return {
     maxTemplates: 3,
     maxTeamMembers: 5,
-    maxAdmins: 1,
+    maxAdminAccounts: 1,
     hasCustomBranding: false,
     hasTaskAutomation: false,
     maxReportSubmissions: 50,
     hasContractorLinkShare: false,
     hasPhotoUpload: false,
+    reportRetentionDays: 30,
     planName: "Starter",
   }
 }
@@ -113,11 +118,11 @@ export async function getCurrentUsage(organizationId: string) {
       .select("*", { count: "exact", head: true })
       .eq("organization_id", organizationId)
 
-    const { count: adminCount } = await supabase
+    const { count: adminManagerCount } = await supabase
       .from("profiles")
       .select("*", { count: "exact", head: true })
       .eq("organization_id", organizationId)
-      .eq("role", "admin")
+      .in("role", ["admin", "manager"])
 
     const { count: reportSubmissionCount } = await supabase
       .from("submitted_reports")
@@ -127,7 +132,7 @@ export async function getCurrentUsage(organizationId: string) {
     return {
       templateCount: templateCount || 0,
       teamMemberCount: teamMemberCount || 0,
-      adminCount: adminCount || 0,
+      adminManagerCount: adminManagerCount || 0,
       reportSubmissionCount: reportSubmissionCount || 0,
     }
   } catch (error) {
@@ -135,7 +140,7 @@ export async function getCurrentUsage(organizationId: string) {
     return {
       templateCount: 0,
       teamMemberCount: 0,
-      adminCount: 0,
+      adminManagerCount: 0,
       reportSubmissionCount: 0,
     }
   }
@@ -190,17 +195,19 @@ export async function checkCanCreateAdmin(organizationId: string): Promise<{
 }> {
   const [limits, usage] = await Promise.all([getSubscriptionLimits(organizationId), getCurrentUsage(organizationId)])
 
-  const canCreate = usage.adminCount < limits.maxAdmins
+  const canCreate = usage.adminManagerCount < limits.maxAdminAccounts
 
   return {
     canCreate,
     reason: canCreate
       ? undefined
       : limits.planName === "Starter"
-        ? "Starter plan only includes 1 admin account. Upgrade to Growth or Scale to add more admins."
-        : `You've reached your plan limit of ${limits.maxAdmins} admin accounts. Upgrade to add more.`,
-    currentCount: usage.adminCount,
-    maxAllowed: limits.maxAdmins,
+        ? "Starter plan only includes 1 admin account. Upgrade to Growth or Scale to add managers."
+        : limits.planName === "Growth"
+          ? "Growth plan includes 1 admin + 2 managers (3 total). Upgrade to Scale to add more."
+          : `You've reached your plan limit of ${limits.maxAdminAccounts} admin/manager accounts.`,
+    currentCount: usage.adminManagerCount,
+    maxAllowed: limits.maxAdminAccounts,
     requiresUpgrade: !canCreate,
   }
 }

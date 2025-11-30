@@ -281,17 +281,25 @@ export default function BillingPage() {
                     • {currentProduct.maxTeamMembers === -1 ? "Unlimited" : currentProduct.maxTeamMembers} Team Members
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    • {currentProduct.maxAdmins} Admin Account{currentProduct.maxAdmins > 1 ? "s" : ""}
+                    •{" "}
+                    {currentProduct.maxAdminAccounts === 1
+                      ? "1 Admin"
+                      : currentProduct.maxAdminAccounts === 3
+                        ? "1 Admin + 2 Managers"
+                        : currentProduct.maxAdminAccounts === 7
+                          ? "1 Admin + 6 Managers"
+                          : `${currentProduct.maxAdminAccounts} Admin/Manager Accounts`}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     • {currentProduct.maxReportSubmissions === null ? "Unlimited" : currentProduct.maxReportSubmissions}{" "}
                     Report Submissions
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    • {currentProduct.maxStorage === -1 ? "Unlimited" : currentProduct.maxStorage} GB storage
+                    • {currentProduct.maxStorage === 1 ? "30-day" : "90-day"} report retention
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    • {currentProduct.maxAPIRequests === -1 ? "Unlimited" : currentProduct.maxAPIRequests} API requests
+                    •{" "}
+                    {currentProduct.features.emailNotifications ? "Monthly report email delivery" : "No email delivery"}
                   </p>
                 </div>
 
@@ -393,14 +401,12 @@ export default function BillingPage() {
                     )}
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">
-                        {plan.maxStorage === -1 ? "Unlimited" : plan.maxStorage} GB storage
-                      </span>
+                      <span className="text-sm">{plan.maxStorage === 1 ? "30-day" : "90-day"} report retention</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
                       <span className="text-sm">
-                        {plan.maxAPIRequests === -1 ? "Unlimited" : plan.maxAPIRequests} API requests
+                        {plan.features.emailNotifications ? "Monthly email delivery" : "No email delivery"}
                       </span>
                     </li>
                     <li className="flex items-center gap-2">
@@ -418,7 +424,13 @@ export default function BillingPage() {
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
                       <span className="text-sm">
-                        {plan.maxAdmins} Admin Account{plan.maxAdmins > 1 ? "s" : ""}
+                        {plan.maxAdminAccounts === 1
+                          ? "1 Admin"
+                          : plan.maxAdminAccounts === 3
+                            ? "1 Admin + 2 Managers"
+                            : plan.maxAdminAccounts === 7
+                              ? "1 Admin + 6 Managers"
+                              : `${plan.maxAdminAccounts} Admin/Manager Accounts`}
                       </span>
                     </li>
                     <li className="flex items-center gap-2">

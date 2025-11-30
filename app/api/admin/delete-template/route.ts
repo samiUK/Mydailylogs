@@ -79,9 +79,9 @@ export async function POST(request: NextRequest) {
 
     const { data: profile } = await supabase.from("profiles").select("role, organization_id").eq("id", user.id).single()
 
-    if (!profile || profile.role !== "admin") {
-      console.log("[v0] Delete template API - Not admin or no profile")
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 })
+    if (!profile || (profile.role !== "admin" && profile.role !== "manager")) {
+      console.log("[v0] Delete template API - Not admin/manager or no profile")
+      return NextResponse.json({ error: "Admin or manager access required" }, { status: 403 })
     }
 
     console.log("[v0] Delete template API - Preserving completed reports...")
@@ -144,9 +144,9 @@ export async function DELETE(request: NextRequest) {
 
     const { data: profile } = await supabase.from("profiles").select("role, organization_id").eq("id", user.id).single()
 
-    if (!profile || profile.role !== "admin") {
-      console.log("[v0] Delete template API - Not admin or no profile")
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 })
+    if (!profile || (profile.role !== "admin" && profile.role !== "manager")) {
+      console.log("[v0] Delete template API - Not admin/manager or no profile")
+      return NextResponse.json({ error: "Admin or manager access required" }, { status: 403 })
     }
 
     console.log("[v0] Delete template API - Preserving completed reports...")

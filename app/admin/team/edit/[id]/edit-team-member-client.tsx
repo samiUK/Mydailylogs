@@ -84,7 +84,7 @@ export function EditTeamMemberClient({ memberId }: EditTeamMemberClientProps) {
       .from("profiles")
       .select("id, first_name, last_name, full_name, email")
       .eq("organization_id", profile?.organization_id)
-      .eq("role", "admin")
+      .in("role", ["admin", "manager"])
 
     setAdmins(admins || [])
   }
@@ -183,9 +183,12 @@ export function EditTeamMemberClient({ memberId }: EditTeamMemberClientProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="staff">Staff</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Managers have full admin access but cannot delete other admins/managers.
+              </p>
             </div>
 
             <div className="space-y-2">

@@ -16,6 +16,29 @@ export async function DELETE(request: NextRequest) {
       },
     })
 
+    const authHeader = request.headers.get("authorization")
+    if (authHeader) {
+      const token = authHeader.replace("Bearer ", "")
+      const {
+        data: { user: requestingUser },
+      } = await supabase.auth.getUser(token)
+
+      if (requestingUser) {
+        const { data: requestingProfile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", requestingUser.id)
+          .single()
+
+        // Get the target user's role
+        const { data: targetProfile } = await supabase.from("profiles").select("role").eq("id", userId).single()
+
+        if (requestingProfile?.role === "manager" && targetProfile?.role === "admin") {
+          return NextResponse.json({ error: "Managers cannot delete admins" }, { status: 403 })
+        }
+      }
+    }
+
     console.log("[v0] Starting GDPR-compliant user deletion for:", userId)
 
     // Get user profile to find organization

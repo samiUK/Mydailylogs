@@ -164,6 +164,9 @@ export default function HomePageClient() {
               <a href="#testimonials" className="text-muted-foreground hover:text-foreground transition-colors">
                 Reviews
               </a>
+              <a href="#coming-soon" className="text-muted-foreground hover:text-foreground transition-colors">
+                Coming Soon
+              </a>
               <Link href="/auth/login">
                 <Button variant="ghost">Sign In</Button>
               </Link>
@@ -205,6 +208,12 @@ export default function HomePageClient() {
                       >
                         <Star className="w-5 h-5 mr-3 text-accent" />
                         Reviews
+                      </a>
+                      <a
+                        href="#coming-soon"
+                        className="text-lg font-medium hover:text-accent transition-colors flex items-center"
+                      >
+                        Coming Soon
                       </a>
                     </div>
 
@@ -527,7 +536,7 @@ export default function HomePageClient() {
                 <ul className="space-y-3">
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span>1 admin account</span>
+                    <span>1 Manager</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
@@ -540,6 +549,10 @@ export default function HomePageClient() {
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
                     <span>50 report submissions</span>
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <span>90-day report storage</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
@@ -577,7 +590,7 @@ export default function HomePageClient() {
                 <ul className="space-y-3">
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span>3 admin accounts</span>
+                    <span>3 Managers</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
@@ -610,6 +623,10 @@ export default function HomePageClient() {
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
                     <span className="font-semibold">📸 Photo Upload on Reports</span>
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <span className="font-semibold">90-day report storage</span>
                   </li>
                 </ul>
                 <Button
@@ -644,44 +661,44 @@ export default function HomePageClient() {
               <CardContent className="space-y-4">
                 <ul className="space-y-3">
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span>10 admin accounts</span>
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
+                    <span>7 Managers</span>
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                     <span>Up to 75 team members</span>
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                     <span>20 task templates</span>
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                     <span>Unlimited report submissions</span>
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                     <span className="font-semibold">⚡ Task Automation (Recurring Tasks)</span>
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                     <span className="font-semibold">🎨 Custom Business Branding</span>
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                     <span className="font-semibold">📧 Email Notifications</span>
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                     <span className="font-semibold">🔗 Contractor Link Share</span>
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                     <span className="font-semibold">📸 Photo Upload on Reports</span>
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span className="font-semibold">🔄 Report Deletion Recovery (via support)</span>
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
+                    <span className="font-semibold">90-day report storage</span>
                   </li>
                 </ul>
                 <Button
@@ -750,6 +767,96 @@ export default function HomePageClient() {
                 <div className="text-sm text-muted-foreground">
                   Director, Facilities Management Company (40 employees)
                 </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      <section id="coming-soon" className="py-20 bg-background">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Coming Soon</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Exciting new features are on the way to make MyDayLogs even more powerful for your business
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            <Card className="border-2 border-muted hover:border-primary/50 transition-colors">
+              <CardContent className="pt-8 pb-8 text-center">
+                <div className="w-16 h-16 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center">
+                  <svg
+                    className="w-8 h-8 text-primary"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-foreground mb-3">MyDayLogs Mobile App</h3>
+                <p className="text-muted-foreground text-sm">
+                  Native iOS and Android apps for on-the-go task management. Complete checklists, capture photos, and
+                  submit reports from anywhere.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 border-muted hover:border-primary/50 transition-colors">
+              <CardContent className="pt-8 pb-8 text-center">
+                <div className="w-16 h-16 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center">
+                  <svg
+                    className="w-8 h-8 text-primary"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-foreground mb-3">Custom Pricing Plans</h3>
+                <p className="text-muted-foreground text-sm">
+                  Enterprise solutions tailored to your organization. Custom admin limits, advanced features, and
+                  flexible billing options for larger teams.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 border-muted hover:border-primary/50 transition-colors">
+              <CardContent className="pt-8 pb-8 text-center">
+                <div className="w-16 h-16 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center">
+                  <svg
+                    className="w-8 h-8 text-primary"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-foreground mb-3">Dedicated Support</h3>
+                <p className="text-muted-foreground text-sm">
+                  Priority email and phone support with dedicated account management. Get personalized onboarding and
+                  training for your team.
+                </p>
               </CardContent>
             </Card>
           </div>

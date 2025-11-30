@@ -159,8 +159,8 @@ export async function cancelSubscription(subscriptionId: string) {
 
     const { data: profile } = await supabase.from("profiles").select("organization_id, role").eq("id", user.id).single()
 
-    if (!profile?.organization_id || profile.role !== "admin") {
-      throw new Error("Only admins can cancel subscriptions")
+    if (!profile?.organization_id || (profile.role !== "admin" && profile.role !== "manager")) {
+      throw new Error("Only admins and managers can cancel subscriptions")
     }
 
     const { data: subscription } = await supabase
@@ -282,14 +282,10 @@ export async function changeSubscriptionPlan(newProductId: string) {
       redirect("/auth/login")
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("organization_id, email, role")
-      .eq("id", user.id)
-      .single()
+    const { data: profile } = await supabase.from("profiles").select("organization_id, role").eq("id", user.id).single()
 
-    if (!profile?.organization_id || profile.role !== "admin") {
-      throw new Error("Only admins can change subscription plans")
+    if (!profile?.organization_id || (profile.role !== "admin" && profile.role !== "manager")) {
+      throw new Error("Only admins and managers can manage subscriptions")
     }
 
     const { data: existingSubscription } = await supabase

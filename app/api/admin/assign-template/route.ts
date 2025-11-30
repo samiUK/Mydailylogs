@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // Verify user is admin
+    // Verify user is admin or manager
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
       .eq("id", user.id)
       .single()
 
-    if (profile?.role !== "admin") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 })
+    if (profile?.role !== "admin" && profile?.role !== "manager") {
+      return NextResponse.json({ error: "Admin or manager access required" }, { status: 403 })
     }
 
     const subscriptionLimits = await getSubscriptionLimits(profile.organization_id)

@@ -375,7 +375,7 @@ export default function AdminDashboard() {
               return
             }
 
-            if (profile.role !== "admin" && profile.role !== "master_admin") {
+            if (profile.role !== "admin" && profile.role !== "manager" && profile.role !== "master_admin") {
               router.push("/unauthorized")
               return
             }
@@ -410,7 +410,7 @@ export default function AdminDashboard() {
           return
         }
 
-        if (profileData.role !== "admin" && profileData.role !== "master_admin") {
+        if (profileData.role !== "admin" && profileData.role !== "manager" && profileData.role !== "master_admin") {
           router.push("/unauthorized")
           return
         }

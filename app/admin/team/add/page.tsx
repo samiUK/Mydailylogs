@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ArrowLeft, UserPlus, AlertTriangle, Crown } from 'lucide-react'
+import { ArrowLeft, UserPlus, AlertTriangle, Crown } from "lucide-react"
 import { checkCanCreateTeamMember, checkCanCreateAdmin, getSubscriptionLimits } from "@/lib/subscription-limits"
 import { UpgradeNotification } from "@/components/upgrade-notification"
 import Link from "next/link"
@@ -40,7 +40,7 @@ export default function AddTeamMemberPage() {
     email: "",
     password: "",
     position: "",
-    role: "staff" as "admin" | "staff",
+    role: "staff" as "manager" | "staff",
     reportsTo: "none",
   })
 
@@ -56,7 +56,7 @@ export default function AddTeamMemberPage() {
 
   const checkAdminLimits = async () => {
     if (!organizationId) return
-    
+
     const adminCheck = await checkCanCreateAdmin(organizationId)
     setAdminLimitCheck(adminCheck)
     setCanCreateAdmin(adminCheck.canCreate)
@@ -95,12 +95,12 @@ export default function AddTeamMemberPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (formData.role === "admin" && !canCreateAdmin) {
       alert(adminLimitCheck?.reason || "Cannot create admin account due to plan limits")
       return
     }
-    
+
     if (!canCreateTeamMember || !organizationId) return
 
     const limitCheck = await checkCanCreateTeamMember(organizationId)
@@ -289,27 +289,19 @@ export default function AddTeamMemberPage() {
               <Label htmlFor="role">Role</Label>
               <Select
                 value={formData.role}
-                onValueChange={(value: "admin" | "staff") => setFormData({ ...formData, role: value })}
+                onValueChange={(value: "manager" | "staff") => setFormData({ ...formData, role: value })}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="staff">Staff</SelectItem>
-                  <SelectItem value="admin">
-                    Admin
-                    {formData.role !== "admin" && adminLimitCheck && !canCreateAdmin && " 🔒"}
-                  </SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
                 </SelectContent>
               </Select>
-              {formData.role === "admin" && !canCreateAdmin && subscriptionLimits && (
-                <p className="text-xs text-muted-foreground">
-                  {subscriptionLimits.planName} plan includes {adminLimitCheck?.maxAllowed} admin account.{" "}
-                  <Link href="/admin/profile/billing" className="text-accent hover:underline">
-                    Upgrade to add more admins
-                  </Link>
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground">
+                Managers have full admin access. Only the organization owner can be an Admin.
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -333,8 +325,8 @@ export default function AddTeamMemberPage() {
             </div>
 
             <div className="flex gap-4 pt-4">
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 disabled={isLoading || !canCreateTeamMember || (formData.role === "admin" && !canCreateAdmin)}
                 className="flex-1"
               >

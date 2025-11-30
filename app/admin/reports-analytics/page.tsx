@@ -66,8 +66,8 @@ export default function AdminReportsAnalyticsPage() {
           .eq("id", user.id)
           .single()
 
-        if (!profile || profile.role !== "admin") {
-          console.log("[v0] Admin Reports Analytics page - Not admin, redirecting")
+        if (!profile || (profile.role !== "admin" && profile.role !== "manager")) {
+          console.log("[v0] Admin Reports Analytics page - Not admin or manager, redirecting")
           router.push("/auth/login")
           return
         }

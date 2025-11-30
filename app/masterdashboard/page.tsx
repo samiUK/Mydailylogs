@@ -67,6 +67,8 @@ interface Organization {
   updated_at?: string
   templateCount?: number
   slug?: string | null // Added slug field
+  reportCount?: number // Added reportCount field
+  subscription_tier?: string // Added subscription_tier field
 }
 
 interface UserProfile {
@@ -719,6 +721,15 @@ export default function MasterDashboardPage() {
           }
 
           const allOrganizations = Array.from(organizationMap.values())
+
+          // Add report count and subscription tier to organizations
+          allOrganizations.forEach((org) => {
+            const relatedSubscriptions = allSubscriptions.filter((sub) => sub.organization_id === org.organization_id)
+            const activeSubscription = relatedSubscriptions.find((sub) => sub.status === "active")
+            org.reportCount =
+              reportsData?.filter((report) => report.organization_id === org.organization_id)?.length || 0
+            org.subscription_tier = activeSubscription ? activeSubscription.plan_name.toLowerCase() : "starter"
+          })
 
           setOrganizations(allOrganizations)
           setAllUsers(
@@ -2371,15 +2382,15 @@ export default function MasterDashboardPage() {
                           <div className="space-y-3">
                             <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
                               <Shield className="w-5 h-5 text-green-600" />
-                              <h4 className="font-semibold text-gray-900">Administrators</h4>
+                              <h4 className="font-semibold text-gray-900">Admins & Managers</h4>
                               <Badge variant="secondary" className="text-xs">
-                                {org.profiles?.filter((p) => p.role === "admin").length || 0}
+                                {org.profiles?.filter((p) => p.role === "admin" || p.role === "manager").length || 0}
                               </Badge>
                             </div>
                             <div className="space-y-2 max-h-48 overflow-y-auto">
-                              {org.profiles?.filter((p) => p.role === "admin").length > 0 ? (
+                              {org.profiles?.filter((p) => p.role === "admin" || p.role === "manager").length > 0 ? (
                                 org.profiles
-                                  .filter((p) => p.role === "admin")
+                                  .filter((p) => p.role === "admin" || p.role === "manager")
                                   .map((admin) => (
                                     <div
                                       key={admin.id}
@@ -2389,28 +2400,67 @@ export default function MasterDashboardPage() {
                                         <Shield className="w-4 h-4 text-green-600" />
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                        <p className="font-medium text-gray-900 truncate">{admin.full_name}</p>
+                                        <p className="font-medium text-gray-900 truncate flex items-center gap-2">
+                                          {admin.full_name}
+                                          <Badge
+                                            variant={admin.role === "admin" ? "default" : "secondary"}
+                                            className="text-xs"
+                                          >
+                                            {admin.role === "admin" ? "Admin" : "Manager"}
+                                          </Badge>
+                                        </p>
                                         <p className="text-sm text-gray-500 truncate">{admin.email}</p>
                                       </div>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => {
-                                          if (confirm(`Demote ${admin.full_name} to staff member?`)) {
-                                            // TODO: Implement role change
-                                            console.log("[v0] Demote admin to staff:", admin.id)
+                                      <select
+                                        value={admin.role}
+                                        onChange={async (e) => {
+                                          const newRole = e.target.value
+                                          if (
+                                            confirm(
+                                              `Change ${admin.full_name}'s role to ${newRole}? ${
+                                                newRole === "staff"
+                                                  ? "They will lose admin/manager privileges."
+                                                  : newRole === "admin"
+                                                    ? "They will have full admin access including removing other admins."
+                                                    : "They will have admin-level access but cannot remove admins."
+                                              }`,
+                                            )
+                                          ) {
+                                            try {
+                                              const response = await fetch("/api/master/change-role", {
+                                                method: "POST",
+                                                headers: { "Content-Type": "application/json" },
+                                                body: JSON.stringify({
+                                                  profileId: admin.id,
+                                                  newRole,
+                                                  organizationId: org.organization_id,
+                                                }),
+                                              })
+                                              const data = await response.json()
+                                              if (!response.ok) {
+                                                alert(data.error || "Failed to change role")
+                                              } else {
+                                                alert(data.message)
+                                                checkAuthAndLoadData()
+                                              }
+                                            } catch (error) {
+                                              console.error("Error changing role:", error)
+                                              alert("Failed to change role")
+                                            }
                                           }
                                         }}
-                                        className="h-6 w-6 p-0 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                        className="text-xs border rounded px-2 py-1 bg-white"
                                       >
-                                        <ArrowDown className="w-3 h-3" />
-                                      </Button>
+                                        <option value="admin">Admin</option>
+                                        <option value="manager">Manager</option>
+                                        <option value="staff">Staff</option>
+                                      </select>
                                     </div>
                                   ))
                               ) : (
                                 <div className="text-center py-4 text-gray-500">
                                   <Shield className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                                  <p className="text-sm">No administrators</p>
+                                  <p className="text-sm">No administrators or managers</p>
                                 </div>
                               )}
                             </div>
@@ -2446,9 +2496,29 @@ export default function MasterDashboardPage() {
                                           variant="ghost"
                                           size="sm"
                                           onClick={() => {
-                                            if (confirm(`Promote ${staff.full_name} to administrator?`)) {
-                                              // TODO: Implement role change
-                                              console.log("[v0] Promote staff to admin:", staff.id)
+                                            if (confirm(`Promote ${staff.full_name} to manager?`)) {
+                                              fetch("/api/master/change-role", {
+                                                method: "POST",
+                                                headers: { "Content-Type": "application/json" },
+                                                body: JSON.stringify({
+                                                  profileId: staff.id,
+                                                  newRole: "manager",
+                                                  organizationId: org.organization_id,
+                                                }),
+                                              })
+                                                .then((res) => res.json())
+                                                .then((data) => {
+                                                  if (data.success) {
+                                                    alert(data.message)
+                                                    checkAuthAndLoadData()
+                                                  } else {
+                                                    alert(data.error)
+                                                  }
+                                                })
+                                                .catch((error) => {
+                                                  console.error("Error promoting staff:", error)
+                                                  alert("Failed to promote staff")
+                                                })
                                             }
                                           }}
                                           className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
@@ -2486,9 +2556,64 @@ export default function MasterDashboardPage() {
                           <div className="flex items-center justify-between text-sm text-gray-600">
                             <span>Total Members: {org.profiles?.length || 0}</span>
                             <span>
-                              Admins: {org.profiles?.filter((p) => p.role === "admin").length || 0} | Staff:{" "}
-                              {org.profiles?.filter((p) => p.role === "staff").length || 0}
+                              Admins/Managers:{" "}
+                              {org.profiles?.filter((p) => p.role === "admin" || p.role === "manager").length || 0} |
+                              Staff: {org.profiles?.filter((p) => p.role === "staff").length || 0}
                             </span>
+                          </div>
+
+                          <div className="mt-4 pt-4 border-t border-gray-100">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-medium text-gray-700">Report Management</p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  Reports: {org.reportCount || 0} (last 90 days) • Retention:{" "}
+                                  {org.subscription_tier === "starter" ? "30" : "90"} days
+                                </p>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                  if (
+                                    !confirm(
+                                      `Send report summary email to all admins/managers of ${org.organization_name}?\n\nThis will email ${org.profiles?.filter((p) => p.role === "admin" || p.role === "manager").length} recipients with ${org.reportCount || 0} reports from the last 90 days.`,
+                                    )
+                                  ) {
+                                    return
+                                  }
+
+                                  setIsProcessing(true)
+                                  try {
+                                    const response = await fetch("/api/master/email-org-reports", {
+                                      method: "POST",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ organizationId: org.organization_id }),
+                                    })
+
+                                    const data = await response.json()
+
+                                    if (response.ok) {
+                                      alert(
+                                        `✓ Success!\n\n${data.message}\nReports: ${data.reportCount}\nEmails sent: ${data.emailsSent}`,
+                                      )
+                                    } else {
+                                      alert(`Error: ${data.error}`)
+                                    }
+                                  } catch (error) {
+                                    console.error("[v0] Error sending reports:", error)
+                                    alert("Failed to send report emails. Please try again.")
+                                  } finally {
+                                    setIsProcessing(false)
+                                  }
+                                }}
+                                disabled={isProcessing || (org.reportCount || 0) === 0}
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              >
+                                <Mail className="w-4 h-4 mr-1" />
+                                Email Reports ({org.reportCount || 0})
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </div>

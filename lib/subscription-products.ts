@@ -7,7 +7,7 @@ export interface SubscriptionProduct {
   trialDays: number
   maxTemplates: number
   maxTeamMembers: number
-  maxAdmins: number
+  maxAdminAccounts: number // Total admin + manager accounts
   maxReportSubmissions: number | null
   maxStorage: number
   maxAPIRequests: number
@@ -35,11 +35,11 @@ export const SUBSCRIPTION_PRODUCTS: SubscriptionProduct[] = [
     name: "Starter",
     description: "Perfect for micro-businesses and startups",
     priceMonthly: 0,
-    priceYearly: 0, // Added yearly price
+    priceYearly: 0,
     trialDays: 0,
     maxTemplates: 3,
     maxTeamMembers: 5,
-    maxAdmins: 1,
+    maxAdminAccounts: 1,
     maxReportSubmissions: 50,
     maxStorage: 1,
     maxAPIRequests: 1000,
@@ -49,7 +49,7 @@ export const SUBSCRIPTION_PRODUCTS: SubscriptionProduct[] = [
       customBranding: false,
       contractorLinkShare: false,
       photoUpload: false,
-      emailNotifications: false, // Added emailNotifications flag set to false for Starter plan
+      emailNotifications: false,
     },
   },
   {
@@ -57,11 +57,11 @@ export const SUBSCRIPTION_PRODUCTS: SubscriptionProduct[] = [
     name: "Growth",
     description: "Ideal for growing small-medium businesses",
     priceMonthly: 900, // £9/month
-    priceYearly: 9600, // £96/year (£8/month) - Added yearly price
+    priceYearly: 9600, // £96/year (£8/month)
     trialDays: 30,
     maxTemplates: 10,
     maxTeamMembers: 25,
-    maxAdmins: 3,
+    maxAdminAccounts: 3,
     maxReportSubmissions: null,
     maxStorage: 10,
     maxAPIRequests: 10000,
@@ -71,7 +71,7 @@ export const SUBSCRIPTION_PRODUCTS: SubscriptionProduct[] = [
       customBranding: true,
       contractorLinkShare: true,
       photoUpload: true,
-      emailNotifications: true, // Added emailNotifications flag set to true for Growth plan
+      emailNotifications: true,
     },
   },
   {
@@ -79,11 +79,11 @@ export const SUBSCRIPTION_PRODUCTS: SubscriptionProduct[] = [
     name: "Scale",
     description: "For established SMEs ready to scale",
     priceMonthly: 1600, // £16/month
-    priceYearly: 18000, // £180/year (£15/month) - Added yearly price
+    priceYearly: 18000, // £180/year (£15/month)
     trialDays: 30,
     maxTemplates: 20,
     maxTeamMembers: 75,
-    maxAdmins: 10,
+    maxAdminAccounts: 7,
     maxReportSubmissions: null,
     maxStorage: 50,
     maxAPIRequests: 50000,
@@ -94,7 +94,7 @@ export const SUBSCRIPTION_PRODUCTS: SubscriptionProduct[] = [
       contractorLinkShare: true,
       photoUpload: true,
       reportDeletionRecovery: true,
-      emailNotifications: true, // Added emailNotifications flag set to true for Scale plan
+      emailNotifications: true,
     },
   },
 ]

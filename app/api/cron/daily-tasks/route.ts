@@ -113,11 +113,57 @@ export async function GET(request: NextRequest) {
       `[v0] Automated task creation completed. Created ${createdTasks} tasks, skipped ${skippedTasks} (no task automation), with ${errors.length} errors`,
     )
 
+    console.log("[v0] Starting old report cleanup...")
+    let deletedReports = 0
+
+    try {
+      // Get all organizations with their subscription tiers
+      const { data: orgs } = await supabase.from("organizations").select("organization_id, subscription_tier")
+
+      for (const org of orgs || []) {
+        // Determine retention period: 30 days for Starter, 90 days for Growth/Scale
+        const retentionDays = org.subscription_tier === "starter" ? 30 : 90
+        const cutoffDate = new Date()
+        cutoffDate.setDate(cutoffDate.getDate() - retentionDays)
+
+        const { data: oldReports, error: fetchError } = await supabase
+          .from("submitted_reports")
+          .select("id")
+          .eq("organization_id", org.organization_id)
+          .lt("submitted_at", cutoffDate.toISOString())
+
+        if (fetchError) {
+          console.error(`[v0] Error fetching old reports for org ${org.organization_id}:`, fetchError)
+          continue
+        }
+
+        if (oldReports && oldReports.length > 0) {
+          const { error: deleteError } = await supabase
+            .from("submitted_reports")
+            .delete()
+            .eq("organization_id", org.organization_id)
+            .lt("submitted_at", cutoffDate.toISOString())
+
+          if (deleteError) {
+            console.error(`[v0] Error deleting old reports for org ${org.organization_id}:`, deleteError)
+          } else {
+            deletedReports += oldReports.length
+            console.log(`[v0] Deleted ${oldReports.length} old reports from org ${org.organization_id}`)
+          }
+        }
+      }
+
+      console.log(`[v0] Old report cleanup completed. Deleted ${deletedReports} reports.`)
+    } catch (cleanupError) {
+      console.error("[v0] Error during report cleanup:", cleanupError)
+    }
+
     return NextResponse.json({
       success: true,
       date: today,
       createdTasks,
       skippedTasks,
+      deletedReports,
       errors: errors.length > 0 ? errors : undefined,
     })
   } catch (error) {

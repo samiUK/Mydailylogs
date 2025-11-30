@@ -203,6 +203,9 @@ export default function MasterDashboardPage() {
   const [conversionRate, setConversionRate] = useState(0)
   const [databaseSize, setDatabaseSize] = useState("0 MB")
 
+  const [isRefreshingServerStats, setIsRefreshingServerStats] = useState(false)
+  const [lastRefreshed, setLastRefreshed] = useState<string | null>(null)
+
   // New state and modal control for impersonation link
   const [showImpersonationModal, setShowImpersonationModal] = useState(false)
   const [impersonationUrl, setImpersonationUrl] = useState("")
@@ -1599,6 +1602,44 @@ export default function MasterDashboardPage() {
     }
   }
 
+  // Added refreshServerStats function
+  const refreshServerStats = async () => {
+    setIsRefreshingServerStats(true)
+    setLastRefreshed(null)
+    try {
+      console.log("[v0] Refreshing server stats...")
+      const response = await fetch("/api/admin/database-stats")
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to fetch server stats")
+      }
+
+      setDatabaseSize(data.databaseSize || "0 MB")
+      setDatabaseStats((prevStats) => ({
+        ...prevStats,
+        totalSize: data.totalSizeBytes || 0,
+        totalBandwidth: data.totalBandwidthBytes || 0,
+        sentEmails: data.sentEmailsCount || 0,
+      }))
+      const now = new Date()
+      setLastRefreshed(`${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}`)
+      showNotification("success", "Server stats refreshed successfully.")
+    } catch (err: any) {
+      console.error("[v0] Error refreshing server stats:", err.message)
+      showNotification("error", `Failed to refresh server stats: ${err.message}`)
+      setDatabaseSize("N/A")
+      setDatabaseStats((prevStats) => ({
+        ...prevStats,
+        totalSize: 0,
+        totalBandwidth: 0,
+        sentEmails: 0,
+      }))
+    } finally {
+      setIsRefreshingServerStats(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -1781,8 +1822,19 @@ export default function MasterDashboardPage() {
             {/* Server Management */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Server Management</CardTitle>
-                <CardDescription>Monitor free tier usage limits - Updates every 6 hours</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Server Management</CardTitle>
+                    <CardDescription>
+                      Monitor free tier usage limits
+                      {lastRefreshed && ` • Last updated: ${lastRefreshed}`}
+                    </CardDescription>
+                  </div>
+                  <Button onClick={refreshServerStats} disabled={isRefreshingServerStats} variant="outline" size="sm">
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshingServerStats ? "animate-spin" : ""}`} />
+                    Refresh
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

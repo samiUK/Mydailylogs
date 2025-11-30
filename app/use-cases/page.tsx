@@ -45,6 +45,52 @@ const useCases = [
     color: "orange",
   },
   {
+    icon: Building2,
+    industry: "Sales Teams & Field Reps",
+    title: "Client Visit Tracking & Follow-up Management",
+    description:
+      "Enable sales representatives and account managers to log client visits, track interactions, and manage follow-up tasks on mobile devices throughout their sales territory.",
+    challenges: [
+      "Client visit logs lost or incomplete, affecting relationship management",
+      "Missed follow-up opportunities due to poor task tracking",
+      "Territory managers unable to verify rep activity and coverage",
+      "Difficulty demonstrating client engagement for compliance and commissions",
+    ],
+    solutions: [
+      "Mobile visit logs with client details and meeting outcomes",
+      "Photo documentation of product displays and client facilities",
+      "Automated follow-up task creation with deadline reminders",
+      "Territory-wide visibility for regional sales managers",
+      "Professional visit reports for client records and internal audits",
+    ],
+    results:
+      "Sales teams increase follow-up completion rates by 65% and improve client relationship documentation for better account management.",
+    color: "blue",
+  },
+  {
+    icon: Hammer,
+    industry: "Surveyors & Property Assessors",
+    title: "Site Inspection & Property Assessment",
+    description:
+      "Support surveyors and property assessors with mobile tools to complete site inspections, property assessments, and condition reports with photo evidence directly from the field.",
+    challenges: [
+      "Paper-based survey reports prone to errors and delays",
+      "Difficulty capturing and organizing site photos during inspections",
+      "Inconsistent reporting formats across different surveyors",
+      "Clients waiting days for survey reports to be typed up",
+    ],
+    solutions: [
+      "Customizable inspection checklists for different property types",
+      "Photo upload with annotations for defect documentation",
+      "Location-based reporting for site visit verification",
+      "Professional PDF reports generated immediately after inspection",
+      "Template library for residential, commercial, and land surveys",
+    ],
+    results:
+      "Surveying firms reduce report turnaround time by 80% and deliver consistent, professional documentation to clients same-day.",
+    color: "green",
+  },
+  {
     icon: Utensils,
     industry: "Hospitality & Food Service",
     title: "Food Safety & Operations Management",
@@ -65,6 +111,29 @@ const useCases = [
     ],
     results:
       "Hospitality businesses achieve 100% food safety compliance with timestamped digital records that satisfy health department audits.",
+    color: "red",
+  },
+  {
+    icon: Utensils,
+    industry: "Commercial Kitchens & Catering",
+    title: "Kitchen Compliance & Hygiene Tracking",
+    description:
+      "Equip commercial kitchen staff and catering teams with mobile hygiene logs, equipment checks, and food prep documentation required for health and safety compliance.",
+    challenges: [
+      "HACCP records not maintained consistently during busy service periods",
+      "Equipment temperature monitoring skipped or recorded incorrectly",
+      "Health inspector violations due to incomplete documentation",
+      "Catering managers unable to verify food safety at off-site events",
+    ],
+    solutions: [
+      "Automated HACCP checklists for critical control point monitoring",
+      "Shift-based cleaning schedules with photo evidence completion",
+      "Equipment maintenance logs for fridges, freezers, and cooking equipment",
+      "Mobile reporting for off-site catering and event locations",
+      "Allergen tracking and cross-contamination prevention checklists",
+    ],
+    results:
+      "Commercial kitchens maintain continuous health and safety compliance with complete digital records that pass environmental health inspections.",
     color: "red",
   },
   {

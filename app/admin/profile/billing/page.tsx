@@ -8,9 +8,9 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CheckCircle, CreditCard, Download, Calendar, AlertCircle, Sparkles, ExternalLink, Loader2 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { SUBSCRIPTION_PRODUCTS, formatPrice } from "@/lib/subscription-products"
 import StripeCheckout from "@/components/stripe-checkout"
-import { cancelSubscription, createBillingPortalSession } from "@/app/actions/stripe"
+import { SUBSCRIPTION_PRODUCTS, formatPrice } from "@/lib/subscription-products"
+import { cancelSubscription, createBillingPortalSession } from "@/lib/stripe-utils" // Import the missing functions
 
 interface Subscription {
   id: string
@@ -32,36 +32,54 @@ interface Payment {
 }
 
 export default function BillingPage() {
-  const [subscription, setSubscription] = useState<any | null>(null)
+  const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [billingHistory, setBillingHistory] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
-  const [organizationId, setOrganizationId] = useState<string | null>(null)
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
-  const [showCheckout, setShowCheckout] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
-  const router = useRouter()
+  const [showCheckout, setShowCheckout] = useState(false)
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
   const searchParams = useSearchParams()
-  const planFromUrl = searchParams.get("plan")
+  const [currency, setCurrency] = useState<"GBP" | "USD">("GBP")
 
   useEffect(() => {
-    loadBillingData()
+    const detectCurrency = async () => {
+      try {
+        const response = await fetch("https://ipapi.co/json/")
+        if (response.ok) {
+          const data = await response.json()
+          const countryCode = data.country_code || "GB"
+          setCurrency(countryCode === "GB" ? "GBP" : "USD")
+        }
+      } catch (error) {
+        console.error("[v0] Currency detection failed:", error)
+      }
+    }
+
+    detectCurrency()
   }, [])
 
   useEffect(() => {
-    if (planFromUrl && subscription && subscription.plan_name === "starter") {
-      const targetPlan = SUBSCRIPTION_PRODUCTS.find((p) => p.id === planFromUrl)
-      if (targetPlan && targetPlan.id !== "starter") {
-        handleUpgrade(targetPlan.id)
-      }
+    loadBillingData()
+
+    const planParam = searchParams.get("plan")
+    if (planParam && (planParam === "growth" || planParam === "scale")) {
+      setSelectedPlanId(planParam)
+      setShowCheckout(true)
     }
-  }, [planFromUrl, subscription])
+  }, [searchParams])
+
+  const formatPriceWithCurrency = (gbpPence: number) => {
+    if (currency === "USD") {
+      const usdPrice = gbpPence / 100 + 1
+      return `$${usdPrice.toFixed(2)}`
+    }
+    return formatPrice(gbpPence)
+  }
+
+  const router = useRouter()
 
   async function loadBillingData() {
     const supabase = createClient()
-    setError(null)
-
     try {
       const {
         data: { user },
@@ -79,11 +97,8 @@ export default function BillingPage() {
         .single()
 
       if (profileError || !profile?.organization_id) {
-        setError("Unable to load organization information")
-        return
+        throw new Error("Unable to load organization information")
       }
-
-      setOrganizationId(profile.organization_id)
 
       const { data: subscriptionData, error: subError } = await supabase
         .from("subscriptions")
@@ -95,6 +110,7 @@ export default function BillingPage() {
 
       if (subError) {
         console.error("[v0] Error fetching subscription:", subError)
+        throw subError
       }
 
       let finalSubscription = subscriptionData
@@ -139,7 +155,6 @@ export default function BillingPage() {
       }
     } catch (error) {
       console.error("[v0] Error loading billing data:", error)
-      setError("Failed to load billing information. Please refresh the page.")
       setSubscription({
         id: "temp",
         plan_name: "starter",
@@ -153,8 +168,6 @@ export default function BillingPage() {
   }
 
   const handleUpgrade = (planId: string) => {
-    setError(null)
-    setSuccess(null)
     setSelectedPlanId(planId)
     setShowCheckout(true)
   }
@@ -168,14 +181,18 @@ export default function BillingPage() {
     }
 
     setProcessing(true)
-    setError(null)
 
     try {
       await cancelSubscription(subscription.id)
-      setSuccess("Subscription cancelled successfully. Changes will take effect at the end of your billing period.")
-      await loadBillingData()
+      setSubscription({
+        id: "temp",
+        plan_name: "starter",
+        status: "inactive",
+        current_period_start: new Date().toISOString(),
+        current_period_end: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(),
+      })
     } catch (error: any) {
-      setError(error.message || "Failed to cancel subscription. Please try again or contact support.")
+      console.error(error.message || "Failed to cancel subscription. Please try again or contact support.")
     } finally {
       setProcessing(false)
     }
@@ -183,13 +200,12 @@ export default function BillingPage() {
 
   const handleManageBilling = async () => {
     setProcessing(true)
-    setError(null)
 
     try {
       const portalUrl = await createBillingPortalSession()
       window.open(portalUrl, "_blank")
     } catch (error: any) {
-      setError(error.message || "Failed to open billing portal. Please try again.")
+      console.error(error.message || "Failed to open billing portal. Please try again.")
     } finally {
       setProcessing(false)
     }
@@ -201,7 +217,7 @@ export default function BillingPage() {
     } else if (payment.stripe_invoice_url) {
       window.open(payment.stripe_invoice_url, "_blank")
     } else {
-      setError("Invoice not available for this payment")
+      console.error("Invoice not available for this payment")
     }
   }
 
@@ -225,17 +241,17 @@ export default function BillingPage() {
         <p className="text-muted-foreground mt-2">Manage your subscription and billing information</p>
       </div>
 
-      {error && (
+      {subscription?.status === "inactive" && (
         <Alert variant="destructive">
           <AlertCircle className="w-4 h-4" />
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>Your subscription has been cancelled.</AlertDescription>
         </Alert>
       )}
 
-      {success && (
+      {subscription?.status === "active" && (
         <Alert className="bg-green-50 border-green-200">
           <CheckCircle className="w-4 h-4 text-green-600" />
-          <AlertDescription className="text-green-800">{success}</AlertDescription>
+          <AlertDescription className="text-green-800">Your subscription is active.</AlertDescription>
         </Alert>
       )}
 
@@ -255,7 +271,7 @@ export default function BillingPage() {
                   <Badge variant="default">Active</Badge>
                 </div>
                 <p className="text-lg font-semibold text-primary mb-2">
-                  {formatPrice(currentProduct.priceMonthly)}/month
+                  {formatPriceWithCurrency(currentProduct.priceMonthly)}/month
                 </p>
                 <div className="space-y-2 mb-4">
                   <p className="text-sm text-muted-foreground">
@@ -342,7 +358,7 @@ export default function BillingPage() {
                   </div>
 
                   <div className="text-3xl font-bold mb-2">
-                    {formatPrice(plan.priceMonthly)}
+                    {formatPriceWithCurrency(plan.priceMonthly)}
                     <span className="text-lg font-normal text-muted-foreground">/month</span>
                   </div>
 
@@ -453,7 +469,8 @@ export default function BillingPage() {
                     <div className="flex items-center gap-3 mb-1">
                       <p className="font-medium">
                         {Number(payment.amount) < 0 ? "Refund: " : ""}
-                        {formatPrice(Math.abs(Number(payment.amount)) * 100)} {payment.currency?.toUpperCase()}
+                        {formatPriceWithCurrency(Math.abs(Number(payment.amount)) * 100)}{" "}
+                        {payment.currency?.toUpperCase()}
                       </p>
                       <Badge
                         variant={

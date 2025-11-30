@@ -24,12 +24,33 @@ import { Footer } from "@/components/footer"
 import { FeedbackModal } from "@/components/feedback-modal"
 import { redirect } from "next/navigation"
 import { CookieConsent } from "@/components/cookie-consent"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 
 export default function HomePageClient() {
   const router = useRouter()
   const [checkingAuth, setCheckingAuth] = useState(false)
+  const [currency, setCurrency] = useState<"GBP" | "USD">("GBP")
+  const [isLoadingCurrency, setIsLoadingCurrency] = useState(true)
+
+  useEffect(() => {
+    const detectCurrency = async () => {
+      try {
+        const response = await fetch("https://ipapi.co/json/")
+        if (response.ok) {
+          const data = await response.json()
+          const countryCode = data.country_code || "GB"
+          setCurrency(countryCode === "GB" ? "GBP" : "USD")
+        }
+      } catch (error) {
+        console.error("[v0] Currency detection failed:", error)
+      } finally {
+        setIsLoadingCurrency(false)
+      }
+    }
+
+    detectCurrency()
+  }, [])
 
   const handleUpgradeFromHomepage = async (planName: "growth" | "scale") => {
     setCheckingAuth(true)
@@ -84,6 +105,22 @@ export default function HomePageClient() {
   const showBanner = true
 
   checkUserAuth()
+
+  const formatPrice = (gbpPence: number) => {
+    if (currency === "USD") {
+      const usdPrice = gbpPence / 100 + 1
+      return `$${usdPrice.toFixed(0)}`
+    }
+    return `£${(gbpPence / 100).toFixed(0)}`
+  }
+
+  const formatPriceDecimal = (gbpPence: number) => {
+    if (currency === "USD") {
+      const usdPrice = gbpPence / 100 + 1
+      return `$${usdPrice.toFixed(2)}`
+    }
+    return `£${(gbpPence / 100).toFixed(2)}`
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -212,7 +249,8 @@ export default function HomePageClient() {
           <p className="text-lg md:text-xl text-muted-foreground leading-relaxed">
             Professional mobile-friendly task management and compliance reporting built for field teams who work
             on-site. Complete checklists, capture photos, and generate professional reports directly from your mobile
-            device - perfect for construction, hospitality, healthcare, retail, and logistics teams.
+            device - perfect for construction, hospitality, healthcare, retail, logistics, sales teams, surveyors, and
+            kitchen operations.
           </p>
         </div>
       </section>
@@ -521,9 +559,17 @@ export default function HomePageClient() {
                 <CardTitle className="text-2xl">Growth</CardTitle>
                 <CardDescription className="text-base">Ideal for growing small-medium businesses</CardDescription>
                 <div className="mt-4">
-                  <span className="text-5xl font-bold text-foreground">£9</span>
-                  <span className="text-muted-foreground text-lg">/month</span>
-                  <p className="text-sm text-muted-foreground mt-2">or £8/month billed yearly (£96/year)</p>
+                  {isLoadingCurrency ? (
+                    <span className="text-5xl font-bold text-muted-foreground">...</span>
+                  ) : (
+                    <>
+                      <span className="text-5xl font-bold text-foreground">{formatPrice(900)}</span>
+                      <span className="text-muted-foreground text-lg">/month</span>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        or {formatPrice(800)}/month billed yearly ({formatPrice(9600)}/year)
+                      </p>
+                    </>
+                  )}
                   <p className="text-sm font-semibold text-accent mt-1">First month free trial</p>
                 </div>
               </CardHeader>
@@ -581,9 +627,17 @@ export default function HomePageClient() {
                 <CardTitle className="text-2xl">Scale</CardTitle>
                 <CardDescription className="text-base">For established SMEs ready to scale</CardDescription>
                 <div className="mt-4">
-                  <span className="text-5xl font-bold text-foreground">£16</span>
-                  <span className="text-muted-foreground text-lg">/month</span>
-                  <p className="text-sm text-muted-foreground mt-2">or £15/month billed yearly (£180/year)</p>
+                  {isLoadingCurrency ? (
+                    <span className="text-5xl font-bold text-muted-foreground">...</span>
+                  ) : (
+                    <>
+                      <span className="text-5xl font-bold text-foreground">{formatPrice(1600)}</span>
+                      <span className="text-muted-foreground text-lg">/month</span>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        or {formatPrice(1500)}/month billed yearly ({formatPrice(18000)}/year)
+                      </p>
+                    </>
+                  )}
                   <p className="text-sm font-semibold text-accent mt-1">First month free trial</p>
                 </div>
               </CardHeader>

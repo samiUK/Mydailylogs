@@ -103,6 +103,17 @@ export function getProduct(productId: string): SubscriptionProduct | undefined {
   return SUBSCRIPTION_PRODUCTS.find((p) => p.id === productId)
 }
 
-export function formatPrice(priceInPence: number): string {
+export function formatPrice(priceInPence: number, currency: "GBP" | "USD" = "GBP"): string {
+  if (currency === "USD") {
+    // Convert pence to dollars with +$1 markup
+    const basePrice = priceInPence / 100
+    const usdPrice = basePrice + 1
+    return `$${usdPrice.toFixed(2)}`
+  }
   return `£${(priceInPence / 100).toFixed(2)}`
+}
+
+export function getUSDPrice(priceInPence: number): number {
+  // Base price in GBP converted to cents, then add $1 (100 cents)
+  return priceInPence + 100
 }

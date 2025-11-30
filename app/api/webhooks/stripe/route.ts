@@ -4,10 +4,7 @@ import { createClient } from "@supabase/supabase-js"
 import type Stripe from "stripe"
 import { sendEmail, emailTemplates } from "@/lib/email/smtp"
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function POST(req: NextRequest) {
   const body = await req.text()
@@ -21,11 +18,7 @@ export async function POST(req: NextRequest) {
   let event: Stripe.Event
 
   try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
-    )
+    event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET!)
   } catch (err: any) {
     console.error("[v0] Webhook signature verification failed:", err.message)
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
@@ -56,23 +49,21 @@ export async function POST(req: NextRequest) {
 
         const subscription = await stripe.subscriptions.retrieve(subscriptionId)
 
-        const { error: subError } = await supabaseAdmin
-          .from("subscriptions")
-          .upsert(
-            {
-              id: subscriptionId,
-              organization_id: organizationId,
-              plan_name: planName,
-              status: subscription.status,
-              stripe_subscription_id: subscriptionId,
-              current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-              current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-              updated_at: new Date().toISOString(),
-            },
-            {
-              onConflict: "id",
-            }
-          )
+        const { error: subError } = await supabaseAdmin.from("subscriptions").upsert(
+          {
+            id: subscriptionId,
+            organization_id: organizationId,
+            plan_name: planName,
+            status: subscription.status,
+            stripe_subscription_id: subscriptionId,
+            current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "id",
+          },
+        )
 
         if (subError) {
           console.error("[v0] Error upserting subscription:", subError)
@@ -135,18 +126,19 @@ export async function POST(req: NextRequest) {
         }
 
         // Check if trial is ending in 3 days and send reminder
-        if (subscription.status === 'trialing' && subscription.trial_end) {
+        if (subscription.status === "trialing" && subscription.trial_end) {
           const trialEndDate = new Date(subscription.trial_end * 1000)
           const threeDaysFromNow = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
           const twoDaysFromNow = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)
-          
+
           // Send reminder if trial ends in exactly 3 days (within 24-hour window)
           if (trialEndDate >= twoDaysFromNow && trialEndDate <= threeDaysFromNow) {
             try {
-              const customer = await stripe.customers.retrieve(subscription.customer as string) as Stripe.Customer
-              const planName = subscription.items.data[0]?.price?.nickname || subscription.metadata.plan_name || 'Premium'
+              const customer = (await stripe.customers.retrieve(subscription.customer as string)) as Stripe.Customer
+              const planName =
+                subscription.items.data[0]?.price?.nickname || subscription.metadata.plan_name || "Premium"
               const amount = `£${((subscription.items.data[0]?.price?.unit_amount || 0) / 100).toFixed(2)}`
-              
+
               if (customer.email) {
                 const template = emailTemplates.trialEndingReminder({
                   customerName: customer.name || "Customer",
@@ -156,12 +148,12 @@ export async function POST(req: NextRequest) {
                   amount: amount,
                   billingUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/profile/billing`,
                   features: [
-                    'Advanced task management',
-                    'Team collaboration tools',
-                    'Professional reporting',
-                    'Priority email support',
-                    'Custom branding (Scale plan)'
-                  ]
+                    "Advanced task management",
+                    "Team collaboration tools",
+                    "Professional reporting",
+                    "Priority email support",
+                    "Custom branding (Scale plan)",
+                  ],
                 })
 
                 await sendEmail(customer.email, template.subject, template.html)
@@ -180,6 +172,12 @@ export async function POST(req: NextRequest) {
         const subscription = event.data.object as Stripe.Subscription
         console.log("[v0] Subscription cancelled:", subscription.id)
 
+        const { data: subData } = await supabaseAdmin
+          .from("subscriptions")
+          .select("organization_id")
+          .eq("id", subscription.id)
+          .single()
+
         const { error } = await supabaseAdmin
           .from("subscriptions")
           .update({
@@ -191,6 +189,61 @@ export async function POST(req: NextRequest) {
         if (error) {
           console.error("[v0] Error cancelling subscription:", error)
           throw error
+        }
+
+        if (subData?.organization_id) {
+          console.log("[v0] Processing downgrade cleanup for organization:", subData.organization_id)
+
+          // Keep only last 3 templates, archive the rest
+          const { data: templates } = await supabaseAdmin
+            .from("checklist_templates")
+            .select("id, created_at")
+            .eq("organization_id", subData.organization_id)
+            .eq("is_active", true)
+            .order("created_at", { ascending: false })
+
+          if (templates && templates.length > 3) {
+            const templatesToArchive = templates.slice(3).map((t) => t.id)
+
+            const { error: archiveError } = await supabaseAdmin
+              .from("checklist_templates")
+              .update({ is_active: false })
+              .in("id", templatesToArchive)
+
+            if (archiveError) {
+              console.error("[v0] Error archiving templates:", archiveError)
+            } else {
+              console.log("[v0] Archived", templatesToArchive.length, "templates")
+            }
+          }
+
+          // Keep only last 50 reports, delete the rest
+          const { data: reports } = await supabaseAdmin
+            .from("submitted_reports")
+            .select("id, submitted_at")
+            .eq("organization_id", subData.organization_id)
+            .is("deleted_at", null)
+            .order("submitted_at", { ascending: false })
+
+          if (reports && reports.length > 50) {
+            const reportsToDelete = reports.slice(50).map((r) => r.id)
+
+            const { error: deleteError } = await supabaseAdmin
+              .from("submitted_reports")
+              .update({
+                deleted_at: new Date().toISOString(),
+                deleted_by: null, // System deletion
+              })
+              .in("id", reportsToDelete)
+
+            if (deleteError) {
+              console.error("[v0] Error deleting reports:", deleteError)
+            } else {
+              console.log("[v0] Soft-deleted", reportsToDelete.length, "reports")
+            }
+          }
+
+          console.log("[v0] Downgrade cleanup completed for organization:", subData.organization_id)
         }
 
         break
@@ -216,16 +269,16 @@ export async function POST(req: NextRequest) {
             console.error("[v0] Error recording payment:", error)
           }
 
-          if (invoice.customer_email && invoice.billing_reason === 'subscription_cycle') {
+          if (invoice.customer_email && invoice.billing_reason === "subscription_cycle") {
             try {
               const periodStart = new Date(invoice.period_start * 1000)
               const periodEnd = new Date(invoice.period_end * 1000)
-              
+
               const template = emailTemplates.monthlyInvoice({
                 customerName: invoice.customer_name || "Customer",
                 invoiceNumber: invoice.number || invoice.id,
                 planName: invoice.lines.data[0]?.description || "Subscription",
-                period: `${periodStart.toLocaleDateString('en-GB')} - ${periodEnd.toLocaleDateString('en-GB')}`,
+                period: `${periodStart.toLocaleDateString("en-GB")} - ${periodEnd.toLocaleDateString("en-GB")}`,
                 amount: `£${((invoice.amount_paid || 0) / 100).toFixed(2)}`,
                 paymentDate: new Date(invoice.status_transitions.paid_at! * 1000).toISOString(),
                 invoiceUrl: invoice.hosted_invoice_url || undefined,
@@ -301,9 +354,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true })
   } catch (error: any) {
     console.error("[v0] Error processing webhook:", error)
-    return NextResponse.json(
-      { error: "Webhook processing failed", details: error.message },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Webhook processing failed", details: error.message }, { status: 500 })
   }
 }

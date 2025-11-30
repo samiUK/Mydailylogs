@@ -10,7 +10,7 @@ import { CheckCircle, CreditCard, Download, Calendar, AlertCircle, Sparkles, Ext
 import { useRouter, useSearchParams } from "next/navigation"
 import StripeCheckout from "@/components/stripe-checkout"
 import { SUBSCRIPTION_PRODUCTS, formatPrice } from "@/lib/subscription-products"
-import { cancelSubscription, createBillingPortalSession } from "@/lib/stripe-utils" // Import the missing functions
+import { createBillingPortalSession } from "@/lib/stripe-utils" // Import the missing functions
 
 interface Subscription {
   id: string
@@ -43,6 +43,7 @@ export default function BillingPage() {
   const [profile, setProfile] = useState<any | null>(null)
   const [billingPeriod, setBillingPeriod] = useState<string>("monthly")
   const [userId, setUserId] = useState<string | null>(null) // Added userId state
+  const supabase = createClient() // Declare the supabase variable here
 
   useEffect(() => {
     const detectCurrency = async () => {
@@ -82,7 +83,6 @@ export default function BillingPage() {
   const router = useRouter()
 
   async function loadBillingData() {
-    const supabase = createClient()
     try {
       const {
         data: { user },
@@ -180,26 +180,53 @@ export default function BillingPage() {
   }
 
   const handleCancel = async () => {
-    if (
-      !subscription ||
-      !confirm("Are you sure you want to cancel your subscription? You'll lose access to premium features.")
-    ) {
-      return
-    }
+    if (!subscription) return
+
+    // Show detailed warning about consequences
+    const confirmed = window.confirm(
+      `⚠️ Cancel Subscription - Important Information\n\n` +
+        `If you cancel your ${subscription.plan_name} subscription:\n\n` +
+        `• Your subscription will remain active until ${new Date(subscription.current_period_end).toLocaleDateString()}\n` +
+        `• After that, you'll be downgraded to the free Starter plan\n` +
+        `• Only your last 3 templates will be kept (others will be archived)\n` +
+        `• Only your last 50 reports will be retained (older ones will be deleted)\n` +
+        `• You'll lose access to: Custom branding, advanced features, photo uploads\n\n` +
+        `Are you sure you want to cancel?`,
+    )
+
+    if (!confirmed) return
 
     setProcessing(true)
 
     try {
-      await cancelSubscription(subscription.id)
-      setSubscription({
-        id: "temp",
-        plan_name: "starter",
-        status: "inactive",
-        current_period_start: new Date().toISOString(),
-        current_period_end: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(),
+      const response = await fetch("/api/subscriptions/cancel", {
+        method: "POST",
       })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to cancel subscription")
+      }
+
+      // Refresh subscription data
+      const { data: updatedSub } = await supabase
+        .from("subscriptions")
+        .select("*")
+        .eq("organization_id", profile?.organization_id)
+        .single()
+
+      if (updatedSub) {
+        setSubscription(updatedSub)
+      }
+
+      alert(
+        "✓ Subscription cancelled successfully. You'll have access until " +
+          new Date(subscription.current_period_end).toLocaleDateString(),
+      )
     } catch (error: any) {
-      console.error(error.message || "Failed to cancel subscription. Please try again or contact support.")
+      console.error("[v0] Error cancelling subscription:", error)
+      alert("Failed to cancel subscription: " + error.message)
     } finally {
       setProcessing(false)
     }

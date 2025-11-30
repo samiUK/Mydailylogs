@@ -59,15 +59,36 @@ export default function StripeCheckout({
   const fetchClientSecret = useCallback(async () => {
     setError(null)
     console.log("[v0] Starting checkout session for product:", productType, "interval:", interval)
-    console.log("[v0] Checkout params:", {
-      productType,
-      interval,
+
+    console.log("[v0] Detailed checkout params:")
+    console.log("[v0] - productType:", productType, "| type:", typeof productType, "| truthy:", !!productType)
+    console.log("[v0] - interval:", interval, "| type:", typeof interval, "| truthy:", !!interval)
+    console.log(
+      "[v0] - organizationId:",
       organizationId,
-      userEmail,
-      userId,
-      userName,
-      currency,
-    }) // Added detailed logging
+      "| type:",
+      typeof organizationId,
+      "| truthy:",
+      !!organizationId,
+    )
+    console.log("[v0] - userEmail:", userEmail, "| type:", typeof userEmail, "| truthy:", !!userEmail)
+    console.log("[v0] - userId:", userId, "| type:", typeof userId, "| truthy:", !!userId)
+    console.log("[v0] - userName:", userName, "| type:", typeof userName, "| truthy:", !!userName)
+    console.log("[v0] - currency:", currency, "| type:", typeof currency, "| truthy:", !!currency)
+
+    if (!productType || !interval || !organizationId || !userEmail || !userId) {
+      const missing = []
+      if (!productType) missing.push("productType")
+      if (!interval) missing.push("interval")
+      if (!organizationId) missing.push("organizationId")
+      if (!userEmail) missing.push("userEmail")
+      if (!userId) missing.push("userId")
+
+      const errorMsg = `Missing required parameters on client side: ${missing.join(", ")}`
+      console.error("[v0]", errorMsg)
+      setError(errorMsg)
+      throw new Error(errorMsg)
+    }
 
     try {
       const response = await fetch("/api/checkout/create-session", {
@@ -81,7 +102,7 @@ export default function StripeCheckout({
           organizationId,
           userEmail,
           userId,
-          userName: userName || userEmail, // Fallback to email if userName is empty
+          userName: userName || userEmail,
           currency,
         }),
       })

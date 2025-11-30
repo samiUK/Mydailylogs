@@ -111,7 +111,14 @@ export default function StripeCheckout({
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Payment System Unavailable</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Payment System Unavailable</CardTitle>
+              {onClose && (
+                <Button variant="ghost" size="icon" onClick={onClose}>
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <p className="text-destructive mb-4">
@@ -126,16 +133,52 @@ export default function StripeCheckout({
     )
   }
 
+  if (error) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Payment Error</CardTitle>
+              {onClose && (
+                <Button variant="ghost" size="icon" onClick={onClose}>
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-destructive mb-4">{error}</p>
+            <Button onClick={onClose} variant="outline" className="w-full bg-transparent">
+              Close
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   if (isLoading || !clientSecret) {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Loading Payment System...</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Loading Payment System...</CardTitle>
+              {onClose && (
+                <Button variant="ghost" size="icon" onClick={onClose}>
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="flex justify-center py-8">
+            <div className="flex flex-col items-center gap-4 py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+              <p className="text-sm text-muted-foreground">Preparing secure checkout...</p>
+              <Button onClick={onClose} variant="ghost" size="sm" className="mt-4">
+                Cancel
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -160,20 +203,11 @@ export default function StripeCheckout({
           </div>
         </CardHeader>
         <CardContent>
-          {error ? (
-            <div className="py-8 text-center">
-              <p className="text-destructive mb-4">{error}</p>
-              <Button onClick={onClose} variant="outline">
-                Close
-              </Button>
-            </div>
-          ) : (
-            <div id="checkout" className="min-h-[400px]">
-              <EmbeddedCheckoutProvider stripe={stripePromise} options={{ clientSecret }}>
-                <EmbeddedCheckout />
-              </EmbeddedCheckoutProvider>
-            </div>
-          )}
+          <div id="checkout" className="min-h-[400px]">
+            <EmbeddedCheckoutProvider stripe={stripePromise} options={{ clientSecret }}>
+              <EmbeddedCheckout />
+            </EmbeddedCheckoutProvider>
+          </div>
         </CardContent>
       </Card>
     </div>

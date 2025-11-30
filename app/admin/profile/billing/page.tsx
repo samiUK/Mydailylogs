@@ -38,7 +38,7 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
+  const [selectedPlanId, setSelectedPlanId] = useState<"growth" | "scale" | null>(null)
   const searchParams = useSearchParams()
   const [currency, setCurrency] = useState<"GBP" | "USD">("GBP")
   const [profile, setProfile] = useState<any | null>(null)
@@ -68,7 +68,7 @@ export default function BillingPage() {
 
     const planParam = searchParams.get("plan")
     if (planParam && (planParam === "growth" || planParam === "scale")) {
-      setSelectedPlanId(planParam)
+      setSelectedPlanId(planParam as "growth" | "scale")
       setShowCheckout(true)
     }
   }, [searchParams])
@@ -181,18 +181,27 @@ export default function BillingPage() {
     }
   }
 
-  function handleUpgrade(planId: string) {
+  const handleUpgrade = (planId: "growth" | "scale") => {
     console.log("[v0] handleUpgrade called with planId:", planId)
     console.log("[v0] Current state:", {
-      profile: profile,
-      userId: userId,
+      profile,
+      userId,
       organizationId: profile?.organization_id,
+      email: profile?.email,
+      billingPeriod,
+      currency,
     })
 
-    if (!profile?.organization_id || !userId) {
+    if (!profile?.organization_id || !profile?.email || !userId) {
+      console.error("[v0] Missing required data to open checkout:", {
+        hasProfile: !!profile,
+        hasOrgId: !!profile?.organization_id,
+        hasEmail: !!profile?.email,
+        hasUserId: !!userId,
+      })
       toast({
-        title: "Loading",
-        description: "Please wait for your account information to load...",
+        title: "Error",
+        description: "Unable to load billing information. Please refresh the page.",
         variant: "destructive",
       })
       return
@@ -200,6 +209,14 @@ export default function BillingPage() {
 
     setSelectedPlanId(planId)
     setShowCheckout(true)
+    console.log("[v0] Opening checkout modal with:", {
+      planId,
+      interval: billingPeriod === "monthly" ? "month" : "year",
+      organizationId: profile.organization_id,
+      email: profile.email,
+      userId,
+      currency,
+    })
   }
 
   const handleCancel = async () => {
@@ -537,7 +554,7 @@ export default function BillingPage() {
                   {!isCurrent && (
                     <Button
                       className="w-full"
-                      onClick={() => handleUpgrade(plan.id)}
+                      onClick={() => handleUpgrade(plan.id as "growth" | "scale")}
                       disabled={processing || !profile?.organization_id || !userId}
                     >
                       <Sparkles className="w-4 h-4 mr-2" />
@@ -645,7 +662,7 @@ export default function BillingPage() {
 
       {showCheckout && selectedPlanId && profile?.organization_id && profile?.email && userId && profile && (
         <StripeCheckout
-          productType={selectedPlanId as "growth" | "scale"}
+          productType={selectedPlanId}
           interval={billingPeriod === "monthly" ? "month" : "year"}
           organizationId={profile.organization_id}
           userEmail={profile.email}
@@ -653,6 +670,7 @@ export default function BillingPage() {
           userName={profile.full_name || profile.email}
           currency={currency}
           onClose={() => {
+            console.log("[v0] Closing checkout modal")
             setShowCheckout(false)
             setSelectedPlanId(null)
           }}

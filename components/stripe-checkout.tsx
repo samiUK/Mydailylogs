@@ -8,7 +8,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { X } from "lucide-react"
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
+const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+if (!stripePublishableKey) {
+  console.error("[v0] NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is not set")
+}
+const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null
 
 interface StripeCheckoutProps {
   productId: string
@@ -36,6 +40,24 @@ export default function StripeCheckout({ productId, billingInterval = "month", o
       throw error
     }
   }, [productId, billingInterval])
+
+  if (!stripePromise) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Payment System Unavailable</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-destructive mb-4">Payment processing is not configured. Please contact support.</p>
+            <Button onClick={onClose} variant="outline" className="w-full bg-transparent">
+              Close
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">

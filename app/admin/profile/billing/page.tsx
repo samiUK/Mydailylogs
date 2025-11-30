@@ -559,6 +559,7 @@ export default function BillingPage() {
           userEmail={profile?.email || ""}
           userId={profile?.id || ""}
           userName={profile?.full_name}
+          currency={currency} // Pass detected currency to Stripe checkout
           onClose={() => {
             setShowCheckout(false)
             setSelectedPlanId(null)

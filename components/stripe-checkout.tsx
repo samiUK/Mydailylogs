@@ -19,6 +19,7 @@ interface StripeCheckoutProps {
   userEmail: string
   userId: string
   userName?: string
+  currency?: "GBP" | "USD" // Added currency prop
   onClose?: () => void
 }
 
@@ -29,6 +30,7 @@ export default function StripeCheckout({
   userEmail,
   userId,
   userName,
+  currency = "GBP", // Added currency with default
   onClose,
 }: StripeCheckoutProps) {
   const [error, setError] = useState<string | null>(null)
@@ -70,6 +72,7 @@ export default function StripeCheckout({
           userEmail,
           userId,
           userName,
+          currency, // Pass currency to API
         }),
       })
 
@@ -92,7 +95,7 @@ export default function StripeCheckout({
       setError(errorMessage)
       throw error
     }
-  }, [productId, billingInterval, organizationId, userEmail, userId, userName])
+  }, [productId, billingInterval, organizationId, userEmail, userId, userName, currency]) // Added currency to dependencies
 
   if (!stripePromise) {
     return (

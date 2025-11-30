@@ -5,9 +5,9 @@ import { supabaseAdmin } from "@/lib/supabase/admin"
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { productType, interval, organizationId, userEmail, userId, userName } = body
+    const { productType, interval, organizationId, userEmail, userId, userName, currency = "GBP" } = body // Added currency parameter
 
-    console.log("[v0] Create checkout session API called:", { productType, interval, organizationId, userEmail })
+    console.log("[v0] Creating checkout session:", { productType, interval, organizationId, userEmail, currency })
 
     // Validate inputs
     if (!productType || !interval || !organizationId || !userEmail || !userId) {
@@ -48,46 +48,74 @@ export async function POST(request: NextRequest) {
       console.log("[v0] Using existing Stripe customer:", customerId)
     }
 
-    // Get price IDs from environment
-    const priceId =
-      productType === "growth"
-        ? interval === "month"
-          ? process.env.STRIPE_GROWTH_MONTHLY_PRICE_ID
-          : process.env.STRIPE_GROWTH_YEARLY_PRICE_ID
-        : interval === "month"
-          ? process.env.STRIPE_SCALE_MONTHLY_PRICE_ID
-          : process.env.STRIPE_SCALE_YEARLY_PRICE_ID
-
-    if (!priceId) {
-      console.error("[v0] Price ID not found for:", { productType, interval })
-      return NextResponse.json({ error: "Price configuration error" }, { status: 500 })
+    const prices = {
+      GBP: {
+        growth: {
+          month: 1000, // £10/month
+          year: 9600, // £96/year
+        },
+        scale: {
+          month: 1700, // £17/month
+          year: 18000, // £180/year
+        },
+      },
+      USD: {
+        growth: {
+          month: 1000, // $10/month
+          year: 10800, // $108/year (9*12)
+        },
+        scale: {
+          month: 1700, // $17/month
+          year: 19200, // $192/year (16*12)
+        },
+      },
     }
 
-    // Create Stripe checkout session
+    const selectedCurrency = (currency as "GBP" | "USD") || "GBP"
+    const amount = prices[selectedCurrency][productType as "growth" | "scale"][interval as "month" | "year"]
+
+    if (!amount) {
+      console.error("[v0] Invalid product type or interval:", { productType, interval })
+      return NextResponse.json({ error: "Invalid product configuration" }, { status: 400 })
+    }
+
+    const planName = productType.charAt(0).toUpperCase() + productType.slice(1)
+
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       line_items: [
         {
-          price: priceId,
+          price_data: {
+            currency: selectedCurrency.toLowerCase(),
+            product_data: {
+              name: `${planName} Plan`,
+              description: interval === "year" ? "Billed annually" : "Billed monthly",
+            },
+            unit_amount: amount,
+            recurring: {
+              interval: interval === "year" ? "year" : "month",
+              interval_count: 1,
+            },
+          },
           quantity: 1,
         },
       ],
       mode: "subscription",
-      success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/profile/billing/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/profile/billing`,
-      metadata: {
-        organizationId,
-        userId,
-        productType,
-        interval,
-      },
       subscription_data: {
-        metadata: {
-          organizationId,
-          userId,
-          productType,
-        },
         trial_period_days: 30,
+        metadata: {
+          organization_id: organizationId,
+          plan_name: productType,
+          billing_interval: interval,
+        },
+      },
+      success_url: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/admin/profile/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/admin/profile/billing?canceled=true`,
+      metadata: {
+        organization_id: organizationId,
+        user_id: userId,
+        plan_name: productType,
+        billing_interval: interval,
       },
     })
 

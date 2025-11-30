@@ -660,9 +660,9 @@ export default function BillingPage() {
         </Card>
       )}
 
-      {showCheckout && selectedPlanId && profile?.organization_id && profile?.email && userId && profile && (
+      {showCheckout && selectedPlanId && profile && userId && profile.organization_id && profile.email ? (
         <StripeCheckout
-          productType={selectedPlanId}
+          productType={selectedPlanId as "growth" | "scale"}
           interval={billingPeriod === "monthly" ? "month" : "year"}
           organizationId={profile.organization_id}
           userEmail={profile.email}
@@ -675,7 +675,25 @@ export default function BillingPage() {
             setSelectedPlanId(null)
           }}
         />
-      )}
+      ) : showCheckout && selectedPlanId ? (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background p-6 rounded-lg shadow-lg max-w-md">
+            <h3 className="text-lg font-semibold mb-2">Error Loading Payment</h3>
+            <p className="text-muted-foreground mb-4">
+              Unable to load your account information. Please refresh the page and try again.
+            </p>
+            <Button
+              onClick={() => {
+                setShowCheckout(false)
+                setSelectedPlanId(null)
+                window.location.reload()
+              }}
+            >
+              Reload Page
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

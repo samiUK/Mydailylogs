@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { MyDayLogsLogo } from "@/components/mydaylogs-logo"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
 import { ArrowLeft, Check } from "lucide-react"
 import { createUserWithProfile } from "./actions"
@@ -23,6 +23,9 @@ export default function SignUpPage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  const planFromUrl = searchParams.get("plan") as "growth" | "scale" | null
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -56,10 +59,17 @@ export default function SignUpPage() {
       console.log("[v0] Server action result:", result)
 
       if (result.success) {
-        setSuccess(result.message || "Account created successfully! Redirecting to login...")
-        setTimeout(() => {
-          router.push("/auth/login")
-        }, 2000)
+        if (planFromUrl) {
+          setSuccess(`Account created successfully! Redirecting to ${planFromUrl} plan checkout...`)
+          setTimeout(() => {
+            router.push(`/auth/login?redirect=/admin/profile/billing&plan=${planFromUrl}`)
+          }, 2000)
+        } else {
+          setSuccess(result.message || "Account created successfully! Redirecting to login...")
+          setTimeout(() => {
+            router.push("/auth/login")
+          }, 2000)
+        }
       } else {
         setError(result.error || "Failed to create account")
       }
@@ -107,7 +117,11 @@ export default function SignUpPage() {
               <Link href="/">{renderLogo()}</Link>
             </div>
             <CardTitle className="text-2xl">Create Account</CardTitle>
-            <CardDescription>Set up your {organizationName || "Clearbooks"} organization</CardDescription>
+            <CardDescription>
+              {planFromUrl
+                ? `Sign up for ${planFromUrl.charAt(0).toUpperCase() + planFromUrl.slice(1)} plan`
+                : `Set up your ${organizationName || "Clearbooks"} organization`}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSignUp}>
@@ -193,17 +207,24 @@ export default function SignUpPage() {
                 {success && (
                   <div className="p-3 bg-green-50 border border-green-200 rounded-md">
                     <p className="text-sm text-green-600">{success}</p>
-                    <p className="text-xs text-green-500 mt-1">Redirecting to login...</p>
+                    <p className="text-xs text-green-500 mt-1">Redirecting...</p>
                   </div>
                 )}
                 {error && <p className="text-sm text-red-500">{error}</p>}
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Creating account..." : "Create Account"}
+                  {isLoading
+                    ? "Creating account..."
+                    : planFromUrl
+                      ? `Create Account & Continue to ${planFromUrl.charAt(0).toUpperCase() + planFromUrl.slice(1)}`
+                      : "Create Account"}
                 </Button>
               </div>
               <div className="mt-4 text-center text-sm">
                 Already have an account?{" "}
-                <Link href="/auth/login" className="underline underline-offset-4 text-primary">
+                <Link
+                  href={planFromUrl ? `/auth/login?plan=${planFromUrl}` : "/auth/login"}
+                  className="underline underline-offset-4 text-primary"
+                >
                   Sign in
                 </Link>
               </div>

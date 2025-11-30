@@ -2,7 +2,7 @@
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Trash2, Users, Crown, ExternalLink, ChevronDown, UserCheck } from 'lucide-react'
+import { Trash2, Users, Crown, ExternalLink, ChevronDown, UserCheck } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +23,7 @@ import { reportSecurity } from "@/lib/report-security"
 import Link from "next/link"
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { toast } from "sonner"
+import { getSubscriptionLimits } from "@/lib/subscription-limits"
 
 export const dynamic = "force-dynamic"
 
@@ -39,6 +40,7 @@ interface Template {
   profiles?: {
     full_name: string
   }
+  schedule_type?: string
 }
 
 interface TeamMember {
@@ -58,6 +60,8 @@ export default function AdminTemplatesPage() {
   const [assigningTemplate, setAssigningTemplate] = useState<string | null>(null)
   const [selectedMembers, setSelectedMembers] = useState<{ [key: string]: string[] }>({})
   const [assignConfirmOpen, setAssignConfirmOpen] = useState<string | null>(null)
+  const [hasContractorAccess, setHasContractorAccess] = useState(false)
+  const [subscriptionLimits, setSubscriptionLimits] = useState<any>(null)
 
   const activeTemplatesCount = useMemo(() => {
     return templates.filter((t) => t.is_active).length
@@ -103,10 +107,14 @@ export default function AdminTemplatesPage() {
 
       setProfile(profileData)
 
+      const limits = await getSubscriptionLimits(profileData.organization_id)
+      setSubscriptionLimits(limits)
+      setHasContractorAccess(limits.hasContractorLinkShare)
+
       const [templatesRes, teamMembersRes] = await Promise.all([
         supabase
           .from("checklist_templates")
-          .select("id, name, description, frequency, is_active, created_at, created_by")
+          .select("id, name, description, frequency, is_active, created_at, created_by, schedule_type")
           .eq("organization_id", profileData.organization_id)
           .order("created_at", { ascending: false })
           .limit(20),
@@ -242,12 +250,36 @@ export default function AdminTemplatesPage() {
     }
   }
 
+  const canShareTemplate = (template: Template & { schedule_type?: string }) => {
+    return (
+      hasContractorAccess &&
+      template.schedule_type &&
+      ["one-off", "deadline", "specific_date"].includes(template.schedule_type)
+    )
+  }
+
+  const isTemplateLocked = (template: Template, index: number) => {
+    if (!subscriptionLimits) return false
+    if (subscriptionLimits.planName !== "Starter") return false
+
+    // On free tier, only the 3 most recent templates are accessible
+    return index >= subscriptionLimits.maxTemplates
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Report Templates</h1>
           <p className="text-muted-foreground mt-2">Create and manage your compliance report templates</p>
+          {subscriptionLimits && (
+            <p className="text-sm text-muted-foreground mt-1">
+              {activeTemplatesCount} / {subscriptionLimits.maxTemplates} active templates
+              {subscriptionLimits.planName === "Starter" && activeTemplatesCount >= subscriptionLimits.maxTemplates && (
+                <span className="text-orange-600 ml-2">(Upgrade to create more)</span>
+              )}
+            </p>
+          )}
         </div>
         <Link href="/admin/templates/new">
           <Button>Create Report Template</Button>
@@ -256,112 +288,156 @@ export default function AdminTemplatesPage() {
 
       {templates && templates.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {templates.map((template) => (
-            <Card key={template.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-lg">{template.name}</CardTitle>
-                    <CardDescription className="mt-1">{template.description}</CardDescription>
+          {templates.map((template, index) => {
+            const locked = isTemplateLocked(template, index)
+
+            return (
+              <Card
+                key={template.id}
+                className={`hover:shadow-lg transition-shadow ${locked ? "opacity-60 border-orange-200" : ""}`}
+              >
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        {template.name}
+                        {locked && <Crown className="w-4 h-4 text-orange-500" />}
+                      </CardTitle>
+                      <CardDescription className="mt-1">{template.description}</CardDescription>
+                    </div>
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs ${
+                        template.is_active && !locked ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                      }`}
+                    >
+                      {template.is_active && !locked ? "Active" : locked ? "Locked" : "Inactive"}
+                    </span>
                   </div>
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs ${
-                      template.is_active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
-                    }`}
-                  >
-                    {template.is_active ? "Active" : "Inactive"}
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  <p>Frequency: {template.frequency}</p>
-                  <p>Created by: {template.profiles?.full_name}</p>
-                  <p>Created: {new Date(template.created_at).toLocaleDateString()}</p>
-                </div>
-                <div className="flex gap-2 mt-4">
-                  <Link href={`/admin/templates/${template.id}`}>
-                    <Button variant="outline" size="sm">
-                      Edit
-                    </Button>
-                  </Link>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" disabled={assigningTemplate === template.id}>
-                        {assigningTemplate === template.id ? "Assigning..." : "Assign"}
-                        <ChevronDown className="ml-2 h-4 w-4" />
+                  {locked && (
+                    <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-800">
+                      Upgrade to Growth or Scale to access this template
+                    </div>
+                  )}
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <p>Frequency: {template.frequency}</p>
+                    <p>Created by: {template.profiles?.full_name}</p>
+                    <p>Created: {new Date(template.created_at).toLocaleDateString()}</p>
+                  </div>
+                  <div className="flex gap-2 mt-4">
+                    <Link href={locked ? "#" : `/admin/templates/${template.id}`}>
+                      <Button variant="outline" size="sm" disabled={locked}>
+                        Edit
                       </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
-                      <DropdownMenuItem onClick={() => selectAllMembers(template.id)}>
-                        <Users className="mr-2 h-4 w-4" />
-                        Select All ({teamMembers.length})
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => clearSelection(template.id)}>Clear Selection</DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      {teamMembers.map((member) => (
-                        <DropdownMenuItem key={member.id} onClick={() => toggleMember(template.id, member.id)}>
-                          <div className="flex items-center w-full">
-                            <input
-                              type="checkbox"
-                              checked={(selectedMembers[template.id] || []).includes(member.id)}
-                              onChange={() => {}}
-                              className="mr-2"
-                            />
-                            <span className="flex-1">
-                              {member.full_name || `${member.first_name} ${member.last_name}`}
-                            </span>
-                            <span className="text-xs text-muted-foreground ml-2">{member.role}</span>
-                          </div>
-                        </DropdownMenuItem>
-                      ))}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => handleAssignConfirm(template.id)}
-                        disabled={(selectedMembers[template.id] || []).length === 0}
+                    </Link>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" disabled={assigningTemplate === template.id || locked}>
+                          {assigningTemplate === template.id ? "Assigning..." : "Assign"}
+                          <ChevronDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      {!locked && (
+                        <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuItem onClick={() => selectAllMembers(template.id)}>
+                            <Users className="mr-2 h-4 w-4" />
+                            Select All ({teamMembers.length})
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => clearSelection(template.id)}>
+                            Clear Selection
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          {teamMembers.map((member) => (
+                            <DropdownMenuItem key={member.id} onClick={() => toggleMember(template.id, member.id)}>
+                              <div className="flex items-center w-full">
+                                <input
+                                  type="checkbox"
+                                  checked={(selectedMembers[template.id] || []).includes(member.id)}
+                                  onChange={() => {}}
+                                  className="mr-2"
+                                />
+                                <span className="flex-1">
+                                  {member.full_name || `${member.first_name} ${member.last_name}`}
+                                </span>
+                                <span className="text-xs text-muted-foreground ml-2">{member.role}</span>
+                              </div>
+                            </DropdownMenuItem>
+                          ))}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => handleAssignConfirm(template.id)}
+                            disabled={(selectedMembers[template.id] || []).length === 0}
+                          >
+                            <UserCheck className="mr-2 h-4 w-4" />
+                            Assign to {(selectedMembers[template.id] || []).length} member(s)
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      )}
+                    </DropdownMenu>
+
+                    {canShareTemplate(template) && !locked ? (
+                      <Link href={`/admin/templates/share/${template.id}`}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-emerald-600 hover:text-emerald-700 border-emerald-200 hover:border-emerald-300 bg-transparent"
+                          title="Share form with external contractors"
+                        >
+                          <ExternalLink className="w-4 h-4 mr-1" />
+                          Share
+                        </Button>
+                      </Link>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled
+                        className="text-gray-400 border-gray-200 bg-transparent cursor-not-allowed"
+                        title={
+                          locked
+                            ? "Upgrade to access this template"
+                            : !hasContractorAccess
+                              ? "Premium feature - Upgrade to Growth or Scale plan"
+                              : "Only one-off, deadline, and specific date templates can be shared with contractors"
+                        }
                       >
-                        <UserCheck className="mr-2 h-4 w-4" />
-                        Assign to {(selectedMembers[template.id] || []).length} member(s)
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled
-                    className="text-amber-600 hover:text-amber-700 border-amber-200 hover:border-amber-300 bg-transparent"
-                    title="Premium feature - Share forms with external contractors"
-                  >
-                    <Crown className="w-4 h-4 mr-1" />
-                    <ExternalLink className="w-3 h-3 mr-1" />
-                    Share
-                  </Button>
-
-                  <MultiLevelDeleteDialog
-                    trigger={
-                      <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 bg-transparent">
-                        <Trash2 className="w-4 h-4" />
+                        {(!hasContractorAccess || locked) && <Crown className="w-4 h-4 mr-1" />}
+                        <ExternalLink className="w-3 h-3 mr-1" />
+                        Share
                       </Button>
-                    }
-                    title="Delete Report Template"
-                    description="This will permanently remove the template and may affect business operations."
-                    itemName={template.name}
-                    itemDetails={{
-                      Frequency: template.frequency,
-                      "Created by": template.profiles?.full_name || "Unknown",
-                      Created: new Date(template.created_at).toLocaleDateString(),
-                      Status: template.is_active ? "Active" : "Inactive",
-                    }}
-                    riskLevel="high"
-                    requiresSecureSession={true}
-                    onConfirm={() => handleDeleteTemplate(template.id)}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    )}
+
+                    <MultiLevelDeleteDialog
+                      trigger={
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 bg-transparent"
+                          disabled={locked}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      }
+                      title="Delete Report Template"
+                      description="This will permanently remove the template and may affect business operations."
+                      itemName={template.name}
+                      itemDetails={{
+                        Frequency: template.frequency,
+                        "Created by": template.profiles?.full_name || "Unknown",
+                        Created: new Date(template.created_at).toLocaleDateString(),
+                        Status: template.is_active ? "Active" : "Inactive",
+                      }}
+                      riskLevel="high"
+                      requiresSecureSession={true}
+                      onConfirm={() => handleDeleteTemplate(template.id)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       ) : (
         <Card>

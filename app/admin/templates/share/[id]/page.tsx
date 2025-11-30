@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Copy, ExternalLink, Check, Lock } from "lucide-react"
+import { ArrowLeft, Copy, ExternalLink, Check, Lock, Mail } from "lucide-react"
 import Link from "next/link"
+import { toast } from "react-toastify"
 
 interface Template {
   id: string
@@ -19,6 +20,7 @@ interface Template {
   frequency: string
   is_active: boolean
   organization_id: string
+  schedule_type: string
 }
 
 export default function ShareTemplatePage({ params }: { params: Promise<{ id: string }> }) {
@@ -31,6 +33,12 @@ export default function ShareTemplatePage({ params }: { params: Promise<{ id: st
   const [templateId, setTemplateId] = useState<string>("")
   const [hasContractorAccess, setHasContractorAccess] = useState(false)
   const [organizationId, setOrganizationId] = useState<string>("")
+  const [contractorEmail, setContractorEmail] = useState("")
+  const [contractorName, setContractorName] = useState("")
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [emailsSentThisCycle, setEmailsSentThisCycle] = useState(0)
+  const [emailLimitReached, setEmailLimitReached] = useState(false)
+  const EMAIL_LIMIT_PER_CYCLE = 15
 
   useEffect(() => {
     const resolveParams = async () => {
@@ -55,11 +63,20 @@ export default function ShareTemplatePage({ params }: { params: Promise<{ id: st
         .single()
 
       if (error) throw error
+
+      if (templateData.schedule_type === "recurring") {
+        toast.error("Recurring templates cannot be shared with external contractors")
+        router.push("/admin/templates")
+        return
+      }
+
       setTemplate(templateData)
       setOrganizationId(templateData.organization_id)
 
       const limits = await getSubscriptionLimits(templateData.organization_id)
       setHasContractorAccess(limits.hasContractorLinkShare)
+
+      await loadEmailCount(templateData.organization_id)
 
       generateShareableLink()
     } catch (error) {
@@ -69,8 +86,45 @@ export default function ShareTemplatePage({ params }: { params: Promise<{ id: st
     }
   }
 
+  const loadEmailCount = async (orgId: string) => {
+    try {
+      // Get subscription to determine billing cycle
+      const { data: subscription } = await supabase
+        .from("subscriptions")
+        .select("current_period_start")
+        .eq("organization_id", orgId)
+        .eq("status", "active")
+        .single()
+
+      const billingCycleStart = subscription?.current_period_start || new Date().toISOString()
+
+      // Count emails sent this billing cycle
+      const { count, error } = await supabase
+        .from("contractor_emails_sent")
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", orgId)
+        .gte("billing_cycle_start", billingCycleStart)
+
+      if (error) {
+        console.error("Error loading email count:", error)
+        return
+      }
+
+      setEmailsSentThisCycle(count || 0)
+      setEmailLimitReached((count || 0) >= EMAIL_LIMIT_PER_CYCLE)
+
+      console.log("[v0] Email usage:", {
+        count,
+        limit: EMAIL_LIMIT_PER_CYCLE,
+        limitReached: (count || 0) >= EMAIL_LIMIT_PER_CYCLE,
+      })
+    } catch (error) {
+      console.error("Error in loadEmailCount:", error)
+    }
+  }
+
   const generateShareableLink = () => {
-    const baseUrl = window.location.origin
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.mydaylogs.co.uk"
     const link = `${baseUrl}/external/form/${templateId}`
     setShareableLink(link)
   }
@@ -87,6 +141,51 @@ export default function ShareTemplatePage({ params }: { params: Promise<{ id: st
 
   const openExternalForm = () => {
     window.open(shareableLink, "_blank")
+  }
+
+  const sendLinkViaEmail = async () => {
+    if (!contractorEmail || !contractorName) {
+      toast.error("Please enter both contractor name and email")
+      return
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contractorEmail)) {
+      toast.error("Please enter a valid email address")
+      return
+    }
+
+    setSendingEmail(true)
+
+    try {
+      const response = await fetch("/api/external/send-contractor-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contractorEmail,
+          contractorName,
+          templateName: template?.name,
+          templateId,
+          shareableLink,
+          organizationId,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (response.ok) {
+        toast.success(`Link sent to ${contractorEmail}`)
+        setContractorEmail("")
+        setContractorName("")
+        await loadEmailCount(organizationId)
+      } else {
+        toast.error(result.error || "Failed to send email")
+      }
+    } catch (error) {
+      console.error("Error sending email:", error)
+      toast.error("Failed to send email. Please try again.")
+    } finally {
+      setSendingEmail(false)
+    }
   }
 
   if (loading) {
@@ -126,7 +225,7 @@ export default function ShareTemplatePage({ params }: { params: Promise<{ id: st
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Share External Form</h1>
+            <h1 className="text-2xl font-bold text-foreground">Share Log</h1>
             <p className="text-muted-foreground">Generate a shareable link for external contractors</p>
           </div>
         </div>
@@ -141,13 +240,13 @@ export default function ShareTemplatePage({ params }: { params: Promise<{ id: st
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Upgrade your plan to share external forms with contractors, vendors, or temporary workers who don't need
+              Upgrade your plan to share external logs with contractors, vendors, or temporary workers who don't need
               full access to your system.
             </p>
             <div className="bg-white border border-amber-200 rounded-lg p-4">
               <h4 className="font-medium text-foreground mb-2">With Contractor Link Share you can:</h4>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Share forms without requiring account creation</li>
+                <li>• Share logs without requiring account creation</li>
                 <li>• Collect submissions from external contractors</li>
                 <li>• Track external submissions separately</li>
                 <li>• Maintain security while gathering data</li>
@@ -173,7 +272,7 @@ export default function ShareTemplatePage({ params }: { params: Promise<{ id: st
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Share External Form</h1>
+          <h1 className="text-2xl font-bold text-foreground">Share Log</h1>
           <p className="text-muted-foreground">Generate a shareable link for external contractors</p>
         </div>
       </div>
@@ -199,10 +298,10 @@ export default function ShareTemplatePage({ params }: { params: Promise<{ id: st
       {/* Shareable Link */}
       <Card>
         <CardHeader>
-          <CardTitle>External Form Link</CardTitle>
+          <CardTitle>External Log Link</CardTitle>
           <CardDescription>
             Share this link with external contractors or people who don't need to be part of your team. They can fill
-            out the form without creating an account.
+            out the log without creating an account.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -220,14 +319,96 @@ export default function ShareTemplatePage({ params }: { params: Promise<{ id: st
             {copied && <p className="text-sm text-green-600">Link copied to clipboard!</p>}
           </div>
 
+          {!emailLimitReached ? (
+            <div className="border-t pt-6 space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-lg font-semibold text-foreground">Send Link via Email</h3>
+                  <Badge variant={emailsSentThisCycle >= 10 ? "destructive" : "secondary"}>
+                    <Mail className="w-3 h-3 mr-1" />
+                    {emailsSentThisCycle}/{EMAIL_LIMIT_PER_CYCLE} sent
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Enter the contractor's details to send them the log link directly via email
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="contractorName">Contractor Name</Label>
+                  <Input
+                    id="contractorName"
+                    placeholder="John Smith"
+                    value={contractorName}
+                    onChange={(e) => setContractorName(e.target.value)}
+                    disabled={sendingEmail}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="contractorEmail">Contractor Email</Label>
+                  <Input
+                    id="contractorEmail"
+                    type="email"
+                    placeholder="john@example.com"
+                    value={contractorEmail}
+                    onChange={(e) => setContractorEmail(e.target.value)}
+                    disabled={sendingEmail}
+                  />
+                </div>
+              </div>
+
+              <Button
+                onClick={sendLinkViaEmail}
+                disabled={sendingEmail || !contractorEmail || !contractorName}
+                className="w-full"
+              >
+                {sendingEmail ? "Sending..." : "Send Link via Email"}
+              </Button>
+
+              {emailsSentThisCycle >= 10 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-sm text-amber-800">
+                    You have {EMAIL_LIMIT_PER_CYCLE - emailsSentThisCycle} email
+                    {EMAIL_LIMIT_PER_CYCLE - emailsSentThisCycle !== 1 ? "s" : ""} remaining this billing cycle. The
+                    limit will reset at the start of your next billing cycle.
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="border-t pt-6">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <Mail className="w-5 h-5 text-red-600 mt-0.5" />
+                  <div>
+                    <h4 className="font-medium text-red-900 mb-1">Email Limit Reached</h4>
+                    <p className="text-sm text-red-800 mb-2">
+                      You've sent {EMAIL_LIMIT_PER_CYCLE} contractor emails this billing cycle. The limit will reset at
+                      the start of your next billing cycle.
+                    </p>
+                    <p className="text-sm text-red-700">
+                      You can still share the link by copying it above and sending it through your own email client.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h4 className="font-medium text-blue-900 mb-2">How it works:</h4>
             <ul className="text-sm text-blue-800 space-y-1">
-              <li>• External users can access the form without logging in</li>
+              <li>• External users can access the log without logging in</li>
+              <li>• They'll be asked to provide their name and email address</li>
               <li>• They'll see the same questions as your internal team</li>
-              <li>• When submitting, they'll be asked to provide their full name</li>
-              <li>• Submissions will appear in your Reports & Analytics as "External Report submissions"</li>
+              <li>• When submitted, you'll receive an email notification</li>
+              <li>• The contractor will receive an email confirmation</li>
+              <li>• Submissions appear in Reports & Analytics as "External submissions"</li>
               <li>• Perfect for contractors, vendors, or temporary workers</li>
+              <li>• Note: Only one-off, deadline, and specific date templates can be shared</li>
+              <li>• Limited to {EMAIL_LIMIT_PER_CYCLE} email sends per billing cycle to manage server costs</li>
             </ul>
           </div>
         </CardContent>

@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import { CheckSquare, Hash, Type, Camera, Send, AlertCircle } from "lucide-react"
+import { CheckSquare, Hash, Type, Camera, Send, AlertCircle, Mail } from "lucide-react"
 
 interface Template {
   id: string
@@ -46,6 +45,7 @@ export function ExternalFormClient({ template, items, templateId }: ExternalForm
   const supabase = createClient()
   const [responses, setResponses] = useState<FormResponse>({})
   const [submitterName, setSubmitterName] = useState("")
+  const [submitterEmail, setSubmitterEmail] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState("")
@@ -60,6 +60,17 @@ export function ExternalFormClient({ template, items, templateId }: ExternalForm
   const validateForm = () => {
     if (!submitterName.trim()) {
       setError("Please provide your full name")
+      return false
+    }
+
+    if (!submitterEmail.trim()) {
+      setError("Please provide your email address")
+      return false
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(submitterEmail)) {
+      setError("Please provide a valid email address")
       return false
     }
 
@@ -101,6 +112,7 @@ export function ExternalFormClient({ template, items, templateId }: ExternalForm
         template_id: templateId,
         organization_id: template?.organization_id,
         submitter_name: submitterName.trim(),
+        submitter_email: submitterEmail.trim(),
         submission_type: "external",
         status: "completed",
         submitted_at: new Date().toISOString(),
@@ -124,6 +136,22 @@ export function ExternalFormClient({ template, items, templateId }: ExternalForm
       const { error: responsesError } = await supabase.from("external_responses").insert(responseRecords)
 
       if (responsesError) throw responsesError
+
+      try {
+        await fetch("/api/external/notify-admin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            templateId,
+            templateName: template.name,
+            submitterName: submitterName.trim(),
+            submitterEmail: submitterEmail.trim(),
+            organizationId: template.organization_id,
+          }),
+        })
+      } catch (emailError) {
+        console.error("Failed to send admin notification:", emailError)
+      }
 
       setSubmitted(true)
     } catch (error) {
@@ -206,8 +234,9 @@ export function ExternalFormClient({ template, items, templateId }: ExternalForm
             </div>
             <h2 className="text-xl font-semibold text-foreground mb-2">Form Submitted Successfully!</h2>
             <p className="text-muted-foreground">
-              Thank you, {submitterName}. Your response has been recorded and will be reviewed by the team.
+              Thank you, {submitterName}. Your response has been recorded and the team will review it shortly.
             </p>
+            <p className="text-sm text-muted-foreground mt-2">A confirmation has been sent to {submitterEmail}</p>
           </CardContent>
         </Card>
       </div>
@@ -260,7 +289,7 @@ export function ExternalFormClient({ template, items, templateId }: ExternalForm
               <CardTitle className="text-lg">Your Information</CardTitle>
               <CardDescription>Please provide your details to sign off on this report</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="submitterName">Full Name *</Label>
                 <Input
@@ -270,6 +299,23 @@ export function ExternalFormClient({ template, items, templateId }: ExternalForm
                   placeholder="Enter your full name"
                   required
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="submitterEmail" className="flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Email Address *
+                </Label>
+                <Input
+                  id="submitterEmail"
+                  type="email"
+                  value={submitterEmail}
+                  onChange={(e) => setSubmitterEmail(e.target.value)}
+                  placeholder="your.email@example.com"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  We'll send you a confirmation once your submission is received
+                </p>
               </div>
             </CardContent>
           </Card>

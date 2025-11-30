@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CheckCircle, CreditCard, Download, Calendar, AlertCircle, Sparkles, ExternalLink, Loader2 } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { SUBSCRIPTION_PRODUCTS, formatPrice } from "@/lib/subscription-products"
 import StripeCheckout from "@/components/stripe-checkout"
 import { cancelSubscription, createBillingPortalSession } from "@/app/actions/stripe"
@@ -42,10 +42,21 @@ export default function BillingPage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const planFromUrl = searchParams.get("plan")
 
   useEffect(() => {
     loadBillingData()
   }, [])
+
+  useEffect(() => {
+    if (planFromUrl && subscription && subscription.plan_name === "starter") {
+      const targetPlan = SUBSCRIPTION_PRODUCTS.find((p) => p.id === planFromUrl)
+      if (targetPlan && targetPlan.id !== "starter") {
+        handleUpgrade(targetPlan.id)
+      }
+    }
+  }, [planFromUrl, subscription])
 
   async function loadBillingData() {
     const supabase = createClient()

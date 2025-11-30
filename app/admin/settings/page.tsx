@@ -43,6 +43,7 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<any>(null) // Added profile state to check user role
   const [name, setName] = useState("")
   const [primaryColor, setPrimaryColor] = useState("#10b981")
+  const [colorAutoExtracted, setColorAutoExtracted] = useState(false) // Added state to track if color was auto-extracted from logo
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -182,7 +183,68 @@ export default function SettingsPage() {
     loadOrganization()
   }, [])
 
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const extractColorFromImage = (imageUrl: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.crossOrigin = "Anonymous"
+      img.onload = () => {
+        const canvas = document.createElement("canvas")
+        const ctx = canvas.getContext("2d")
+        if (!ctx) {
+          resolve("#10b981") // fallback
+          return
+        }
+
+        canvas.width = img.width
+        canvas.height = img.height
+        ctx.drawImage(img, 0, 0)
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        const data = imageData.data
+        const colorCounts: { [key: string]: number } = {}
+
+        // Sample pixels and count colors (skip transparent pixels)
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i]
+          const g = data[i + 1]
+          const b = data[i + 2]
+          const a = data[i + 3]
+
+          // Skip very light colors (likely background) and transparent pixels
+          if (a < 128 || (r > 240 && g > 240 && b > 240)) continue
+
+          const color = `${r},${g},${b}`
+          colorCounts[color] = (colorCounts[color] || 0) + 1
+        }
+
+        // Find most common color
+        let dominantColor = "16,185,129" // default green
+        let maxCount = 0
+        for (const [color, count] of Object.entries(colorCounts)) {
+          if (count > maxCount) {
+            maxCount = count
+            dominantColor = color
+          }
+        }
+
+        // Convert to lighter shade (increase brightness by 20%)
+        const [r, g, b] = dominantColor.split(",").map(Number)
+        const lighterR = Math.min(255, Math.round(r + (255 - r) * 0.2))
+        const lighterG = Math.min(255, Math.round(g + (255 - g) * 0.2))
+        const lighterB = Math.min(255, Math.round(b + (255 - b) * 0.2))
+
+        const hexColor = `#${lighterR.toString(16).padStart(2, "0")}${lighterG.toString(16).padStart(2, "0")}${lighterB.toString(16).padStart(2, "0")}`
+        console.log("[v0] Extracted and lightened color from logo:", hexColor)
+        resolve(hexColor)
+      }
+      img.onerror = () => {
+        resolve("#10b981") // fallback
+      }
+      img.src = imageUrl
+    })
+  }
+
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
       const maxSize = 5 * 1024 * 1024 // 5MB
@@ -201,8 +263,17 @@ export default function SettingsPage() {
       setError(null)
       setLogoFile(file)
       const reader = new FileReader()
-      reader.onload = (e) => {
-        setLogoPreview(e.target?.result as string)
+      reader.onload = async (e) => {
+        const imageUrl = e.target?.result as string
+        setLogoPreview(imageUrl)
+
+        // Extract color from logo if user has custom branding
+        if (hasCustomBranding) {
+          const extractedColor = await extractColorFromImage(imageUrl)
+          setPrimaryColor(extractedColor)
+          setColorAutoExtracted(true)
+          console.log("[v0] Auto-extracted brand color from logo:", extractedColor)
+        }
       }
       reader.readAsDataURL(file)
     }
@@ -577,25 +648,40 @@ export default function SettingsPage() {
                 </p>
               </div>
             )}
+            {colorAutoExtracted && hasCustomBranding && (
+              <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  ✓ Brand color automatically extracted from your logo. You can adjust it manually below if needed.
+                </p>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <Input
                 id="primaryColor"
                 type="color"
                 value={primaryColor}
-                onChange={(e) => setPrimaryColor(e.target.value)}
+                onChange={(e) => {
+                  setPrimaryColor(e.target.value)
+                  setColorAutoExtracted(false) // User manually changed it
+                }}
                 className="w-16 h-10 p-1 border rounded"
                 disabled={!hasCustomBranding}
               />
               <Input
                 value={primaryColor}
-                onChange={(e) => setPrimaryColor(e.target.value)}
+                onChange={(e) => {
+                  setPrimaryColor(e.target.value)
+                  setColorAutoExtracted(false) // User manually changed it
+                }}
                 placeholder="#10b981"
                 className="flex-1"
                 disabled={!hasCustomBranding}
               />
             </div>
             <p className="text-xs text-gray-500">
-              This color will be used for buttons and accents throughout the platform
+              {hasCustomBranding
+                ? "This color is automatically extracted from your logo, but you can adjust it manually"
+                : "This color will be used for buttons and accents throughout the platform"}
             </p>
           </div>
 

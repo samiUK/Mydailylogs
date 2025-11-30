@@ -10,15 +10,21 @@ const supabaseAdmin = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,
 
 export async function startCheckoutSession(productId: string, billingInterval: "month" | "year" = "month") {
   try {
+    console.log("[v0] Starting checkout session:", { productId, billingInterval })
+
     const product = SUBSCRIPTION_PRODUCTS.find((p) => p.id === productId)
 
     if (!product) {
+      console.error("[v0] Product not found:", productId)
       throw new Error(`Product with id "${productId}" not found`)
     }
 
     if (product.priceMonthly === 0) {
+      console.error("[v0] Cannot create checkout for free plan")
       throw new Error("Cannot create checkout session for free plan")
     }
+
+    console.log("[v0] Product found:", product.name)
 
     const supabase = await createClient()
     const {
@@ -26,8 +32,11 @@ export async function startCheckoutSession(productId: string, billingInterval: "
     } = await supabase.auth.getUser()
 
     if (!user) {
+      console.error("[v0] User not authenticated")
       redirect("/auth/login")
     }
+
+    console.log("[v0] User authenticated:", user.id)
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
@@ -36,8 +45,11 @@ export async function startCheckoutSession(productId: string, billingInterval: "
       .single()
 
     if (profileError || !profile?.organization_id) {
+      console.error("[v0] Profile error:", profileError)
       throw new Error("Organization not found or invalid profile")
     }
+
+    console.log("[v0] Profile found:", profile.email, "Org:", profile.organization_id)
 
     const { data: existingSubscription } = await supabase
       .from("subscriptions")
@@ -45,6 +57,8 @@ export async function startCheckoutSession(productId: string, billingInterval: "
       .eq("organization_id", profile.organization_id)
       .eq("status", "active")
       .single()
+
+    console.log("[v0] Existing subscription:", existingSubscription)
 
     if (existingSubscription && existingSubscription.plan_name.toLowerCase() !== "starter") {
       throw new Error("You already have an active paid subscription. Please manage or cancel it before upgrading.")
@@ -58,6 +72,8 @@ export async function startCheckoutSession(productId: string, billingInterval: "
       .eq("organization_id", profile.organization_id)
       .single()
 
+    console.log("[v0] Organization found:", org?.organization_name)
+
     const customers = await stripe.customers.list({
       email: profile.email,
       limit: 1,
@@ -65,6 +81,7 @@ export async function startCheckoutSession(productId: string, billingInterval: "
 
     if (customers.data.length > 0) {
       customerId = customers.data[0].id
+      console.log("[v0] Existing Stripe customer found:", customerId)
     } else {
       const customer = await stripe.customers.create({
         email: profile.email,
@@ -75,9 +92,11 @@ export async function startCheckoutSession(productId: string, billingInterval: "
         },
       })
       customerId = customer.id
+      console.log("[v0] New Stripe customer created:", customerId)
     }
 
     const price = billingInterval === "year" ? product.priceYearly : product.priceMonthly
+    console.log("[v0] Creating checkout session with price:", price, "GBP pence")
 
     const session = await stripe.checkout.sessions.create({
       ui_mode: "embedded",
@@ -118,9 +137,11 @@ export async function startCheckoutSession(productId: string, billingInterval: "
       },
     })
 
+    console.log("[v0] Checkout session created:", session.id, "Client secret:", session.client_secret ? "Yes" : "No")
+
     return session.client_secret
   } catch (error) {
-    console.error("Error creating checkout session:", error)
+    console.error("[v0] Error creating checkout session:", error)
     throw error
   }
 }

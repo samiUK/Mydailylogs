@@ -37,7 +37,7 @@ export default function NewTemplatePage() {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [frequency, setFrequency] = useState("")
-  const [scheduleType, setScheduleType] = useState("recurring")
+  const [scheduleType, setScheduleType] = useState("one-off")
   const [specificDate, setSpecificDate] = useState("")
   const [deadlineDate, setDeadlineDate] = useState("")
   const [scheduleTime, setScheduleTime] = useState("")
@@ -461,13 +461,13 @@ export default function NewTemplatePage() {
                       <SelectValue placeholder="How should this be scheduled?" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="one-off">One-off</SelectItem>
+                      <SelectItem value="deadline">Deadline</SelectItem>
+                      <SelectItem value="specific_date">Specific Date</SelectItem>
                       <SelectItem value="recurring" disabled={!hasTaskAutomation}>
                         Recurring (Daily/Weekly/Monthly)
                         {!hasTaskAutomation && " 👑 Premium"}
                       </SelectItem>
-                      <SelectItem value="specific_date">Specific Date</SelectItem>
-                      <SelectItem value="deadline">Deadline</SelectItem>
-                      <SelectItem value="one-off">One-off</SelectItem>
                     </SelectContent>
                   </Select>
                   {scheduleType === "recurring" && !hasTaskAutomation && (

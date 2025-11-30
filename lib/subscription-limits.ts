@@ -16,13 +16,17 @@ export async function getSubscriptionLimits(organizationId: string): Promise<Sub
   const supabase = createClient()
 
   try {
+    console.log("[v0] Fetching subscription for organization:", organizationId)
+
     // Get organization's subscription
-    const { data: subscription } = await supabase
+    const { data: subscription, error } = await supabase
       .from("subscriptions")
-      .select("plan_name")
+      .select("plan_name, status")
       .eq("organization_id", organizationId)
       .eq("status", "active")
       .single()
+
+    console.log("[v0] Subscription query result:", { subscription, error })
 
     if (subscription?.plan_name) {
       const planLimits: Record<string, SubscriptionLimits> = {
@@ -61,11 +65,22 @@ export async function getSubscriptionLimits(organizationId: string): Promise<Sub
         },
       }
 
-      return planLimits[subscription.plan_name.toLowerCase()] || planLimits.starter
+      const planKey = subscription.plan_name.toLowerCase()
+      const limits = planLimits[planKey] || planLimits.starter
+
+      console.log("[v0] Subscription limits for plan:", {
+        planName: subscription.plan_name,
+        planKey,
+        limits,
+      })
+
+      return limits
     }
   } catch (error) {
-    console.error("Error fetching subscription limits:", error)
+    console.error("[v0] Error fetching subscription limits:", error)
   }
+
+  console.log("[v0] No active subscription found, returning starter limits")
 
   // Default to starter plan limits
   return {
@@ -282,5 +297,45 @@ export async function checkReportSubmissionLimit(organizationId: string): Promis
     message: canSubmit
       ? undefined
       : `You've reached your monthly limit of ${limits.maxReportSubmissions} report submissions. Upgrade to Growth or Scale for unlimited submissions.`,
+  }
+}
+
+export async function handleSubscriptionDowngrade(organizationId: string): Promise<void> {
+  const supabase = createClient()
+
+  try {
+    console.log("[v0] Handling subscription downgrade for organization:", organizationId)
+
+    // Get current subscription limits
+    const limits = await getSubscriptionLimits(organizationId)
+
+    // If on free tier (Starter), disable all templates except the last 3
+    if (limits.planName === "Starter") {
+      // Get all active templates ordered by creation date (newest first)
+      const { data: templates } = await supabase
+        .from("checklist_templates")
+        .select("id, created_at")
+        .eq("organization_id", organizationId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+
+      if (templates && templates.length > limits.maxTemplates) {
+        // Keep the 3 most recent, disable the rest
+        const templatesToDisable = templates.slice(limits.maxTemplates).map((t) => t.id)
+
+        const { error } = await supabase
+          .from("checklist_templates")
+          .update({ is_active: false })
+          .in("id", templatesToDisable)
+
+        if (error) {
+          console.error("[v0] Error disabling templates:", error)
+        } else {
+          console.log(`[v0] Disabled ${templatesToDisable.length} templates due to downgrade`)
+        }
+      }
+    }
+  } catch (error) {
+    console.error("[v0] Error handling subscription downgrade:", error)
   }
 }

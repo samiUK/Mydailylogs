@@ -12,23 +12,28 @@ const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
 
 interface StripeCheckoutProps {
   productId: string
-  billingInterval?: "month" | "year" // Added billing interval prop
+  billingInterval?: "month" | "year"
   onClose?: () => void
 }
 
 export default function StripeCheckout({ productId, billingInterval = "month", onClose }: StripeCheckoutProps) {
-  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const fetchClientSecret = useCallback(async () => {
-    setIsLoading(true)
+    setError(null)
+    console.log("[v0] Starting checkout session for product:", productId, "interval:", billingInterval)
     try {
       const clientSecret = await startCheckoutSession(productId, billingInterval)
-      return clientSecret!
+      console.log("[v0] Client secret received:", clientSecret ? "Yes" : "No")
+      if (!clientSecret) {
+        throw new Error("No client secret returned from server")
+      }
+      return clientSecret
     } catch (error) {
-      console.error("Error starting checkout:", error)
+      console.error("[v0] Error starting checkout:", error)
+      const errorMessage = error instanceof Error ? error.message : "Failed to start checkout session"
+      setError(errorMessage)
       throw error
-    } finally {
-      setIsLoading(false)
     }
   }, [productId, billingInterval])
 
@@ -49,12 +54,15 @@ export default function StripeCheckout({ productId, billingInterval = "month", o
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          {error ? (
+            <div className="py-8 text-center">
+              <p className="text-destructive mb-4">{error}</p>
+              <Button onClick={onClose} variant="outline">
+                Close
+              </Button>
             </div>
           ) : (
-            <div id="checkout">
+            <div id="checkout" className="min-h-[400px]">
               <EmbeddedCheckoutProvider stripe={stripePromise} options={{ fetchClientSecret }}>
                 <EmbeddedCheckout />
               </EmbeddedCheckoutProvider>

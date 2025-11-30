@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   title: "Terms of Service - MyDayLogs",
   description:
     "MyDayLogs Terms of Service outline the rules and guidelines for using our compliance task management platform. Includes subscription terms, acceptable use policy, and user rights.",
-  keywords: ["terms of service", "user agreement", "service terms", "legal terms UK"],
+  keywords: ["terms of service", "user agreement", "service terms", "legal terms"],
   openGraph: {
     title: "Terms of Service - MyDayLogs",
     description: "Legal terms and conditions for using the MyDayLogs platform.",
@@ -167,7 +167,7 @@ export default function TermsPage() {
             <h3>6.1 Our Rights</h3>
             <p>
               The Service, including all content, features, and functionality, is owned by MyDayLogs Ltd and is
-              protected by UK and international copyright, trademark, and other intellectual property laws.
+              protected by international copyright, trademark, and other intellectual property laws.
             </p>
 
             <h3>6.2 Your Rights</h3>
@@ -188,7 +188,7 @@ export default function TermsPage() {
             <h2>7. Data and Privacy</h2>
             <p>
               Your use of the Service is subject to our Privacy Policy, which explains how we collect, use, and protect
-              your personal information in compliance with UK GDPR and the Data Protection Act 2018.
+              your personal information in compliance with applicable data protection regulations.
             </p>
             <p>
               You are responsible for ensuring that your use of the Service complies with applicable data protection
@@ -209,7 +209,7 @@ export default function TermsPage() {
 
           <section className="mb-8">
             <h2>9. Limitation of Liability</h2>
-            <p>To the fullest extent permitted by UK law:</p>
+            <p>To the fullest extent permitted by applicable law:</p>
             <ul>
               <li>We are not liable for any indirect, incidental, special, consequential, or punitive damages</li>
               <li>
@@ -220,7 +220,7 @@ export default function TermsPage() {
             </ul>
             <p>
               Nothing in these Terms excludes or limits our liability for death or personal injury caused by negligence,
-              fraud, or any other liability that cannot be excluded under UK law.
+              fraud, or any other liability that cannot be excluded under applicable law.
             </p>
           </section>
 
@@ -312,7 +312,6 @@ export default function TermsPage() {
                 <strong>MyDayLogs Ltd</strong>
               </p>
               <p className="mb-1">Email: info@mydaylogs.co.uk</p>
-              <p>Location: United Kingdom</p>
             </div>
           </section>
 

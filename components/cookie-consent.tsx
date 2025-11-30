@@ -54,12 +54,12 @@ export function CookieConsent() {
               </div>
 
               <div className="flex-1 space-y-2">
-                <h3 className="font-semibold text-lg">Cookie Notice (UK GDPR Compliant)</h3>
+                <h3 className="font-semibold text-lg">Cookie Notice</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   We use cookies and similar technologies to provide essential functionality, analyze site usage, and
-                  improve your experience. By clicking "Accept", you consent to our use of cookies in accordance with UK
-                  GDPR regulations. We do not sell your personal data. You can withdraw consent at any time through your
-                  browser settings.{" "}
+                  improve your experience. By clicking "Accept", you consent to our use of cookies in accordance with
+                  applicable privacy laws. We do not sell your personal data. You can manage your cookie preferences at
+                  any time through your browser settings.{" "}
                   <Link href="/privacy" className="text-primary underline hover:text-primary/80">
                     Learn more about our privacy practices
                   </Link>

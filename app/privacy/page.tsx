@@ -6,8 +6,8 @@ import Link from "next/link"
 export const metadata: Metadata = {
   title: "Privacy Policy - MyDayLogs",
   description:
-    "MyDayLogs Privacy Policy explains how we collect, use, and protect your personal information in compliance with UK GDPR and Data Protection Act 2018. UK-based data storage with full transparency.",
-  keywords: ["privacy policy", "UK GDPR", "data protection", "personal data", "data privacy UK"],
+    "MyDayLogs Privacy Policy explains how we collect, use, and protect your personal information in compliance with international data protection regulations. Secure data storage with full transparency.",
+  keywords: ["privacy policy", "data protection", "personal data", "data privacy"],
   openGraph: {
     title: "Privacy Policy - MyDayLogs",
     description: "Comprehensive privacy policy explaining data collection, usage, and protection practices.",
@@ -76,8 +76,8 @@ export default function PrivacyPage() {
               management platform and services (the "Service").
             </p>
             <p>
-              We are committed to complying with the UK General Data Protection Regulation (UK GDPR) and the Data
-              Protection Act 2018. This policy should be read alongside our Terms of Service.
+              We are committed to complying with applicable data protection regulations including GDPR and other
+              international data protection laws. This policy should be read alongside our Terms of Service.
             </p>
           </section>
 
@@ -89,7 +89,6 @@ export default function PrivacyPage() {
             </p>
             <div className="bg-gray-50 p-4 rounded-lg">
               <p className="mb-1">Email: info@mydaylogs.co.uk</p>
-              <p>Address: United Kingdom</p>
             </div>
           </section>
 
@@ -167,7 +166,7 @@ export default function PrivacyPage() {
           </section>
 
           <section className="mb-8">
-            <h2>5. Legal Basis for Processing (UK GDPR)</h2>
+            <h2>5. Legal Basis for Processing</h2>
             <p>We process your personal data under the following legal bases:</p>
             <ul>
               <li>
@@ -177,7 +176,7 @@ export default function PrivacyPage() {
                 <strong>Legitimate Interests:</strong> Improving our Service, security, and fraud prevention
               </li>
               <li>
-                <strong>Legal Obligation:</strong> Compliance with UK laws and regulations
+                <strong>Legal Obligation:</strong> Compliance with applicable laws and regulations
               </li>
               <li>
                 <strong>Consent:</strong> Marketing communications (where required)
@@ -287,7 +286,7 @@ export default function PrivacyPage() {
           </section>
 
           <section className="mb-8">
-            <h2>9. Your Rights Under UK GDPR</h2>
+            <h2>9. Your Data Protection Rights</h2>
             <p>You have the following rights regarding your personal data:</p>
             <ul>
               <li>
@@ -325,7 +324,7 @@ export default function PrivacyPage() {
               <li>Encryption of data in transit and at rest</li>
               <li>Regular security assessments and audits</li>
               <li>Access controls and authentication</li>
-              <li>Secure data centers in the UK/EU</li>
+              <li>Secure data centers</li>
               <li>Employee training on data protection</li>
               <li>Password hashing using industry-standard algorithms (bcrypt)</li>
               <li>Comprehensive audit logging of all administrative actions</li>
@@ -340,13 +339,13 @@ export default function PrivacyPage() {
           <section className="mb-8">
             <h2>11. International Data Transfers</h2>
             <p>
-              Your data is primarily stored and processed in the UK and EU. If we transfer data outside the UK, we
-              ensure appropriate safeguards are in place, including:
+              Your data is stored and processed in secure facilities. If we transfer data internationally, we ensure
+              appropriate safeguards are in place, including:
             </p>
             <ul>
-              <li>Standard Contractual Clauses approved by the UK ICO</li>
-              <li>Adequacy decisions by the UK government</li>
-              <li>Other approved transfer mechanisms under UK GDPR</li>
+              <li>Standard Contractual Clauses approved by relevant authorities</li>
+              <li>Adequacy decisions by applicable governments</li>
+              <li>Other approved transfer mechanisms under applicable data protection laws</li>
             </ul>
           </section>
 
@@ -387,12 +386,10 @@ export default function PrivacyPage() {
               <p className="mb-1">Email: info@mydaylogs.co.uk</p>
               <p>Company: MyDayLogs Ltd</p>
             </div>
-            <p>You also have the right to lodge a complaint with the UK Information Commissioner's Office (ICO):</p>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="mb-1">Website: https://ico.org.uk</p>
-              <p className="mb-1">Telephone: 0303 123 1113</p>
-              <p>Address: Information Commissioner's Office, Wycliffe House, Water Lane, Wilmslow, Cheshire, SK9 5AF</p>
-            </div>
+            <p>
+              You also have the right to lodge a complaint with your local data protection authority if you believe your
+              data protection rights have been violated.
+            </p>
           </section>
         </div>
       </main>

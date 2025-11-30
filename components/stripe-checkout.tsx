@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useCallback, useState, useEffect } from "react"
 import { EmbeddedCheckout, EmbeddedCheckoutProvider } from "@stripe/react-stripe-js"
 import { loadStripe } from "@stripe/stripe-js"
 import { startCheckoutSession } from "@/app/actions/stripe"
@@ -9,9 +9,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { X } from "lucide-react"
 
 const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-if (!stripePublishableKey) {
-  console.error("[v0] NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is not set")
-}
+console.log("[v0] Stripe publishable key present:", !!stripePublishableKey)
+console.log("[v0] Stripe publishable key value:", stripePublishableKey?.substring(0, 20) + "...")
+
 const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null
 
 interface StripeCheckoutProps {
@@ -22,6 +22,27 @@ interface StripeCheckoutProps {
 
 export default function StripeCheckout({ productId, billingInterval = "month", onClose }: StripeCheckoutProps) {
   const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    console.log("[v0] StripeCheckout component mounted")
+    console.log("[v0] Stripe promise:", stripePromise ? "initialized" : "null")
+
+    if (stripePromise) {
+      stripePromise
+        .then((stripe) => {
+          console.log("[v0] Stripe instance loaded:", !!stripe)
+          setIsLoading(false)
+        })
+        .catch((err) => {
+          console.error("[v0] Failed to load Stripe:", err)
+          setError("Failed to load payment system")
+          setIsLoading(false)
+        })
+    } else {
+      setIsLoading(false)
+    }
+  }, [])
 
   const fetchClientSecret = useCallback(async () => {
     setError(null)
@@ -29,6 +50,7 @@ export default function StripeCheckout({ productId, billingInterval = "month", o
     try {
       const clientSecret = await startCheckoutSession(productId, billingInterval)
       console.log("[v0] Client secret received:", clientSecret ? "Yes" : "No")
+      console.log("[v0] Client secret length:", clientSecret?.length)
       if (!clientSecret) {
         throw new Error("No client secret returned from server")
       }
@@ -49,10 +71,29 @@ export default function StripeCheckout({ productId, billingInterval = "month", o
             <CardTitle>Payment System Unavailable</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-destructive mb-4">Payment processing is not configured. Please contact support.</p>
+            <p className="text-destructive mb-4">
+              Payment processing is not configured. Stripe publishable key is missing.
+            </p>
             <Button onClick={onClose} variant="outline" className="w-full bg-transparent">
               Close
             </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Loading Payment System...</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            </div>
           </CardContent>
         </Card>
       </div>

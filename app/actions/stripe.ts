@@ -9,9 +9,9 @@ import { createClient as createServiceClient } from "@supabase/supabase-js"
 const supabaseAdmin = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function startCheckoutSession(productId: string, billingInterval: "month" | "year" = "month") {
-  try {
-    console.log("[v0] Starting checkout session:", { productId, billingInterval })
+  console.log("[v0] Server action called - startCheckoutSession:", { productId, billingInterval })
 
+  try {
     const product = SUBSCRIPTION_PRODUCTS.find((p) => p.id === productId)
 
     if (!product) {
@@ -24,22 +24,19 @@ export async function startCheckoutSession(productId: string, billingInterval: "
       throw new Error("Cannot create checkout session for free plan")
     }
 
-    console.log("[v0] Product found:", product.name)
+    console.log("[v0] Product validated:", product.name)
 
-    let supabase
-    try {
-      supabase = await createClient()
-    } catch (clientError) {
-      console.error("[v0] Failed to create Supabase client:", clientError)
-      throw new Error("Failed to initialize database connection")
-    }
+    const supabase = await createClient()
+
+    console.log("[v0] Supabase client created")
 
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser()
 
-    if (!user) {
-      console.error("[v0] User not authenticated")
+    if (authError || !user) {
+      console.error("[v0] Auth error:", authError)
       throw new Error("Please log in to continue")
     }
 
@@ -53,116 +50,118 @@ export async function startCheckoutSession(productId: string, billingInterval: "
 
     if (profileError || !profile?.organization_id) {
       console.error("[v0] Profile error:", profileError)
-      throw new Error("Organization not found or invalid profile")
+      throw new Error("Organization not found. Please complete your profile setup.")
     }
 
-    console.log("[v0] Profile found:", profile.email, "Org:", profile.organization_id)
+    console.log("[v0] Profile found - Email:", profile.email, "Org ID:", profile.organization_id)
 
-    const { data: existingSubscription } = await supabaseAdmin
+    const { data: existingSubscription, error: subError } = await supabase
       .from("subscriptions")
       .select("id, plan_name, status")
       .eq("organization_id", profile.organization_id)
       .eq("status", "active")
       .maybeSingle()
 
-    console.log("[v0] Existing subscription:", existingSubscription)
-
-    if (existingSubscription && existingSubscription.plan_name.toLowerCase() !== "starter") {
-      throw new Error("You already have an active paid subscription. Please manage or cancel it before upgrading.")
+    if (subError) {
+      console.error("[v0] Subscription query error:", subError)
     }
 
-    let customerId: string | undefined
+    console.log("[v0] Existing subscription check:", existingSubscription)
 
-    const { data: org } = await supabaseAdmin
+    if (existingSubscription && existingSubscription.plan_name.toLowerCase() !== "starter") {
+      throw new Error("You already have an active paid subscription. Please manage it from your billing page.")
+    }
+
+    const { data: org } = await supabase
       .from("organizations")
       .select("organization_name")
       .eq("organization_id", profile.organization_id)
       .single()
 
-    console.log("[v0] Organization found:", org?.organization_name)
+    console.log("[v0] Organization name:", org?.organization_name)
 
-    try {
-      const customers = await stripe.customers.list({
+    let customerId: string
+
+    console.log("[v0] Looking up Stripe customer by email:", profile.email)
+
+    const customers = await stripe.customers.list({
+      email: profile.email,
+      limit: 1,
+    })
+
+    if (customers.data.length > 0) {
+      customerId = customers.data[0].id
+      console.log("[v0] Found existing Stripe customer:", customerId)
+    } else {
+      console.log("[v0] Creating new Stripe customer")
+      const customer = await stripe.customers.create({
         email: profile.email,
-        limit: 1,
+        name: profile.full_name || org?.organization_name || "Unknown",
+        metadata: {
+          organization_id: profile.organization_id,
+          user_id: user.id,
+        },
       })
-
-      if (customers.data.length > 0) {
-        customerId = customers.data[0].id
-        console.log("[v0] Existing Stripe customer found:", customerId)
-      } else {
-        const customer = await stripe.customers.create({
-          email: profile.email,
-          name: profile.full_name || org?.organization_name || "Unknown",
-          metadata: {
-            organization_id: profile.organization_id,
-            user_id: user.id,
-          },
-        })
-        customerId = customer.id
-        console.log("[v0] New Stripe customer created:", customerId)
-      }
-    } catch (stripeError) {
-      console.error("[v0] Stripe customer error:", stripeError)
-      throw new Error("Failed to process payment information. Please try again.")
+      customerId = customer.id
+      console.log("[v0] Created Stripe customer:", customerId)
     }
 
     const price = billingInterval === "year" ? product.priceYearly : product.priceMonthly
-    console.log("[v0] Creating checkout session with price:", price, "GBP pence")
+    console.log("[v0] Creating Stripe checkout session - Price:", price, "pence, Interval:", billingInterval)
 
-    try {
-      const session = await stripe.checkout.sessions.create({
-        ui_mode: "embedded",
-        redirect_on_completion: "never",
-        customer: customerId,
-        line_items: [
-          {
-            price_data: {
-              currency: "gbp",
-              product_data: {
-                name: product.name,
-                description: product.description,
-              },
-              unit_amount: price,
-              recurring: {
-                interval: billingInterval,
-              },
+    const session = await stripe.checkout.sessions.create({
+      ui_mode: "embedded",
+      redirect_on_completion: "never",
+      customer: customerId,
+      line_items: [
+        {
+          price_data: {
+            currency: "gbp",
+            product_data: {
+              name: product.name,
+              description: product.description,
             },
-            quantity: 1,
+            unit_amount: price,
+            recurring: {
+              interval: billingInterval,
+            },
           },
-        ],
-        mode: "subscription",
-        subscription_data: {
-          trial_period_days: 30,
-          metadata: {
-            organization_id: profile.organization_id,
-            product_id: productId,
-            plan_name: product.name,
-            billing_interval: billingInterval,
-          },
+          quantity: 1,
         },
+      ],
+      mode: "subscription",
+      subscription_data: {
+        trial_period_days: 30,
         metadata: {
           organization_id: profile.organization_id,
           product_id: productId,
-          user_id: user.id,
           plan_name: product.name,
           billing_interval: billingInterval,
         },
-      })
+      },
+      metadata: {
+        organization_id: profile.organization_id,
+        product_id: productId,
+        user_id: user.id,
+        plan_name: product.name,
+        billing_interval: billingInterval,
+      },
+    })
 
-      console.log("[v0] Checkout session created:", session.id, "Client secret:", session.client_secret ? "Yes" : "No")
+    console.log("[v0] Stripe session created successfully:", session.id)
+    console.log("[v0] Client secret exists:", !!session.client_secret)
 
-      if (!session.client_secret) {
-        throw new Error("Failed to generate payment session")
-      }
-
-      return session.client_secret
-    } catch (stripeSessionError) {
-      console.error("[v0] Stripe session creation error:", stripeSessionError)
-      throw new Error("Failed to create checkout session. Please try again.")
+    if (!session.client_secret) {
+      throw new Error("Failed to generate payment session - no client secret returned")
     }
+
+    return session.client_secret
   } catch (error) {
-    console.error("[v0] Error creating checkout session:", error)
+    console.error("[v0] FATAL ERROR in startCheckoutSession:", error)
+    console.error("[v0] Error name:", error instanceof Error ? error.name : typeof error)
+    console.error("[v0] Error message:", error instanceof Error ? error.message : String(error))
+    console.error("[v0] Error stack:", error instanceof Error ? error.stack : "No stack trace")
+
     if (error instanceof Error) {
       throw error
     }

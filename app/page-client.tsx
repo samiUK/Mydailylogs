@@ -1,6 +1,6 @@
 "use client"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient as createClientClient } from "@/lib/supabase/client"
 import { MyDayLogsLogo } from "@/components/mydaylogs-logo"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,11 +22,9 @@ import {
 import Link from "next/link"
 import { Footer } from "@/components/footer"
 import { FeedbackModal } from "@/components/feedback-modal"
-import { redirect } from "next/navigation"
 import { CookieConsent } from "@/components/cookie-consent"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClient as createClientClient } from "@/lib/supabase/client"
 
 export default function HomePageClient() {
   const router = useRouter()
@@ -50,33 +48,33 @@ export default function HomePageClient() {
   }
 
   const checkUserAuth = async () => {
-    const supabaseServer = await createClient()
+    const supabase = createClientClient()
     const {
       data: { user: authUser },
-    } = await supabaseServer.auth.getUser()
+    } = await supabase.auth.getUser()
 
     if (authUser) {
-      const { data: userProfiles } = await supabaseServer
+      const { data: userProfiles } = await supabase
         .from("profiles")
         .select("id, role, organization_name")
         .eq("email", authUser.email)
 
       if (userProfiles && userProfiles.length > 0) {
         if (userProfiles.length > 1) {
-          redirect("/profile")
+          router.push("/profile")
         } else {
           const profile = userProfiles[0]
 
           if (profile.role === "admin") {
-            redirect(`/admin`)
+            router.push(`/admin`)
           } else if (profile.role === "staff") {
-            redirect(`/staff`)
+            router.push(`/staff`)
           } else {
-            redirect(`/admin`)
+            router.push(`/admin`)
           }
         }
       } else {
-        redirect("/auth/login?error=no_profile_found")
+        router.push("/auth/login?error=no_profile_found")
       }
     }
   }

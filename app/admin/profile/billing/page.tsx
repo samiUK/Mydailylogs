@@ -379,9 +379,38 @@ export default function BillingPage() {
           <CardDescription>Choose the plan that fits your needs</CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="flex justify-center mb-6">
+            <div className="inline-flex items-center gap-3 bg-muted p-1 rounded-lg">
+              <button
+                onClick={() => setBillingPeriod("monthly")}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                  billingPeriod === "monthly"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setBillingPeriod("yearly")}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                  billingPeriod === "yearly"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Yearly
+                <Badge className="ml-2 bg-accent text-accent-foreground">Save 20%</Badge>
+              </button>
+            </div>
+          </div>
+
           <div className="grid md:grid-cols-2 gap-6">
             {SUBSCRIPTION_PRODUCTS.filter((plan) => plan.id !== "starter").map((plan) => {
               const isCurrent = currentProduct?.id === plan.id
+              const displayPrice = billingPeriod === "yearly" ? plan.priceYearly : plan.priceMonthly
+              const monthlyEquivalent =
+                billingPeriod === "yearly" ? Math.round(plan.priceYearly / 12) : plan.priceMonthly
 
               return (
                 <div
@@ -399,10 +428,16 @@ export default function BillingPage() {
                     {isCurrent && <Badge>Current Plan</Badge>}
                   </div>
 
-                  <div className="text-3xl font-bold mb-2">
-                    {formatPriceWithCurrency(plan.priceMonthly)}
+                  <div className="mb-2">
+                    <span className="text-3xl font-bold">{formatPriceWithCurrency(monthlyEquivalent)}</span>
                     <span className="text-lg font-normal text-muted-foreground">/month</span>
                   </div>
+
+                  {billingPeriod === "yearly" && (
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {formatPriceWithCurrency(displayPrice)} billed annually
+                    </p>
+                  )}
 
                   <p className="text-sm text-muted-foreground mb-4">{plan.description}</p>
 
@@ -584,7 +619,7 @@ export default function BillingPage() {
       {showCheckout && selectedPlanId && profile?.organization_id && userId && (
         <StripeCheckout
           productType={selectedPlanId as "growth" | "scale"}
-          interval={billingPeriod as "month" | "year"}
+          interval={billingPeriod === "monthly" ? "month" : "year"}
           organizationId={profile.organization_id}
           userEmail={profile.email}
           userId={userId} // Using actual userId from auth

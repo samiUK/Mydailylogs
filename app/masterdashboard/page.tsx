@@ -1081,7 +1081,7 @@ export default function MasterDashboardPage() {
   }
 
   // Updated processRefund function
-  async function processRefund(paymentId: string, amount: string) {
+  const processRefund = async (paymentId: string, amount: string) => {
     if (!confirm(`Are you sure you want to process a refund of £${amount}?`)) return
 
     setIsProcessing(true)

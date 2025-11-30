@@ -29,7 +29,25 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminClient()
 
-    if (action === "upgrade") {
+    if (action === "add") {
+      const { error } = await supabase.from("subscriptions").insert({
+        organization_id: organizationId,
+        plan_name: planName.toLowerCase(),
+        status: "active",
+        current_period_start: new Date().toISOString(),
+        current_period_end: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year
+      })
+
+      if (error) {
+        console.error("[v0] Error adding subscription:", error)
+        throw error
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `${planName} subscription added successfully`,
+      })
+    } else if (action === "upgrade") {
       // Calculate trial end date (30 days from now)
       const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
 

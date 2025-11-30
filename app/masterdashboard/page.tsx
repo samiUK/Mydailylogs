@@ -1053,25 +1053,28 @@ export default function MasterDashboardPage() {
   const addSubscription = async (organizationId: string, planName: string) => {
     setIsProcessing(true)
     try {
-      const supabase = createClient()
-
-      const { error } = await supabase.from("subscriptions").insert({
-        organization_id: organizationId,
-        plan_name: planName,
-        status: "active",
-        current_period_start: new Date().toISOString(),
-        current_period_end: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year
+      const response = await fetch("/api/master/manage-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "add",
+          organizationId,
+          planName,
+        }),
       })
 
-      if (error) throw error
+      const result = await response.json()
 
-      // Refresh data
-      checkAuthAndLoadData()
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to add subscription")
+      }
+
+      await checkAuthAndLoadData()
       showNotification("success", `${planName} subscription added successfully`)
       setNewSubscriptionPlan("")
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding subscription:", error)
-      showNotification("error", "Failed to add subscription")
+      showNotification("error", error.message || "Failed to add subscription")
     } finally {
       setIsProcessing(false)
     }

@@ -26,14 +26,21 @@ export async function startCheckoutSession(productId: string, billingInterval: "
 
     console.log("[v0] Product found:", product.name)
 
-    const supabase = await createClient()
+    let supabase
+    try {
+      supabase = await createClient()
+    } catch (clientError) {
+      console.error("[v0] Failed to create Supabase client:", clientError)
+      throw new Error("Failed to initialize database connection")
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser()
 
     if (!user) {
       console.error("[v0] User not authenticated")
-      redirect("/auth/login")
+      throw new Error("Please log in to continue")
     }
 
     console.log("[v0] User authenticated:", user.id)
@@ -51,12 +58,12 @@ export async function startCheckoutSession(productId: string, billingInterval: "
 
     console.log("[v0] Profile found:", profile.email, "Org:", profile.organization_id)
 
-    const { data: existingSubscription } = await supabase
+    const { data: existingSubscription } = await supabaseAdmin
       .from("subscriptions")
       .select("id, plan_name, status")
       .eq("organization_id", profile.organization_id)
       .eq("status", "active")
-      .single()
+      .maybeSingle()
 
     console.log("[v0] Existing subscription:", existingSubscription)
 
@@ -66,7 +73,7 @@ export async function startCheckoutSession(productId: string, billingInterval: "
 
     let customerId: string | undefined
 
-    const { data: org } = await supabase
+    const { data: org } = await supabaseAdmin
       .from("organizations")
       .select("organization_name")
       .eq("organization_id", profile.organization_id)
@@ -74,75 +81,92 @@ export async function startCheckoutSession(productId: string, billingInterval: "
 
     console.log("[v0] Organization found:", org?.organization_name)
 
-    const customers = await stripe.customers.list({
-      email: profile.email,
-      limit: 1,
-    })
-
-    if (customers.data.length > 0) {
-      customerId = customers.data[0].id
-      console.log("[v0] Existing Stripe customer found:", customerId)
-    } else {
-      const customer = await stripe.customers.create({
+    try {
+      const customers = await stripe.customers.list({
         email: profile.email,
-        name: profile.full_name || org?.organization_name || "Unknown",
-        metadata: {
-          organization_id: profile.organization_id,
-          user_id: user.id,
-        },
+        limit: 1,
       })
-      customerId = customer.id
-      console.log("[v0] New Stripe customer created:", customerId)
+
+      if (customers.data.length > 0) {
+        customerId = customers.data[0].id
+        console.log("[v0] Existing Stripe customer found:", customerId)
+      } else {
+        const customer = await stripe.customers.create({
+          email: profile.email,
+          name: profile.full_name || org?.organization_name || "Unknown",
+          metadata: {
+            organization_id: profile.organization_id,
+            user_id: user.id,
+          },
+        })
+        customerId = customer.id
+        console.log("[v0] New Stripe customer created:", customerId)
+      }
+    } catch (stripeError) {
+      console.error("[v0] Stripe customer error:", stripeError)
+      throw new Error("Failed to process payment information. Please try again.")
     }
 
     const price = billingInterval === "year" ? product.priceYearly : product.priceMonthly
     console.log("[v0] Creating checkout session with price:", price, "GBP pence")
 
-    const session = await stripe.checkout.sessions.create({
-      ui_mode: "embedded",
-      redirect_on_completion: "never",
-      customer: customerId,
-      line_items: [
-        {
-          price_data: {
-            currency: "gbp",
-            product_data: {
-              name: product.name,
-              description: product.description,
+    try {
+      const session = await stripe.checkout.sessions.create({
+        ui_mode: "embedded",
+        redirect_on_completion: "never",
+        customer: customerId,
+        line_items: [
+          {
+            price_data: {
+              currency: "gbp",
+              product_data: {
+                name: product.name,
+                description: product.description,
+              },
+              unit_amount: price,
+              recurring: {
+                interval: billingInterval,
+              },
             },
-            unit_amount: price,
-            recurring: {
-              interval: billingInterval,
-            },
+            quantity: 1,
           },
-          quantity: 1,
+        ],
+        mode: "subscription",
+        subscription_data: {
+          trial_period_days: 30,
+          metadata: {
+            organization_id: profile.organization_id,
+            product_id: productId,
+            plan_name: product.name,
+            billing_interval: billingInterval,
+          },
         },
-      ],
-      mode: "subscription",
-      subscription_data: {
-        trial_period_days: 30,
         metadata: {
           organization_id: profile.organization_id,
           product_id: productId,
+          user_id: user.id,
           plan_name: product.name,
           billing_interval: billingInterval,
         },
-      },
-      metadata: {
-        organization_id: profile.organization_id,
-        product_id: productId,
-        user_id: user.id,
-        plan_name: product.name,
-        billing_interval: billingInterval,
-      },
-    })
+      })
 
-    console.log("[v0] Checkout session created:", session.id, "Client secret:", session.client_secret ? "Yes" : "No")
+      console.log("[v0] Checkout session created:", session.id, "Client secret:", session.client_secret ? "Yes" : "No")
 
-    return session.client_secret
+      if (!session.client_secret) {
+        throw new Error("Failed to generate payment session")
+      }
+
+      return session.client_secret
+    } catch (stripeSessionError) {
+      console.error("[v0] Stripe session creation error:", stripeSessionError)
+      throw new Error("Failed to create checkout session. Please try again.")
+    }
   } catch (error) {
     console.error("[v0] Error creating checkout session:", error)
-    throw error
+    if (error instanceof Error) {
+      throw error
+    }
+    throw new Error("An unexpected error occurred. Please try again or contact support.")
   }
 }
 
@@ -288,12 +312,12 @@ export async function changeSubscriptionPlan(newProductId: string) {
       throw new Error("Only admins and managers can manage subscriptions")
     }
 
-    const { data: existingSubscription } = await supabase
+    const { data: existingSubscription } = await supabaseAdmin
       .from("subscriptions")
       .select("id, plan_name, status, stripe_subscription_id")
       .eq("organization_id", profile.organization_id)
       .eq("status", "active")
-      .single()
+      .maybeSingle()
 
     if (!existingSubscription || !existingSubscription.stripe_subscription_id) {
       throw new Error("No active subscription found. Please upgrade first.")
@@ -336,7 +360,7 @@ export async function changeSubscriptionPlan(newProductId: string) {
       },
     })
 
-    await supabase
+    await supabaseAdmin
       .from("subscriptions")
       .update({
         plan_name: newProductId,

@@ -2361,6 +2361,51 @@ export default function MasterDashboardPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
+                            {(() => {
+                              const subscription = allSubscriptions.find(
+                                (sub) => sub.organization_id === org.organization_id,
+                              )
+                              const planName = subscription?.plan_name || "starter"
+                              const isActive = subscription?.status === "active"
+                              const isTrial = subscription?.is_trial || false
+
+                              return (
+                                <div className="flex items-center gap-2">
+                                  <Badge
+                                    variant={
+                                      planName === "starter"
+                                        ? "secondary"
+                                        : planName === "growth"
+                                          ? "default"
+                                          : "default"
+                                    }
+                                    className={
+                                      planName === "scale"
+                                        ? "bg-purple-100 text-purple-700 border-purple-200"
+                                        : planName === "growth"
+                                          ? "bg-blue-100 text-blue-700 border-blue-200"
+                                          : ""
+                                    }
+                                  >
+                                    <CreditCard className="w-3 h-3 mr-1" />
+                                    {planName === "starter" && "Free Starter"}
+                                    {planName === "growth" && "Growth Plan"}
+                                    {planName === "scale" && "Scale Plan"}
+                                  </Badge>
+                                  {isTrial && (
+                                    <Badge variant="outline" className="bg-yellow-50 border-yellow-200 text-yellow-700">
+                                      Trial
+                                    </Badge>
+                                  )}
+                                  {!isActive && subscription && (
+                                    <Badge variant="outline" className="bg-red-50 border-red-200 text-red-700">
+                                      Inactive
+                                    </Badge>
+                                  )}
+                                </div>
+                              )
+                            })()}
+                            {/* </CHANGE> */}
                             <Badge variant="outline" className="text-sm px-3 py-1">
                               Active Organization
                             </Badge>
@@ -2386,6 +2431,64 @@ export default function MasterDashboardPage() {
                             </Button>
                           </div>
                         </div>
+
+                        {(() => {
+                          const subscription = allSubscriptions.find(
+                            (sub) => sub.organization_id === org.organization_id,
+                          )
+                          if (subscription) {
+                            const isTrial = subscription.is_trial || false
+                            const trialEndsAt = subscription.trial_ends_at ? new Date(subscription.trial_ends_at) : null
+                            let daysRemaining = 0
+                            if (isTrial && trialEndsAt) {
+                              const now = new Date()
+                              const diffTime = trialEndsAt.getTime() - now.getTime()
+                              daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+                            }
+
+                            return (
+                              <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <CreditCard className="w-4 h-4 text-gray-600" />
+                                  <h4 className="font-semibold text-gray-900">Subscription Details</h4>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                  <div>
+                                    <p className="text-gray-500">Plan</p>
+                                    <p className="font-medium text-gray-900">
+                                      {subscription.plan_name === "starter" && "Free Starter"}
+                                      {subscription.plan_name === "growth" && "Growth"}
+                                      {subscription.plan_name === "scale" && "Scale"}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-gray-500">Status</p>
+                                    <p className="font-medium text-gray-900">
+                                      {subscription.status === "active" ? "Active" : "Inactive"}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-gray-500">Billing Period</p>
+                                    <p className="font-medium text-gray-900">
+                                      {new Date(subscription.current_period_start).toLocaleDateString()} -{" "}
+                                      {new Date(subscription.current_period_end).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                  {isTrial && (
+                                    <div>
+                                      <p className="text-gray-500">Trial Status</p>
+                                      <p className="font-medium text-yellow-700">
+                                        {daysRemaining > 0 ? `${daysRemaining} days remaining` : "Expired"}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          }
+                          return null
+                        })()}
+                        {/* </CHANGE> */}
 
                         {/* Organization Members Hierarchy */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

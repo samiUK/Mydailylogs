@@ -5,6 +5,7 @@ import { AdminNavigation } from "@/components/admin-navigation"
 import { BrandingProvider } from "@/components/branding-provider"
 import { DashboardFooter } from "@/components/dashboard-footer"
 import { EmailVerificationBanner } from "@/components/email-verification-banner"
+import { handleAdminSignOut } from "./actions"
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -51,13 +52,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect("/unauthorized")
   }
 
-  const handleSignOut = async () => {
-    "use server"
-    const supabase = await createClient()
-    await supabase.auth.signOut()
-    redirect("/auth/login")
-  }
-
   const brandingData = {
     organizationName: profile.organizations?.organization_name || profile.organization_name || "Your Organization",
     logoUrl: profile.organizations?.logo_url || null,
@@ -71,7 +65,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <BrandingProvider initialBranding={brandingData}>
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <AdminNavigation user={profile} onSignOut={handleSignOut} />
+        <AdminNavigation user={profile} onSignOut={handleAdminSignOut} />
         <EmailVerificationBanner userEmail={user.email || ""} isVerified={isEmailVerified} />
         <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">{children}</main>
         <DashboardFooter />

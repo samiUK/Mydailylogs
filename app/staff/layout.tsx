@@ -5,6 +5,7 @@ import { DashboardFooter } from "@/components/dashboard-footer"
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { EmailVerificationBanner } from "@/components/email-verification-banner"
+import { handleStaffSignOut } from "./actions"
 
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -52,13 +53,6 @@ export default async function StaffLayout({ children }: { children: React.ReactN
     }
   }
 
-  const handleSignOut = async () => {
-    "use server"
-    const supabase = await createClient()
-    await supabase.auth.signOut()
-    redirect("/auth/login")
-  }
-
   const isEmailVerified = user.email_confirmed_at !== null
 
   return (
@@ -72,7 +66,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
       }}
     >
       <div className="min-h-screen bg-background flex flex-col">
-        <StaffNavigation user={profile} onSignOut={handleSignOut} profileId={profile.id} />
+        <StaffNavigation user={profile} onSignOut={handleStaffSignOut} profileId={profile.id} />
         <EmailVerificationBanner userEmail={user.email || ""} isVerified={isEmailVerified} />
         <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">{children}</main>
         <DashboardFooter />

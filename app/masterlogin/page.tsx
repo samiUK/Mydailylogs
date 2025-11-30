@@ -112,9 +112,7 @@ export default function MasterLoginPage() {
                 <Shield className="w-6 h-6 sm:w-8 sm:h-8 text-red-600" />
               )}
             </div>
-            <CardTitle className="text-xl sm:text-2xl text-red-800">
-              {organizationName || "MyDayLogs"} - Master Admin
-            </CardTitle>
+            <CardTitle className="text-xl sm:text-2xl text-red-800">MyDayLogs Ltd - Master Admin</CardTitle>
             <CardDescription className="text-sm text-red-600">Restricted access for system monitoring</CardDescription>
           </CardHeader>
           <CardContent>

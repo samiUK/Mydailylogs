@@ -523,10 +523,10 @@ export default function MasterDashboardPage() {
             reports: { error: reportsError, count: reportsData?.length },
             checklists: { error: checklistsError, count: checklistsData?.length },
             notifications: { error: notificationsError, count: notificationsData?.length },
-            holidays: { error: holidaysError, count: holidaysData?.length }, // Fixed duplicate error name from holidaysData to holidaysError
+            holidays: { error: holidaysError, count: holidaysData?.length },
             staffUnavailability: { error: staffUnavailabilityError, count: staffUnavailabilityData?.length },
             auditLogs: { error: auditLogsError, count: auditLogsData?.length },
-            backups: { error: backupsError, count: backupsData?.length }, // Fixed duplicate error name from backupsData to backupsError
+            backups: { error: backupsError, count: backupsData?.length },
           })
 
           console.log("[v0] Checklists data:", {
@@ -556,11 +556,11 @@ export default function MasterDashboardPage() {
           if (reportsError) console.error("[v0] Reports fetch error:", reportsError)
           if (checklistsError) console.error("[v0] Checklists fetch error:", checklistsError)
           if (notificationsError) console.error("[v0] Notifications fetch error:", notificationsError)
-          if (holidaysError) console.error("[v0] Holidays fetch error:", holidaysError) // Fixed reference to use holidaysError
+          if (holidaysError) console.error("[v0] Holidays fetch error:", holidaysError)
           if (staffUnavailabilityError)
             console.error("[v0] Staff Unavailability fetch error:", staffUnavailabilityError)
           if (auditLogsError) console.error("[v0] Audit Logs fetch error:", auditLogsError)
-          if (backupsError) console.error("[v0] Backups fetch error:", backupsError) // Fixed reference to use backupsError
+          if (backupsError) console.error("[v0] Backups fetch error:", backupsError)
 
           if (superusersError) {
             console.error("[v0] Superusers fetch error:", superusersError)
@@ -2422,10 +2422,22 @@ export default function MasterDashboardPage() {
                                         </p>
                                         <p className="text-sm text-gray-500 truncate">{admin.email}</p>
                                       </div>
+
                                       <select
                                         value={admin.role}
                                         onChange={async (e) => {
                                           const newRole = e.target.value
+
+                                          const adminCount = org.profiles?.filter((p) => p.role === "admin").length || 0
+
+                                          if (admin.role === "admin" && newRole !== "admin" && adminCount === 1) {
+                                            alert(
+                                              "Cannot change the only admin's role. Promote another user to admin first.",
+                                            )
+                                            e.target.value = admin.role // Reset the dropdown
+                                            return
+                                          }
+
                                           if (
                                             confirm(
                                               `Change ${admin.full_name}'s role to ${newRole}? ${
@@ -2450,6 +2462,7 @@ export default function MasterDashboardPage() {
                                               const data = await response.json()
                                               if (!response.ok) {
                                                 alert(data.error || "Failed to change role")
+                                                e.target.value = admin.role // Reset the dropdown
                                               } else {
                                                 alert(data.message)
                                                 checkAuthAndLoadData()
@@ -2457,10 +2470,17 @@ export default function MasterDashboardPage() {
                                             } catch (error) {
                                               console.error("Error changing role:", error)
                                               alert("Failed to change role")
+                                              e.target.value = admin.role // Reset the dropdown
                                             }
+                                          } else {
+                                            e.target.value = admin.role // Reset if cancelled
                                           }
                                         }}
                                         className="text-xs border rounded px-2 py-1 bg-white"
+                                        disabled={
+                                          admin.role === "admin" &&
+                                          (org.profiles?.filter((p) => p.role === "admin").length || 0) === 1
+                                        }
                                       >
                                         <option value="admin">Admin</option>
                                         <option value="manager">Manager</option>

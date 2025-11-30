@@ -3,14 +3,12 @@
 import { useCallback, useState, useEffect } from "react"
 import { EmbeddedCheckout, EmbeddedCheckoutProvider } from "@stripe/react-stripe-js"
 import { loadStripe } from "@stripe/stripe-js"
-import { startCheckoutSession } from "@/app/actions/stripe"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { X } from "lucide-react"
 
 const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 console.log("[v0] Stripe publishable key present:", !!stripePublishableKey)
-console.log("[v0] Stripe publishable key value:", stripePublishableKey?.substring(0, 20) + "...")
 
 const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null
 
@@ -60,19 +58,34 @@ export default function StripeCheckout({
     setError(null)
     console.log("[v0] Starting checkout session for product:", productId, "interval:", billingInterval)
     try {
-      const clientSecret = await startCheckoutSession(
-        productId,
-        billingInterval,
-        organizationId,
-        userEmail,
-        userId,
-        userName,
-      )
-      console.log("[v0] Client secret received:", clientSecret ? "Yes" : "No")
-      if (!clientSecret) {
+      const response = await fetch("/api/checkout/create-session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          productType: productId,
+          interval: billingInterval,
+          organizationId,
+          userEmail,
+          userId,
+          userName,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to create checkout session")
+      }
+
+      const data = await response.json()
+      console.log("[v0] Client secret received:", !!data.clientSecret)
+
+      if (!data.clientSecret) {
         throw new Error("No client secret returned from server")
       }
-      return clientSecret
+
+      return data.clientSecret
     } catch (error) {
       console.error("[v0] Error starting checkout:", error)
       const errorMessage = error instanceof Error ? error.message : "Failed to start checkout session"

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { EmbeddedCheckout, EmbeddedCheckoutProvider } from "@stripe/react-stripe-js"
 import { loadStripe } from "@stripe/stripe-js"
 import { Button } from "@/components/ui/button"
@@ -8,13 +8,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { X } from "lucide-react"
 
 const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-console.log("[v0] Stripe publishable key present:", !!stripePublishableKey)
 
 const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null
 
 interface StripeCheckoutProps {
-  productType: string // Changed from productId to productType to match caller
-  interval?: "month" | "year" // Changed from billingInterval to interval
+  productType: string
+  interval?: "month" | "year"
   organizationId: string
   userEmail: string
   userId: string
@@ -24,8 +23,8 @@ interface StripeCheckoutProps {
 }
 
 export default function StripeCheckout({
-  productType, // Changed from productId
-  interval = "month", // Changed from billingInterval
+  productType,
+  interval = "month",
   organizationId,
   userEmail,
   userId,
@@ -35,96 +34,75 @@ export default function StripeCheckout({
 }: StripeCheckoutProps) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [clientSecret, setClientSecret] = useState<string | null>(null)
+  const hasInitialized = useRef(false)
 
   useEffect(() => {
-    console.log("[v0] StripeCheckout component mounted")
-    console.log("[v0] Stripe promise:", stripePromise ? "initialized" : "null")
+    if (hasInitialized.current) return
+    hasInitialized.current = true
+
+    const initCheckout = async () => {
+      console.log("[v0] Initializing checkout session")
+
+      if (!productType || !interval || !organizationId || !userEmail || !userId) {
+        const missing = []
+        if (!productType) missing.push("productType")
+        if (!interval) missing.push("interval")
+        if (!organizationId) missing.push("organizationId")
+        if (!userEmail) missing.push("userEmail")
+        if (!userId) missing.push("userId")
+
+        const errorMsg = `Missing required parameters: ${missing.join(", ")}`
+        console.error("[v0]", errorMsg)
+        setError(errorMsg)
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        const response = await fetch("/api/checkout/create-session", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            productType,
+            interval,
+            organizationId,
+            userEmail,
+            userId,
+            userName: userName || userEmail,
+            currency,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Failed to create checkout session")
+        }
+
+        const data = await response.json()
+        console.log("[v0] Client secret received:", !!data.clientSecret)
+
+        if (!data.clientSecret) {
+          throw new Error("No client secret returned from server")
+        }
+
+        setClientSecret(data.clientSecret)
+        setIsLoading(false)
+      } catch (error) {
+        console.error("[v0] Error starting checkout:", error)
+        const errorMessage = error instanceof Error ? error.message : "Failed to start checkout session"
+        setError(errorMessage)
+        setIsLoading(false)
+      }
+    }
 
     if (stripePromise) {
-      stripePromise
-        .then((stripe) => {
-          console.log("[v0] Stripe instance loaded:", !!stripe)
-          setIsLoading(false)
-        })
-        .catch((err) => {
-          console.error("[v0] Failed to load Stripe:", err)
-          setError("Failed to load payment system")
-          setIsLoading(false)
-        })
+      initCheckout()
     } else {
+      setError("Stripe is not configured")
       setIsLoading(false)
-    }
-  }, [])
-
-  const fetchClientSecret = useCallback(async () => {
-    setError(null)
-    console.log("[v0] Starting checkout session for product:", productType, "interval:", interval)
-
-    console.log("[v0] Detailed checkout params:")
-    console.log("[v0] - productType:", productType, "| type:", typeof productType, "| truthy:", !!productType)
-    console.log("[v0] - interval:", interval, "| type:", typeof interval, "| truthy:", !!interval)
-    console.log(
-      "[v0] - organizationId:",
-      organizationId,
-      "| type:",
-      typeof organizationId,
-      "| truthy:",
-      !!organizationId,
-    )
-    console.log("[v0] - userEmail:", userEmail, "| type:", typeof userEmail, "| truthy:", !!userEmail)
-    console.log("[v0] - userId:", userId, "| type:", typeof userId, "| truthy:", !!userId)
-    console.log("[v0] - userName:", userName, "| type:", typeof userName, "| truthy:", !!userName)
-    console.log("[v0] - currency:", currency, "| type:", typeof currency, "| truthy:", !!currency)
-
-    if (!productType || !interval || !organizationId || !userEmail || !userId) {
-      const missing = []
-      if (!productType) missing.push("productType")
-      if (!interval) missing.push("interval")
-      if (!organizationId) missing.push("organizationId")
-      if (!userEmail) missing.push("userEmail")
-      if (!userId) missing.push("userId")
-
-      const errorMsg = `Missing required parameters on client side: ${missing.join(", ")}`
-      console.error("[v0]", errorMsg)
-      setError(errorMsg)
-      throw new Error(errorMsg)
-    }
-
-    try {
-      const response = await fetch("/api/checkout/create-session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          productType,
-          interval,
-          organizationId,
-          userEmail,
-          userId,
-          userName: userName || userEmail,
-          currency,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to create checkout session")
-      }
-
-      const data = await response.json()
-      console.log("[v0] Client secret received:", !!data.clientSecret)
-
-      if (!data.clientSecret) {
-        throw new Error("No client secret returned from server")
-      }
-
-      return data.clientSecret
-    } catch (error) {
-      console.error("[v0] Error starting checkout:", error)
-      const errorMessage = error instanceof Error ? error.message : "Failed to start checkout session"
-      setError(errorMessage)
-      throw error
     }
   }, [productType, interval, organizationId, userEmail, userId, userName, currency])
 
@@ -148,7 +126,7 @@ export default function StripeCheckout({
     )
   }
 
-  if (isLoading) {
+  if (isLoading || !clientSecret) {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
         <Card className="w-full max-w-md">
@@ -191,7 +169,7 @@ export default function StripeCheckout({
             </div>
           ) : (
             <div id="checkout" className="min-h-[400px]">
-              <EmbeddedCheckoutProvider stripe={stripePromise} options={{ fetchClientSecret }}>
+              <EmbeddedCheckoutProvider stripe={stripePromise} options={{ clientSecret }}>
                 <EmbeddedCheckout />
               </EmbeddedCheckoutProvider>
             </div>

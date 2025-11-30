@@ -1,7 +1,6 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -38,11 +37,7 @@ import {
   ArrowUp,
   AlertCircle,
   Info,
-  Activity,
   Mail,
-  MessageSquare,
-  User,
-  Clock,
   UserPlus,
   TrendingUp,
   Database,
@@ -277,12 +272,15 @@ export default function MasterDashboardPage() {
   // Function to fetch all payments (to be called after refund)
   const loadAllPayments = async () => {
     try {
-      const { data, error } = await createClient().from("payments").select(`*, subscriptions(*, organizations(*))`)
-      if (error) throw error
+      const response = await fetch("/api/master/payments")
+      if (!response.ok) {
+        throw new Error("Failed to load payment data")
+      }
+      const data = await response.json()
       setAllPayments(data || [])
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching payments:", error)
-      toast.error("Failed to load payment data")
+      toast.error(error.message || "Failed to load payment data")
     }
   }
 
@@ -438,370 +436,37 @@ export default function MasterDashboardPage() {
 
       // Don't set role here - it will be fetched in fetchCurrentUserRole()
 
-      const loadEssentialData = async () => {
-        try {
-          const timestamp = Date.now()
-          console.log("[v0] Loading fresh data with timestamp:", timestamp)
+      const response = await fetch("/api/master/dashboard-data")
 
-          const authUsersResponse = await fetch("/api/admin/get-auth-users")
-          const authUsersResult = await authUsersResponse.json()
-          const verificationMap = authUsersResult.verificationMap || {}
-
-          // Convert verificationMap to array format for compatibility
-          const authUsers = Object.entries(verificationMap).map(([id, data]: [string, any]) => ({
-            id,
-            email: data.email,
-            email_confirmed_at: data.email_confirmed_at,
-            last_sign_in_at: data.last_sign_in_at || null,
-            created_at: data.created_at || null, // Assuming created_at is available
-          }))
-
-          const tempAuthUserMap = new Map()
-          if (authUsers) {
-            authUsers.forEach((user: any) => {
-              tempAuthUserMap.set(user.id, user)
-            })
-          }
-          setAuthUserMap(tempAuthUserMap)
-
-          const adminClient = createClient() // Assuming adminClient is the same as createClient for this scope
-
-          const [
-            { data: organizationsData, error: orgError },
-            { data: profilesData, error: profileError },
-            { data: superusersData, error: superusersError },
-            { data: templatesData, error: templatesError },
-            { data: subscriptionsData, error: subscriptionsError },
-            { data: paymentsData, error: paymentsError },
-            { data: feedbackData, error: feedbackError },
-            { data: reportsData, error: reportsError },
-            { data: checklistsData, error: checklistsError },
-            { data: notificationsData, error: notificationsError },
-            { data: holidaysData, error: holidaysError }, // Fixed duplicate error name from holidaysData to holidaysError
-            { data: staffUnavailabilityData, error: staffUnavailabilityError },
-            { data: auditLogsData, error: auditLogsError },
-            { data: backupsData, error: backupsError }, // Fixed duplicate error name from backupsData to backupsError
-            // Removed RPC calls that trigger server action detection
-          ] = await Promise.all([
-            adminClient.from("organizations").select("*"),
-            adminClient.from("profiles").select("*"),
-            adminClient.from("superusers").select("*"),
-            adminClient.from("checklist_templates").select("id, name, organization_id, is_active").limit(100),
-            adminClient
-              .from("subscriptions")
-              .select(`*, organizations(organization_id, organization_name, logo_url, primary_color, slug)`), // Select organization details for subscriptions
-            adminClient
-              .from("payments")
-              .select(`*, subscriptions(*, organizations(*))`), // Select subscription and organization details for payments
-            adminClient
-              .from("feedback")
-              .select("*"), // Fetch feedback
-            adminClient
-              .from("submitted_reports")
-              .select("*"), // Fetch submitted reports
-            adminClient.from("daily_checklists").select("id, status"),
-            adminClient.from("notifications").select("id, is_read"),
-            adminClient.from("holidays").select("id, date"),
-            adminClient.from("staff_unavailability").select("id, start_date, end_date"),
-            adminClient.from("report_audit_logs").select("id, created_at"),
-            adminClient.from("report_backups").select("id, created_at"),
-          ])
-
-          console.log("[v0] Data fetch results:", {
-            organizations: { error: orgError, count: organizationsData?.length },
-            profiles: { error: profileError, count: profilesData?.length },
-            superusers: { error: superusersError, count: superusersData?.length },
-            templates: { error: templatesError, count: templatesData?.length },
-            subscriptions: { error: subscriptionsError, count: subscriptionsData?.length },
-            payments: { error: paymentsError, count: paymentsData?.length },
-            feedback: { error: feedbackError, count: feedbackData?.length },
-            reports: { error: reportsError, count: reportsData?.length },
-            checklists: { error: checklistsError, count: checklistsData?.length },
-            notifications: { error: notificationsError, count: notificationsData?.length },
-            holidays: { error: holidaysError, count: holidaysData?.length }, // Fixed reference to use holidaysError
-            staffUnavailability: { error: staffUnavailabilityError, count: staffUnavailabilityData?.length },
-            auditLogs: { error: auditLogsError, count: auditLogsData?.length },
-            backups: { error: backupsError, count: backupsData?.length }, // Fixed reference to use backupsError
-          })
-
-          console.log("[v0] Checklists data:", {
-            count: checklistsData?.length || 0,
-            error: checklistsError?.message,
-            sample: checklistsData?.slice(0, 2),
-          })
-          console.log("[v0] Templates data:", {
-            count: templatesData?.length || 0,
-            error: templatesError?.message,
-            sample: templatesData?.slice(0, 2),
-          })
-
-          // Handle errors gracefully
-          if (orgError) {
-            console.error("[v0] Organization fetch error:", orgError)
-            setError("Failed to load organizations. Please try again later.")
-          }
-          if (profileError) {
-            console.error("[v0] Profile fetch error:", profileError)
-            setError("Failed to load user profiles. Please try again later.")
-          }
-          if (templatesError) console.error("[v0] Templates fetch error:", templatesError)
-          if (subscriptionsError) console.error("[v0] Subscriptions fetch error:", subscriptionsError)
-          if (paymentsError) console.error("[v0] Payments fetch error:", paymentsError)
-          if (feedbackError) console.error("[v0] Feedback fetch error:", feedbackError)
-          if (reportsError) console.error("[v0] Reports fetch error:", reportsError)
-          if (checklistsError) console.error("[v0] Checklists fetch error:", checklistsError)
-          if (notificationsError) console.error("[v0] Notifications fetch error:", notificationsError)
-          if (holidaysError) console.error("[v0] Holidays fetch error:", holidaysError) // Fixed reference to use holidaysError
-          if (staffUnavailabilityError)
-            console.error("[v0] Staff Unavailability fetch error:", staffUnavailabilityError)
-          if (auditLogsError) console.error("[v0] Audit Logs fetch error:", auditLogsError)
-          if (backupsError) console.error("[v0] Backups fetch error:", backupsError) // Fixed reference to use backupsError
-
-          if (superusersError) {
-            console.error("[v0] Superusers fetch error:", superusersError)
-            setSuperusers([])
-          } else if (superusersData) {
-            setSuperusers(superusersData)
-          }
-
-          if (subscriptionsError) {
-            console.error("[v0] Subscriptions fetch error:", subscriptionsError)
-            setAllSubscriptions([])
-          } else {
-            // Ensure organization_id is present in subscriptions data
-            const enrichedSubscriptions = (subscriptionsData || []).map((sub) => {
-              const org = organizationsData?.find((org) => org.organization_id === sub.organization_id)
-              return {
-                ...sub,
-                organizations: org
-                  ? {
-                      organization_id: org.organization_id,
-                      organization_name: org.organization_name,
-                      logo_url: org.logo_url,
-                      slug: org.slug,
-                    }
-                  : null,
-              }
-            })
-            setAllSubscriptions(enrichedSubscriptions)
-          }
-
-          if (paymentsError) {
-            console.error("[v0] Payments fetch error:", paymentsError)
-            setAllPayments([])
-          } else {
-            setAllPayments(paymentsData || [])
-          }
-
-          if (feedbackError) {
-            console.error("[v0] Feedback fetch error:", feedbackError)
-            setFeedback([])
-          } else {
-            setFeedback(feedbackData || [])
-            setUnreadFeedbackCount(feedbackData?.filter((f) => f.status === "unread").length || 0)
-          }
-
-          if (reportsError) {
-            console.error("[v0] Reports fetch error:", reportsError)
-            setTotalSubmittedReports(0)
-          } else {
-            setTotalSubmittedReports(reportsData?.length || 0)
-          }
-
-          const today = new Date()
-          today.setHours(0, 0, 0, 0)
-          const oneWeekAgo = new Date(today)
-          oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
-
-          setDatabaseStats({
-            checklists: {
-              total: checklistsData?.length || 0,
-              completed: checklistsData?.filter((c) => c.status === "completed").length || 0,
-              pending: checklistsData?.filter((c) => c.status === "pending" || c.status === "in_progress").length || 0,
-            },
-            templates: {
-              total: templatesData?.length || 0,
-              active: templatesData?.filter((t) => t.is_active).length || 0,
-              inactive: templatesData?.filter((t) => !t.is_active).length || 0,
-            },
-            notifications: {
-              total: notificationsData?.length || 0,
-              unread: notificationsData?.filter((n) => !n.is_read).length || 0,
-            },
-            holidays: {
-              total: holidaysData?.length || 0,
-              upcoming:
-                holidaysData?.filter((h) => {
-                  const holidayDate = new Date(h.date)
-                  return holidayDate >= today
-                }).length || 0,
-            },
-            staffUnavailability: {
-              total: staffUnavailabilityData?.length || 0,
-              current:
-                staffUnavailabilityData?.filter((s) => {
-                  const startDate = new Date(s.start_date)
-                  const endDate = new Date(s.end_date)
-                  return startDate <= today && endDate >= today
-                }).length || 0,
-            },
-            auditLogs: {
-              total: auditLogsData?.length || 0,
-              today:
-                auditLogsData?.filter((a) => {
-                  const logDate = new Date(a.created_at)
-                  logDate.setHours(0, 0, 0, 0)
-                  return logDate.getTime() === today.getTime()
-                }).length || 0,
-            },
-            backups: {
-              total: backupsData?.length || 0,
-              thisWeek:
-                backupsData?.filter((b) => {
-                  const backupDate = new Date(b.created_at)
-                  return backupDate >= oneWeekAgo
-                }).length || 0,
-            },
-            // Update server management stats
-            // Removed database size and bandwidth as they relied on RPC
-            totalSize: 0, // Placeholder
-            totalBandwidth: 0, // Placeholder
-            sentEmails: 0, // Placeholder
-          })
-
-          // Create organization map with profiles
-          const organizationMap = new Map()
-
-          // Initialize organizations from organizations table
-          if (organizationsData) {
-            organizationsData.forEach((org) => {
-              organizationMap.set(org.organization_id, {
-                ...org,
-                profiles: [],
-                templateCount: templatesData?.filter((t) => t.organization_id === org.organization_id)?.length || 0,
-              })
-            })
-          }
-
-          // Add profiles to their respective organizations
-          if (profilesData) {
-            profilesData.forEach((profile) => {
-              // Enrich profile with email_confirmed_at status from auth users
-              const confirmedAt = tempAuthUserMap.get(profile.id)?.email_confirmed_at || null
-              const lastSignInAt = tempAuthUserMap.get(profile.id)?.last_sign_in_at || null
-              const enrichedProfile = { ...profile, email_confirmed_at: confirmedAt, last_sign_in_at: lastSignInAt }
-
-              if (enrichedProfile.organization_id) {
-                const org = organizationMap.get(enrichedProfile.organization_id)
-                if (org) {
-                  org.profiles.push(enrichedProfile)
-                } else {
-                  // Create organization from profile data if not in organizations table
-                  organizationMap.set(enrichedProfile.organization_id, {
-                    organization_id: enrichedProfile.organization_id,
-                    organization_name:
-                      enrichedProfile.organization_name ||
-                      `Organization ${enrichedProfile.organization_id.slice(0, 8)}`,
-                    logo_url: null,
-                    primary_color: null,
-                    secondary_color: null,
-                    slug: null,
-                    created_at: enrichedProfile.created_at || new Date().toISOString(),
-                    updated_at: enrichedProfile.updated_at || new Date().toISOString(),
-                    profiles: [enrichedProfile],
-                    templateCount:
-                      templatesData?.filter((t) => t.organization_id === enrichedProfile.organization_id)?.length || 0,
-                  })
-                }
-              }
-            })
-          }
-
-          const allOrganizations = Array.from(organizationMap.values())
-
-          setOrganizations(allOrganizations)
-          setAllUsers(
-            profilesData?.map((profile) => {
-              // Ensure allUsers also gets email_confirmed_at and last_sign_in_at
-              const confirmedAt = tempAuthUserMap.get(profile.id)?.email_confirmed_at || null
-              const lastSignInAt = tempAuthUserMap.get(profile.id)?.last_sign_in_at || null
-              return { ...profile, email_confirmed_at: confirmedAt, last_sign_in_at: lastSignInAt }
-            }) || [],
-          )
-
-          console.log("[v0] Enhanced data loaded:", {
-            organizations: allOrganizations.length,
-            users: (
-              profilesData?.map((profile) => {
-                const confirmedAt = tempAuthUserMap.get(profile.id)?.email_confirmed_at || null
-                const lastSignInAt = tempAuthUserMap.get(profile.id)?.last_sign_in_at || null
-                return { ...profile, email_confirmed_at: confirmedAt, last_sign_in_at: lastSignInAt }
-              }) || []
-            ).length,
-            superusers: superusersData?.length || 0,
-            templates: templatesData?.length || 0,
-            subscriptions: subscriptionsData?.length || 0,
-            payments: paymentsData?.length || 0,
-            feedback: feedbackData?.length || 0,
-            reports: reportsData?.length || 0,
-          })
-
-          const admins = (
-            profilesData?.map((profile) => {
-              // Ensure admins also get email_confirmed_at and last_sign_in_at
-              const confirmedAt = tempAuthUserMap.get(profile.id)?.email_confirmed_at || null
-              const lastSignInAt = tempAuthUserMap.get(profile.id)?.last_sign_in_at || null
-              return { ...profile, email_confirmed_at: confirmedAt, last_sign_in_at: lastSignInAt }
-            }) || []
-          ).filter((user) => user.role === "admin")
-          const staff = (
-            profilesData?.map((profile) => {
-              // Ensure staff also get email_confirmed_at and last_sign_in_at
-              const confirmedAt = tempAuthUserMap.get(profile.id)?.email_confirmed_at || null
-              const lastSignInAt = tempAuthUserMap.get(profile.id)?.last_sign_in_at || null
-              return { ...profile, email_confirmed_at: confirmedAt, last_sign_in_at: lastSignInAt }
-            }) || []
-          ).filter((user) => user.role === "staff")
-
-          console.log("[v0] User roles:", { admins: admins.length, staff: staff.length })
-          console.log("[v0] Essential data loaded successfully")
-
-          const now = new Date()
-          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-          const signupsThisMonth = authUsers.filter((user) => {
-            const createdAt = new Date(user.created_at)
-            return createdAt >= startOfMonth
-          })
-          setNewSignupsThisMonth(signupsThisMonth.length)
-
-          const totalOrgs = allOrganizations.length // Use the processed organizations list
-          const paidOrgs = allSubscriptions.filter(
-            (sub) =>
-              sub.status === "active" &&
-              (sub.plan_name.toLowerCase() === "growth" || sub.plan_name.toLowerCase() === "scale"),
-          ).length
-          const conversion = totalOrgs > 0 ? ((paidOrgs / totalOrgs) * 100).toFixed(1) : "0.0"
-          setConversionRate(Number(conversion))
-
-          try {
-            // Removed database size calculation as it relied on RPC
-            setDatabaseSize("N/A") // Placeholder
-          } catch (err: any) {
-            console.error("[v0] Error estimating database size:", err.message)
-            setDatabaseSize("N/A")
-          }
-
-          setIsLoading(false)
-        } catch (error) {
-          console.error("[v0] Error loading essential data:", error)
-          setError("An error occurred while loading dashboard data. Please try refreshing the page.")
-          setIsLoading(false)
-        }
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to load dashboard data")
       }
 
-      loadEssentialData()
-    } catch (error) {
-      console.error("[v0] Auth and data loading error:", error)
+      const data = await response.json()
+
+      console.log("[v0] Dashboard data loaded:", data)
+
+      // Set all state from API response
+      setOrganizations(data.organizations || [])
+      setAllUsers(data.profiles || [])
+      setAuthUserMap(new Map(Object.entries(data.authUserMap || {})))
+      setSuperusers(data.superusers || [])
+      setAllSubscriptions(data.subscriptions || [])
+      setAllPayments(data.payments || [])
+      setFeedback(data.feedback || [])
+      setTotalSubmittedReports(data.totalSubmittedReports || 0)
+      setDatabaseStats(data.databaseStats || {})
+      setOrganizationStats(data.organizationStats || {})
+
+      // Calculate unread feedback count based on fetched data
+      const unreadCount = (data.feedback || []).filter((f: Feedback) => f.status === "new").length
+      setUnreadFeedbackCount(unreadCount)
+
+      setIsLoading(false)
+    } catch (error: any) {
+      console.error("[v0] Error loading dashboard:", error)
+      setError(error.message)
       setIsLoading(false)
     }
   }
@@ -827,29 +492,27 @@ export default function MasterDashboardPage() {
       }
 
       try {
-        const supabase = createClient()
+        // Use fetch to get user role
+        const response = await fetch("/api/master/current-user-role", {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("masterAdminAuthToken") || getCookie("masterAdminAuthToken")}`,
+          },
+        })
 
-        const { data, error } = await supabase
-          .from("superusers")
-          .select("role")
-          .eq("email", masterAdminEmail)
-          .eq("is_active", true)
-
-        if (error) {
-          console.error("[v0] Error fetching current user role:", error.message)
-          setCurrentUserRole("support")
-          console.log("[v0] Error fetching role, defaulting to support")
-          return
+        if (!response.ok) {
+          throw new Error("Failed to fetch user role")
         }
 
-        if (data && data.length > 0 && data[0].role) {
-          setCurrentUserRole(data[0].role)
-          console.log("[v0] Current user role from database:", data[0].role)
+        const data = await response.json()
+
+        if (data.role) {
+          setCurrentUserRole(data.role)
+          console.log("[v0] Current user role from API:", data.role)
         } else {
           setCurrentUserRole("support")
-          console.log("[v0] No superuser record found, defaulting to support")
+          console.log("[v0] No role found in API response, defaulting to support")
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("[v0] Error in fetchCurrentUserRole:", error)
         setCurrentUserRole("support")
         console.log("[v0] Exception in role fetch, defaulting to support")
@@ -1020,7 +683,7 @@ export default function MasterDashboardPage() {
       const response = await fetch("/api/master/manage-subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: JSON.JSON.stringify({
           action: "add",
           organizationId,
           planName,
@@ -1137,13 +800,18 @@ export default function MasterDashboardPage() {
 
   const markFeedbackAsRead = async (feedbackId: string) => {
     try {
-      const supabase = createClient()
-      const { error } = await supabase
-        .from("feedback")
-        .update({ status: "read", updated_at: new Date().toISOString() })
-        .eq("id", feedbackId)
+      // Use fetch to mark feedback as read
+      const response = await fetch("/api/master/mark-feedback-read", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ feedbackId }),
+      })
 
-      if (error) throw error
+      if (!response.ok) {
+        throw new Error("Failed to mark feedback as read")
+      }
 
       setFeedback((prev) => prev.map((f) => (f.id === feedbackId ? { ...f, status: "read" } : f)))
       setUnreadFeedbackCount((prev) => Math.max(0, prev - 1))
@@ -1396,27 +1064,14 @@ export default function MasterDashboardPage() {
   const fetchActivityLogs = async () => {
     setActivityLogsLoading(true)
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from("impersonation_activity_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(100)
-
-      if (error) {
-        if (error.message.includes("Could not find the table")) {
-          console.log(
-            "[v0] Activity logs table not created yet. Please run scripts/create-impersonation-activity-logs.sql",
-          )
-          setActivityLogs([])
-        } else {
-          console.error("[v0] Error fetching activity logs:", error)
-          setActivityLogs([])
-        }
-      } else {
-        setActivityLogs(data || [])
+      // Use fetch to get activity logs
+      const response = await fetch("/api/admin/activity-logs")
+      if (!response.ok) {
+        throw new Error("Failed to fetch activity logs")
       }
-    } catch (error) {
+      const data = await response.json()
+      setActivityLogs(data || [])
+    } catch (error: any) {
       console.error("[v0] Error fetching activity logs:", error)
       setActivityLogs([])
     } finally {
@@ -1425,7 +1080,7 @@ export default function MasterDashboardPage() {
   }
 
   const handleSignOut = () => {
-    // Clear all session-related items
+    // Clear local storage
     localStorage.removeItem("masterAdminAuth")
     localStorage.removeItem("masterAdminEmail")
     localStorage.removeItem("impersonatedUser")
@@ -2337,105 +1992,6 @@ export default function MasterDashboardPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="feedback" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>User Feedback & Support Requests</CardTitle>
-                <CardDescription>View and respond to feedback submitted by users across the platform</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {feedback.length === 0 ? (
-                  <div className="text-center py-12">
-                    <MessageSquare className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Feedback Yet</h3>
-                    <p className="text-gray-500">User feedback and support requests will appear here once submitted.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {feedback.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`border rounded-lg p-4 ${
-                          item.status === "unread" ? "bg-blue-50 border-blue-200" : "bg-white"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-semibold text-lg">{item.subject}</h3>
-                              <Badge variant={item.status === "unread" ? "default" : "secondary"}>{item.status}</Badge>
-                            </div>
-                            <div className="flex items-center gap-4 text-sm text-gray-600">
-                              <span className="flex items-center gap-1">
-                                <User className="w-4 h-4" />
-                                {item.name}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Mail className="w-4 h-4" />
-                                {item.email}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Clock className="w-4 h-4" />
-                                {new Date(item.created_at).toLocaleDateString("en-GB", {
-                                  day: "numeric",
-                                  month: "short",
-                                  year: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </span>
-                            </div>
-                            {item.page_url && <p className="text-xs text-gray-500 mt-1">From: {item.page_url}</p>}
-                          </div>
-                        </div>
-
-                        <div className="bg-gray-50 rounded p-3 mb-3">
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{item.message}</p>
-                        </div>
-
-                        {item.attachments && item.attachments.length > 0 && (
-                          <div className="mb-3">
-                            <p className="text-sm font-medium text-gray-700 mb-2">Attachments:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {item.attachments.map((attachment: any, index: number) => (
-                                <Badge key={index} variant="outline">
-                                  {attachment.name || `Attachment ${index + 1}`}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-2">
-                          <Button size="sm" variant="default" onClick={() => openResponseModal(item)}>
-                            <Mail className="w-4 h-4 mr-1" />
-                            Reply
-                          </Button>
-                          {item.status === "unread" && (
-                            <Button size="sm" variant="outline" onClick={() => markFeedbackAsRead(item.id)}>
-                              <CheckCircle className="w-4 h-4 mr-1" />
-                              Mark as Read
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => {
-                              handleDeleteFeedback(item.id) // Use the updated API call
-                            }}
-                          >
-                            <Trash2 className="w-4 h-4 mr-1" />
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
           <TabsContent value="subscriptions" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <Card>
@@ -2861,237 +2417,6 @@ export default function MasterDashboardPage() {
               </CardContent>
             </Card>
           </TabsContent>
-
-          <TabsContent value="reports" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Report Directory</CardTitle>
-                <CardDescription>
-                  Manage deleted reports - view, restore, or permanently delete reports within 30 days
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ReportDirectoryContent />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {currentUserRole === "masteradmin" && (
-            <TabsContent value="login-as" className="space-y-6">
-              {/* Superuser Management Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Shield className="h-5 w-5" />
-                    Superuser Management
-                  </CardTitle>
-                  <CardDescription>
-                    Add and manage support admin accounts. Only master admins can perform these actions.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Add New Superuser Form */}
-                  <div className="border rounded-lg p-4 space-y-4">
-                    <h3 className="font-semibold text-sm">Add New Support Admin</h3>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div>
-                        <label className="text-sm font-medium">Email Address</label>
-                        <Input
-                          type="email"
-                          placeholder="support@mydaylogs.co.uk"
-                          value={newSuperuserEmail}
-                          onChange={(e) => setNewSuperuserEmail(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Password</label>
-                        <Input
-                          type="password"
-                          placeholder="Secure password"
-                          value={newSuperuserPassword}
-                          onChange={(e) => setNewSuperuserPassword(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <Button onClick={addSuperuser} disabled={!newSuperuserEmail || !newSuperuserPassword}>
-                      Add Support Admin
-                    </Button>
-                  </div>
-
-                  {/* Existing Superusers List */}
-                  <div className="space-y-3">
-                    <h3 className="font-semibold text-sm">Existing Support Admins</h3>
-                    {superusers.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No support admins found.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {superusers.map((superuser) => (
-                          <div key={superuser.id} className="flex items-center justify-between p-3 border rounded-lg">
-                            <div className="flex-1">
-                              <p className="font-medium text-sm">{superuser.email}</p>
-                              <p className="text-xs text-muted-foreground">
-                                Added: {new Date(superuser.created_at).toLocaleDateString()}
-                                {superuser.role === "masteradmin" && (
-                                  <Badge variant="default" className="ml-2">
-                                    Master Admin
-                                  </Badge>
-                                )}
-                              </p>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setEditingSuperuser(superuser)
-                                  setNewSuperuserPassword("")
-                                }}
-                              >
-                                Reset Password
-                              </Button>
-                              {superuser.email !== "arsami.uk@gmail.com" && (
-                                <Button size="sm" variant="destructive" onClick={() => removeSuperuser(superuser.id)}>
-                                  Remove
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Edit Superuser Modal */}
-                  {editingSuperuser && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                      <Card className="w-full max-w-md">
-                        <CardHeader>
-                          <CardTitle>Reset Password</CardTitle>
-                          <CardDescription>Enter a new password for {editingSuperuser.email}</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div>
-                            <label className="text-sm font-medium">New Password</label>
-                            <Input
-                              type="password"
-                              placeholder="New secure password"
-                              value={newSuperuserPassword}
-                              onChange={(e) => setNewSuperuserPassword(e.target.value)}
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            <Button onClick={updateSuperuser} disabled={!newSuperuserPassword}>
-                              Update Password
-                            </Button>
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                setEditingSuperuser(null)
-                                setNewSuperuserPassword("")
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Activity Logs Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="h-5 w-5" />
-                    Impersonation Activity Logs
-                  </CardTitle>
-                  <CardDescription>
-                    Monitor all actions performed by master admin and support admins while impersonating users for
-                    security and audit purposes.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={fetchActivityLogs} disabled={activityLogsLoading}>
-                        {activityLogsLoading ? "Loading..." : "Refresh Logs"}
-                      </Button>
-                    </div>
-
-                    {activityLogsLoading ? (
-                      <div className="text-center py-8 text-muted-foreground">Loading activity logs...</div>
-                    ) : activityLogs.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        No activity logs found. Logs will appear here when admins perform actions while impersonating
-                        users.
-                      </div>
-                    ) : (
-                      <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                        {activityLogs.map((log) => (
-                          <div
-                            key={log.id}
-                            className={`border rounded-lg p-3 ${
-                              log.risk_level === "high"
-                                ? "border-red-300 bg-red-50"
-                                : log.risk_level === "medium"
-                                  ? "border-yellow-300 bg-yellow-50"
-                                  : "border-gray-200"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1 space-y-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <Badge variant={log.admin_type === "masteradmin" ? "default" : "secondary"}>
-                                    {log.admin_type === "masteradmin" ? "Master Admin" : "Support"}
-                                  </Badge>
-                                  <Badge
-                                    variant={
-                                      log.risk_level === "high"
-                                        ? "destructive"
-                                        : log.risk_level === "medium"
-                                          ? "default"
-                                          : "outline"
-                                    }
-                                  >
-                                    {log.risk_level.toUpperCase()}
-                                  </Badge>
-                                  <span className="text-xs text-muted-foreground">
-                                    {new Date(log.created_at).toLocaleString()}
-                                  </span>
-                                </div>
-                                <p className="text-sm font-medium">
-                                  <span className="text-blue-600">{log.admin_email}</span> impersonated{" "}
-                                  <span className="text-purple-600">{log.impersonated_user_email}</span>
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  Action: <span className="font-medium">{log.action_type.replace(/_/g, " ")}</span>
-                                </p>
-                                {log.action_details && (
-                                  <details className="text-xs">
-                                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                                      View details
-                                    </summary>
-                                    <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto">
-                                      {JSON.stringify(log.action_details, null, 2)}
-                                    </pre>
-                                  </details>
-                                )}
-                                {log.ip_address && (
-                                  <p className="text-xs text-muted-foreground">IP: {log.ip_address}</p>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          )}
 
           <TabsContent value="reports" className="space-y-6">
             <Card>

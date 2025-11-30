@@ -7,14 +7,6 @@
     {
       "path": "/api/cron/send-task-reminders",
       "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/cron/monitor-server-usage",
-      "schedule": "0 2 * * *"
-    },
-    {
-      "path": "/api/cron/check-subscription-changes",
-      "schedule": "0 3 * * *"
     }
   ]
 }

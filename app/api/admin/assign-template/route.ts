@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
 import { sendEmail, emailTemplates } from "@/lib/email/resend"
 import { formatUKDate } from "@/lib/date-formatter"
+import { getSubscriptionLimits } from "@/lib/subscription-limits"
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,6 +32,9 @@ export async function POST(request: NextRequest) {
     if (profile?.role !== "admin") {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 })
     }
+
+    const subscriptionLimits = await getSubscriptionLimits(profile.organization_id)
+    const isPaidUser = subscriptionLimits.planName !== "Starter"
 
     const { data: template } = await supabase
       .from("checklist_templates")
@@ -96,37 +100,42 @@ export async function POST(request: NextRequest) {
 
       await supabase.from("notifications").insert(notifications)
 
-      const adminFullName =
-        profile.full_name ||
-        (profile.first_name && profile.last_name ? `${profile.first_name} ${profile.last_name}` : null) ||
-        profile.email
+      if (isPaidUser) {
+        const adminFullName =
+          profile.full_name ||
+          (profile.first_name && profile.last_name ? `${profile.first_name} ${profile.last_name}` : null) ||
+          profile.email
 
-      for (const member of assignedMembers) {
-        try {
-          const memberFullName =
-            member.full_name ||
-            (member.first_name && member.last_name ? `${member.first_name} ${member.last_name}` : null) ||
-            member.first_name ||
-            "Team Member"
+        for (const member of assignedMembers) {
+          try {
+            const memberFullName =
+              member.full_name ||
+              (member.first_name && member.last_name ? `${member.first_name} ${member.last_name}` : null) ||
+              member.first_name ||
+              "Team Member"
 
-          const taskTemplate = emailTemplates.taskAssignment({
-            userName: memberFullName,
-            taskName: template.name,
-            taskDescription: template.description,
-            dueDate: assignmentDueDate ? formatUKDate(assignmentDueDate) : undefined,
-            assignedBy: adminFullName,
-          })
+            const taskTemplate = emailTemplates.taskAssignment({
+              userName: memberFullName,
+              taskName: template.name,
+              taskDescription: template.description,
+              dueDate: assignmentDueDate ? formatUKDate(assignmentDueDate) : undefined,
+              assignedBy: adminFullName,
+            })
 
-          await sendEmail({
-            to: member.email,
-            subject: taskTemplate.subject,
-            html: taskTemplate.html,
-          })
+            await sendEmail({
+              to: member.email,
+              subject: taskTemplate.subject,
+              html: taskTemplate.html,
+            })
 
-          console.log("[v0] Task assignment email sent to:", member.email)
-        } catch (emailError) {
-          console.error(`[v0] Failed to send email to ${member.email}:`, emailError)
+            console.log("[v0] Task assignment email sent to:", member.email)
+          } catch (emailError) {
+            console.error(`[v0] Failed to send email to ${member.email}:`, emailError)
+          }
         }
+        console.log(`[v0] Email notifications sent to ${assignedMembers.length} team members (paid plan)`)
+      } else {
+        console.log(`[v0] Email notifications skipped (free plan - in-app notifications only)`)
       }
     }
 

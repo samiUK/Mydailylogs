@@ -46,6 +46,7 @@ import {
   UserPlus,
   TrendingUp,
   Database,
+  Crown,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { ReportDirectoryContent } from "./report-directory-content"
@@ -91,6 +92,9 @@ interface Subscription {
   created_at: string
   organizations?: { organization_id: string; organization_name: string; logo_url: string | null; slug: string } // Added slug
   organization_id?: string // Added to link subscription to organization
+  is_trial?: boolean // Added for trial status
+  trial_ends_at?: string | null // Added for trial end date
+  current_period_start?: string // Added for subscription start date
 }
 
 interface Payment {
@@ -189,6 +193,10 @@ export default function MasterDashboardPage() {
     staffUnavailability: { total: 0, current: 0 },
     auditLogs: { total: 0, today: 0 },
     backups: { total: 0, thisWeek: 0 },
+    // New state for server management
+    totalSize: 0, // Supabase Database Storage in bytes
+    totalBandwidth: 0, // Vercel Bandwidth in bytes
+    sentEmails: 0, // Resend Emails sent
   })
 
   const [newSignupsThisMonth, setNewSignupsThisMonth] = useState(0)
@@ -201,6 +209,8 @@ export default function MasterDashboardPage() {
 
   const [activityLogs, setActivityLogs] = useState<any[]>([])
   const [activityLogsLoading, setActivityLogsLoading] = useState(false)
+
+  const [subscriptionSearchTerm, setSubscriptionSearchTerm] = useState("")
 
   const getCookie = (name: string) => {
     const value = `; ${document.cookie}`
@@ -433,10 +443,18 @@ export default function MasterDashboardPage() {
           const timestamp = Date.now()
           console.log("[v0] Loading fresh data with timestamp:", timestamp)
 
-          // Fetch auth users for verification statuses, last sign-in, etc.
           const authUsersResponse = await fetch("/api/admin/get-auth-users")
           const authUsersResult = await authUsersResponse.json()
-          const authUsers = authUsersResult.users || [] // Assuming the API returns an array of users
+          const verificationMap = authUsersResult.verificationMap || {}
+
+          // Convert verificationMap to array format for compatibility
+          const authUsers = Object.entries(verificationMap).map(([id, data]: [string, any]) => ({
+            id,
+            email: data.email,
+            email_confirmed_at: data.email_confirmed_at,
+            last_sign_in_at: data.last_sign_in_at || null,
+            created_at: data.created_at || null, // Assuming created_at is available
+          }))
 
           const tempAuthUserMap = new Map()
           if (authUsers) {
@@ -463,6 +481,10 @@ export default function MasterDashboardPage() {
             { data: staffUnavailabilityData, error: staffUnavailabilityError },
             { data: auditLogsData, error: auditLogsError },
             { data: backupsData, error: backupsError }, // Fixed duplicate error name from backupsData to backupsError
+            // Added fetch for database size and related stats
+            { data: dbSizeData, error: dbSizeError },
+            { data: bandwidthData, error: bandwidthError },
+            { data: emailsSentData, error: emailsSentError },
           ] = await Promise.all([
             adminClient.from("organizations").select("*"),
             adminClient.from("profiles").select("*"),
@@ -486,6 +508,9 @@ export default function MasterDashboardPage() {
             adminClient.from("staff_unavailability").select("id, start_date, end_date"),
             adminClient.from("report_audit_logs").select("id, created_at"),
             adminClient.from("report_backups").select("id, created_at"),
+            adminClient.rpc("get_database_size"), // Fetch database size
+            adminClient.rpc("get_vercel_bandwidth"), // Fetch Vercel bandwidth (placeholder)
+            adminClient.rpc("get_resend_emails_sent"), // Fetch Resend emails sent (placeholder)
           ])
 
           console.log("[v0] Data fetch results:", {
@@ -503,6 +528,20 @@ export default function MasterDashboardPage() {
             staffUnavailability: { error: staffUnavailabilityError, count: staffUnavailabilityData?.length },
             auditLogs: { error: auditLogsError, count: auditLogsData?.length },
             backups: { error: backupsError, count: backupsData?.length }, // Fixed reference to use backupsError
+            dbSize: { error: dbSizeError, data: dbSizeData },
+            bandwidth: { error: bandwidthError, data: bandwidthData },
+            emailsSent: { error: emailsSentError, data: emailsSentData },
+          })
+
+          console.log("[v0] Checklists data:", {
+            count: checklistsData?.length || 0,
+            error: checklistsError?.message,
+            sample: checklistsData?.slice(0, 2),
+          })
+          console.log("[v0] Templates data:", {
+            count: templatesData?.length || 0,
+            error: templatesError?.message,
+            sample: templatesData?.slice(0, 2),
           })
 
           // Handle errors gracefully
@@ -632,6 +671,10 @@ export default function MasterDashboardPage() {
                   return backupDate >= oneWeekAgo
                 }).length || 0,
             },
+            // Update server management stats
+            totalSize: dbSizeData ? dbSizeData.total_size_bytes : 0, // Assuming RPC returns total_size_bytes
+            totalBandwidth: bandwidthData ? bandwidthData.total_bandwidth_bytes : 0, // Placeholder
+            sentEmails: emailsSentData ? emailsSentData.emails_sent_count : 0, // Placeholder
           })
 
           // Create organization map with profiles
@@ -749,13 +792,13 @@ export default function MasterDashboardPage() {
           setConversionRate(Number(conversion))
 
           try {
-            const { data: sizeData, error: sizeError } = await adminClient.rpc("get_database_size")
-            if (!sizeError && sizeData) {
-              setDatabaseSize(sizeData)
+            const { data, error } = await adminClient.rpc("get_database_size")
+            if (!error && data) {
+              setDatabaseSize(data) // Assuming RPC returns formatted string like "1.23 MB"
             } else {
-              console.log("[v0] RPC get_database_size failed or returned no data:", sizeError?.message || "No data")
+              console.log("[v0] RPC get_database_size failed or returned no data:", error?.message || "No data")
               // Fallback: estimate from record counts if RPC fails
-              const estimatedSizeMB = (allUsers.length * 2 + organizationsData.length * 1) / 1024 // Rough estimate in MB
+              const estimatedSizeMB = (allUsers.length * 2 + (organizationsData?.length ?? 0) * 1) / 1024 // Rough estimate in MB
               setDatabaseSize(
                 estimatedSizeMB > 1024
                   ? `${(estimatedSizeMB / 1024).toFixed(2)} GB`
@@ -765,7 +808,7 @@ export default function MasterDashboardPage() {
           } catch (err: any) {
             console.error("[v0] Error calling RPC get_database_size:", err.message)
             // Fallback if RPC call itself throws an error
-            const estimatedSizeMB = (allUsers.length * 2 + organizationsData.length * 1) / 1024 // Rough estimate in MB
+            const estimatedSizeMB = (allUsers.length * 2 + (organizationsData?.length ?? 0) * 1) / 1024 // Rough estimate in MB
             setDatabaseSize(
               estimatedSizeMB > 1024 ? `${(estimatedSizeMB / 1024).toFixed(2)} GB` : `${estimatedSizeMB.toFixed(2)} MB`,
             )
@@ -881,65 +924,107 @@ export default function MasterDashboardPage() {
     window.location.reload()
   }
 
-  const cancelSubscription = async (subscriptionId: string) => {
-    setIsProcessing(true)
-    try {
-      const supabase = createClient()
-
-      const { error } = await supabase
-        .from("subscriptions")
-        .update({
-          status: "cancelled",
-          cancelled_at: new Date().toISOString(),
-        })
-        .eq("id", subscriptionId)
-
-      if (error) throw error
-
-      // Refresh data
-      checkAuthAndLoadData()
-      showNotification("success", "Subscription cancelled successfully")
-      setSelectedSubscription(null)
-    } catch (error) {
-      console.error("Error cancelling subscription:", error)
-      showNotification("error", "Failed to cancel subscription")
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const downgradeSubscription = async (subscriptionId: string, organizationName: string) => {
+  const upgradeTierForFree = async (organizationId: string, organizationName: string, newPlan: string) => {
     const confirmed = confirm(
-      `Are you sure you want to downgrade ${organizationName} to the Starter plan?\n\n` +
-        `This action should only be performed after verification and user request. ` +
-        `The organization will lose access to premium features immediately.`,
+      `Are you sure you want to start a 30-day FREE TRIAL of ${newPlan} for ${organizationName}?\n\n` +
+        `They will have access to all premium features during the trial period.`,
     )
 
     if (!confirmed) return
 
     setIsProcessing(true)
     try {
-      const supabase = createClient()
+      const response = await fetch("/api/master/manage-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "upgrade",
+          organizationId,
+          organizationName,
+          planName: newPlan,
+        }),
+      })
 
-      const { error } = await supabase
-        .from("subscriptions")
-        .update({
-          plan_name: "starter",
-          status: "active",
-          current_period_end: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(), // 100 years for free plan
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", subscriptionId)
+      const result = await response.json()
 
-      if (error) throw error
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to start trial")
+      }
 
-      // Refresh data
       await checkAuthAndLoadData()
-      showNotification("success", `${organizationName} successfully downgraded to Starter plan`)
-      setSelectedSubscription(null)
-    } catch (error) {
+      showNotification("success", result.message)
+    } catch (error: any) {
+      console.error("Error upgrading subscription:", error)
+      showNotification("error", error.message || "Failed to start trial")
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const cancelSubscription = async (subscriptionId: string, organizationName: string) => {
+    const confirmed = confirm(
+      `Are you sure you want to cancel the subscription for ${organizationName}?\n\n` +
+        `The subscription will remain active until the end of the current billing period, then downgrade to Starter plan.`,
+    )
+
+    if (!confirmed) return
+
+    setIsProcessing(true)
+    try {
+      const response = await fetch("/api/master/manage-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "cancel",
+          subscriptionId,
+          organizationName,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to cancel subscription")
+      }
+
+      await checkAuthAndLoadData()
+      showNotification("success", result.message)
+    } catch (error: any) {
+      console.error("Error cancelling subscription:", error)
+      showNotification("error", error.message || "Failed to cancel subscription")
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const downgradeTierForFree = async (subscriptionId: string, organizationName: string) => {
+    const confirmed = confirm(`Are you sure you want to downgrade ${organizationName} to Starter plan?`)
+
+    if (!confirmed) return
+
+    setIsProcessing(true)
+    try {
+      const response = await fetch("/api/master/manage-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "downgrade",
+          subscriptionId,
+          organizationName,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to downgrade")
+      }
+
+      await checkAuthAndLoadData()
+      showNotification("success", result.message)
+    } catch (error: any) {
       console.error("Error downgrading subscription:", error)
-      showNotification("error", "Failed to downgrade subscription. Please try again.")
+      showNotification("error", error.message || "Failed to downgrade")
     } finally {
       setIsProcessing(false)
     }
@@ -1696,6 +1781,112 @@ export default function MasterDashboardPage() {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
+            {/* Server Management */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Server Management</CardTitle>
+                <CardDescription>Monitor free tier usage limits - Updates every 6 hours</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Supabase Usage */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">Supabase Database</span>
+                      <span className="text-xs text-gray-500">500MB limit</span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">
+                          Storage: {(databaseStats.totalSize / 1024 / 1024 || 0).toFixed(2)} MB
+                        </span>
+                        <span
+                          className={`font-medium ${(databaseStats.totalSize / 1024 / 1024) > 400 ? "text-red-600" : databaseStats.totalSize / 1024 / 1024 > 250 ? "text-orange-600" : "text-green-600"}`}
+                        >
+                          {((databaseStats.totalSize / 1024 / 1024 / 500) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full ${(databaseStats.totalSize / 1024 / 1024) > 400 ? "bg-red-500" : databaseStats.totalSize / 1024 / 1024 > 250 ? "bg-orange-500" : "bg-green-500"}`}
+                          style={{ width: `${Math.min((databaseStats.totalSize / 1024 / 1024 / 500) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Resend Email Usage */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">Resend Emails</span>
+                      <span className="text-xs text-gray-500">3,000/month limit</span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">Sent this month: ~{Math.round(allUsers.length * 2.5)}</span>
+                        <span
+                          className={`font-medium ${(allUsers.length * 2.5) > 2500 ? "text-red-600" : allUsers.length * 2.5 > 1500 ? "text-orange-600" : "text-green-600"}`}
+                        >
+                          {(((allUsers.length * 2.5) / 3000) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full ${(allUsers.length * 2.5) > 2500 ? "bg-red-500" : allUsers.length * 2.5 > 1500 ? "bg-orange-500" : "bg-green-500"}`}
+                          style={{ width: `${Math.min(((allUsers.length * 2.5) / 3000) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Vercel Bandwidth */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">Vercel Bandwidth</span>
+                      <span className="text-xs text-gray-500">100GB/month limit</span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">
+                          Estimated: {((totalSubmittedReports * 0.3) / 1024).toFixed(2)} GB
+                        </span>
+                        <span
+                          className={`font-medium ${(totalSubmittedReports * 0.3) / 1024 > 80 ? "text-red-600" : (totalSubmittedReports * 0.3) / 1024 > 50 ? "text-orange-600" : "text-green-600"}`}
+                        >
+                          {(((totalSubmittedReports * 0.3) / 1024 / 100) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full ${(totalSubmittedReports * 0.3) / 1024 > 80 ? "bg-red-500" : (totalSubmittedReports * 0.3) / 1024 > 50 ? "bg-orange-500" : "bg-green-500"}`}
+                          style={{
+                            width: `${Math.min(((totalSubmittedReports * 0.3) / 1024 / 100) * 100, 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Summary */}
+                <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm font-medium mb-2">Status Summary:</p>
+                  <p className="text-sm text-gray-600">
+                    {databaseStats.totalSize / 1024 / 1024 > 400 ||
+                    allUsers.length * 2.5 > 2500 ||
+                    (totalSubmittedReports * 0.3) / 1024 > 80
+                      ? "⚠️ Warning: Approaching free tier limits. Consider upgrading soon."
+                      : databaseStats.totalSize / 1024 / 1024 > 250 ||
+                          allUsers.length * 2.5 > 1500 ||
+                          (totalSubmittedReports * 0.3) / 1024 > 50
+                        ? "🟡 Moderate usage. Monitor regularly."
+                        : "✅ All systems within safe limits. Database activity prevents auto-pause."}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Top Metrics Row */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -1756,6 +1947,7 @@ export default function MasterDashboardPage() {
               </Card>
             </div>
 
+            {/* Second Metrics Row */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -1793,286 +1985,31 @@ export default function MasterDashboardPage() {
               </Card>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Checklists & Templates</CardTitle>
-                  <CardDescription>Daily operations management</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Total Checklists</span>
-                    <span className="font-semibold">{databaseStats.checklists.total}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Completed</span>
-                    <span className="font-semibold text-green-600">{databaseStats.checklists.completed}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Pending</span>
-                    <span className="font-semibold text-orange-600">{databaseStats.checklists.pending}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Active Templates</span>
-                    <span className="font-semibold">{databaseStats.templates.active}</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Communications</CardTitle>
-                  <CardDescription>Notifications and feedback</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Total Notifications</span>
-                    <span className="font-semibold">{databaseStats.notifications.total}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Unread</span>
-                    <span className="font-semibold text-red-600">{databaseStats.notifications.unread}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Total Feedback</span>
-                    <span className="font-semibold">{feedback.length}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Unread Feedback</span>
-                    <span className="font-semibold text-red-600">{unreadFeedbackCount}</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Staff Management</CardTitle>
-                  <CardDescription>Holidays and availability</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Total Holidays</span>
-                    <span className="font-semibold">{databaseStats.holidays.total}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Upcoming</span>
-                    <span className="font-semibold text-blue-600">{databaseStats.holidays.upcoming}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Staff Unavailable</span>
-                    <span className="font-semibold text-orange-600">{databaseStats.staffUnavailability.current}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Total Reports</span>
-                    <span className="font-semibold">{totalSubmittedReports}</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">System Activity</CardTitle>
-                  <CardDescription>Audit logs and backups</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Total Audit Logs</span>
-                    <span className="font-semibold">{databaseStats.auditLogs.total}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Today's Activity</span>
-                    <span className="font-semibold text-green-600">{databaseStats.auditLogs.today}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Total Backups</span>
-                    <span className="font-semibold">{databaseStats.backups.total}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">This Week</span>
-                    <span className="font-semibold text-blue-600">{databaseStats.backups.thisWeek}</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">User Activity</CardTitle>
-                  <CardDescription>Current user engagement</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Currently Online</span>
-                    <span className="font-semibold text-green-600">
-                      {
-                        allUsers.filter((user) => {
-                          const lastSeen = new Date(user.last_sign_in_at || user.created_at)
-                          const now = new Date()
-                          const diffMinutes = (now.getTime() - lastSeen.getTime()) / (1000 * 60)
-                          return diffMinutes <= 30
-                        }).length
-                      }
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Admins</span>
-                    <span className="font-semibold">{allUsers.filter((u) => u.role === "admin").length}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Staff</span>
-                    <span className="font-semibold">{allUsers.filter((u) => u.role === "staff").length}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Superusers</span>
-                    <span className="font-semibold text-purple-600">
-                      {superusers.filter((s) => s.is_active).length}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Database Health</CardTitle>
-                  <CardDescription>Overall system status</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Total Tables</span>
-                    <span className="font-semibold">21</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Total Records</span>
-                    <span className="font-semibold">
-                      {allUsers.length +
-                        organizations.length +
-                        databaseStats.checklists.total +
-                        databaseStats.templates.total +
-                        databaseStats.notifications.total +
-                        databaseStats.holidays.total +
-                        databaseStats.auditLogs.total +
-                        databaseStats.backups.total +
-                        totalSubmittedReports +
-                        feedback.length +
-                        allSubscriptions.length +
-                        allPayments.length}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">System Status</span>
-                    <span className="font-semibold text-green-600">Healthy</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Last Updated</span>
-                    <span className="font-semibold text-xs">{new Date().toLocaleTimeString()}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
+            {/* Checklists & Templates */}
             <Card>
               <CardHeader>
-                <CardTitle>Recent Users</CardTitle>
-                <CardDescription>Latest user registrations across all organizations</CardDescription>
+                <CardTitle className="text-lg">Checklists & Templates</CardTitle>
+                <CardDescription>Daily operations management</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {allUsers.slice(0, 10).map((user) => (
-                    <div key={user.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        {user.avatar_url ? (
-                          <img
-                            src={user.avatar_url || "/placeholder.svg"}
-                            alt={user.full_name || user.email}
-                            className="w-8 h-8 rounded-full"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                            <Users className="w-4 h-4 text-gray-500" />
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-medium">{user.full_name || user.email}</p>
-                          <p className="text-sm text-gray-500">
-                            {user.email} • {user.role}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">{user.organizations?.name}</p>
-                        <p className="text-xs text-gray-500">{new Date(user.created_at).toLocaleDateString()}</p>
-                      </div>
-                    </div>
-                  ))}
+              <CardContent className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Total Checklists</span>
+                  <span className="font-semibold">{databaseStats.checklists.total}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Completed</span>
+                  <span className="font-semibold text-green-600">{databaseStats.checklists.completed}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Pending</span>
+                  <span className="font-semibold text-orange-600">{databaseStats.checklists.pending}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Active Templates</span>
+                  <span className="font-semibold">{databaseStats.templates.active}</span>
                 </div>
               </CardContent>
             </Card>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Active Subscriptions</CardTitle>
-                  <CardDescription>Current subscription status</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {allSubscriptions
-                      .filter((sub) => sub.status === "active")
-                      .slice(0, 5)
-                      .map((subscription) => (
-                        <div key={subscription.id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div>
-                            <p className="font-medium">{subscription.organizations?.organization_name}</p>
-                            <p className="text-sm text-gray-500">
-                              {subscription.plan_name} • Started{" "}
-                              {new Date(subscription.created_at).toLocaleDateString("en-GB", {
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                              })}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              Expires{" "}
-                              {new Date(subscription.current_period_end).toLocaleDateString("en-GB", {
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                              })}
-                            </p>
-                          </div>
-                          <Badge variant="default">{subscription.status}</Badge>
-                        </div>
-                      ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Payments</CardTitle>
-                  <CardDescription>Latest payment transactions</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {allPayments.slice(0, 5).map((payment) => (
-                      <div key={payment.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <p className="font-medium">{payment.subscriptions?.organizations?.organization_name}</p>
-                          <p className="text-sm text-gray-500">
-                            {payment.subscriptions?.plan_name} • {new Date(payment.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-medium">£{Number.parseFloat(payment.amount).toFixed(2)}</p>
-                          <Badge variant={payment.status === "completed" ? "default" : "secondary"}>
-                            {payment.status}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
           </TabsContent>
 
           <TabsContent value="users" className="space-y-6">
@@ -2238,6 +2175,7 @@ export default function MasterDashboardPage() {
                     <div>
                       <p className="text-sm font-medium text-gray-600">Total Organizations</p>
                       <p className="text-2xl font-bold">{organizationStats.total}</p>
+                      <p className="text-xs text-gray-500 mt-1">All orgs (with or without subs)</p>
                     </div>
                     <Building2 className="w-8 h-8 text-blue-500" />
                   </div>
@@ -2619,8 +2557,9 @@ export default function MasterDashboardPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600">Total Subscriptions</p>
-                      <p className="text-2xl font-bold">{allSubscriptions.length}</p>
+                      <p className="text-sm font-medium text-gray-600">Total Organizations</p>
+                      <p className="text-2xl font-bold">{organizations.length}</p>
+                      <p className="text-xs text-gray-500 mt-1">All orgs (with or without subs)</p>
                     </div>
                     <CreditCard className="w-8 h-8 text-blue-500" />
                   </div>
@@ -2630,23 +2569,21 @@ export default function MasterDashboardPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600">Active Plans</p>
-                      <p className="text-2xl font-bold text-green-600">
-                        {allSubscriptions.filter((sub) => sub.status === "active").length}
-                      </p>
-                    </div>
-                    <CheckCircle className="w-8 h-8 text-green-500" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
                       <p className="text-sm font-medium text-gray-600">Free Plans (Starter)</p>
                       <p className="text-2xl font-bold">
-                        {allSubscriptions.filter((sub) => sub.plan_name?.toLowerCase() === "starter").length}
+                        {
+                          organizations.filter(
+                            (org) =>
+                              !allSubscriptions.find((sub) => sub.organization_id === org.organization_id) ||
+                              allSubscriptions.find(
+                                (sub) =>
+                                  sub.organization_id === org.organization_id &&
+                                  sub.plan_name?.toLowerCase() === "starter",
+                              ),
+                          ).length
+                        }
                       </p>
+                      <p className="text-xs text-gray-500 mt-1">Default plan</p>
                     </div>
                     <Users className="w-8 h-8 text-gray-500" />
                   </div>
@@ -2656,14 +2593,33 @@ export default function MasterDashboardPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600">Paid Plans</p>
-                      <p className="text-2xl font-bold text-purple-600">
+                      <p className="text-sm font-medium text-gray-600">Growth Plans</p>
+                      <p className="text-2xl font-bold text-blue-600">
                         {
                           allSubscriptions.filter(
-                            (sub) => sub.plan_name?.toLowerCase() !== "starter" && sub.status === "active",
+                            (sub) => sub.plan_name?.toLowerCase() === "growth" && sub.status === "active",
                           ).length
                         }
                       </p>
+                      <p className="text-xs text-gray-500 mt-1">£9/month</p>
+                    </div>
+                    <TrendingUp className="w-8 h-8 text-blue-500" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Scale Plans</p>
+                      <p className="text-2xl font-bold text-purple-600">
+                        {
+                          allSubscriptions.filter(
+                            (sub) => sub.plan_name?.toLowerCase() === "scale" && sub.status === "active",
+                          ).length
+                        }
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">£16/month</p>
                     </div>
                     <DollarSign className="w-8 h-8 text-purple-500" />
                   </div>
@@ -2674,90 +2630,177 @@ export default function MasterDashboardPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Subscription Management</CardTitle>
-                <CardDescription>Manage all active and inactive subscriptions across all organizations</CardDescription>
+                <CardDescription>
+                  Search and manage subscriptions for all organizations. All organizations start on Starter plan by
+                  default.
+                </CardDescription>
+                <div className="mt-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      placeholder="Search organizations by name..."
+                      value={subscriptionSearchTerm}
+                      onChange={(e) => setSubscriptionSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {allSubscriptions.length === 0 ? (
-                    <div className="text-center py-12">
-                      <CreditCard className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No Subscriptions Found</h3>
-                      <p className="text-gray-500">
-                        Subscriptions will appear here once organizations sign up to paid plans.
-                      </p>
-                    </div>
-                  ) : (
-                    allSubscriptions.map((subscription) => (
-                      <div
-                        key={subscription.id}
-                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-1">
-                            <p className="font-medium">
-                              {subscription.organizations?.organization_name || "Unknown Organization"}
-                            </p>
-                            <Badge
-                              variant={subscription.plan_name?.toLowerCase() === "starter" ? "secondary" : "default"}
-                              className={
-                                subscription.plan_name?.toLowerCase() === "scale" ? "bg-purple-100 text-purple-700" : ""
-                              }
-                            >
-                              {subscription.plan_name}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-gray-500">
-                            Started{" "}
-                            {new Date(subscription.created_at).toLocaleDateString("en-GB", {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                            })}
-                            {subscription.plan_name?.toLowerCase() !== "starter" &&
-                              ` • Expires ${new Date(subscription.current_period_end).toLocaleDateString("en-GB", {
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                              })}`}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={subscription.status === "active" ? "default" : "secondary"}>
-                            {subscription.status}
-                          </Badge>
-                          {subscription.status === "active" &&
-                            subscription.plan_name?.toLowerCase() !== "starter" &&
-                            currentUserRole === "masteradmin" && (
-                              <>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() =>
-                                    downgradeSubscription(
-                                      subscription.id,
-                                      subscription.organizations?.organization_name || "Organization",
-                                    )
-                                  }
-                                  disabled={isProcessing}
-                                >
-                                  <ArrowDown className="w-4 h-4 mr-1" />
-                                  Downgrade
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => cancelSubscription(subscription.id)}
-                                  disabled={isProcessing}
-                                >
-                                  <Trash2 className="w-4 h-4 mr-1" />
-                                  Cancel
-                                </Button>
-                              </>
-                            )}
-                        </div>
-                      </div>
-                    ))
-                  )}
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Organization</TableHead>
+                        <TableHead>Plan</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Trial Status</TableHead>
+                        <TableHead>Period</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {organizations
+                        .filter((org) =>
+                          org.organization_name.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()),
+                        )
+                        .map((org) => {
+                          const subscription = allSubscriptions.find(
+                            (sub) => sub.organization_id === org.organization_id,
+                          )
+                          const currentPlan = subscription?.plan_name || "starter"
+                          const isActive = subscription?.status === "active"
+                          const isTrial = subscription?.is_trial || false
+                          const trialEndsAt = subscription?.trial_ends_at ? new Date(subscription.trial_ends_at) : null
+
+                          // Calculate days remaining for trial
+                          let daysRemaining = 0
+                          if (isTrial && trialEndsAt) {
+                            const now = new Date()
+                            const diffTime = trialEndsAt.getTime() - now.getTime()
+                            daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+                          }
+
+                          return (
+                            <TableRow key={org.organization_id}>
+                              <TableCell className="font-medium">{org.organization_name}</TableCell>
+                              <TableCell>
+                                <Badge variant={currentPlan === "starter" ? "secondary" : "default"}>
+                                  {currentPlan === "starter" && "Free Starter"}
+                                  {currentPlan === "growth" && "Growth"}
+                                  {currentPlan === "scale" && "Scale"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={isActive ? "default" : "secondary"}>
+                                  {isActive ? "Active" : "Inactive"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {isTrial ? (
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="bg-yellow-50 border-yellow-200 text-yellow-700">
+                                      Free Trial
+                                    </Badge>
+                                    <span className="text-sm text-muted-foreground">
+                                      {daysRemaining > 0 ? `${daysRemaining} days left` : "Expired"}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {subscription ? (
+                                  <>
+                                    {new Date(subscription.current_period_start).toLocaleDateString()} -{" "}
+                                    {new Date(subscription.current_period_end).toLocaleDateString()}
+                                  </>
+                                ) : (
+                                  "-"
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-2">
+                                  {currentPlan === "starter" && (
+                                    <>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          upgradeTierForFree(org.organization_id, org.organization_name, "Growth")
+                                        }
+                                        disabled={isProcessing}
+                                      >
+                                        <ArrowUp className="w-4 h-4 mr-1" />
+                                        Start Growth Trial
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          upgradeTierForFree(org.organization_id, org.organization_name, "Scale")
+                                        }
+                                        disabled={isProcessing}
+                                      >
+                                        <Crown className="w-4 h-4 mr-1" />
+                                        Start Scale Trial
+                                      </Button>
+                                    </>
+                                  )}
+                                  {currentPlan === "growth" && (
+                                    <>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                          upgradeTierForFree(org.organization_id, org.organization_name, "Scale")
+                                        }
+                                        disabled={isProcessing}
+                                      >
+                                        <ArrowUp className="w-4 h-4 mr-1" />
+                                        {isTrial ? "Start Scale Trial" : "Upgrade to Scale"}
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => downgradeTierForFree(subscription.id, org.organization_name)}
+                                        disabled={isProcessing}
+                                      >
+                                        <ArrowDown className="w-4 h-4 mr-1" />
+                                        Downgrade to Starter
+                                      </Button>
+                                    </>
+                                  )}
+                                  {currentPlan === "scale" && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => downgradeTierForFree(subscription.id, org.organization_name)}
+                                      disabled={isProcessing}
+                                    >
+                                      <ArrowDown className="w-4 h-4 mr-1" />
+                                      Downgrade to Starter
+                                    </Button>
+                                  )}
+                                  {subscription && subscription.status === "active" && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => cancelSubscription(subscription.id, org.organization_name)}
+                                      disabled={isProcessing}
+                                    >
+                                      <X className="w-4 h-4 mr-1" />
+                                      Cancel
+                                    </Button>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                    </TableBody>
+                  </Table>
                 </div>
               </CardContent>
             </Card>

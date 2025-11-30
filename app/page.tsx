@@ -284,16 +284,6 @@ export default async function HomePage() {
       {/* Features Overview Section */}
       <section className="py-20 bg-muted/30" id="features">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
-              Mobile-Optimized Features for Field Teams
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-              Everything your field team needs to track tasks, ensure compliance, and submit professional reports - all
-              from their mobile devices while on-site.
-            </p>
-          </div>
-
           {/* Core Features Section */}
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             <Card className="border-border/50 bg-card hover:shadow-lg transition-shadow duration-300">
@@ -626,6 +616,10 @@ export default async function HomePage() {
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <span className="font-semibold">📧 Email Notifications</span>
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
                     <span className="font-semibold">🔗 Contractor Link Share</span>
                   </li>
                   <li className="flex items-center">
@@ -678,6 +672,10 @@ export default async function HomePage() {
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
                     <span className="font-semibold">🎨 Custom Business Branding</span>
+                  </li>
+                  <li className="flex items-center">
+                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <span className="font-semibold">📧 Email Notifications</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />

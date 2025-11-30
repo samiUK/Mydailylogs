@@ -64,12 +64,12 @@ export default function MasterLoginPage() {
       localStorage.setItem("masterAdminEmail", email)
 
       if (data.userType === "master_admin") {
-        document.cookie = `master-admin-session=authenticated; path=/; max-age=86400; SameSite=Lax`
+        document.cookie = `masterAdminImpersonation=true; path=/; max-age=86400; SameSite=Lax`
         document.cookie = `masterAdminEmail=${email}; path=/; max-age=86400; SameSite=Lax`
         document.cookie = `userType=master_admin; path=/; max-age=86400; SameSite=Lax`
         console.log("[v0] Set master admin authentication cookies")
       } else if (data.userType === "superuser") {
-        document.cookie = `superuser-session=authenticated; path=/; max-age=86400; SameSite=Lax`
+        document.cookie = `masterAdminImpersonation=true; path=/; max-age=86400; SameSite=Lax`
         document.cookie = `superuser-email=${email}; path=/; max-age=86400; SameSite=Lax`
         document.cookie = `userType=superuser; path=/; max-age=86400; SameSite=Lax`
         console.log("[v0] Set superuser authentication cookies")

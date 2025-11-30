@@ -25,6 +25,7 @@ export interface SubscriptionProduct {
     contractorLinkShare?: boolean
     photoUpload?: boolean
     reportDeletionRecovery?: boolean
+    emailNotifications?: boolean // Added emailNotifications flag
   }
 }
 
@@ -48,6 +49,7 @@ export const SUBSCRIPTION_PRODUCTS: SubscriptionProduct[] = [
       customBranding: false,
       contractorLinkShare: false,
       photoUpload: false,
+      emailNotifications: false, // Added emailNotifications flag set to false for Starter plan
     },
   },
   {
@@ -69,6 +71,7 @@ export const SUBSCRIPTION_PRODUCTS: SubscriptionProduct[] = [
       customBranding: true,
       contractorLinkShare: true,
       photoUpload: true,
+      emailNotifications: true, // Added emailNotifications flag set to true for Growth plan
     },
   },
   {
@@ -91,6 +94,7 @@ export const SUBSCRIPTION_PRODUCTS: SubscriptionProduct[] = [
       contractorLinkShare: true,
       photoUpload: true,
       reportDeletionRecovery: true,
+      emailNotifications: true, // Added emailNotifications flag set to true for Scale plan
     },
   },
 ]

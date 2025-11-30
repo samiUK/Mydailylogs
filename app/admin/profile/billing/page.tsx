@@ -348,6 +348,10 @@ export default function BillingPage() {
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
+                      <span className="text-sm">Email Notifications</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-primary" />
                       <span className="text-sm">Contractor Link Share</span>
                     </li>
                     <li className="flex items-center gap-2">

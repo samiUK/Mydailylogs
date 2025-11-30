@@ -47,6 +47,7 @@ import {
   TrendingUp,
   Database,
   Crown,
+  ExternalLink,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { ReportDirectoryContent } from "./report-directory-content"
@@ -102,9 +103,23 @@ interface Payment {
   amount: string
   status: string
   created_at: string
+  stripe_payment_id?: string
+  currency?: string
+  customer_email?: string
+  customer_name?: string
+  payment_method?: string
+  receipt_url?: string | null
+  refunded?: boolean
+  refunded_amount?: string
+  organization?: {
+    organization_id: string
+    organization_name: string
+    slug: string
+  }
+  plan_name?: string
   subscriptions?: {
     plan_name: string
-    organizations?: { organization_id: string; organization_name: string; slug: string } // Added slug
+    organizations?: { organization_id: string; organization_name: string; slug: string }
   }
 }
 
@@ -274,15 +289,21 @@ export default function MasterDashboardPage() {
     }, 5000)
   }
 
-  // Function to fetch all payments (to be called after refund)
   const loadAllPayments = async () => {
     try {
-      const { data, error } = await createClient().from("payments").select(`*, subscriptions(*, organizations(*))`)
-      if (error) throw error
-      setAllPayments(data || [])
+      console.log("[v0] Syncing payments from Stripe...")
+      const response = await fetch("/api/master/sync-stripe-payments")
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch payments from Stripe")
+      }
+
+      const data = await response.json()
+      console.log("[v0] Loaded", data.payments.length, "payments from Stripe")
+      setAllPayments(data.payments || [])
     } catch (error) {
-      console.error("Error fetching payments:", error)
-      toast.error("Failed to load payment data")
+      console.error("[v0] Error fetching payments:", error)
+      toast.error("Failed to load payment data from Stripe")
     }
   }
 
@@ -472,7 +493,7 @@ export default function MasterDashboardPage() {
             { data: superusersData, error: superusersError },
             { data: templatesData, error: templatesError },
             { data: subscriptionsData, error: subscriptionsError },
-            { data: paymentsData, error: paymentsError },
+            // { data: paymentsData, error: paymentsError }, // Removed as loadAllPayments handles fetching
             { data: feedbackData, error: feedbackError },
             { data: reportsData, error: reportsError },
             { data: checklistsData, error: checklistsError },
@@ -493,9 +514,7 @@ export default function MasterDashboardPage() {
             adminClient
               .from("subscriptions")
               .select(`*, organizations(organization_id, organization_name, logo_url, primary_color, slug)`), // Select organization details for subscriptions
-            adminClient
-              .from("payments")
-              .select(`*, subscriptions(*, organizations(*))`), // Select subscription and organization details for payments
+            // Removed payments fetch here
             adminClient
               .from("feedback")
               .select("*"), // Fetch feedback
@@ -519,7 +538,7 @@ export default function MasterDashboardPage() {
             superusers: { error: superusersError, count: superusersData?.length },
             templates: { error: templatesError, count: templatesData?.length },
             subscriptions: { error: subscriptionsError, count: subscriptionsData?.length },
-            payments: { error: paymentsError, count: paymentsData?.length },
+            // payments: { error: paymentsError, count: paymentsData?.length }, // Removed
             feedback: { error: feedbackError, count: feedbackData?.length },
             reports: { error: reportsError, count: reportsData?.length },
             checklists: { error: checklistsError, count: checklistsData?.length },
@@ -555,7 +574,7 @@ export default function MasterDashboardPage() {
           }
           if (templatesError) console.error("[v0] Templates fetch error:", templatesError)
           if (subscriptionsError) console.error("[v0] Subscriptions fetch error:", subscriptionsError)
-          if (paymentsError) console.error("[v0] Payments fetch error:", paymentsError)
+          // if (paymentsError) console.error("[v0] Payments fetch error:", paymentsError) // Removed
           if (feedbackError) console.error("[v0] Feedback fetch error:", feedbackError)
           if (reportsError) console.error("[v0] Reports fetch error:", reportsError)
           if (checklistsError) console.error("[v0] Checklists fetch error:", checklistsError)
@@ -595,12 +614,13 @@ export default function MasterDashboardPage() {
             setAllSubscriptions(enrichedSubscriptions)
           }
 
-          if (paymentsError) {
-            console.error("[v0] Payments fetch error:", paymentsError)
-            setAllPayments([])
-          } else {
-            setAllPayments(paymentsData || [])
-          }
+          // Removed direct payment data assignment
+          // if (paymentsError) {
+          //   console.error("[v0] Payments fetch error:", paymentsError)
+          //   setAllPayments([])
+          // } else {
+          //   setAllPayments(paymentsData || [])
+          // }
 
           if (feedbackError) {
             console.error("[v0] Feedback fetch error:", feedbackError)
@@ -749,7 +769,7 @@ export default function MasterDashboardPage() {
             superusers: superusersData?.length || 0,
             templates: templatesData?.length || 0,
             subscriptions: subscriptionsData?.length || 0,
-            payments: paymentsData?.length || 0,
+            // payments: paymentsData?.length || 0, // Removed
             feedback: feedbackData?.length || 0,
             reports: reportsData?.length || 0,
           })
@@ -2866,8 +2886,16 @@ export default function MasterDashboardPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Payment Management</CardTitle>
-                <CardDescription>View and manage all payment transactions with refund capabilities</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Payment Management</CardTitle>
+                    <CardDescription>Real-time payment data synced directly from Stripe</CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={loadAllPayments} disabled={isProcessing}>
+                    <RefreshCw className={`w-4 h-4 mr-2 ${isProcessing ? "animate-spin" : ""}`} />
+                    Sync Stripe
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -2888,11 +2916,21 @@ export default function MasterDashboardPage() {
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-1">
                             <p className="font-medium">
-                              {payment.subscriptions?.organizations?.organization_name || "Unknown Organization"}
+                              {payment.organization?.organization_name ||
+                                payment.subscriptions?.organizations?.organization_name ||
+                                payment.customer_name ||
+                                "Unknown Organization"}
                             </p>
-                            <Badge variant="outline">{payment.subscriptions?.plan_name || "N/A"}</Badge>
+                            <Badge variant="outline">
+                              {payment.plan_name || payment.subscriptions?.plan_name || "N/A"}
+                            </Badge>
+                            {payment.payment_method && (
+                              <Badge variant="secondary" className="capitalize">
+                                {payment.payment_method}
+                              </Badge>
+                            )}
                           </div>
-                          <p className="text-sm text-gray-500">
+                          <p className="text-sm text-gray-500 mb-1">
                             {new Date(payment.created_at).toLocaleDateString("en-GB", {
                               day: "numeric",
                               month: "long",
@@ -2901,10 +2939,17 @@ export default function MasterDashboardPage() {
                               minute: "2-digit",
                             })}
                           </p>
+                          {payment.customer_email && <p className="text-xs text-gray-400">{payment.customer_email}</p>}
+                          {payment.refunded && (
+                            <p className="text-xs text-orange-600 mt-1">Refunded: £{payment.refunded_amount}</p>
+                          )}
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="text-right">
-                            <p className="font-medium text-lg">£{Number.parseFloat(payment.amount).toFixed(2)}</p>
+                            <p className="font-medium text-lg">
+                              {payment.currency || "£"}
+                              {Number.parseFloat(payment.amount).toFixed(2)}
+                            </p>
                             <Badge
                               variant={
                                 payment.status === "completed" || payment.status === "succeeded"
@@ -2913,12 +2958,21 @@ export default function MasterDashboardPage() {
                                     ? "secondary"
                                     : "destructive"
                               }
+                              className="capitalize"
                             >
                               {payment.status}
                             </Badge>
                           </div>
+                          {payment.receipt_url && (
+                            <Button variant="ghost" size="sm" asChild>
+                              <a href={payment.receipt_url} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                            </Button>
+                          )}
                           {(payment.status === "completed" || payment.status === "succeeded") &&
-                            currentUserRole === "masteradmin" && (
+                            currentUserRole === "masteradmin" &&
+                            !payment.refunded && (
                               <Dialog>
                                 <DialogTrigger asChild>
                                   <Button variant="outline" size="sm">

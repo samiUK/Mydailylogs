@@ -272,15 +272,21 @@ export default function MasterDashboardPage() {
     }, 5000)
   }
 
-  // Function to fetch all payments (to be called after refund)
   const loadAllPayments = async () => {
     try {
-      const { data, error } = await createClient().from("payments").select(`*, subscriptions(*, organizations(*))`)
-      if (error) throw error
-      setAllPayments(data || [])
+      console.log("[v0] Syncing payments from Stripe...")
+      const response = await fetch("/api/master/sync-stripe-payments")
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch payments from Stripe")
+      }
+
+      const data = await response.json()
+      console.log("[v0] Loaded", data.payments.length, "payments from Stripe")
+      setAllPayments(data.payments || [])
     } catch (error) {
-      console.error("Error fetching payments:", error)
-      toast.error("Failed to load payment data")
+      console.error("[v0] Error fetching payments:", error)
+      toast.error("Failed to load payment data from Stripe")
     }
   }
 

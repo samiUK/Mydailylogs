@@ -579,7 +579,8 @@ export default function HomePageClient() {
                       <span className="text-5xl font-bold text-foreground">{formatPrice(900)}</span>
                       <span className="text-muted-foreground text-lg">/month</span>
                       <p className="text-sm text-muted-foreground mt-2">
-                        or {formatPrice(800)}/month billed yearly ({formatPrice(9600)}/year)
+                        or {formatPrice(800)}/month billed yearly ({currency === "USD" ? "$108" : formatPrice(9600)}
+                        /year)
                       </p>
                     </>
                   )}
@@ -651,7 +652,8 @@ export default function HomePageClient() {
                       <span className="text-5xl font-bold text-foreground">{formatPrice(1600)}</span>
                       <span className="text-muted-foreground text-lg">/month</span>
                       <p className="text-sm text-muted-foreground mt-2">
-                        or {formatPrice(1500)}/month billed yearly ({formatPrice(18000)}/year)
+                        or {formatPrice(1500)}/month billed yearly ({currency === "USD" ? "$192" : formatPrice(18000)}
+                        /year)
                       </p>
                     </>
                   )}

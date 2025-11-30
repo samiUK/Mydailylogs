@@ -193,10 +193,10 @@ export default function MasterDashboardPage() {
     staffUnavailability: { total: 0, current: 0 },
     auditLogs: { total: 0, today: 0 },
     backups: { total: 0, thisWeek: 0 },
-    // New state for server management
-    totalSize: 0, // Supabase Database Storage in bytes
-    totalBandwidth: 0, // Vercel Bandwidth in bytes
-    sentEmails: 0, // Resend Emails sent
+    // Removed RPC-related fields that require server-side calls
+    totalSize: 0,
+    totalBandwidth: 0,
+    sentEmails: 0,
   })
 
   const [newSignupsThisMonth, setNewSignupsThisMonth] = useState(0)
@@ -481,10 +481,7 @@ export default function MasterDashboardPage() {
             { data: staffUnavailabilityData, error: staffUnavailabilityError },
             { data: auditLogsData, error: auditLogsError },
             { data: backupsData, error: backupsError }, // Fixed duplicate error name from backupsData to backupsError
-            // Added fetch for database size and related stats
-            { data: dbSizeData, error: dbSizeError },
-            { data: bandwidthData, error: bandwidthError },
-            { data: emailsSentData, error: emailsSentError },
+            // Removed RPC calls that trigger server action detection
           ] = await Promise.all([
             adminClient.from("organizations").select("*"),
             adminClient.from("profiles").select("*"),
@@ -508,9 +505,6 @@ export default function MasterDashboardPage() {
             adminClient.from("staff_unavailability").select("id, start_date, end_date"),
             adminClient.from("report_audit_logs").select("id, created_at"),
             adminClient.from("report_backups").select("id, created_at"),
-            adminClient.rpc("get_database_size"), // Fetch database size
-            adminClient.rpc("get_vercel_bandwidth"), // Fetch Vercel bandwidth (placeholder)
-            adminClient.rpc("get_resend_emails_sent"), // Fetch Resend emails sent (placeholder)
           ])
 
           console.log("[v0] Data fetch results:", {
@@ -528,9 +522,6 @@ export default function MasterDashboardPage() {
             staffUnavailability: { error: staffUnavailabilityError, count: staffUnavailabilityData?.length },
             auditLogs: { error: auditLogsError, count: auditLogsData?.length },
             backups: { error: backupsError, count: backupsData?.length }, // Fixed reference to use backupsError
-            dbSize: { error: dbSizeError, data: dbSizeData },
-            bandwidth: { error: bandwidthError, data: bandwidthData },
-            emailsSent: { error: emailsSentError, data: emailsSentData },
           })
 
           console.log("[v0] Checklists data:", {
@@ -672,9 +663,10 @@ export default function MasterDashboardPage() {
                 }).length || 0,
             },
             // Update server management stats
-            totalSize: dbSizeData ? dbSizeData.total_size_bytes : 0, // Assuming RPC returns total_size_bytes
-            totalBandwidth: bandwidthData ? bandwidthData.total_bandwidth_bytes : 0, // Placeholder
-            sentEmails: emailsSentData ? emailsSentData.emails_sent_count : 0, // Placeholder
+            // Removed database size and bandwidth as they rely on RPC calls
+            totalSize: 0, // Placeholder
+            totalBandwidth: 0, // Placeholder
+            sentEmails: 0, // Placeholder
           })
 
           // Create organization map with profiles
@@ -792,26 +784,11 @@ export default function MasterDashboardPage() {
           setConversionRate(Number(conversion))
 
           try {
-            const { data, error } = await adminClient.rpc("get_database_size")
-            if (!error && data) {
-              setDatabaseSize(data) // Assuming RPC returns formatted string like "1.23 MB"
-            } else {
-              console.log("[v0] RPC get_database_size failed or returned no data:", error?.message || "No data")
-              // Fallback: estimate from record counts if RPC fails
-              const estimatedSizeMB = (allUsers.length * 2 + (organizationsData?.length ?? 0) * 1) / 1024 // Rough estimate in MB
-              setDatabaseSize(
-                estimatedSizeMB > 1024
-                  ? `${(estimatedSizeMB / 1024).toFixed(2)} GB`
-                  : `${estimatedSizeMB.toFixed(2)} MB`,
-              )
-            }
+            // Removed database size calculation as it relied on RPC
+            setDatabaseSize("N/A") // Placeholder
           } catch (err: any) {
-            console.error("[v0] Error calling RPC get_database_size:", err.message)
-            // Fallback if RPC call itself throws an error
-            const estimatedSizeMB = (allUsers.length * 2 + (organizationsData?.length ?? 0) * 1) / 1024 // Rough estimate in MB
-            setDatabaseSize(
-              estimatedSizeMB > 1024 ? `${(estimatedSizeMB / 1024).toFixed(2)} GB` : `${estimatedSizeMB.toFixed(2)} MB`,
-            )
+            console.error("[v0] Error estimating database size:", err.message)
+            setDatabaseSize("N/A")
           }
 
           setIsLoading(false)

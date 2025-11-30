@@ -208,7 +208,7 @@ export default function HomePageClient() {
       <section className="py-20 px-4 sm:px-6 lg:px-8 text-center">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-foreground mb-6 leading-tight">
-            Mobile Task Management <span className="text-accent block">for On-the-Go Field Teams</span>
+            Mobile ready Task management <span className="text-accent block">and Team Reporting On-the-Go</span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground leading-relaxed">
             Professional mobile-friendly task management and compliance reporting built for field teams who work

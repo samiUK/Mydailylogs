@@ -54,8 +54,6 @@ import { toast } from "sonner" // Import toast
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import Link from "next/link" // Import Link
 
-// All admin operations now use server-side API routes for security
-
 interface Organization {
   organization_id: string
   organization_name: string

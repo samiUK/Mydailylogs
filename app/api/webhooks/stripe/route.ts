@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   const signature = req.headers.get("stripe-signature")
 
   if (!signature) {
-    console.error("[v0] Missing Stripe signature")
+    console.error("Missing Stripe signature")
     return NextResponse.json({ error: "No signature" }, { status: 400 })
   }
 
@@ -20,30 +20,28 @@ export async function POST(req: NextRequest) {
   try {
     event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET!)
   } catch (err: any) {
-    console.error("[v0] Webhook signature verification failed:", err.message)
+    console.error("Webhook signature verification failed:", err.message)
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
   }
 
-  console.log("[v0] Stripe webhook received:", event.type, event.id)
+  console.log("Stripe webhook received:", event.type, event.id)
 
   try {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session
-        console.log("[v0] Checkout completed:", session.id)
 
         const organizationId = session.metadata?.organization_id
-        const productId = session.metadata?.product_id
-        const planName = session.metadata?.plan_name
+        const subscriptionType = session.metadata?.subscription_type // Use subscription_type
 
-        if (!organizationId || !productId || !planName) {
-          console.error("[v0] Missing required metadata in session:", session.metadata)
+        if (!organizationId || !subscriptionType) {
+          console.error("Missing required metadata in session:", session.metadata)
           throw new Error("Invalid session metadata")
         }
 
         const subscriptionId = session.subscription as string
         if (!subscriptionId) {
-          console.error("[v0] No subscription ID in session")
+          console.error("No subscription ID in session")
           throw new Error("Missing subscription ID")
         }
 
@@ -53,9 +51,10 @@ export async function POST(req: NextRequest) {
           {
             id: subscriptionId,
             organization_id: organizationId,
-            plan_name: planName,
+            plan_name: subscriptionType, // Store as growth-monthly, growth-yearly, scale-monthly, or scale-yearly
             status: subscription.status,
-            stripe_subscription_id: subscriptionId,
+            is_trial: subscription.trial_end ? true : false,
+            trial_ends_at: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
             current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
             current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
             updated_at: new Date().toISOString(),
@@ -66,7 +65,7 @@ export async function POST(req: NextRequest) {
         )
 
         if (subError) {
-          console.error("[v0] Error upserting subscription:", subError)
+          console.error("Error upserting subscription:", subError)
           throw subError
         }
 
@@ -74,21 +73,21 @@ export async function POST(req: NextRequest) {
           subscription_id: subscriptionId,
           amount: (session.amount_total || 0) / 100,
           currency: session.currency || "gbp",
-          status: "succeeded",
+          status: "completed",
           transaction_id: session.payment_intent as string,
           payment_method: "card",
         })
 
         if (paymentError) {
-          console.error("[v0] Error recording payment:", paymentError)
+          console.error("Error recording payment:", paymentError)
         }
 
         if (session.customer_email && session.amount_total) {
           try {
             const template = emailTemplates.paymentConfirmation({
               customerName: session.customer_details?.name || "Customer",
-              amount: `£${((session.amount_total || 0) / 100).toFixed(2)}`,
-              planName: planName || "Premium Plan",
+              amount: `${session.currency === "usd" ? "$" : "£"}${((session.amount_total || 0) / 100).toFixed(2)}`,
+              planName: subscriptionType.replace("-", " ").replace(/\b\w/g, (l) => l.toUpperCase()),
               transactionId: session.id,
               date: new Date().toISOString(),
               paymentMethod: session.payment_method_types?.[0] || "card",
@@ -96,19 +95,19 @@ export async function POST(req: NextRequest) {
             })
 
             await sendEmail(session.customer_email, template.subject, template.html)
-            console.log("[v0] Payment confirmation email sent to:", session.customer_email)
+            console.log("Payment confirmation email sent to:", session.customer_email)
           } catch (emailError) {
-            console.error("[v0] Failed to send payment confirmation email:", emailError)
+            console.error("Failed to send payment confirmation email:", emailError)
           }
         }
 
-        console.log("[v0] Subscription created successfully:", subscriptionId)
+        console.log("Subscription created successfully:", subscriptionId)
         break
       }
 
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription
-        console.log("[v0] Subscription updated:", subscription.id)
+        console.log("Subscription updated:", subscription.id)
 
         const { error } = await supabaseAdmin
           .from("subscriptions")
@@ -121,7 +120,7 @@ export async function POST(req: NextRequest) {
           .eq("id", subscription.id)
 
         if (error) {
-          console.error("[v0] Error updating subscription:", error)
+          console.error("Error updating subscription:", error)
           throw error
         }
 
@@ -157,10 +156,10 @@ export async function POST(req: NextRequest) {
                 })
 
                 await sendEmail(customer.email, template.subject, template.html)
-                console.log("[v0] Trial ending reminder sent to:", customer.email)
+                console.log("Trial ending reminder sent to:", customer.email)
               }
             } catch (emailError) {
-              console.error("[v0] Failed to send trial ending reminder:", emailError)
+              console.error("Failed to send trial ending reminder:", emailError)
             }
           }
         }
@@ -170,7 +169,7 @@ export async function POST(req: NextRequest) {
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription
-        console.log("[v0] Subscription cancelled:", subscription.id)
+        console.log("Subscription cancelled:", subscription.id)
 
         const { data: subData } = await supabaseAdmin
           .from("subscriptions")
@@ -187,12 +186,12 @@ export async function POST(req: NextRequest) {
           .eq("id", subscription.id)
 
         if (error) {
-          console.error("[v0] Error cancelling subscription:", error)
+          console.error("Error cancelling subscription:", error)
           throw error
         }
 
         if (subData?.organization_id) {
-          console.log("[v0] Processing downgrade cleanup for organization:", subData.organization_id)
+          console.log("Processing downgrade cleanup for organization:", subData.organization_id)
 
           // Keep only last 3 templates, archive the rest
           const { data: templates } = await supabaseAdmin
@@ -211,9 +210,9 @@ export async function POST(req: NextRequest) {
               .in("id", templatesToArchive)
 
             if (archiveError) {
-              console.error("[v0] Error archiving templates:", archiveError)
+              console.error("Error archiving templates:", archiveError)
             } else {
-              console.log("[v0] Archived", templatesToArchive.length, "templates")
+              console.log("Archived", templatesToArchive.length, "templates")
             }
           }
 
@@ -237,13 +236,13 @@ export async function POST(req: NextRequest) {
               .in("id", reportsToDelete)
 
             if (deleteError) {
-              console.error("[v0] Error deleting reports:", deleteError)
+              console.error("Error deleting reports:", deleteError)
             } else {
-              console.log("[v0] Soft-deleted", reportsToDelete.length, "reports")
+              console.log("Soft-deleted", reportsToDelete.length, "reports")
             }
           }
 
-          console.log("[v0] Downgrade cleanup completed for organization:", subData.organization_id)
+          console.log("Downgrade cleanup completed for organization:", subData.organization_id)
         }
 
         break
@@ -251,14 +250,14 @@ export async function POST(req: NextRequest) {
 
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice
-        console.log("[v0] Payment succeeded for invoice:", invoice.id)
+        console.log("Payment succeeded for invoice:", invoice.id)
 
         if (invoice.subscription) {
           const { error } = await supabaseAdmin.from("payments").insert({
             subscription_id: invoice.subscription as string,
             amount: (invoice.amount_paid || 0) / 100,
             currency: invoice.currency || "gbp",
-            status: "succeeded",
+            status: "completed",
             transaction_id: invoice.payment_intent as string,
             payment_method: "card",
             stripe_invoice_url: invoice.hosted_invoice_url || undefined,
@@ -266,7 +265,7 @@ export async function POST(req: NextRequest) {
           })
 
           if (error) {
-            console.error("[v0] Error recording payment:", error)
+            console.error("Error recording payment:", error)
           }
 
           if (invoice.customer_email && invoice.billing_reason === "subscription_cycle") {
@@ -285,9 +284,9 @@ export async function POST(req: NextRequest) {
               })
 
               await sendEmail(invoice.customer_email, template.subject, template.html)
-              console.log("[v0] Monthly invoice email sent to:", invoice.customer_email)
+              console.log("Monthly invoice email sent to:", invoice.customer_email)
             } catch (emailError) {
-              console.error("[v0] Failed to send monthly invoice email:", emailError)
+              console.error("Failed to send monthly invoice email:", emailError)
             }
           }
         }
@@ -297,7 +296,7 @@ export async function POST(req: NextRequest) {
 
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice
-        console.log("[v0] Payment failed for invoice:", invoice.id)
+        console.log("Payment failed for invoice:", invoice.id)
 
         if (invoice.subscription) {
           const { error: paymentError } = await supabaseAdmin.from("payments").insert({
@@ -310,7 +309,7 @@ export async function POST(req: NextRequest) {
           })
 
           if (paymentError) {
-            console.error("[v0] Error recording failed payment:", paymentError)
+            console.error("Error recording failed payment:", paymentError)
           }
 
           const { error: subError } = await supabaseAdmin
@@ -322,7 +321,7 @@ export async function POST(req: NextRequest) {
             .eq("id", invoice.subscription as string)
 
           if (subError) {
-            console.error("[v0] Error updating subscription status:", subError)
+            console.error("Error updating subscription status:", subError)
           }
 
           if (invoice.customer_email) {
@@ -337,9 +336,9 @@ export async function POST(req: NextRequest) {
               })
 
               await sendEmail(invoice.customer_email, template.subject, template.html)
-              console.log("[v0] Payment failed email sent to:", invoice.customer_email)
+              console.log("Payment failed email sent to:", invoice.customer_email)
             } catch (emailError) {
-              console.error("[v0] Failed to send payment failed email:", emailError)
+              console.error("Failed to send payment failed email:", emailError)
             }
           }
         }
@@ -348,12 +347,12 @@ export async function POST(req: NextRequest) {
       }
 
       default:
-        console.log("[v0] Unhandled event type:", event.type)
+        console.log("Unhandled event type:", event.type)
     }
 
     return NextResponse.json({ received: true })
   } catch (error: any) {
-    console.error("[v0] Error processing webhook:", error)
+    console.error("Error processing webhook:", error)
     return NextResponse.json({ error: "Webhook processing failed", details: error.message }, { status: 500 })
   }
 }

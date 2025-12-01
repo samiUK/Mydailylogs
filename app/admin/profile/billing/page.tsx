@@ -10,7 +10,8 @@ import { CheckCircle, CreditCard, Download, Calendar, AlertCircle, Sparkles, Ext
 import { useRouter, useSearchParams } from "next/navigation"
 import StripeCheckout from "@/components/stripe-checkout"
 import { SUBSCRIPTION_PRODUCTS, formatPrice } from "@/lib/subscription-products"
-import { createBillingPortalSession } from "@/lib/stripe-utils" // Import the missing functions
+import { getStripePriceId } from "@/lib/stripe-prices"
+import { createBillingPortalSession } from "@/lib/stripe-utils"
 import { toast } from "@/components/ui/use-toast"
 
 interface Subscription {
@@ -42,9 +43,13 @@ export default function BillingPage() {
   const searchParams = useSearchParams()
   const [currency, setCurrency] = useState<"GBP" | "USD">("GBP")
   const [profile, setProfile] = useState<any | null>(null)
-  const [billingPeriod, setBillingPeriod] = useState<string>("monthly")
-  const [userId, setUserId] = useState<string | null>(null) // Added userId state
-  const supabase = createClient() // Declare the supabase variable here
+  const [billingPeriod, setBillingPeriod] = useState<"monthly" | "yearly">("monthly")
+  const [userId, setUserId] = useState<string | null>(null)
+  const [dataLoaded, setDataLoaded] = useState(false)
+  const supabase = createClient()
+
+  const productType = selectedPlanId as "growth" | "scale" | null
+  const interval = billingPeriod === "monthly" ? "month" : billingPeriod === "yearly" ? "year" : null
 
   useEffect(() => {
     const detectCurrency = async () => {
@@ -56,21 +61,24 @@ export default function BillingPage() {
           setCurrency(countryCode === "GB" ? "GBP" : "USD")
         }
       } catch (error) {
-        console.error("[v0] Currency detection failed:", error)
+        // Silent fail - defaults to GBP
       }
     }
-
     detectCurrency()
   }, [])
 
   useEffect(() => {
-    loadBillingData()
+    const initialize = async () => {
+      await loadBillingData()
 
-    const planParam = searchParams.get("plan")
-    if (planParam && (planParam === "growth" || planParam === "scale")) {
-      setSelectedPlanId(planParam as "growth" | "scale")
-      setShowCheckout(true)
+      // Auto-open checkout from URL param
+      const planParam = searchParams.get("plan")
+      if (planParam === "growth" || planParam === "scale") {
+        setSelectedPlanId(planParam)
+        setShowCheckout(true)
+      }
     }
+    initialize()
   }, [searchParams])
 
   const formatPriceWithCurrency = (gbpPence: number) => {
@@ -94,8 +102,7 @@ export default function BillingPage() {
         return
       }
 
-      console.log("[v0] Billing page - User ID from auth:", user.id)
-      setUserId(user.id) // Store the actual user ID from auth
+      setUserId(user.id)
 
       const { data: userProfile, error: profileError } = await supabase
         .from("profiles")
@@ -107,11 +114,6 @@ export default function BillingPage() {
         throw new Error("Unable to load organization information")
       }
 
-      console.log("[v0] Billing page - Profile loaded:", {
-        organization_id: userProfile.organization_id,
-        email: userProfile.email,
-        full_name: userProfile.full_name,
-      })
       setProfile(userProfile)
 
       const { data: subscriptionData, error: subError } = await supabase
@@ -168,61 +170,34 @@ export default function BillingPage() {
         if (paymentsData) setBillingHistory(paymentsData)
       }
     } catch (error) {
-      console.error("[v0] Error loading billing data:", error)
-      setSubscription({
-        id: "temp",
-        plan_name: "starter",
-        status: "active",
-        current_period_start: new Date().toISOString(),
-        current_period_end: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(),
+      console.error("[v0] Failed to load billing data:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load billing information. Please refresh the page.",
+        variant: "destructive",
       })
+      setLoading(false)
     } finally {
       setLoading(false)
+      setDataLoaded(true)
     }
   }
 
-  const handleUpgrade = (planId: "growth" | "scale") => {
-    console.log("[v0] handleUpgrade called with planId:", planId)
-    console.log("[v0] Current state:", {
-      profile,
-      userId,
-      organizationId: profile?.organization_id,
-      email: profile?.email,
-      billingPeriod,
-      currency,
-    })
-
-    if (!profile?.organization_id || !profile?.email || !userId) {
-      console.error("[v0] Missing required data to open checkout:", {
-        hasProfile: !!profile,
-        hasOrgId: !!profile?.organization_id,
-        hasEmail: !!profile?.email,
-        hasUserId: !!userId,
-      })
+  const handleUpgrade = async (plan: "growth" | "scale") => {
+    if (!dataLoaded) {
       toast({
-        title: "Error",
-        description: "Unable to load billing information. Please refresh the page.",
-        variant: "destructive",
+        title: "Please Wait",
+        description: "Loading your account information...",
       })
       return
     }
-
-    setSelectedPlanId(planId)
+    setSelectedPlanId(plan)
     setShowCheckout(true)
-    console.log("[v0] Opening checkout modal with:", {
-      planId,
-      interval: billingPeriod === "monthly" ? "month" : "year",
-      organizationId: profile.organization_id,
-      email: profile.email,
-      userId,
-      currency,
-    })
   }
 
   const handleCancel = async () => {
     if (!subscription) return
 
-    // Show detailed warning about consequences
     const confirmed = window.confirm(
       `⚠️ Cancel Subscription - Important Information\n\n` +
         `If you cancel your ${subscription.plan_name} subscription:\n\n` +
@@ -249,7 +224,6 @@ export default function BillingPage() {
         throw new Error(data.error || "Failed to cancel subscription")
       }
 
-      // Refresh subscription data
       const { data: updatedSub } = await supabase
         .from("subscriptions")
         .select("*")
@@ -660,40 +634,12 @@ export default function BillingPage() {
         </Card>
       )}
 
-      {showCheckout && selectedPlanId && profile && userId && profile.organization_id && profile.email ? (
+      {showCheckout && selectedPlanId && (
         <StripeCheckout
-          productType={selectedPlanId as "growth" | "scale"}
-          interval={billingPeriod === "monthly" ? "month" : "year"}
-          organizationId={profile.organization_id}
-          userEmail={profile.email}
-          userId={userId}
-          userName={profile.full_name || profile.email}
-          currency={currency}
-          onClose={() => {
-            console.log("[v0] Closing checkout modal")
-            setShowCheckout(false)
-            setSelectedPlanId(null)
-          }}
+          priceId={getStripePriceId(selectedPlanId, billingPeriod, currency)}
+          onClose={() => setShowCheckout(false)}
         />
-      ) : showCheckout && selectedPlanId ? (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background p-6 rounded-lg shadow-lg max-w-md">
-            <h3 className="text-lg font-semibold mb-2">Error Loading Payment</h3>
-            <p className="text-muted-foreground mb-4">
-              Unable to load your account information. Please refresh the page and try again.
-            </p>
-            <Button
-              onClick={() => {
-                setShowCheckout(false)
-                setSelectedPlanId(null)
-                window.location.reload()
-              }}
-            >
-              Reload Page
-            </Button>
-          </div>
-        </div>
-      ) : null}
+      )}
     </div>
   )
 }

@@ -22,10 +22,9 @@ import {
 import Link from "next/link"
 import { Footer } from "@/components/footer"
 import { FeedbackModal } from "@/components/feedback-modal"
-import { redirect } from "next/navigation"
-import { CookieConsent } from "@/components/cookie-consent"
-import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { CookieConsent } from "@/components/cookie-consent" // Declare the CookieConsent variable
 
 export default function HomePageClient() {
   const router = useRouter()
@@ -83,20 +82,20 @@ export default function HomePageClient() {
 
       if (userProfiles && userProfiles.length > 0) {
         if (userProfiles.length > 1) {
-          redirect("/profile")
+          router.push("/profile")
         } else {
           const profile = userProfiles[0]
 
           if (profile.role === "admin") {
-            redirect(`/admin`)
+            router.push(`/admin`)
           } else if (profile.role === "staff") {
-            redirect(`/staff`)
+            router.push(`/staff`)
           } else {
-            redirect(`/admin`)
+            router.push(`/admin`)
           }
         }
       } else {
-        redirect("/auth/login?error=no_profile_found")
+        router.push("/auth/login?error=no_profile_found")
       }
     }
   }
@@ -104,7 +103,9 @@ export default function HomePageClient() {
   const currentDate = new Date()
   const showBanner = true
 
-  checkUserAuth()
+  useEffect(() => {
+    checkUserAuth()
+  }, [])
 
   const formatPrice = (gbpPence: number) => {
     if (currency === "USD") {

@@ -48,7 +48,6 @@ const getEmailHeader = () => {
     <div style="text-align: center; padding: 20px 0; border-bottom: 1px solid #e5e7eb;">
       <img src="${siteUrl}/images/mydaylogs-logo.png" alt="MyDayLogs" style="height: 40px; margin-bottom: 10px;" />
       <h1 style="color: #10b981; font-size: 24px; margin: 0; font-family: Arial, sans-serif;">MyDayLogs</h1>
-      <p style="color: #6b7280; font-size: 14px; margin: 5px 0 0 0; font-family: Arial, sans-serif;">Professional Task Management Platform</p>
     </div>
   `
 }
@@ -74,43 +73,44 @@ const getAutomatedEmailNotice = () => {
 }
 
 // Send email function
-export const sendEmail = async (to: string, subject: string, html: string): Promise<EmailResult> => {
+const sendEmailWithResend = async (to: string, subject: string, html: string): Promise<EmailResult> => {
   try {
-    console.log("[v0] Attempting to send email to:", to)
-    const transporter = await createTransporter()
+    const { Resend } = await import("resend")
+    const resend = new Resend(process.env.RESEND_API_KEY)
 
-    const mailOptions = {
-      from: `"MyDayLogs" <${process.env.SMTP_USER}>`, // Use SMTP_USER as sender
+    await resend.emails.send({
+      from: "MyDayLogs <noreply@mydaylogs.co.uk>",
       to,
       subject,
       html,
-    }
-
-    console.log("[v0] Sending email with options:", {
-      from: mailOptions.from,
-      to: mailOptions.to,
-      subject: mailOptions.subject,
     })
-
-    const info = await transporter.sendMail(mailOptions)
-    console.log("[v0] Email sent successfully:", info.messageId)
 
     return { success: true }
   } catch (error) {
-    console.error("[v0] Email sending error:", error)
-    if (error instanceof Error) {
-      console.error("[v0] Error name:", error.name)
-      console.error("[v0] Error message:", error.message)
-      console.error("[v0] Error stack:", error.stack)
+    console.error("Error sending email with Resend:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
     }
-    return { success: false, error: error instanceof Error ? error.message : "Unknown error" }
+  }
+}
+
+export const sendEmail = async (to: string, template: EmailTemplate): Promise<EmailResult> => {
+  try {
+    return await sendEmailWithResend(to, template.subject, template.html)
+  } catch (error) {
+    console.error("Error sending email:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    }
   }
 }
 
 // Send password reset email helper function
 export const sendPasswordResetEmail = async (email: string, recoveryUrl: string) => {
   const template = emailTemplates.recovery({ recovery_url: recoveryUrl })
-  return await sendEmail(email, template.subject, template.html)
+  return await sendEmail(email, template)
 }
 
 // Email templates

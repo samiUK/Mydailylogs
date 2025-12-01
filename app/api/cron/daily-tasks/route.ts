@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getSubscriptionLimits } from "@/lib/subscription-limits"
 import { sendEmail } from "@/lib/email/smtp"
 
-export const runtime = "edge"
+export const runtime = "nodejs"
 
 export async function GET(request: NextRequest) {
   try {
@@ -43,15 +43,35 @@ export async function GET(request: NextRequest) {
           .eq("id", sub.id)
 
         if (sub.profiles?.email) {
-          await sendEmail({
-            to: sub.profiles.email,
+          await sendEmail(sub.profiles.email, {
             subject: "Subscription Canceled - Downgraded to Starter Plan",
             html: `
-              <h2>Your subscription has been canceled</h2>
-              <p>Hi ${sub.profiles.first_name},</p>
-              <p>Your ${sub.plan_name} subscription for ${sub.organizations?.name} has been canceled due to failed payment.</p>
-              <p>Your account has been downgraded to the free Starter plan.</p>
-              <p>To reactivate your premium subscription, please visit your billing page and update your payment method.</p>
+              <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
+                <h2 style="color: #ef4444; margin-bottom: 20px;">Your Subscription Has Been Canceled</h2>
+                
+                <p>Hi ${sub.profiles.first_name || "there"},</p>
+                
+                <p>Your ${sub.plan_name} subscription for <strong>${sub.organizations?.name}</strong> has been canceled due to non-payment after the 7-day grace period.</p>
+                
+                <div style="background-color: #fee2e2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ef4444;">
+                  <h3 style="margin: 0 0 15px 0; color: #7f1d1d;">Your Account Status</h3>
+                  <p><strong>Status:</strong> Downgraded to Free Starter Plan</p>
+                  <p><strong>Active Templates:</strong> Limited to 3</p>
+                  <p><strong>Report History:</strong> Last 50 reports only</p>
+                </div>
+                
+                <p><strong>Want to reactivate your premium subscription?</strong></p>
+                <p>Visit your billing page and update your payment method to restore full access to all premium features.</p>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${process.env.NEXT_PUBLIC_SITE_URL}/admin/billing" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Update Payment Method</a>
+                </div>
+                
+                <p>If you have any questions, please contact our support team at info@mydaylogs.co.uk.</p>
+                
+                <p>Best regards,<br>
+                <strong>The MyDayLogs Team</strong></p>
+              </div>
             `,
           })
         }

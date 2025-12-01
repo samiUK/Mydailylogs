@@ -183,6 +183,7 @@ export default function AdminTemplatesPage() {
       } catch (error) {
         console.error("Error assigning template:", error)
         toast.error("Failed to assign template")
+        setAssignConfirmOpen(null)
       } finally {
         setAssigningTemplate(null)
       }
@@ -482,11 +483,14 @@ export default function AdminTemplatesPage() {
               Cancel
             </Button>
             <Button
-              onClick={() =>
-                assignConfirmOpen && handleAssign(assignConfirmOpen, selectedMembers[assignConfirmOpen] || [])
-              }
+              onClick={async () => {
+                if (assignConfirmOpen) {
+                  await handleAssign(assignConfirmOpen, selectedMembers[assignConfirmOpen] || [])
+                }
+              }}
+              disabled={assigningTemplate === assignConfirmOpen}
             >
-              Confirm Assignment
+              {assigningTemplate === assignConfirmOpen ? "Assigning..." : "Confirm Assignment"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -21,6 +21,7 @@ interface TeamMember {
     id: string
     name: string
     frequency: string
+    schedule_type: string
   }>
   supervisor?: {
     id: string
@@ -32,6 +33,8 @@ interface TeamMember {
 }
 
 function ProfileCard({ member }: { member: TeamMember }) {
+  const recurringTemplates = member.assigned_templates?.filter((t: any) => t.schedule_type === "recurring") || []
+
   return (
     <Card className="w-64 mx-auto">
       <CardHeader className="text-center pb-4">
@@ -61,40 +64,21 @@ function ProfileCard({ member }: { member: TeamMember }) {
               <p className="text-sm font-medium">{member.position}</p>
             </div>
           )}
-          {member.assigned_templates &&
-            member.assigned_templates.filter(
-              (t: any) => t.frequency === "daily" || t.frequency === "weekly" || t.frequency === "monthly",
-            ).length > 0 && (
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">Regular Jobs</p>
-                <div className="space-y-1">
-                  {member.assigned_templates
-                    .filter(
-                      (template: any) =>
-                        template.frequency === "daily" ||
-                        template.frequency === "weekly" ||
-                        template.frequency === "monthly",
-                    )
-                    .slice(0, 2)
-                    .map((template) => (
-                      <div key={template.id} className="text-xs bg-secondary/50 rounded px-2 py-1">
-                        {template.name} ({template.frequency})
-                      </div>
-                    ))}
-                  {member.assigned_templates.filter(
-                    (t: any) => t.frequency === "daily" || t.frequency === "weekly" || t.frequency === "monthly",
-                  ).length > 2 && (
-                    <div className="text-xs text-muted-foreground">
-                      +
-                      {member.assigned_templates.filter(
-                        (t: any) => t.frequency === "daily" || t.frequency === "weekly" || t.frequency === "monthly",
-                      ).length - 2}{" "}
-                      more
-                    </div>
-                  )}
-                </div>
+          {recurringTemplates.length > 0 && (
+            <div>
+              <p className="text-sm text-muted-foreground mb-2">Regular Jobs</p>
+              <div className="space-y-1">
+                {recurringTemplates.slice(0, 2).map((template) => (
+                  <div key={template.id} className="text-xs bg-secondary/50 rounded px-2 py-1">
+                    {template.name} ({template.frequency})
+                  </div>
+                ))}
+                {recurringTemplates.length > 2 && (
+                  <div className="text-xs text-muted-foreground">+{recurringTemplates.length - 2} more</div>
+                )}
               </div>
-            )}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -207,7 +191,7 @@ export default async function StaffTeamPage() {
       template_assignments!template_assignments_assigned_to_fkey(
         id,
         is_active,
-        checklist_templates(id, name, frequency)
+        checklist_templates(id, name, frequency, schedule_type)
       )
     `)
     .eq("organization_id", profile.organization_id)

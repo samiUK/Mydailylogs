@@ -154,20 +154,20 @@ export default function BillingPage() {
     },
     growth: {
       name: "Growth",
-      priceMonthly: 8,
+      priceMonthly: 9,
       priceYearly: 96,
       maxTemplates: 10,
       maxTeamMembers: 25,
-      maxAdmins: 2,
+      maxAdmins: 3,
       maxReportSubmissions: null,
     },
     scale: {
       name: "Scale",
       priceMonthly: 16,
       priceYearly: 180,
-      maxTemplates: 50,
-      maxTeamMembers: 100,
-      maxAdmins: 5,
+      maxTemplates: 20,
+      maxTeamMembers: 75,
+      maxAdmins: 7,
       maxReportSubmissions: null,
     },
   }
@@ -251,7 +251,7 @@ export default function BillingPage() {
               </div>
 
               <div className="mb-2">
-                <span className="text-3xl font-bold">£{billingInterval === "yearly" ? "8" : "8"}</span>
+                <span className="text-3xl font-bold">£{billingInterval === "yearly" ? "9" : "9"}</span>
                 <span className="text-lg font-normal text-muted-foreground">/month</span>
               </div>
               {billingInterval === "yearly" && <p className="text-sm text-muted-foreground mb-2">Billed £96 yearly</p>}
@@ -265,7 +265,7 @@ export default function BillingPage() {
               <ul className="space-y-2 mb-6">
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                  <span className="text-sm">2 admin accounts</span>
+                  <span className="text-sm">3 admin/manager accounts</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
@@ -281,11 +281,23 @@ export default function BillingPage() {
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                  <span className="text-sm font-semibold">⚡ Task Automation (Recurring Tasks)</span>
+                  <span className="text-sm">90-day report storage</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">⚡ Recurring Task Automation</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">📅 Multi-Day Scheduling</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
                   <span className="text-sm font-semibold">🎨 Custom Business Branding</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">📧 Email Notifications</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
@@ -294,6 +306,10 @@ export default function BillingPage() {
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
                   <span className="text-sm font-semibold">📸 Photo Upload on Reports</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">🕐 Business Hours Integration</span>
                 </li>
               </ul>
 
@@ -324,7 +340,7 @@ export default function BillingPage() {
               </div>
 
               <div className="mb-2">
-                <span className="text-3xl font-bold">£{billingInterval === "yearly" ? "15" : "16"}</span>
+                <span className="text-3xl font-bold">£{billingInterval === "yearly" ? "16" : "16"}</span>
                 <span className="text-lg font-normal text-muted-foreground">/month</span>
               </div>
               {billingInterval === "yearly" && <p className="text-sm text-muted-foreground mb-2">Billed £180 yearly</p>}
@@ -338,15 +354,15 @@ export default function BillingPage() {
               <ul className="space-y-2 mb-6">
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                  <span className="text-sm">5 admin accounts</span>
+                  <span className="text-sm">7 admin/manager accounts</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                  <span className="text-sm">Up to 100 team members</span>
+                  <span className="text-sm">Up to 75 team members</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                  <span className="text-sm">50 task templates</span>
+                  <span className="text-sm">20 task templates</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
@@ -354,11 +370,23 @@ export default function BillingPage() {
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                  <span className="text-sm font-semibold">⚡ Task Automation (Recurring Tasks)</span>
+                  <span className="text-sm">90-day report storage</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">⚡ Recurring Task Automation</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">📅 Multi-Day Scheduling</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
                   <span className="text-sm font-semibold">🎨 Custom Business Branding</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">📧 Email Notifications</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
@@ -370,7 +398,19 @@ export default function BillingPage() {
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">🕐 Business Hours Integration</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">🎯 Priority Support</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
                   <span className="text-sm font-semibold">🔄 Report Deletion Recovery (via support)</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">📊 Advanced Analytics</span>
                 </li>
               </ul>
 

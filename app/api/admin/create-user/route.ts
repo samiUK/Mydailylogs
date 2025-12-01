@@ -1,21 +1,12 @@
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
+import { checkCanCreateTeamMember, checkCanCreateAdmin } from "@/lib/subscription-limits"
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { email, password, firstName, lastName, position, role, organizationId, reportsTo } = body
-
-    console.log("[v0] Creating user with data:", {
-      email,
-      firstName,
-      lastName,
-      position,
-      role,
-      organizationId,
-      reportsTo,
-    })
 
     const supabase = await createClient()
 
@@ -33,19 +24,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Only admins and managers can create team members" }, { status: 403 })
     }
 
-    const adminSupabase = createAdminClient()
+    const teamMemberCheck = await checkCanCreateTeamMember(organizationId)
+    if (!teamMemberCheck.canCreate) {
+      return NextResponse.json(
+        {
+          message: "Team member limit reached",
+          error: teamMemberCheck.reason,
+          currentCount: teamMemberCheck.currentCount,
+          maxAllowed: teamMemberCheck.maxAllowed,
+        },
+        { status: 403 },
+      )
+    }
+    // </CHANGE>
 
-    console.log("[v0] Creating user with admin client...")
+    if (role === "admin" || role === "manager") {
+      const adminCheck = await checkCanCreateAdmin(organizationId)
+      if (!adminCheck.canCreate) {
+        return NextResponse.json(
+          {
+            message: "Admin/manager limit reached",
+            error: adminCheck.reason,
+            currentCount: adminCheck.currentCount,
+            maxAllowed: adminCheck.maxAllowed,
+            requiresUpgrade: adminCheck.requiresUpgrade,
+          },
+          { status: 403 },
+        )
+      }
+    }
+    // </CHANGE>
+
+    const adminSupabase = createAdminClient()
 
     const { data: newUser, error: createError } = await adminSupabase.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // Skip email confirmation
+      email_confirm: true,
     })
 
     if (createError) {
       console.error("[v0] Supabase createUser error:", createError)
-      console.error("[v0] Error details:", JSON.stringify(createError, null, 2))
       return NextResponse.json(
         {
           message: `User creation failed: ${createError.message}`,
@@ -55,9 +74,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log("[v0] User created successfully:", newUser.user.id)
-
-    console.log("[v0] Creating profile manually...")
     const { error: profileError } = await adminSupabase.from("profiles").insert({
       id: newUser.user.id,
       email,
@@ -81,8 +97,6 @@ export async function POST(request: NextRequest) {
         { status: 500 },
       )
     }
-
-    console.log("[v0] Profile created successfully")
 
     return NextResponse.json({
       message: "Team member created successfully",

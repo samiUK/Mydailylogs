@@ -175,7 +175,6 @@ export default function AdminDashboard() {
     if (memberIds.length === 0) return
 
     setAssigningTemplate(templateId)
-    const supabase = createClient()
 
     try {
       const response = await fetch("/api/admin/assign-template", {
@@ -188,13 +187,24 @@ export default function AdminDashboard() {
         }),
       })
 
-      if (!response.ok) throw new Error("Failed to assign template")
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to assign template")
+      }
 
       setSelectedMembers((prev) => ({ ...prev, [templateId]: [] }))
-      alert("Template assigned successfully!")
+
+      if (data.duplicateWarnings && data.duplicateWarnings.length > 0) {
+        alert(
+          `Template assigned successfully!\n\n⚠️ Note: The following team members already had active assignments:\n${data.duplicateWarnings.join("\n")}`,
+        )
+      } else {
+        alert("Template assigned successfully!")
+      }
     } catch (error) {
       console.error("Error assigning template:", error)
-      alert("Failed to assign template")
+      alert(error instanceof Error ? error.message : "Failed to assign template")
     } finally {
       setAssigningTemplate(null)
     }
@@ -204,7 +214,6 @@ export default function AdminDashboard() {
     if (memberIds.length === 0) return
 
     setAssigningTemplate(templateId)
-    const supabase = createClient()
 
     try {
       const response = await fetch("/api/admin/assign-template", {
@@ -217,13 +226,24 @@ export default function AdminDashboard() {
         }),
       })
 
-      if (!response.ok) throw new Error("Failed to assign template")
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to assign template")
+      }
 
       setSelectedMembers((prev) => ({ ...prev, [templateId]: [] }))
-      alert("Report template assigned successfully!")
+
+      if (data.duplicateWarnings && data.duplicateWarnings.length > 0) {
+        alert(
+          `Report template assigned successfully!\n\n⚠️ Note: The following team members already had active assignments:\n${data.duplicateWarnings.join("\n")}`,
+        )
+      } else {
+        alert("Report template assigned successfully!")
+      }
     } catch (error) {
       console.error("Error assigning template:", error)
-      alert("Failed to assign report template")
+      alert(error instanceof Error ? error.message : "Failed to assign report template")
     } finally {
       setAssigningTemplate(null)
     }

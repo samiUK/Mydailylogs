@@ -402,15 +402,7 @@ export default function BillingPage() {
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                  <span className="text-sm font-semibold">🎯 Priority Support</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
                   <span className="text-sm font-semibold">🔄 Report Deletion Recovery (via support)</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                  <span className="text-sm font-semibold">📊 Advanced Analytics</span>
                 </li>
               </ul>
 

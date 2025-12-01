@@ -731,15 +731,7 @@ export default function HomePageClient() {
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span className="font-semibold">🎯 Priority Support</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
                     <span className="font-semibold">🔄 Report Recovery (via support)</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span className="font-semibold">📊 Advanced Analytics</span>
                   </li>
                 </ul>
                 <Button

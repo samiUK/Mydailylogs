@@ -992,7 +992,11 @@ export default function AdminDashboard() {
                       <DropdownMenuItem onClick={() => clearSelection(template.id)}>Clear Selection</DropdownMenuItem>
                       <DropdownMenuSeparator />
                       {teamMembers.map((member) => (
-                        <DropdownMenuItem key={member.id} onClick={() => toggleMember(template.id, member.id)}>
+                        <DropdownMenuItem
+                          key={member.id}
+                          onSelect={(e) => e.preventDefault()}
+                          onClick={() => toggleMember(template.id, member.id)}
+                        >
                           <div className="flex items-center w-full">
                             <input
                               type="checkbox"

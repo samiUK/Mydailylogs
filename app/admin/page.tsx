@@ -80,6 +80,7 @@ export default function AdminDashboard() {
   const [activityFilter, setActivityFilter] = useState<"all" | "overdue" | "due-soon" | "critical">("all")
   const [overdueCount, setOverdueCount] = useState(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [templateAssignments, setTemplateAssignments] = useState<any[]>([])
 
   const router = useRouter()
   const organizationId = profile?.organization_id
@@ -322,8 +323,11 @@ export default function AdminDashboard() {
   }, [templates])
 
   const pendingAssignments = useMemo(() => {
-    return todayChecklists?.filter((assignment) => assignment.status !== "completed") || []
-  }, [todayChecklists])
+    if (!templateAssignments) return []
+
+    // Pending assignments = templates assigned but not yet completed/submitted
+    return templateAssignments.filter((assignment) => assignment.status !== "completed" && assignment.is_active)
+  }, [templateAssignments])
 
   const completionStats = useMemo(() => {
     const completedToday =
@@ -684,6 +688,7 @@ export default function AdminDashboard() {
         setTeamMembers(teamMembersRes.data || [])
         setTodayChecklists(assignmentsRes.data || [])
         setAdmins(adminsRes.data || [])
+        setTemplateAssignments(assignmentsRes.data || [])
 
         await checkMissedTasks()
       } catch (error) {

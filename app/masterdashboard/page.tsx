@@ -45,8 +45,10 @@ import {
   Clock,
   UserPlus,
   TrendingUp,
-  Database,
   Crown,
+  FileText,
+  Layout,
+  CheckSquare,
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { ReportDirectoryContent } from "./report-directory-content"
@@ -800,6 +802,17 @@ export default function MasterDashboardPage() {
           ).length
           const conversion = totalOrgs > 0 ? ((paidOrgs / totalOrgs) * 100).toFixed(1) : "0.0"
           setConversionRate(Number(conversion))
+
+          // Calculate active trials
+          const activeTrialsCount = allSubscriptions.filter(
+            (sub) =>
+              sub.is_trial && sub.status === "active" && sub.trial_ends_at && new Date(sub.trial_ends_at) > new Date(),
+          ).length
+          // Assuming 'activeTrials' state is intended for this count
+          // You might need to add 'activeTrials' to your useState declarations at the top if it's not already there.
+          // Example: const [activeTrials, setActiveTrials] = useState(0);
+          // setActiveTrials(activeTrialsCount);
+          // For now, let's assume you want to use this in calculations without explicit state if not defined.
 
           // Fetch database size and related stats via API route
           try {
@@ -2040,18 +2053,63 @@ export default function MasterDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{conversionRate}%</div>
-                  <p className="text-xs text-muted-foreground">Organizations on paid plans</p>
+                  <p className="text-xs text-muted-foreground">From starter to paid plans</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Database Size</CardTitle>
-                  <Database className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium">Active Trials</CardTitle>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{databaseSize}</div>
-                  <p className="text-xs text-muted-foreground">Total storage used</p>
+                  <div className="text-2xl font-bold">
+                    {
+                      allSubscriptions.filter(
+                        (sub) =>
+                          sub.is_trial &&
+                          sub.status === "active" &&
+                          sub.trial_ends_at &&
+                          new Date(sub.trial_ends_at) > new Date(),
+                      ).length
+                    }
+                  </div>
+                  <p className="text-xs text-muted-foreground">Users in trial period</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Reports</CardTitle>
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{totalSubmittedReports || 0}</div>
+                  <p className="text-xs text-muted-foreground">Reports processed system-wide</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Templates</CardTitle>
+                  <Layout className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{databaseStats.templates.total || 0}</div>
+                  <p className="text-xs text-muted-foreground">Active templates in system</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Checklists</CardTitle>
+                  <CheckSquare className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{databaseStats.checklists.total || 0}</div>
+                  <p className="text-xs text-muted-foreground">Active checklists created</p>
                 </CardContent>
               </Card>
             </div>

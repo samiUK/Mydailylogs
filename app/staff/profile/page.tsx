@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { User, Mail, Camera, Phone, MapPin, Briefcase, Building } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { User, Mail, Camera, Phone, MapPin, Briefcase, Building, Badge } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 interface Profile {
   id: string
@@ -34,9 +34,24 @@ interface Organization {
   organization_name: string
 }
 
+interface TemplateAssignment {
+  id: string
+  template_id: string
+  assigned_at: string
+  is_active: boolean
+  status: string
+  checklist_templates: {
+    id: string
+    name: string
+    frequency: string
+    schedule_type: string
+  }
+}
+
 export default function StaffProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [organization, setOrganization] = useState<Organization | null>(null)
+  const [templateAssignments, setTemplateAssignments] = useState<TemplateAssignment[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -72,6 +87,29 @@ export default function StaffProfilePage() {
           if (!orgError && orgData) {
             setOrganization(orgData)
           }
+        }
+
+        const { data: assignments, error: assignmentsError } = await supabase
+          .from("template_assignments")
+          .select(`
+            id,
+            template_id,
+            assigned_at,
+            is_active,
+            status,
+            checklist_templates(
+              id,
+              name,
+              frequency,
+              schedule_type
+            )
+          `)
+          .eq("assigned_to", user.id)
+          .eq("is_active", true)
+          .order("assigned_at", { ascending: false })
+
+        if (!assignmentsError && assignments) {
+          setTemplateAssignments(assignments as TemplateAssignment[])
         }
       } catch (error) {
         console.error("Error loading profile:", error)
@@ -233,6 +271,43 @@ export default function StaffProfilePage() {
           <h1 className="text-3xl font-bold text-foreground">Profile Settings</h1>
           <p className="text-muted-foreground mt-2">Manage your personal information and preferences</p>
         </div>
+
+        {templateAssignments.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Briefcase className="h-5 w-5" />
+                Assigned Templates
+              </CardTitle>
+              <CardDescription>Report templates currently assigned to you</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {templateAssignments.map((assignment) => (
+                  <div key={assignment.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="font-medium">{assignment.checklist_templates?.name}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {assignment.checklist_templates?.frequency}
+                        </Badge>
+                        <Badge variant="secondary" className="text-xs">
+                          {assignment.checklist_templates?.schedule_type}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          Assigned {new Date(assignment.assigned_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                    <Badge variant={assignment.status === "completed" ? "default" : "secondary"}>
+                      {assignment.status || "Active"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

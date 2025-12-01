@@ -1,12 +1,11 @@
 import { createClient } from "@/lib/supabase/server"
-import { cookies } from "next/headers"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
-import { Edit, User } from 'lucide-react'
-import { redirect } from 'next/navigation'
+import { Edit, User } from "lucide-react"
+import { redirect } from "next/navigation"
 
 export const dynamic = "force-dynamic"
 
@@ -68,21 +67,40 @@ function ProfileCard({ member }: { member: TeamMember }) {
               <p className="text-sm font-medium">{member.position}</p>
             </div>
           )}
-          {member.assigned_templates && member.assigned_templates.length > 0 && (
-            <div>
-              <p className="text-sm text-muted-foreground mb-2">Assigned Report Templates</p>
-              <div className="space-y-1">
-                {member.assigned_templates.slice(0, 2).map((template) => (
-                  <div key={template.id} className="text-xs bg-secondary/50 rounded px-2 py-1">
-                    {template.name}
-                  </div>
-                ))}
-                {member.assigned_templates.length > 2 && (
-                  <div className="text-xs text-muted-foreground">+{member.assigned_templates.length - 2} more</div>
-                )}
+          {member.assigned_templates &&
+            member.assigned_templates.filter(
+              (t: any) => t.frequency === "daily" || t.frequency === "weekly" || t.frequency === "monthly",
+            ).length > 0 && (
+              <div>
+                <p className="text-sm text-muted-foreground mb-2">Regular Jobs</p>
+                <div className="space-y-1">
+                  {member.assigned_templates
+                    .filter(
+                      (template: any) =>
+                        template.frequency === "daily" ||
+                        template.frequency === "weekly" ||
+                        template.frequency === "monthly",
+                    )
+                    .slice(0, 2)
+                    .map((template) => (
+                      <div key={template.id} className="text-xs bg-secondary/50 rounded px-2 py-1">
+                        {template.name} ({template.frequency})
+                      </div>
+                    ))}
+                  {member.assigned_templates.filter(
+                    (t: any) => t.frequency === "daily" || t.frequency === "weekly" || t.frequency === "monthly",
+                  ).length > 2 && (
+                    <div className="text-xs text-muted-foreground">
+                      +
+                      {member.assigned_templates.filter(
+                        (t: any) => t.frequency === "daily" || t.frequency === "weekly" || t.frequency === "monthly",
+                      ).length - 2}{" "}
+                      more
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
           <div className="flex gap-2 justify-center mt-4">
             <Link href={`/admin/team/edit/${member.id}`}>
               <Button variant="outline" size="sm">

@@ -220,6 +220,59 @@ export async function GET(request: NextRequest) {
       console.error("[v0] Error during report cleanup:", cleanupError)
     }
 
+    console.log("[v0] Starting auto-cancel of overdue one-off and deadline jobs...")
+    let cancelledJobs = 0
+
+    try {
+      const yesterday = new Date()
+      yesterday.setDate(yesterday.getDate() - 1)
+      const yesterdayDate = yesterday.toISOString().split("T")[0]
+
+      // Cancel specific_date assignments that are overdue (past their specific date)
+      const { data: overdueSpecificDate, error: specificDateError } = await supabase
+        .from("template_assignments")
+        .update({
+          is_active: false,
+          status: "cancelled",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("schedule_type", "specific_date")
+        .eq("is_active", true)
+        .lt("specific_date", today)
+        .select("id")
+
+      if (specificDateError) {
+        console.error("[v0] Error cancelling overdue specific_date jobs:", specificDateError)
+      } else if (overdueSpecificDate) {
+        cancelledJobs += overdueSpecificDate.length
+        console.log(`[v0] Cancelled ${overdueSpecificDate.length} overdue specific_date assignments`)
+      }
+
+      // Cancel deadline assignments that are overdue (past their deadline)
+      const { data: overdueDeadline, error: deadlineError } = await supabase
+        .from("template_assignments")
+        .update({
+          is_active: false,
+          status: "cancelled",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("schedule_type", "deadline")
+        .eq("is_active", true)
+        .lt("deadline_date", today)
+        .select("id")
+
+      if (deadlineError) {
+        console.error("[v0] Error cancelling overdue deadline jobs:", deadlineError)
+      } else if (overdueDeadline) {
+        cancelledJobs += overdueDeadline.length
+        console.log(`[v0] Cancelled ${overdueDeadline.length} overdue deadline assignments`)
+      }
+
+      console.log(`[v0] Auto-cancel completed. Total cancelled jobs: ${cancelledJobs}`)
+    } catch (cancelError) {
+      console.error("[v0] Error during auto-cancel:", cancelError)
+    }
+
     return NextResponse.json({
       success: true,
       date: today,
@@ -227,6 +280,7 @@ export async function GET(request: NextRequest) {
       createdTasks,
       skippedTasks,
       deletedReports,
+      cancelledJobs,
       errors: errors.length > 0 ? errors : undefined,
     })
   } catch (error) {

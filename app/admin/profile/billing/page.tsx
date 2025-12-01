@@ -6,7 +6,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { CheckCircle, CreditCard, Download, Calendar, AlertCircle, Sparkles, ExternalLink, Loader2 } from "lucide-react"
+import {
+  CheckCircle,
+  CreditCard,
+  Download,
+  Calendar,
+  AlertCircle,
+  Sparkles,
+  ExternalLink,
+  Loader2,
+  XCircle,
+} from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import StripeCheckout from "@/components/stripe-checkout"
 import { SUBSCRIPTION_PRODUCTS, formatPrice } from "@/lib/subscription-products"
@@ -269,6 +279,73 @@ export default function BillingPage() {
     }
   }
 
+  const handleChangePlan = async (newPlan: "growth" | "scale") => {
+    if (!subscription || !dataLoaded) return
+
+    const currentPlan = subscription.plan_name.split("-")[0].toLowerCase()
+
+    if (currentPlan === newPlan) {
+      toast({
+        title: "Already on this plan",
+        description: `You're currently subscribed to the ${newPlan.charAt(0).toUpperCase() + newPlan.slice(1)} plan.`,
+      })
+      return
+    }
+
+    const isUpgrade = currentPlan === "growth" && newPlan === "scale"
+    const actionText = isUpgrade ? "upgrade to" : "downgrade to"
+    const newPlanName = newPlan.charAt(0).toUpperCase() + newPlan.slice(1)
+
+    const confirmed = window.confirm(
+      `${isUpgrade ? "⬆️ Upgrade" : "⬇️ Downgrade"} Subscription\n\n` +
+        `You're about to ${actionText} the ${newPlanName} plan.\n\n` +
+        `${
+          isUpgrade
+            ? `• You'll be charged a prorated amount for the upgrade\n• New features will be available immediately\n• Your billing date stays the same`
+            : `• You'll receive a prorated credit for the downgrade\n• Changes take effect at the end of your current billing period\n• You'll keep current plan features until then`
+        }\n\n` +
+        `Continue with ${actionText} ${newPlanName}?`,
+    )
+
+    if (!confirmed) return
+
+    setProcessing(true)
+
+    try {
+      const response = await fetch("/api/subscriptions/change-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          newPlan: `${newPlan}-${subscription.plan_name.includes("yearly") ? "yearly" : "monthly"}`,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to change plan")
+      }
+
+      toast({
+        title: isUpgrade ? "Upgraded Successfully" : "Downgrade Scheduled",
+        description: isUpgrade
+          ? `You've been upgraded to ${newPlanName}. New features are now available!`
+          : `You'll be downgraded to ${newPlanName} at the end of your billing period.`,
+      })
+
+      await loadBillingData()
+    } catch (error) {
+      console.error("Plan change error:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to change plan",
+        variant: "destructive",
+      })
+    } finally {
+      setProcessing(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -281,6 +358,7 @@ export default function BillingPage() {
   const currentPlanName = subscription?.plan_name?.toLowerCase() || "starter"
   const currentProduct = SUBSCRIPTION_PRODUCTS.find((p) => p.id === currentPlanName) || SUBSCRIPTION_PRODUCTS[0]
   const isFreePlan = currentPlanName === "starter"
+  const currentPlan = currentPlanName.split("-")[0].toLowerCase()
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
@@ -370,6 +448,17 @@ export default function BillingPage() {
 
             {!isFreePlan && subscription?.status === "active" && (
               <div className="flex gap-3 pt-4 border-t">
+                {currentPlan === "growth" && (
+                  <Button variant="default" onClick={() => handleChangePlan("scale")} disabled={processing}>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Upgrade to Scale
+                  </Button>
+                )}
+                {currentPlan === "scale" && (
+                  <Button variant="outline" onClick={() => handleChangePlan("growth")} disabled={processing}>
+                    Downgrade to Growth
+                  </Button>
+                )}
                 <Button variant="outline" onClick={handleManageBilling} disabled={processing}>
                   {processing ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -379,6 +468,11 @@ export default function BillingPage() {
                   Manage Billing
                 </Button>
                 <Button variant="destructive" onClick={handleCancel} disabled={processing}>
+                  {processing ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <XCircle className="w-4 h-4 mr-2" />
+                  )}
                   Cancel Subscription
                 </Button>
               </div>

@@ -446,7 +446,7 @@ export const emailTemplates = {
     html: `
       ${getEmailHeader()}
       <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
-        <h2 style="color: #ef4444; margin-bottom: 20px;">Payment Failed</h2>
+        <h2 style="color: #ef4444; margin-bottom: 20px;">Payment Failed - Action Required</h2>
         
         <p>Hi ${data.customerName},</p>
         
@@ -455,20 +455,27 @@ export const emailTemplates = {
         <div style="background-color: #fee2e2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ef4444;">
           <h3 style="margin: 0 0 15px 0; color: #7f1d1d;">Payment Details</h3>
           <p><strong>Amount:</strong> ${data.amount}</p>
-          <p><strong>Attempted Date:</strong> ${new Date(data.date).toLocaleString()}</p>
-          <p><strong>Reason:</strong> ${data.reason || "Payment declined by your bank"}</p>
+          <p><strong>Plan:</strong> ${data.planName}</p>
+          <p><strong>Reason:</strong> ${data.failureReason || "Payment declined by your bank"}</p>
+        </div>
+        
+        <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+          <h3 style="margin: 0 0 15px 0; color: #78350f;">⏰ You Have ${data.gracePeriodDays} Days to Update Payment</h3>
+          <p style="margin: 0;">Your account will remain active for <strong>${data.gracePeriodDays} days</strong> while you update your payment method. After this period, your subscription will be automatically canceled and your account will be downgraded to the Starter plan.</p>
         </div>
         
         <p><strong>What happens next?</strong></p>
         <ul>
-          <li>We'll retry the payment in 3 days</li>
-          <li>If payment continues to fail, your subscription may be suspended</li>
-          <li>Update your payment method to avoid service interruption</li>
+          <li><strong>Next ${data.gracePeriodDays} days:</strong> Your account remains fully active</li>
+          <li><strong>Update your payment method:</strong> Continue your subscription without interruption</li>
+          <li><strong>After ${data.gracePeriodDays} days:</strong> If payment is not updated, your account will be downgraded to the free Starter plan (limited to 3 templates and 50 reports)</li>
         </ul>
         
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${data.updatePaymentUrl}" style="background-color: #ef4444; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Update Payment Method</a>
+          <a href="${data.updatePaymentUrl}" style="background-color: #ef4444; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Update Payment Method Now</a>
         </div>
+        
+        <p style="color: #7f1d1d; font-weight: bold;">⚠️ Don't wait - Update your payment method today to avoid losing access to premium features!</p>
         
         ${getAutomatedEmailNotice()}
         

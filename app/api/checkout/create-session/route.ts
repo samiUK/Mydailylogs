@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("organization_id, email, full_name")
+      .select("organization_id, email, full_name, has_used_trial")
       .eq("id", user.id)
       .single()
 
@@ -39,14 +39,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Profile not found" }, { status: 400 })
     }
 
-    // Get or create Stripe customer
+    const userHasUsedTrial = profile.has_used_trial || false
+
     const { data: existingSub } = await supabaseAdmin
       .from("subscriptions")
-      .select("stripe_customer_id")
+      .select("stripe_customer_id, has_used_trial")
       .eq("organization_id", profile.organization_id)
       .single()
 
     let customerId = existingSub?.stripe_customer_id
+    const orgHasUsedTrial = existingSub?.has_used_trial || false
+
+    const hasUsedTrial = userHasUsedTrial || orgHasUsedTrial
 
     if (!customerId) {
       const customer = await stripe.customers.create({
@@ -60,25 +64,33 @@ export async function POST(request: NextRequest) {
       customerId = customer.id
     }
 
-    const session = await stripe.checkout.sessions.create({
+    const subscriptionData: any = {
+      metadata: {
+        organization_id: profile.organization_id,
+        subscription_type: subscriptionType,
+      },
+    }
+
+    const sessionConfig: any = {
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
       mode: "subscription",
-      subscription_data: {
-        trial_period_days: 30,
-        metadata: {
-          organization_id: profile.organization_id,
-          subscription_type: subscriptionType, // Store as one of 4 types
-        },
-      },
+      subscription_data: subscriptionData,
+      payment_method_collection: "always", // Force payment method collection
       ui_mode: "embedded",
       redirect_on_completion: "never",
       metadata: {
         organization_id: profile.organization_id,
         user_id: user.id,
-        subscription_type: subscriptionType, // Store as one of 4 types
+        subscription_type: subscriptionType,
       },
-    })
+    }
+
+    if (!hasUsedTrial) {
+      subscriptionData.trial_period_days = 30
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionConfig)
 
     return NextResponse.json({ clientSecret: session.client_secret })
   } catch (error: any) {

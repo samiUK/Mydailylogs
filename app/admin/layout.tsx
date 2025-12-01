@@ -5,6 +5,7 @@ import { AdminNavigation } from "@/components/admin-navigation"
 import { BrandingProvider } from "@/components/branding-provider"
 import { DashboardFooter } from "@/components/dashboard-footer"
 import { EmailVerificationBanner } from "@/components/email-verification-banner"
+import { PaymentFailedBanner } from "@/components/payment-failed-banner"
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -68,11 +69,21 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const isEmailVerified = user.email_confirmed_at !== null
 
+  const { data: subscription } = await supabase
+    .from("subscriptions")
+    .select("status, plan_name, grace_period_ends_at")
+    .eq("organization_id", profile.organizations?.organization_id)
+    .single()
+
+  const hasPaymentFailed = subscription?.status === "past_due" && subscription?.grace_period_ends_at
+  const gracePeriodEndsAt = subscription?.grace_period_ends_at || null
+
   return (
     <BrandingProvider initialBranding={brandingData}>
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <AdminNavigation user={profile} onSignOut={handleSignOut} />
         <EmailVerificationBanner userEmail={user.email || ""} isVerified={isEmailVerified} />
+        {hasPaymentFailed && gracePeriodEndsAt && <PaymentFailedBanner gracePeriodEndsAt={gracePeriodEndsAt} />}
         <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">{children}</main>
         <DashboardFooter />
       </div>

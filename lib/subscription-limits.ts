@@ -19,12 +19,11 @@ export async function getSubscriptionLimits(organizationId: string): Promise<Sub
   try {
     console.log("[v0] Fetching subscription for organization:", organizationId)
 
-    // Get organization's subscription
     const { data: subscription, error } = await supabase
       .from("subscriptions")
       .select("plan_name, status")
       .eq("organization_id", organizationId)
-      .eq("status", "active")
+      .in("status", ["active", "trialing"])
       .single()
 
     console.log("[v0] Subscription query result:", { subscription, error })
@@ -43,6 +42,55 @@ export async function getSubscriptionLimits(organizationId: string): Promise<Sub
           reportRetentionDays: 30,
           planName: "Starter",
         },
+        "growth-monthly": {
+          maxTemplates: 10,
+          maxTeamMembers: 25,
+          maxAdminAccounts: 3,
+          hasCustomBranding: true,
+          hasTaskAutomation: true,
+          maxReportSubmissions: null,
+          hasContractorLinkShare: true,
+          hasPhotoUpload: true,
+          reportRetentionDays: 90,
+          planName: "Growth",
+        },
+        "growth-yearly": {
+          maxTemplates: 10,
+          maxTeamMembers: 25,
+          maxAdminAccounts: 3,
+          hasCustomBranding: true,
+          hasTaskAutomation: true,
+          maxReportSubmissions: null,
+          hasContractorLinkShare: true,
+          hasPhotoUpload: true,
+          reportRetentionDays: 90,
+          planName: "Growth",
+        },
+        "scale-monthly": {
+          maxTemplates: 20,
+          maxTeamMembers: 75,
+          maxAdminAccounts: 7,
+          hasCustomBranding: true,
+          hasTaskAutomation: true,
+          maxReportSubmissions: null,
+          hasContractorLinkShare: true,
+          hasPhotoUpload: true,
+          reportRetentionDays: 90,
+          planName: "Scale",
+        },
+        "scale-yearly": {
+          maxTemplates: 20,
+          maxTeamMembers: 75,
+          maxAdminAccounts: 7,
+          hasCustomBranding: true,
+          hasTaskAutomation: true,
+          maxReportSubmissions: null,
+          hasContractorLinkShare: true,
+          hasPhotoUpload: true,
+          reportRetentionDays: 90,
+          planName: "Scale",
+        },
+        // Legacy fallbacks
         growth: {
           maxTemplates: 10,
           maxTeamMembers: 25,

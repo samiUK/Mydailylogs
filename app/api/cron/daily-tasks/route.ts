@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
 import { getSubscriptionLimits } from "@/lib/subscription-limits"
+import { sendEmail } from "@/lib/email/smtp"
 
 export const runtime = "edge"
 
@@ -20,6 +21,47 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
     const today = new Date().toISOString().split("T")[0]
 
+    // Expire grace periods for failed payments (7 days after failure)
+    console.log("[v0] Checking for expired grace periods...")
+    let expiredGracePeriods = 0
+
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const { data: expiredSubs } = await supabase
+      .from("subscriptions")
+      .select("id, plan_name, organization_id, organizations(name), profiles(email, first_name)")
+      .eq("status", "past_due")
+      .lt("payment_failed_at", sevenDaysAgo)
+
+    if (expiredSubs && expiredSubs.length > 0) {
+      for (const sub of expiredSubs) {
+        await supabase
+          .from("subscriptions")
+          .update({
+            status: "canceled",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", sub.id)
+
+        if (sub.profiles?.email) {
+          await sendEmail({
+            to: sub.profiles.email,
+            subject: "Subscription Canceled - Downgraded to Starter Plan",
+            html: `
+              <h2>Your subscription has been canceled</h2>
+              <p>Hi ${sub.profiles.first_name},</p>
+              <p>Your ${sub.plan_name} subscription for ${sub.organizations?.name} has been canceled due to failed payment.</p>
+              <p>Your account has been downgraded to the free Starter plan.</p>
+              <p>To reactivate your premium subscription, please visit your billing page and update your payment method.</p>
+            `,
+          })
+        }
+
+        expiredGracePeriods++
+      }
+      console.log(`[v0] Expired ${expiredGracePeriods} grace periods and downgraded to Starter`)
+    }
+
+    // Daily automated task creation
     console.log(`[v0] Starting automated task creation for ${today}`)
 
     const { data: templates, error: templatesError } = await supabase
@@ -161,6 +203,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       date: today,
+      expiredGracePeriods,
       createdTasks,
       skippedTasks,
       deletedReports,

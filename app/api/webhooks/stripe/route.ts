@@ -47,13 +47,16 @@ export async function POST(req: NextRequest) {
 
         const subscription = await stripe.subscriptions.retrieve(subscriptionId)
 
+        const isTrial = subscription.trial_end ? true : false
+
         const { error: subError } = await supabaseAdmin.from("subscriptions").upsert(
           {
             id: subscriptionId,
             organization_id: organizationId,
             plan_name: subscriptionType, // Store as growth-monthly, growth-yearly, scale-monthly, or scale-yearly
             status: subscription.status,
-            is_trial: subscription.trial_end ? true : false,
+            is_trial: isTrial,
+            has_used_trial: isTrial ? true : undefined, // Mark as used if starting trial
             trial_ends_at: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
             current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
             current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
@@ -67,6 +70,17 @@ export async function POST(req: NextRequest) {
         if (subError) {
           console.error("Error upserting subscription:", subError)
           throw subError
+        }
+
+        if (isTrial) {
+          const { error: profileError } = await supabaseAdmin
+            .from("profiles")
+            .update({ has_used_trial: true })
+            .eq("organization_id", organizationId)
+
+          if (profileError) {
+            console.error("Error marking user trial usage:", profileError)
+          }
         }
 
         const { error: paymentError } = await supabaseAdmin.from("payments").insert({
@@ -312,10 +326,15 @@ export async function POST(req: NextRequest) {
             console.error("Error recording failed payment:", paymentError)
           }
 
+          const gracePeriodEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+
           const { error: subError } = await supabaseAdmin
             .from("subscriptions")
             .update({
               status: "past_due",
+              payment_failed_at: new Date().toISOString(),
+              grace_period_ends_at: gracePeriodEnd.toISOString(),
+              payment_retry_count: invoice.attempt_count || 1,
               updated_at: new Date().toISOString(),
             })
             .eq("id", invoice.subscription as string)
@@ -326,21 +345,30 @@ export async function POST(req: NextRequest) {
 
           if (invoice.customer_email) {
             try {
+              const { data: orgData } = await supabaseAdmin
+                .from("subscriptions")
+                .select("organization_id")
+                .eq("id", invoice.subscription as string)
+                .single()
+
               const template = emailTemplates.paymentFailed({
                 customerName: invoice.customer_name || "Customer",
+                amount: `${invoice.currency === "usd" ? "$" : "£"}${((invoice.amount_due || 0) / 100).toFixed(2)}`,
                 planName: invoice.lines.data[0]?.description || "Subscription",
-                amount: `£${((invoice.amount_due || 0) / 100).toFixed(2)}`,
-                date: new Date().toISOString(),
-                reason: invoice.last_finalization_error?.message || "Payment was declined by your bank",
+                failureReason: invoice.last_finalization_error?.message || "Card was declined",
+                retryDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
                 updatePaymentUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/profile/billing`,
+                gracePeriodDays: 7,
               })
 
               await sendEmail(invoice.customer_email, template.subject, template.html)
-              console.log("Payment failed email sent to:", invoice.customer_email)
+              console.log("Payment failure email sent to:", invoice.customer_email)
             } catch (emailError) {
-              console.error("Failed to send payment failed email:", emailError)
+              console.error("Failed to send payment failure email:", emailError)
             }
           }
+
+          console.log("Set 7-day grace period for subscription due to payment failure:", invoice.subscription)
         }
 
         break

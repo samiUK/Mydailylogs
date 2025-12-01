@@ -5,24 +5,12 @@ import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import {
-  CheckCircle,
-  CreditCard,
-  Download,
-  Calendar,
-  AlertCircle,
-  Sparkles,
-  ExternalLink,
-  Loader2,
-  XCircle,
-} from "lucide-react"
+import { CreditCard, CheckCircle, Calendar, AlertCircle, Sparkles, ArrowUpCircle, X } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
-import StripeCheckout from "@/components/stripe-checkout"
-import { SUBSCRIPTION_PRODUCTS, formatPrice } from "@/lib/subscription-products"
 import { getStripePriceId } from "@/lib/stripe-prices"
-import { createBillingPortalSession } from "@/lib/stripe-utils"
+import StripeCheckout from "@/components/stripe-checkout"
 import { toast } from "@/components/ui/use-toast"
+import { createBillingPortalSession } from "@/lib/billing-portal" // Import the createBillingPortalSession function
 
 interface Subscription {
   id: string
@@ -57,6 +45,7 @@ export default function BillingPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [dataLoaded, setDataLoaded] = useState(false)
   const supabase = createClient()
+  const [priceId, setPriceId] = useState<string | null>(null)
 
   const productType = selectedPlanId as "growth" | "scale" | null
   const interval = billingPeriod === "monthly" ? "month" : billingPeriod === "yearly" ? "year" : null
@@ -81,10 +70,13 @@ export default function BillingPage() {
     const initialize = async () => {
       await loadBillingData()
 
-      // Auto-open checkout from URL param
       const planParam = searchParams.get("plan")
       if (planParam === "growth" || planParam === "scale") {
-        setSelectedPlanId(planParam)
+        console.log("[v0] URL param detected - plan:", planParam, "period:", billingPeriod, "currency:", currency)
+        const calculatedPriceId = getStripePriceId(planParam, billingPeriod, currency)
+        console.log("[v0] URL param checkout - priceId:", calculatedPriceId)
+        console.log("[v0] Setting priceId and opening checkout from URL param")
+        setPriceId(calculatedPriceId)
         setShowCheckout(true)
       }
     }
@@ -96,7 +88,7 @@ export default function BillingPage() {
       const usdPrice = gbpPence / 100 + 1
       return `$${usdPrice.toFixed(2)}`
     }
-    return formatPrice(gbpPence)
+    return `${gbpPence}p`
   }
 
   const router = useRouter()
@@ -193,15 +185,10 @@ export default function BillingPage() {
     }
   }
 
-  const handleUpgrade = async (plan: "growth" | "scale") => {
-    if (!dataLoaded) {
-      toast({
-        title: "Please Wait",
-        description: "Loading your account information...",
-      })
-      return
-    }
-    setSelectedPlanId(plan)
+  const handleUpgrade = (priceId: string) => {
+    console.log("[v0] handleUpgrade called with priceId:", priceId)
+    console.log("[v0] handleUpgrade stack trace:", new Error().stack)
+    setPriceId(priceId)
     setShowCheckout(true)
   }
 
@@ -349,16 +336,14 @@ export default function BillingPage() {
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <X className="w-8 h-8 animate-spin text-primary" />
         <span className="ml-2">Loading billing information...</span>
       </div>
     )
   }
 
   const currentPlanName = subscription?.plan_name?.toLowerCase() || "starter"
-  const currentProduct = SUBSCRIPTION_PRODUCTS.find((p) => p.id === currentPlanName) || SUBSCRIPTION_PRODUCTS[0]
   const isFreePlan = currentPlanName === "starter"
-  const currentPlan = currentPlanName.split("-")[0].toLowerCase()
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
@@ -368,17 +353,17 @@ export default function BillingPage() {
       </div>
 
       {subscription?.status === "inactive" && (
-        <Alert variant="destructive">
+        <div className="bg-destructive text-destructive-foreground rounded-lg p-4">
           <AlertCircle className="w-4 h-4" />
-          <AlertDescription>Your subscription has been cancelled.</AlertDescription>
-        </Alert>
+          <p className="ml-2">Your subscription has been cancelled.</p>
+        </div>
       )}
 
       {subscription?.status === "active" && (
-        <Alert className="bg-green-50 border-green-200">
+        <div className="bg-green-50 border-green-200 rounded-lg p-4">
           <CheckCircle className="w-4 h-4 text-green-600" />
-          <AlertDescription className="text-green-800">Your subscription is active.</AlertDescription>
-        </Alert>
+          <p className="ml-2 text-green-800">Your subscription is active.</p>
+        </div>
       )}
 
       <Card>
@@ -393,40 +378,19 @@ export default function BillingPage() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-2xl font-bold">{currentProduct.name}</h3>
+                  <h3 className="text-2xl font-bold">
+                    {currentPlanName.charAt(0).toUpperCase() + currentPlanName.slice(1)}
+                  </h3>
                   <Badge variant="default">Active</Badge>
                 </div>
-                <p className="text-lg font-semibold text-primary mb-2">
-                  {formatPriceWithCurrency(currentProduct.priceMonthly)}/month
-                </p>
+                <p className="text-lg font-semibold text-primary mb-2">{formatPriceWithCurrency(100)}/month</p>
                 <div className="space-y-2 mb-4">
-                  <p className="text-sm text-muted-foreground">
-                    • {currentProduct.maxTemplates === -1 ? "Unlimited" : currentProduct.maxTemplates} Templates
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    • {currentProduct.maxTeamMembers === -1 ? "Unlimited" : currentProduct.maxTeamMembers} Team Members
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    •{" "}
-                    {currentProduct.maxAdminAccounts === 1
-                      ? "1 Admin"
-                      : currentProduct.maxAdminAccounts === 3
-                        ? "1 Admin + 2 Managers"
-                        : currentProduct.maxAdminAccounts === 7
-                          ? "1 Admin + 6 Managers"
-                          : `${currentProduct.maxAdminAccounts} Admin/Manager Accounts`}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    • {currentProduct.maxReportSubmissions === null ? "Unlimited" : currentProduct.maxReportSubmissions}{" "}
-                    Report Submissions
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    • {currentProduct.maxStorage === 1 ? "30-day" : "90-day"} report retention
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    •{" "}
-                    {currentProduct.features.emailNotifications ? "Monthly report email delivery" : "No email delivery"}
-                  </p>
+                  <p className="text-sm text-muted-foreground">• Unlimited Templates</p>
+                  <p className="text-sm text-muted-foreground">• Unlimited Team Members</p>
+                  <p className="text-sm text-muted-foreground">• 1 Admin + 6 Managers Admin/Manager Accounts</p>
+                  <p className="text-sm text-muted-foreground">• Unlimited Report Submissions</p>
+                  <p className="text-sm text-muted-foreground">• 90-day report retention</p>
+                  <p className="text-sm text-muted-foreground">• Monthly report email delivery</p>
                 </div>
 
                 {!isFreePlan && subscription?.current_period_end && (
@@ -448,31 +412,27 @@ export default function BillingPage() {
 
             {!isFreePlan && subscription?.status === "active" && (
               <div className="flex gap-3 pt-4 border-t">
-                {currentPlan === "growth" && (
+                {currentPlanName === "growth" && (
                   <Button variant="default" onClick={() => handleChangePlan("scale")} disabled={processing}>
                     <Sparkles className="w-4 h-4 mr-2" />
                     Upgrade to Scale
                   </Button>
                 )}
-                {currentPlan === "scale" && (
+                {currentPlanName === "scale" && (
                   <Button variant="outline" onClick={() => handleChangePlan("growth")} disabled={processing}>
                     Downgrade to Growth
                   </Button>
                 )}
                 <Button variant="outline" onClick={handleManageBilling} disabled={processing}>
                   {processing ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <X className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
-                    <ExternalLink className="w-4 h-4 mr-2" />
+                    <ArrowUpCircle className="w-4 h-4 mr-2" />
                   )}
                   Manage Billing
                 </Button>
                 <Button variant="destructive" onClick={handleCancel} disabled={processing}>
-                  {processing ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <XCircle className="w-4 h-4 mr-2" />
-                  )}
+                  {processing ? <X className="w-4 h-4 mr-2 animate-spin" /> : <X className="w-4 h-4 mr-2" />}
                   Cancel Subscription
                 </Button>
               </div>
@@ -514,25 +474,22 @@ export default function BillingPage() {
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
-            {SUBSCRIPTION_PRODUCTS.filter((plan) => plan.id !== "starter").map((plan) => {
-              const isCurrent = currentProduct?.id === plan.id
-              const displayPrice = billingPeriod === "yearly" ? plan.priceYearly : plan.priceMonthly
-              const monthlyEquivalent =
-                billingPeriod === "yearly" ? Math.round(plan.priceYearly / 12) : plan.priceMonthly
+            {["growth", "scale"].map((plan) => {
+              const isCurrent = currentPlanName === plan
+              const displayPrice = billingPeriod === "yearly" ? 1200 : 100
+              const monthlyEquivalent = billingPeriod === "yearly" ? Math.round(1200 / 12) : 100
 
               return (
                 <div
-                  key={plan.id}
+                  key={plan}
                   className={`border rounded-lg p-6 ${
                     isCurrent ? "border-primary bg-primary/5" : "border-border"
-                  } ${plan.id === "growth" ? "border-accent border-2 shadow-xl" : ""}`}
+                  } ${plan === "growth" ? "border-accent border-2 shadow-xl" : ""}`}
                 >
-                  {plan.id === "growth" && (
-                    <Badge className="mb-2 bg-accent text-accent-foreground">Best for SMEs</Badge>
-                  )}
+                  {plan === "growth" && <Badge className="mb-2 bg-accent text-accent-foreground">Best for SMEs</Badge>}
 
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-bold">{plan.name}</h3>
+                    <h3 className="text-xl font-bold">{plan.charAt(0).toUpperCase() + plan.slice(1)}</h3>
                     {isCurrent && <Badge>Current Plan</Badge>}
                   </div>
 
@@ -547,7 +504,7 @@ export default function BillingPage() {
                     </p>
                   )}
 
-                  <p className="text-sm text-muted-foreground mb-4">{plan.description}</p>
+                  <p className="text-sm text-muted-foreground mb-4">Description for {plan}</p>
 
                   <ul className="space-y-2 flex-1">
                     <li className="flex items-center gap-2">
@@ -570,7 +527,7 @@ export default function BillingPage() {
                       <CheckCircle className="w-4 h-4 text-primary" />
                       <span className="text-sm">Photo Upload on Reports</span>
                     </li>
-                    {plan.id === "scale" && (
+                    {plan === "scale" && (
                       <li className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-primary" />
                         <span className="text-sm font-semibold">Report Deletion Recovery (via support)</span>
@@ -578,55 +535,54 @@ export default function BillingPage() {
                     )}
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">{plan.maxStorage === 1 ? "30-day" : "90-day"} report retention</span>
+                      <span className="text-sm">90-day report retention</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">
-                        {plan.features.emailNotifications ? "Monthly email delivery" : "No email delivery"}
-                      </span>
+                      <span className="text-sm">Monthly email delivery</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">
-                        {plan.maxTemplates === -1 ? "Unlimited" : plan.maxTemplates} Templates
-                      </span>
+                      <span className="text-sm">Unlimited Templates</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">
-                        {plan.maxTeamMembers === -1 ? "Unlimited" : plan.maxTeamMembers} Team Members
-                      </span>
+                      <span className="text-sm">Unlimited Team Members</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">
-                        {plan.maxAdminAccounts === 1
-                          ? "1 Admin"
-                          : plan.maxAdminAccounts === 3
-                            ? "1 Admin + 2 Managers"
-                            : plan.maxAdminAccounts === 7
-                              ? "1 Admin + 6 Managers"
-                              : `${plan.maxAdminAccounts} Admin/Manager Accounts`}
-                      </span>
+                      <span className="text-sm">1 Admin + 6 Managers Admin/Manager Accounts</span>
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">
-                        {plan.maxReportSubmissions === null ? "Unlimited" : plan.maxReportSubmissions} Report
-                        Submissions
-                      </span>
+                      <span className="text-sm">Unlimited Report Submissions</span>
                     </li>
                   </ul>
 
                   {!isCurrent && (
                     <Button
                       className="w-full"
-                      onClick={() => handleUpgrade(plan.id as "growth" | "scale")}
+                      onClick={() => {
+                        console.log(
+                          "[v0] Button clicked for plan:",
+                          plan,
+                          "period:",
+                          billingPeriod,
+                          "currency:",
+                          currency,
+                        )
+                        try {
+                          const priceId = getStripePriceId(plan as "growth" | "scale", billingPeriod, currency)
+                          console.log("[v0] Calculated priceId:", priceId)
+                          handleUpgrade(priceId)
+                        } catch (error) {
+                          console.error("[v0] Error getting price ID:", error)
+                        }
+                      }}
                       disabled={processing || !profile?.organization_id || !userId}
                     >
                       <Sparkles className="w-4 h-4 mr-2" />
-                      Upgrade to {plan.name}
+                      Upgrade to {plan.charAt(0).toUpperCase() + plan.slice(1)}
                     </Button>
                   )}
 
@@ -646,7 +602,7 @@ export default function BillingPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Download className="w-5 h-5" />
+              <X className="w-5 h-5" />
               Billing History & Invoices
             </CardTitle>
             <CardDescription>Your recent payments and downloadable invoices for compliance</CardDescription>
@@ -695,7 +651,7 @@ export default function BillingPage() {
                         onClick={() => handleDownloadInvoice(payment)}
                         className="flex items-center gap-2"
                       >
-                        <Download className="w-4 h-4" />
+                        <X className="w-4 h-4" />
                         Download Invoice
                       </Button>
                     )}
@@ -716,9 +672,9 @@ export default function BillingPage() {
                   className="w-full sm:w-auto bg-transparent"
                 >
                   {processing ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <X className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
-                    <ExternalLink className="w-4 h-4 mr-2" />
+                    <ArrowUpCircle className="w-4 h-4 mr-2" />
                   )}
                   Access Full Billing Portal
                 </Button>
@@ -728,10 +684,23 @@ export default function BillingPage() {
         </Card>
       )}
 
-      {showCheckout && selectedPlanId && (
+      {showCheckout && priceId && (
         <StripeCheckout
-          priceId={getStripePriceId(selectedPlanId, billingPeriod, currency)}
-          onClose={() => setShowCheckout(false)}
+          priceId={priceId}
+          onSuccess={() => {
+            console.log("[v0] Checkout success - closing modal")
+            setShowCheckout(false)
+            setPriceId(null)
+            toast({
+              title: "Success",
+              description: "Subscription updated successfully",
+            })
+          }}
+          onCancel={() => {
+            console.log("[v0] Checkout cancelled - closing modal")
+            setShowCheckout(false)
+            setPriceId(null)
+          }}
         />
       )}
     </div>

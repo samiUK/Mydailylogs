@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { cookies } from "next/headers"
+import { stripe } from "@/lib/stripe"
 
 export async function POST(request: NextRequest) {
   try {
@@ -84,6 +85,16 @@ export async function POST(request: NextRequest) {
     } else if (action === "cancel") {
       const { subscriptionId } = body
 
+      try {
+        await stripe.subscriptions.update(subscriptionId, {
+          cancel_at_period_end: true,
+        })
+        console.log("[v0] Stripe subscription marked for cancellation:", subscriptionId)
+      } catch (stripeError: any) {
+        console.error("[v0] Stripe cancellation failed:", stripeError)
+        // Continue with database update even if Stripe fails (webhook will sync later)
+      }
+
       const { error } = await supabase
         .from("subscriptions")
         .update({
@@ -101,11 +112,19 @@ export async function POST(request: NextRequest) {
     } else if (action === "downgrade") {
       const { subscriptionId } = body
 
+      try {
+        await stripe.subscriptions.cancel(subscriptionId)
+        console.log("[v0] Stripe subscription cancelled immediately:", subscriptionId)
+      } catch (stripeError: any) {
+        console.error("[v0] Stripe immediate cancellation failed:", stripeError)
+      }
+
       const { error } = await supabase
         .from("subscriptions")
         .update({
           plan_name: "starter",
-          status: "active",
+          status: "inactive",
+          cancel_at_period_end: false,
           updated_at: new Date().toISOString(),
         })
         .eq("id", subscriptionId)

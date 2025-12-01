@@ -40,9 +40,11 @@ export async function POST(req: NextRequest) {
         }
 
         const subscriptionId = session.subscription as string
-        if (!subscriptionId) {
-          console.error("No subscription ID in session")
-          throw new Error("Missing subscription ID")
+        const customerId = session.customer as string
+
+        if (!subscriptionId || !customerId) {
+          console.error("No subscription ID or customer ID in session")
+          throw new Error("Missing subscription or customer ID")
         }
 
         const subscription = await stripe.subscriptions.retrieve(subscriptionId)
@@ -52,11 +54,13 @@ export async function POST(req: NextRequest) {
         const { error: subError } = await supabaseAdmin.from("subscriptions").upsert(
           {
             id: subscriptionId,
+            stripe_subscription_id: subscriptionId, // Explicit Stripe subscription ID
+            stripe_customer_id: customerId, // Stripe customer ID for tracking
             organization_id: organizationId,
-            plan_name: subscriptionType, // Store as growth-monthly, growth-yearly, scale-monthly, or scale-yearly
+            plan_name: subscriptionType,
             status: subscription.status,
             is_trial: isTrial,
-            has_used_trial: isTrial ? true : undefined, // Mark as used if starting trial
+            has_used_trial: isTrial ? true : undefined,
             trial_ends_at: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
             current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
             current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),

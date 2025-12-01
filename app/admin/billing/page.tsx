@@ -17,9 +17,8 @@ import {
   ArrowDownCircle,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { SUBSCRIPTION_PRODUCTS, formatPrice } from "@/lib/subscription-products"
+import { getStripePriceId } from "@/lib/stripe-prices"
 import StripeCheckout from "@/components/stripe-checkout"
-import { changeSubscriptionPlan } from "@/app/actions/stripe"
 
 interface Subscription {
   id: string
@@ -34,10 +33,10 @@ export const dynamic = "force-dynamic"
 export default function BillingPage() {
   const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [loading, setLoading] = useState(true)
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
-  const [billingInterval, setBillingInterval] = useState<"month" | "year">("year") // Added billing interval state, defaulting to yearly
+  const [priceId, setPriceId] = useState<string | null>(null)
+  const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("yearly")
   const [showCheckout, setShowCheckout] = useState(false)
-  const [changingPlan, setChangingPlan] = useState<string | null>(null)
+  const [currency] = useState<"GBP" | "USD">("GBP")
   const router = useRouter()
 
   useEffect(() => {
@@ -115,7 +114,18 @@ export default function BillingPage() {
 
   const handleUpgrade = (planId: string) => {
     try {
-      setSelectedPlanId(planId)
+      const calculatedPriceId = getStripePriceId(planId as "growth" | "scale", billingInterval, currency)
+      console.log(
+        "[v0] Upgrade clicked - Plan:",
+        planId,
+        "Interval:",
+        billingInterval,
+        "Currency:",
+        currency,
+        "PriceId:",
+        calculatedPriceId,
+      )
+      setPriceId(calculatedPriceId)
       setShowCheckout(true)
     } catch (error) {
       console.error("Error opening checkout:", error)
@@ -124,36 +134,8 @@ export default function BillingPage() {
   }
 
   const handleChangePlan = async (planId: string) => {
-    const targetPlan = SUBSCRIPTION_PRODUCTS.find((p) => p.id === planId)
-    if (!targetPlan) {
-      alert("Invalid plan selected")
-      return
-    }
-
-    if (
-      !confirm(
-        `Are you sure you want to switch to the ${targetPlan.name} plan? Your billing will be adjusted accordingly.`,
-      )
-    ) {
-      return
-    }
-
-    setChangingPlan(planId)
-    try {
-      const result = await changeSubscriptionPlan(planId)
-      if (result.success) {
-        alert("Plan changed successfully! Your new features are now available.")
-        window.location.reload()
-      } else {
-        throw new Error("Plan change was not successful")
-      }
-    } catch (error) {
-      console.error("Error changing plan:", error)
-      const errorMessage = error instanceof Error ? error.message : "Failed to change plan. Please try again."
-      alert(errorMessage)
-    } finally {
-      setChangingPlan(null)
-    }
+    alert("Please use the main billing page to change your subscription plan.")
+    router.push("/admin/profile/billing")
   }
 
   if (loading) {
@@ -161,7 +143,36 @@ export default function BillingPage() {
   }
 
   const currentPlanName = subscription?.plan_name?.toLowerCase() || "starter"
-  const currentProduct = SUBSCRIPTION_PRODUCTS.find((p) => p.id === currentPlanName) || SUBSCRIPTION_PRODUCTS[0]
+  const plans = {
+    starter: {
+      name: "Starter",
+      priceMonthly: 0,
+      maxTemplates: 3,
+      maxTeamMembers: 5,
+      maxAdmins: 1,
+      maxReportSubmissions: 50,
+    },
+    growth: {
+      name: "Growth",
+      priceMonthly: 8,
+      priceYearly: 96,
+      maxTemplates: 10,
+      maxTeamMembers: 25,
+      maxAdmins: 2,
+      maxReportSubmissions: null,
+    },
+    scale: {
+      name: "Scale",
+      priceMonthly: 16,
+      priceYearly: 180,
+      maxTemplates: 50,
+      maxTeamMembers: 100,
+      maxAdmins: 5,
+      maxReportSubmissions: null,
+    },
+  }
+
+  const currentProduct = plans[currentPlanName as keyof typeof plans] || plans.starter
   const isFreePlan = currentPlanName === "starter"
 
   return (
@@ -188,9 +199,8 @@ export default function BillingPage() {
                 <Badge variant="default">Active</Badge>
               </div>
               <p className="text-muted-foreground mb-4">
-                {formatPrice(currentProduct.priceMonthly)}/month •
-                {currentProduct.maxTemplates === -1 ? " Unlimited" : ` ${currentProduct.maxTemplates}`} templates •
-                {currentProduct.maxTeamMembers === -1 ? " Unlimited" : ` ${currentProduct.maxTeamMembers}`} team members
+                £{currentProduct.priceMonthly}/month •{currentProduct.maxTemplates} templates •
+                {currentProduct.maxTeamMembers} team members
               </p>
               {!isFreePlan && subscription?.current_period_end && (
                 <div className="space-y-2">
@@ -205,14 +215,6 @@ export default function BillingPage() {
                   All organizations start with the Starter plan. Upgrade anytime to unlock premium features.
                 </p>
               )}
-              {!isFreePlan && (
-                <div className="mt-4 p-3 bg-primary/10 rounded-lg border border-primary/20">
-                  <p className="text-sm text-primary font-medium">✨ Premium Features Enabled</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Custom branding, task automation, and advanced reporting are now available.
-                  </p>
-                </div>
-              )}
             </div>
           </div>
         </CardContent>
@@ -225,10 +227,10 @@ export default function BillingPage() {
         </CardHeader>
         <CardContent>
           <div className="mb-6">
-            <Tabs value={billingInterval} onValueChange={(v) => setBillingInterval(v as "month" | "year")}>
+            <Tabs value={billingInterval} onValueChange={(v) => setBillingInterval(v as "monthly" | "yearly")}>
               <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
-                <TabsTrigger value="month">Monthly</TabsTrigger>
-                <TabsTrigger value="year">
+                <TabsTrigger value="monthly">Monthly</TabsTrigger>
+                <TabsTrigger value="yearly">
                   Yearly
                   <Badge variant="secondary" className="ml-2 bg-green-100 text-green-800 text-xs">
                     Save up to 20%
@@ -239,151 +241,150 @@ export default function BillingPage() {
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
-            {SUBSCRIPTION_PRODUCTS.filter((plan) => plan.id !== "starter").map((plan) => {
-              const isCurrent = currentProduct?.id === plan.id
-              const isUpgrade = plan.priceMonthly > currentProduct.priceMonthly
-              const isDowngrade = plan.priceMonthly < currentProduct.priceMonthly && !isFreePlan
+            {/* Growth Plan */}
+            <div
+              className={`border rounded-lg p-6 ${currentPlanName === "growth" ? "border-primary bg-primary/5" : "border-accent bg-accent/5"}`}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold">Growth</h3>
+                {currentPlanName === "growth" && <Badge>Current</Badge>}
+              </div>
 
-              const displayPrice = billingInterval === "year" ? plan.priceYearly : plan.priceMonthly
-              const monthlyEquivalent = billingInterval === "year" ? plan.priceYearly / 12 : plan.priceMonthly
+              <div className="mb-2">
+                <span className="text-3xl font-bold">£{billingInterval === "yearly" ? "8" : "8"}</span>
+                <span className="text-lg font-normal text-muted-foreground">/month</span>
+              </div>
+              {billingInterval === "yearly" && <p className="text-sm text-muted-foreground mb-2">Billed £96 yearly</p>}
 
-              return (
-                <div
-                  key={plan.id}
-                  className={`border rounded-lg p-6 ${
-                    isCurrent
-                      ? "border-primary bg-primary/5"
-                      : plan.id === "growth"
-                        ? "border-accent bg-accent/5"
-                        : "border-border"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-bold">{plan.name}</h3>
-                    {isCurrent && <Badge>Current</Badge>}
-                  </div>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                <p className="text-sm font-semibold text-green-800">First month free trial</p>
+              </div>
 
-                  <div className="mb-2">
-                    <span className="text-3xl font-bold">{formatPrice(Math.round(monthlyEquivalent))}</span>
-                    <span className="text-lg font-normal text-muted-foreground">/month</span>
-                  </div>
-                  {billingInterval === "year" && (
-                    <p className="text-sm text-muted-foreground mb-2">Billed {formatPrice(displayPrice)} yearly</p>
-                  )}
+              <p className="text-sm text-muted-foreground mb-4">Ideal for growing small-medium businesses</p>
 
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
-                    <p className="text-sm font-semibold text-green-800">First month free trial</p>
-                  </div>
+              <ul className="space-y-2 mb-6">
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm">2 admin accounts</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm">Up to 25 team members</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm">10 task templates</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm">Unlimited report submissions</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">⚡ Task Automation (Recurring Tasks)</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">🎨 Custom Business Branding</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">🔗 Contractor Link Share</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">📸 Photo Upload on Reports</span>
+                </li>
+              </ul>
 
-                  <p className="text-sm text-muted-foreground mb-4">{plan.description}</p>
+              {currentPlanName === "growth" ? (
+                <Button variant="outline" className="w-full bg-transparent" disabled>
+                  Current Plan
+                </Button>
+              ) : isFreePlan ? (
+                <Button className="w-full" onClick={() => handleUpgrade("growth")}>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Upgrade to Growth
+                </Button>
+              ) : currentPlanName === "scale" ? (
+                <Button variant="outline" className="w-full bg-transparent" onClick={() => handleChangePlan("growth")}>
+                  <ArrowDownCircle className="w-4 h-4 mr-2" />
+                  Downgrade to Growth
+                </Button>
+              ) : null}
+            </div>
 
-                  <ul className="space-y-2 mb-6">
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                      <span className="text-sm">{plan.maxAdmins} admin accounts</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                      <span className="text-sm">Up to {plan.maxTeamMembers} team members</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                      <span className="text-sm">{plan.maxTemplates} task templates</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                      <span className="text-sm">
-                        {plan.maxReportSubmissions
-                          ? `${plan.maxReportSubmissions} report submissions`
-                          : "Unlimited report submissions"}
-                      </span>
-                    </li>
-                    {plan.features.taskAutomation && (
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                        <span className="text-sm font-semibold">⚡ Task Automation (Recurring Tasks)</span>
-                      </li>
-                    )}
-                    {plan.features.customBranding && (
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                        <span className="text-sm font-semibold">🎨 Custom Business Branding</span>
-                      </li>
-                    )}
-                    {plan.features.contractorLinkShare && (
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                        <span className="text-sm font-semibold">🔗 Contractor Link Share</span>
-                      </li>
-                    )}
-                    {plan.features.photoUpload && (
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                        <span className="text-sm font-semibold">📸 Photo Upload on Reports</span>
-                      </li>
-                    )}
-                    {plan.features.reportDeletionRecovery && (
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                        <span className="text-sm font-semibold">🔄 Report Deletion Recovery (via support)</span>
-                      </li>
-                    )}
-                  </ul>
+            {/* Scale Plan */}
+            <div
+              className={`border rounded-lg p-6 ${currentPlanName === "scale" ? "border-primary bg-primary/5" : "border-border"}`}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold">Scale</h3>
+                {currentPlanName === "scale" && <Badge>Current</Badge>}
+              </div>
 
-                  {isCurrent && (
-                    <Button variant="outline" className="w-full bg-transparent" disabled>
-                      Current Plan
-                    </Button>
-                  )}
+              <div className="mb-2">
+                <span className="text-3xl font-bold">£{billingInterval === "yearly" ? "15" : "16"}</span>
+                <span className="text-lg font-normal text-muted-foreground">/month</span>
+              </div>
+              {billingInterval === "yearly" && <p className="text-sm text-muted-foreground mb-2">Billed £180 yearly</p>}
 
-                  {!isCurrent && isFreePlan && (
-                    <Button
-                      className="w-full"
-                      onClick={() => handleUpgrade(plan.id)}
-                      disabled={changingPlan === plan.id}
-                    >
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      Upgrade to {plan.name}
-                    </Button>
-                  )}
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                <p className="text-sm font-semibold text-green-800">First month free trial</p>
+              </div>
 
-                  {!isCurrent && !isFreePlan && isUpgrade && (
-                    <Button
-                      className="w-full"
-                      onClick={() => handleChangePlan(plan.id)}
-                      disabled={changingPlan === plan.id}
-                    >
-                      {changingPlan === plan.id ? (
-                        "Processing..."
-                      ) : (
-                        <>
-                          <ArrowUpCircle className="w-4 h-4 mr-2" />
-                          Upgrade to {plan.name}
-                        </>
-                      )}
-                    </Button>
-                  )}
+              <p className="text-sm text-muted-foreground mb-4">Perfect for large-scale operations</p>
 
-                  {!isCurrent && !isFreePlan && isDowngrade && (
-                    <Button
-                      variant="outline"
-                      className="w-full bg-transparent"
-                      onClick={() => handleChangePlan(plan.id)}
-                      disabled={changingPlan === plan.id}
-                    >
-                      {changingPlan === plan.id ? (
-                        "Processing..."
-                      ) : (
-                        <>
-                          <ArrowDownCircle className="w-4 h-4 mr-2" />
-                          Downgrade to {plan.name}
-                        </>
-                      )}
-                    </Button>
-                  )}
-                </div>
-              )
-            })}
+              <ul className="space-y-2 mb-6">
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm">5 admin accounts</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm">Up to 100 team members</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm">50 task templates</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm">Unlimited report submissions</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">⚡ Task Automation (Recurring Tasks)</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">🎨 Custom Business Branding</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">🔗 Contractor Link Share</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">📸 Photo Upload on Reports</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-semibold">🔄 Report Deletion Recovery (via support)</span>
+                </li>
+              </ul>
+
+              {currentPlanName === "scale" ? (
+                <Button variant="outline" className="w-full bg-transparent" disabled>
+                  Current Plan
+                </Button>
+              ) : isFreePlan || currentPlanName === "growth" ? (
+                <Button className="w-full" onClick={() => handleUpgrade("scale")}>
+                  <ArrowUpCircle className="w-4 h-4 mr-2" />
+                  Upgrade to Scale
+                </Button>
+              ) : null}
+            </div>
           </div>
 
           {!isFreePlan && (
@@ -398,13 +399,12 @@ export default function BillingPage() {
         </CardContent>
       </Card>
 
-      {showCheckout && selectedPlanId && (
+      {showCheckout && priceId && (
         <StripeCheckout
-          productId={selectedPlanId}
-          billingInterval={billingInterval}
+          priceId={priceId}
           onClose={() => {
             setShowCheckout(false)
-            setSelectedPlanId(null)
+            setPriceId(null)
           }}
         />
       )}

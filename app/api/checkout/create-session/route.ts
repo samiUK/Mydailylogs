@@ -18,12 +18,18 @@ export async function POST(request: NextRequest) {
 
     const { priceId } = await request.json()
 
+    console.log("[v0] Received priceId in API:", priceId)
+
     if (!priceId?.startsWith("price_")) {
+      console.log("[v0] priceId validation failed - doesn't start with 'price_'")
       return NextResponse.json({ error: "Invalid price ID" }, { status: 400 })
     }
 
     const subscriptionInfo = getSubscriptionTypeFromPriceId(priceId)
+    console.log("[v0] Subscription info from priceId:", subscriptionInfo)
+
     if (!subscriptionInfo) {
+      console.log("[v0] Could not find subscription info for priceId:", priceId)
       return NextResponse.json({ error: "Invalid price ID" }, { status: 400 })
     }
 

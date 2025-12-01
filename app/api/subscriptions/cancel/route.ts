@@ -33,12 +33,22 @@ export async function POST(req: Request) {
 
     console.log("[v0] Cancelling subscription:", subscription.id)
 
+    const stripeSubId = subscription.stripe_subscription_id || subscription.id
+
     // Cancel the Stripe subscription
-    await stripe.subscriptions.update(subscription.id, {
+    await stripe.subscriptions.update(stripeSubId, {
       cancel_at_period_end: true,
     })
 
-    console.log("[v0] Subscription marked for cancellation at period end")
+    console.log("[v0] Subscription marked for cancellation at period end in Stripe")
+
+    await supabase
+      .from("subscriptions")
+      .update({
+        cancel_at_period_end: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", subscription.id)
 
     return NextResponse.json({
       success: true,

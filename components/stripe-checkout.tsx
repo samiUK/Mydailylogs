@@ -18,7 +18,10 @@ export default function StripeCheckout({ priceId, onClose }: StripeCheckoutProps
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  console.log("[v0] StripeCheckout received priceId:", priceId)
+
   useEffect(() => {
+    console.log("[v0] StripeCheckout useEffect - priceId:", priceId) // Log before API call
     fetch("/api/checkout/create-session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

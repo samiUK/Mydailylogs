@@ -1,15 +1,12 @@
-"use client"
-
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
-import { Edit, User, X } from "lucide-react"
+import { Edit, User } from "lucide-react"
 import { redirect } from "next/navigation"
-import React from "react"
-import { cancelRecurringAssignment } from "@/app/actions/team"
+import { CancelAssignmentButton } from "./cancel-assignment-button"
 
 export const dynamic = "force-dynamic"
 
@@ -41,46 +38,6 @@ interface TeamMember {
     email: string
   } | null
   organization_id?: string
-}
-
-function CancelAssignmentButton({
-  assignmentId,
-  organizationId,
-  templateName,
-}: {
-  assignmentId: string
-  organizationId: string
-  templateName: string
-}) {
-  const [isPending, startTransition] = React.useTransition()
-
-  const handleCancel = () => {
-    if (
-      confirm(
-        `Are you sure you want to cancel the recurring assignment for "${templateName}"? No future tasks will be auto-assigned.`,
-      )
-    ) {
-      startTransition(async () => {
-        const result = await cancelRecurringAssignment(assignmentId, organizationId)
-        if (result.success) {
-          window.location.reload()
-        } else {
-          alert(`Failed to cancel assignment: ${result.error}`)
-        }
-      })
-    }
-  }
-
-  return (
-    <button
-      onClick={handleCancel}
-      disabled={isPending}
-      className="text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
-      title="Cancel recurring assignment"
-    >
-      <X className="w-3 h-3" />
-    </button>
-  )
 }
 
 function ProfileCard({ member, organizationId }: { member: TeamMember; organizationId: string }) {

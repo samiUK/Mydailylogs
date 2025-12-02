@@ -65,6 +65,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
   const [hasPhotoUpload, setHasPhotoUpload] = useState(false)
   const [checklistId, setChecklistId] = useState<string | null>(null)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
+  const [profileId, setProfileId] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -183,21 +184,17 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
       } = await supabase.auth.getUser()
       if (!user) throw new Error("Not authenticated")
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("organization_id")
-        .eq("user_id", user.id)
-        .single()
+      const { data: profile } = await supabase.from("profiles").select("id, organization_id").eq("id", user.id).single()
 
       if (!profile) throw new Error("Profile not found")
 
       setOrganizationId(profile.organization_id)
+      setProfileId(profile.id)
 
       const limits = await getSubscriptionLimits(profile.organization_id)
       setHasPhotoUpload(limits.hasPhotoUpload)
 
-      // Check if user has access to this template
-      const { data: assignmentData } = await supabase
+      const { data: assignmentData, error: assignmentError } = await supabase
         .from("template_assignments")
         .select(`
           *,
@@ -211,9 +208,24 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
         .eq("template_id", checklistId)
         .eq("assigned_to", user.id)
         .eq("is_active", true)
-        .single()
+        .maybeSingle()
 
-      console.log("[v0] Assignment data:", assignmentData)
+      console.log("[v0] Assignment query result:", assignmentData)
+      console.log("[v0] Assignment query error:", assignmentError)
+
+      if (assignmentError) {
+        console.error("[v0] Error fetching assignment:", assignmentError)
+        setTemplate(null)
+        setIsLoading(false)
+        return
+      }
+
+      if (!assignmentData) {
+        console.error("[v0] No assignment found for this template and user")
+        setTemplate(null)
+        setIsLoading(false)
+        return
+      }
 
       if (assignmentData?.checklist_templates) {
         const templateData = assignmentData.checklist_templates
@@ -230,7 +242,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
             .from("daily_checklists")
             .select("*")
             .eq("template_id", checklistId)
-            .eq("assigned_to", user.id)
+            .eq("assigned_to", profile.id)
             .eq("date", today)
             .single()
 
@@ -246,7 +258,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
               .from("daily_checklists")
               .insert({
                 template_id: checklistId,
-                assigned_to: user.id,
+                assigned_to: profile.id,
                 date: today,
                 status: "in_progress",
                 organization_id: assignmentData.organization_id,
@@ -613,6 +625,9 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
         }
       })
 
+      let completedAssignmentId: string | null = null
+      let completedDailyChecklistId: string | null = null
+
       if (template?.frequency === "daily" && dailyChecklist) {
         console.log("[v0] Completing daily checklist instance")
         const { data: dailyUpdateData, error: dailyError } = await supabase
@@ -632,6 +647,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
           return
         }
 
+        completedDailyChecklistId = dailyChecklist.id
         console.log("[v0] Daily checklist completed successfully:", dailyUpdateData)
       } else {
         console.log("[v0] Updating template assignment to completed")
@@ -643,7 +659,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
             updated_at: new Date().toISOString(),
           })
           .eq("template_id", checklistId)
-          .eq("assigned_to", (await supabase.auth.getUser()).data.user.id)
+          .eq("assigned_to", profileId)
           .eq("is_active", true)
           .select()
 
@@ -661,7 +677,8 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
           return
         }
 
-        console.log("[v0] Template assignment updated successfully")
+        completedAssignmentId = updateData[0].id
+        console.log("[v0] Template assignment updated successfully, assignment ID:", completedAssignmentId)
       }
 
       const { data: submittedReport, error: submittedReportError } = await supabase
@@ -674,6 +691,8 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
           report_data: reportData,
           status: "completed",
           submitted_at: new Date().toISOString(),
+          assignment_id: completedAssignmentId, // Link to specific assignment
+          daily_checklist_id: completedDailyChecklistId, // Link to specific daily checklist
         })
         .select()
 
@@ -681,6 +700,12 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
         console.error("[v0] Error creating submitted_reports entry:", submittedReportError)
       } else {
         console.log("[v0] Submitted report entry created successfully:", submittedReport)
+        console.log(
+          "[v0] Report linked to assignment_id:",
+          completedAssignmentId,
+          "daily_checklist_id:",
+          completedDailyChecklistId,
+        )
       }
 
       // Create a completion notification for admin

@@ -31,6 +31,15 @@ export async function POST(request: NextRequest) {
     const { templateId } = await request.json()
     console.log("[v0] Create Report API - Template ID:", templateId)
 
+    const { data: profile } = await supabase.from("profiles").select("id, organization_id").eq("id", user.id).single()
+
+    if (!profile) {
+      console.log("[v0] Create Report API - Profile not found")
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 })
+    }
+
+    console.log("[v0] Create Report API - Profile ID:", profile.id)
+
     // Get template details
     const { data: template, error: templateError } = await supabase
       .from("checklist_templates")
@@ -40,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     if (templateError || !template) {
       console.log("[v0] Create Report API - Template error:", templateError)
-      return NextResponse.json({ error: "Template not found" }, { status: 404 })
+      return NextResponse.json({ error: "Template not found or not assigned to you" }, { status: 404 })
     }
 
     console.log("[v0] Create Report API - Template found:", template.name)
@@ -55,7 +64,7 @@ export async function POST(request: NextRequest) {
         .from("daily_checklists")
         .select("id")
         .eq("template_id", templateId)
-        .eq("assigned_to", user.id)
+        .eq("assigned_to", profile.id)
         .eq("date", today)
         .single()
 
@@ -68,12 +77,11 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      // Create new daily checklist
       const { data: dailyChecklist, error: dailyError } = await supabase
         .from("daily_checklists")
         .insert({
           template_id: templateId,
-          assigned_to: user.id,
+          assigned_to: profile.id,
           date: today,
           status: "pending",
         })
@@ -92,13 +100,12 @@ export async function POST(request: NextRequest) {
         type: "daily",
       })
     } else {
-      // Create regular template assignment
       const { data: assignment, error: assignmentError } = await supabase
         .from("template_assignments")
         .insert({
           template_id: templateId,
-          assigned_to: user.id,
-          assigned_by: user.id, // Self-assigned
+          assigned_to: profile.id,
+          assigned_by: profile.id, // Self-assigned
           status: "pending",
         })
         .select()

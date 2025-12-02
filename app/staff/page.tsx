@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Clock, Bell, AlertTriangle, ArrowLeft, History } from 'lucide-react'
+import { Clock, Bell, AlertTriangle, ArrowLeft } from "lucide-react"
 import { useState, useEffect } from "react"
 import { exitImpersonation } from "@/lib/impersonation-utils"
 
@@ -45,22 +45,22 @@ export default function StaffDashboard() {
 
       try {
         const urlParams = new URLSearchParams(window.location.search)
-        const impersonateToken = urlParams.get('impersonate')
-        
+        const impersonateToken = urlParams.get("impersonate")
+
         if (impersonateToken) {
           try {
             const impersonationData = JSON.parse(atob(impersonateToken))
             console.log("[v0] Impersonation token detected:", impersonationData)
-            
-            localStorage.setItem('masterAdminImpersonation', 'true')
-            localStorage.setItem('impersonatedUserEmail', impersonationData.userEmail)
-            localStorage.setItem('impersonatedUserId', impersonationData.userId)
-            localStorage.setItem('impersonatedUserRole', impersonationData.userRole)
-            localStorage.setItem('impersonatedOrganizationId', impersonationData.organizationId)
-            localStorage.setItem('masterAdminEmail', impersonationData.masterAdminEmail)
-            
+
+            localStorage.setItem("masterAdminImpersonation", "true")
+            localStorage.setItem("impersonatedUserEmail", impersonationData.userEmail)
+            localStorage.setItem("impersonatedUserId", impersonationData.userId)
+            localStorage.setItem("impersonatedUserRole", impersonationData.userRole)
+            localStorage.setItem("impersonatedOrganizationId", impersonationData.organizationId)
+            localStorage.setItem("masterAdminEmail", impersonationData.masterAdminEmail)
+
             window.history.replaceState({}, document.title, window.location.pathname)
-            
+
             const { data: profile, error: profileError } = await supabase
               .from("profiles")
               .select("*")
@@ -76,7 +76,7 @@ export default function StaffDashboard() {
             setUser({ email: profile.email, id: profile.id })
             setProfile(profile)
             setLoading(false)
-            
+
             // Continue loading data with impersonated user
             const [assignedTemplatesData, completedReportsData, notificationsData] = await Promise.all([
               supabase
@@ -135,20 +135,23 @@ export default function StaffDashboard() {
             console.error("[v0] Invalid impersonation token:", e)
           }
         }
-        
-        const { data: { user }, error } = await supabase.auth.getUser()
-        
+
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser()
+
         if (error || !user) {
           console.error("Error getting user:", error)
           return
         }
-        
+
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", user.id)
           .single()
-          
+
         if (profileError || !profile) {
           console.error("Error loading profile:", profileError)
           return

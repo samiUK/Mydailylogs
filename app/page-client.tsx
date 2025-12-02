@@ -258,9 +258,9 @@ export default function HomePageClient() {
               Simple Task Management & Compliance <span className="text-accent block">for Growing Businesses</span>
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground leading-relaxed">
-              Professional task management and compliance reporting built for businesses that need to stay organized.
-              Complete checklists, capture evidence, and generate professional reports - perfect for construction,
-              hospitality, healthcare, retail, logistics, facilities management, and service industries.
+              Professional task management and compliance reporting built for teams working on-site, in the office, or
+              on the go. Complete checklists, capture evidence, and generate professional reports - perfect for
+              construction, hospitality, healthcare, retail, logistics, facilities management, and service industries.
             </p>
           </div>
         </section>
@@ -268,7 +268,7 @@ export default function HomePageClient() {
         <section className="w-full">
           <img
             src="/images/mydaylogs-showcase.png"
-            alt="MyDayLogs platform shown on laptop and mobile - Admin dashboard on desktop and mobile checklist interface demonstrating mobile-friendly field team capabilities"
+            alt="MyDayLogs platform shown on laptop and mobile - Admin dashboard on desktop and mobile checklist interface"
             className="w-full h-auto object-cover"
           />
         </section>

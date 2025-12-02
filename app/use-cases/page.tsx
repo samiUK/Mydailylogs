@@ -7,15 +7,15 @@ import { ArrowRight, CheckCircle2, Building2, Utensils, Hammer, Heart, ShoppingB
 import { MyDayLogsLogo } from "@/components/mydaylogs-logo"
 
 export const metadata: Metadata = {
-  title: "Use Cases - Mobile Task Management & Compliance for Field Teams | MyDayLogs",
+  title: "Use Cases - Task Management & Compliance for Teams | MyDayLogs",
   description:
-    "Discover how MyDayLogs helps field teams across construction, hospitality, healthcare, retail, and logistics streamline compliance tracking with mobile-first task management and audit-ready reporting.",
+    "Discover how MyDayLogs helps teams across construction, hospitality, healthcare, retail, and logistics streamline compliance tracking with flexible task management and audit-ready reporting.",
   keywords:
-    "mobile task management, field operations software, compliance tracking, construction safety checklists, restaurant compliance, healthcare reporting, retail operations, logistics management, mobile reporting app, audit-ready reports, field team compliance",
+    "task management, compliance tracking, construction safety checklists, restaurant compliance, healthcare reporting, retail operations, logistics management, reporting app, audit-ready reports, team compliance",
   openGraph: {
-    title: "Use Cases - Mobile Task Management & Compliance for Field Teams",
+    title: "Use Cases - Task Management & Compliance for Teams",
     description:
-      "See how MyDayLogs empowers on-the-go teams with mobile compliance tracking and professional reporting across multiple industries.",
+      "See how MyDayLogs empowers teams with compliance tracking and professional reporting across multiple industries.",
     type: "website",
   },
 }
@@ -231,8 +231,8 @@ const useCases = [
 ]
 
 const commonFeatures = [
-  "Mobile-first reporting accessible on any smartphone or tablet",
-  "Offline capability for field locations with poor connectivity",
+  "Flexible task management accessible on any device",
+  "Offline capability for locations with poor connectivity",
   "Photo upload for visual evidence and documentation",
   "Automated recurring task assignments (daily, weekdays, weekly, monthly)",
   "Professional PDF reports with timestamps and digital signatures",
@@ -293,14 +293,14 @@ export default function UseCasesPage() {
         <section className="py-12 border-b">
           <div className="max-w-4xl mx-auto text-center">
             <Badge variant="secondary" className="mb-6 text-sm font-semibold px-4 py-2">
-              Mobile Task Management for Field Teams
+              Task Management for Teams
             </Badge>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6 leading-tight">
-              Built for Teams Who Work <span className="text-accent">On the Move</span>
+              Built for Teams Working <span className="text-accent">Anywhere</span>
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
-              MyDayLogs empowers field teams across industries to capture compliance data, complete safety checks, and
-              submit professional reports directly from mobile devices - anywhere, anytime.
+              MyDayLogs empowers teams across industries to capture compliance data, complete safety checks, and submit
+              professional reports from any device - whether on-site, in the office, or on the go.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild size="lg">
@@ -324,8 +324,8 @@ export default function UseCasesPage() {
                 Proven Solutions Across Industries
               </h2>
               <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                See how mobile teams in different sectors use MyDayLogs to streamline compliance, improve safety, and
-                maintain audit-ready documentation.
+                See how teams in different sectors use MyDayLogs to streamline compliance, improve safety, and maintain
+                audit-ready documentation.
               </p>
             </div>
 
@@ -398,9 +398,7 @@ export default function UseCasesPage() {
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-12">
               <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Core Features for Every Industry</h2>
-              <p className="text-lg text-muted-foreground">
-                All MyDayLogs plans include essential mobile compliance tools
-              </p>
+              <p className="text-lg text-muted-foreground">All MyDayLogs plans include essential compliance tools</p>
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">

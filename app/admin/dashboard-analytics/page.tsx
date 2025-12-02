@@ -1,11 +1,10 @@
 import { createClient } from "@/lib/supabase/server"
-import { cookies } from "next/headers"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { BarChart3, FileText, TrendingUp, Users, Eye, Download } from 'lucide-react'
-import { redirect } from 'next/navigation'
+import { BarChart3, FileText, TrendingUp, Users, Eye, Download } from "lucide-react"
+import { redirect } from "next/navigation"
 import { batchQuery, getUserProfile } from "@/lib/database-utils"
 import { ErrorDisplay } from "@/components/error-display"
 import { createBrowserClient } from "@supabase/ssr"
@@ -83,7 +82,6 @@ export default async function AdminDashboardAnalyticsPage() {
     console.log("[v0] Admin Dashboard Analytics page - Organization ID:", profile.organization_id)
 
     if (typeof window !== "undefined") {
-      // Only run on client side
       setTimeout(() => clearSubmissionNotifications(user.id, profile.organization_id), 100)
     }
 
@@ -96,10 +94,12 @@ export default async function AdminDashboardAnalyticsPage() {
             status,
             completed_at,
             assigned_to,
+            assigned_at,
             checklist_templates(id, name),
             assigned_to_profile:profiles!assigned_to(first_name, last_name, full_name, email)
           `)
           .eq("organization_id", profile.organization_id)
+          .eq("is_active", true)
           .order("created_at", { ascending: false })
           .limit(100)
         return { data: result.data, error: result.error }
@@ -155,6 +155,7 @@ export default async function AdminDashboardAnalyticsPage() {
         user_name: a.assigned_to_profile?.full_name || a.assigned_to_profile?.email || "Unknown User",
         status: a.status,
         completed_at: a.completed_at,
+        assigned_at: a.assigned_at,
         type: "assignment" as const,
       })),
       ...(dailyChecklists || []).map((d: any) => ({
@@ -163,6 +164,7 @@ export default async function AdminDashboardAnalyticsPage() {
         user_name: d.assigned_to_profile?.full_name || d.assigned_to_profile?.email || "Unknown User",
         status: d.status,
         completed_at: d.completed_at,
+        assigned_at: d.date,
         type: "daily" as const,
       })),
     ]
@@ -173,16 +175,16 @@ export default async function AdminDashboardAnalyticsPage() {
     const completedToday = allReports.filter(
       (r) => r.status === "completed" && r.completed_at?.startsWith(today),
     ).length
-    const pendingReports = Math.max(0, totalReports - completedReports)
+    const pendingReports = allReports.filter((r) => r.status !== "completed").length
     const completionRate = totalReports > 0 ? Math.round((completedReports / totalReports) * 100) : 0
 
-    const recentReports = allReports
+    const recentActivity = allReports
       .sort((a, b) => {
-        const dateA = a.completed_at || a.id
-        const dateB = b.completed_at || b.id
+        const dateA = a.completed_at || a.assigned_at || a.id
+        const dateB = b.completed_at || b.assigned_at || b.id
         return dateB.localeCompare(dateA)
       })
-      .slice(0, 10)
+      .slice(0, 6)
 
     console.log("[v0] Admin Dashboard Analytics page - Metrics calculated successfully")
 
@@ -205,7 +207,7 @@ export default async function AdminDashboardAnalyticsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{totalReports}</div>
-              <p className="text-xs text-muted-foreground">All time</p>
+              <p className="text-xs text-muted-foreground">All active assignments</p>
             </CardContent>
           </Card>
 
@@ -243,41 +245,49 @@ export default async function AdminDashboardAnalyticsPage() {
           </Card>
         </div>
 
-        {/* Recent Reports */}
+        {/* Recent Activity */}
         <Card>
           <CardHeader>
-            <CardTitle>Recent Reports</CardTitle>
-            <CardDescription>Latest report submissions and status updates</CardDescription>
+            <CardTitle>Recent Activity</CardTitle>
+            <CardDescription>Latest assignments and report submissions</CardDescription>
           </CardHeader>
           <CardContent>
-            {recentReports.length > 0 ? (
+            {recentActivity.length > 0 ? (
               <div className="space-y-4">
-                {recentReports.map((report) => (
+                {recentActivity.map((report) => (
                   <div key={report.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex-1">
                       <h4 className="font-medium">{report.template_name}</h4>
                       <p className="text-sm text-muted-foreground">{report.user_name}</p>
                     </div>
                     <div className="flex items-center gap-4">
-                      <Badge variant={report.status === "completed" ? "default" : "secondary"}>{report.status}</Badge>
-                      {report.completed_at && (
+                      <Badge variant={report.status === "completed" ? "default" : "secondary"}>
+                        {report.status || "pending"}
+                      </Badge>
+                      {report.completed_at ? (
                         <span className="text-sm text-muted-foreground">
-                          {new Date(report.completed_at).toLocaleDateString()}
+                          Completed: {new Date(report.completed_at).toLocaleDateString()}
                         </span>
-                      )}
+                      ) : report.assigned_at ? (
+                        <span className="text-sm text-muted-foreground">
+                          Assigned: {new Date(report.assigned_at).toLocaleDateString()}
+                        </span>
+                      ) : null}
                       <div className="flex items-center gap-2">
                         <Link href={`/admin/reports/${report.id}`}>
                           <Button variant="outline" size="sm">
                             <Eye className="w-4 h-4 mr-1" />
-                            View Report
+                            View
                           </Button>
                         </Link>
-                        <Link href={`/admin/reports/${report.id}?download=true`}>
-                          <Button variant="default" size="sm">
-                            <Download className="w-4 h-4 mr-1" />
-                            Download
-                          </Button>
-                        </Link>
+                        {report.status === "completed" && (
+                          <Link href={`/admin/reports/${report.id}?download=true`}>
+                            <Button variant="default" size="sm">
+                              <Download className="w-4 h-4 mr-1" />
+                              Download
+                            </Button>
+                          </Link>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -286,9 +296,9 @@ export default async function AdminDashboardAnalyticsPage() {
             ) : (
               <div className="text-center py-12">
                 <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-foreground mb-2">No reports yet</h3>
+                <h3 className="text-lg font-semibold text-foreground mb-2">No pending reports</h3>
                 <p className="text-muted-foreground">
-                  Reports will appear here once team members start submitting them
+                  Assignments and reports will appear here once you start assigning tasks to team members
                 </p>
               </div>
             )}

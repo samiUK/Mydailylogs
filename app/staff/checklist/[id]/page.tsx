@@ -68,6 +68,7 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
   const [checklistId, setChecklistId] = useState<string | null>(null)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
   const [profileId, setProfileId] = useState<string | null>(null)
+  const [assignmentId, setAssignmentId] = useState<string | null>(null)
   const [completedAssignmentId, setCompletedAssignmentId] = useState<string | null>(null)
   const [completedDailyChecklistId, setCompletedDailyChecklistId] = useState<string | null>(null)
   const router = useRouter()
@@ -244,155 +245,71 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
   }
 
   const loadChecklist = async () => {
-    if (!checklistId) {
-      console.log("[v0] No checklist ID provided")
-      return
-    }
+    if (!checklistId) return
 
+    console.log("[v0] Loading checklist:", checklistId)
     setIsLoading(true)
-    const supabase = createClient()
 
+    const supabase = createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
 
     if (!user) {
-      console.error("[v0] No authenticated user")
-      setTemplate(null)
-      setIsLoading(false)
+      router.push("/auth/login")
       return
     }
 
-    console.log("[v0] Fetching profile for user:", user.id)
+    try {
+      const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
 
-    const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single()
-
-    if (!profile) {
-      console.error("[v0] Profile not found for user")
-      setTemplate(null)
-      setIsLoading(false)
-      return
-    }
-
-    setOrganizationId(profile.organization_id)
-    setProfileId(user.id)
-
-    const { data: assignmentData, error: assignmentError } = await supabase
-      .from("template_assignments")
-      .select(
-        `
-        id,
-        assigned_to,
-        is_active,
-        due_date,
-        status,
-        checklist_templates!inner(
-          id,
-          name,
-          description,
-          frequency
-        )
-      `,
-      )
-      .eq("template_id", checklistId)
-      .eq("assigned_to", user.id)
-      .eq("is_active", true)
-      .maybeSingle()
-
-    console.log("[v0] Assignment query result:", assignmentData)
-    console.log("[v0] Assignment query error:", assignmentError)
-
-    if (assignmentError) {
-      console.error("[v0] Error fetching assignment:", assignmentError)
-      setTemplate(null)
-      setIsLoading(false)
-      return
-    }
-
-    if (!assignmentData) {
-      console.error("[v0] No assignment found for this template and user")
-      setTemplate(null)
-      setIsLoading(false)
-      return
-    }
-
-    if (assignmentData?.checklist_templates) {
-      const templateData = assignmentData.checklist_templates
-      setTemplate(templateData)
-      console.log("[v0] Template loaded:", templateData)
-
-      let dailyChecklistData = null
-      const assignmentInstanceId = assignmentData.id // Store assignment ID for this instance
-
-      if (templateData.frequency === "daily") {
-        const today = new Date().toISOString().split("T")[0] // YYYY-MM-DD format
-        console.log("[v0] Daily template detected, checking for today's instance:", today)
-
-        // Check if today's daily checklist already exists
-        const { data: existingDaily } = await supabase
-          .from("daily_checklists")
-          .select("*")
-          .eq("template_id", checklistId)
-          .eq("assigned_to", profile.id)
-          .eq("date", today)
-          .single()
-
-        console.log("[v0] Existing daily checklist:", existingDaily)
-
-        if (existingDaily) {
-          dailyChecklistData = existingDaily
-          console.log("[v0] Using existing daily checklist")
-        } else {
-          // Create new daily checklist for today
-          console.log("[v0] Creating new daily checklist for today")
-          const { data: newDaily, error: dailyError } = await supabase
-            .from("daily_checklists")
-            .insert({
-              template_id: checklistId,
-              assigned_to: profile.id,
-              date: today,
-              status: "in_progress",
-              organization_id: assignmentData.organization_id,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            })
-            .select()
-            .single()
-
-          if (dailyError) {
-            console.error("[v0] Error creating daily checklist:", dailyError)
-          } else {
-            dailyChecklistData = newDaily
-            console.log("[v0] Created new daily checklist:", newDaily)
-          }
-        }
-
-        setDailyChecklist(dailyChecklistData)
+      if (!profile) {
+        console.error("[v0] No profile found")
+        setIsLoading(false)
+        return
       }
 
-      // Load tasks
+      setOrganizationId(profile.organization_id)
+      setProfileId(user.id)
+
+      const assignmentIdFromUrl = params.id
+      setAssignmentId(assignmentIdFromUrl)
+      console.log("[v0] Assignment ID from URL:", assignmentIdFromUrl)
+
+      const { data: assignmentData } = await supabase
+        .from("template_assignments")
+        .select("*, checklist_templates(*)")
+        .eq("id", assignmentIdFromUrl)
+        .single()
+
+      if (!assignmentData) {
+        console.error("[v0] Assignment not found")
+        setIsLoading(false)
+        return
+      }
+
+      console.log("[v0] Assignment loaded:", assignmentData)
+      const templateData = assignmentData.checklist_templates
+      setTemplate(templateData)
+
       const { data: tasksData } = await supabase
         .from("checklist_items")
-        .select("*")
-        .eq("template_id", checklistId)
+        .eq("template_id", templateData.id)
         .order("order_index")
+        .select()
 
       console.log("[v0] Tasks loaded:", tasksData?.length)
       if (tasksData) {
         setTasks(tasksData)
       }
 
-      // This ensures each assignment has completely independent responses
       const { data: responsesData } = await supabase
         .from("checklist_responses")
         .select("*")
-        .or(
-          dailyChecklistData
-            ? `daily_checklist_id.eq.${dailyChecklistData.id}`
-            : `assignment_id.eq.${assignmentInstanceId}`,
-        )
+        .eq("assignment_id", assignmentIdFromUrl)
 
-      console.log("[v0] Responses loaded for this assignment instance:", responsesData?.length)
+      console.log("[v0] Responses loaded for assignment:", assignmentIdFromUrl, "count:", responsesData?.length)
+
       if (responsesData) {
         setResponses(responsesData)
         const initialInputValues: Record<string, string> = {}
@@ -409,7 +326,6 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
             try {
               const photoData = JSON.parse(response.response_value)
               if (Array.isArray(photoData) && photoData.length > 0) {
-                // Create dummy File objects for display (we have the URLs, not actual files)
                 const dummyFiles = photoData.map(
                   (photo: any) => new File([], photo.name || "photo.jpg", { type: "image/jpeg" }),
                 )
@@ -426,14 +342,12 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
         setUploadedFiles(initialUploadedFiles)
       }
 
-      if (dailyChecklistData) {
-        setCompletedDailyChecklistId(dailyChecklistData.id)
-      } else {
-        setCompletedAssignmentId(assignmentInstanceId)
-      }
+      setCompletedAssignmentId(assignmentIdFromUrl)
+    } catch (error) {
+      console.error("[v0] Error loading checklist:", error)
+    } finally {
+      setIsLoading(false)
     }
-
-    setIsLoading(false)
   }
 
   const handleTaskResponse = async (taskId: string, value: string, isCompleted = false) => {
@@ -441,7 +355,7 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
 
     try {
       const responseData: any = {
-        checklist_id: checklistId,
+        assignment_id: assignmentId,
         item_id: taskId,
         response_value: value,
         is_completed: isCompleted,
@@ -449,15 +363,31 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
         updated_at: new Date().toISOString(),
       }
 
-      console.log("[v0] Saving response with data:", responseData)
+      console.log("[v0] Saving response with assignment_id:", assignmentId)
 
-      const { data, error } = await supabase
+      const { data: existingResponse } = await supabase
         .from("checklist_responses")
-        .upsert(responseData, {
-          onConflict: "item_id,checklist_id",
-        })
-        .select()
+        .select("id")
+        .eq("assignment_id", assignmentId)
+        .eq("item_id", taskId)
         .single()
+
+      let data, error
+
+      if (existingResponse) {
+        const result = await supabase
+          .from("checklist_responses")
+          .update(responseData)
+          .eq("id", existingResponse.id)
+          .select()
+          .single()
+        data = result.data
+        error = result.error
+      } else {
+        const result = await supabase.from("checklist_responses").insert(responseData).select().single()
+        data = result.data
+        error = result.error
+      }
 
       if (error) {
         console.error("[v0] Error saving response:", error)
@@ -465,10 +395,10 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
         return
       }
 
-      console.log("[v0] Response saved successfully:", data)
+      console.log("[v0] Response saved successfully for assignment:", assignmentId)
 
       setResponses((prev) => {
-        const existingIndex = prev.findIndex((r) => r.item_id === taskId)
+        const existingIndex = prev.findIndex((r) => r.item_id === taskId && r.assignment_id === assignmentId)
         if (existingIndex >= 0) {
           const newResponses = [...prev]
           newResponses[existingIndex] = data
@@ -486,19 +416,42 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
     try {
       setLocalNotes((prev) => ({ ...prev, [taskId]: notes }))
 
-      const { data } = await createClient()
+      const { data: existingResponse } = await createClient()
         .from("checklist_responses")
-        .upsert({
-          checklist_id: dailyChecklist?.id || checklistId,
-          item_id: taskId,
-          notes,
-          updated_at: new Date().toISOString(),
-        })
-        .select()
+        .select("id")
+        .eq("assignment_id", assignmentId)
+        .eq("item_id", taskId)
         .single()
 
-      if (data) {
-        setResponses((prev) => prev.map((r) => (r.id === data.id ? data : r)))
+      if (existingResponse) {
+        const { data } = await createClient()
+          .from("checklist_responses")
+          .update({
+            notes,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existingResponse.id)
+          .select()
+          .single()
+
+        if (data) {
+          setResponses((prev) => prev.map((r) => (r.id === data.id ? data : r)))
+        }
+      } else {
+        const { data } = await createClient()
+          .from("checklist_responses")
+          .insert({
+            assignment_id: assignmentId,
+            item_id: taskId,
+            notes,
+            updated_at: new Date().toISOString(),
+          })
+          .select()
+          .single()
+
+        if (data) {
+          setResponses((prev) => [...prev, data])
+        }
       }
     } catch (error) {
       console.error("[v0] Error handling task notes:", error)
@@ -509,23 +462,188 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
     console.log("[v0] Mark completed button clicked for task:", taskId)
 
     try {
-      const { data } = await createClient()
-        .from("checklist_responses")
-        .upsert({
-          checklist_id: dailyChecklist?.id || checklistId,
-          item_id: taskId,
-          is_completed: !responses.some((r) => r.item_id === taskId && r.is_completed),
-          completed_at: responses.some((r) => r.item_id === taskId && r.is_completed) ? null : new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .select()
-        .single()
+      const existingResponse = responses.find((r) => r.item_id === taskId && r.assignment_id === assignmentId)
+      const isCurrentlyCompleted = existingResponse?.is_completed || false
 
-      if (data) {
-        setResponses((prev) => prev.map((r) => (r.id === data.id ? data : r)))
+      if (existingResponse) {
+        const { data } = await createClient()
+          .from("checklist_responses")
+          .update({
+            is_completed: !isCurrentlyCompleted,
+            completed_at: !isCurrentlyCompleted ? new Date().toISOString() : null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existingResponse.id)
+          .select()
+          .single()
+
+        if (data) {
+          setResponses((prev) => prev.map((r) => (r.id === data.id ? data : r)))
+        }
+      } else {
+        const { data } = await createClient()
+          .from("checklist_responses")
+          .insert({
+            assignment_id: assignmentId,
+            item_id: taskId,
+            is_completed: true,
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .select()
+          .single()
+
+        if (data) {
+          setResponses((prev) => [...prev, data])
+        }
       }
     } catch (error) {
       console.error("[v0] Exception in mark completed:", error)
+    }
+  }
+
+  const handleSubmit = async () => {
+    console.log("[v0] Submit button clicked")
+    setIsSaving(true)
+
+    try {
+      console.log("[v0] Updating assignment by unique ID:", assignmentId)
+      const { data: updateData, error: assignmentError } = await createClient()
+        .from("template_assignments")
+        .update({
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", assignmentId)
+        .select()
+
+      if (assignmentError) {
+        console.error("[v0] Database error updating assignment:", assignmentError)
+        alert(`Database error completing checklist: ${assignmentError.message}. Please try again.`)
+        setIsSaving(false)
+        return
+      }
+
+      if (!updateData || updateData.length === 0) {
+        console.error("[v0] No assignment found to update with ID:", assignmentId)
+        alert("Error: Could not update assignment. Please contact support.")
+        setIsSaving(false)
+        return
+      }
+
+      console.log("[v0] Assignment updated successfully:", updateData[0])
+
+      const reportData = {
+        template_id: template?.id,
+        assignment_id: assignmentId,
+        responses: responses,
+        tasks: tasks,
+        global_notes: globalNotes,
+        completed_at: new Date().toISOString(),
+      }
+
+      const { data: submittedReport, error: submittedReportError } = await createClient()
+        .from("submitted_reports")
+        .insert({
+          template_name: template?.name || "Untitled Report",
+          template_description: template?.description || "",
+          submitted_by: profileId,
+          organization_id: organizationId,
+          report_data: reportData,
+          status: "completed",
+          submitted_at: new Date().toISOString(),
+          assignment_id: assignmentId,
+        })
+        .select()
+
+      if (submittedReportError) {
+        console.error("[v0] Error creating submitted_reports entry:", submittedReportError)
+      } else {
+        console.log("[v0] Submitted report created with assignment_id:", assignmentId)
+      }
+
+      const { error: notificationError } = await createClient()
+        .from("notifications")
+        .insert({
+          user_id: profileId,
+          template_id: template?.id,
+          organization_id: organizationId,
+          type: "report_submitted",
+          title: "Report Submitted",
+          message: `Report for "${template?.name}" has been submitted`,
+          created_at: new Date().toISOString(),
+        })
+
+      if (notificationError) {
+        console.error("[v0] Error creating notification:", notificationError)
+      }
+
+      toast.success("Checklist completed successfully!")
+      router.push("/staff")
+    } catch (error) {
+      console.error("[v0] Error submitting checklist:", error)
+      alert("An error occurred while submitting. Please try again.")
+    }
+
+    setIsSaving(false)
+  }
+
+  useEffect(() => {
+    setChecklistId(params.id)
+  }, [params])
+
+  useEffect(() => {
+    if (checklistId) {
+      loadChecklist()
+    }
+  }, [checklistId])
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div className="space-y-4">
+            <div className="h-4 bg-gray-200 rounded w-full"></div>
+            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!template) {
+    return <div className="text-center py-8">Template not found or not assigned to you</div>
+  }
+
+  const completedTasks = responses.filter((r) => r.is_completed).length
+  const totalTasks = tasks.length
+  const progress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
+
+  const tasksByCategory = tasks.reduce(
+    (acc, task) => {
+      const category = task.category || "General"
+      if (!acc[category]) acc[category] = []
+      acc[category].push(task)
+      return acc
+    },
+    {} as Record<string, ChecklistTask[]>,
+  )
+
+  const getTaskIcon = (taskType: string) => {
+    switch (taskType) {
+      case "boolean":
+        return <CheckSquare className="w-4 h-4" />
+      case "numeric":
+        return <Hash className="w-4 h-4" />
+      case "text":
+        return <FileText className="w-4 h-4" />
+      case "photo":
+        return <Camera className="w-4 h-4" />
+      default:
+        return <CheckSquare className="w-4 h-4" />
     }
   }
 
@@ -707,192 +825,6 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
     }
   }
 
-  const getTaskIcon = (taskType: string) => {
-    switch (taskType) {
-      case "boolean":
-        return <CheckSquare className="w-4 h-4" />
-      case "numeric":
-        return <Hash className="w-4 h-4" />
-      case "text":
-        return <FileText className="w-4 h-4" />
-      case "photo":
-        return <Camera className="w-4 h-4" />
-      default:
-        return <CheckSquare className="w-4 h-4" />
-    }
-  }
-
-  const handleCompleteChecklist = async () => {
-    console.log("[v0] Complete Checklist button clicked")
-    setIsSaving(true)
-
-    try {
-      const reportData = tasks.map((task) => {
-        const response = responses.find((r) => r.item_id === task.id)
-        return {
-          task_name: task.name,
-          task_description: task.description,
-          response_value: response?.response_value || "",
-          notes: response?.notes || "",
-          is_completed: response?.is_completed || false,
-          completed_at: response?.completed_at || null,
-        }
-      })
-
-      let completedAssignmentId: string | null = null
-      let completedDailyChecklistId: string | null = null
-
-      if (template?.frequency === "daily" && dailyChecklist) {
-        console.log("[v0] Completing daily checklist instance")
-        const { data: dailyUpdateData, error: dailyError } = await createClient()
-          .from("daily_checklists")
-          .update({
-            status: "completed",
-            completed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", dailyChecklist.id)
-          .select()
-
-        if (dailyError) {
-          console.error("[v0] Database error updating daily checklist:", dailyError)
-          alert(`Database error completing checklist: ${dailyError.message}. Please try again.`)
-          setIsSaving(false)
-          return
-        }
-
-        completedDailyChecklistId = dailyChecklist.id
-        console.log("[v0] Daily checklist completed successfully:", dailyUpdateData)
-      } else {
-        console.log("[v0] Updating template assignment to completed")
-        const { data: updateData, error: assignmentError } = await createClient()
-          .from("template_assignments")
-          .update({
-            status: "completed",
-            completed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("template_id", checklistId)
-          .eq("assigned_to", profileId)
-          .eq("is_active", true)
-          .select()
-
-        if (assignmentError) {
-          console.error("[v0] Database error updating assignment:", assignmentError)
-          alert(`Database error completing checklist: ${assignmentError.message}. Please try again.`)
-          setIsSaving(false)
-          return
-        }
-
-        if (!updateData || updateData.length === 0) {
-          console.error("[v0] No template assignment found to update")
-          alert("Error: Could not update assignment. Please contact support.")
-          setIsSaving(false)
-          return
-        }
-
-        completedAssignmentId = updateData[0].id
-        console.log("[v0] Template assignment updated successfully, assignment ID:", completedAssignmentId)
-      }
-
-      const { data: submittedReport, error: submittedReportError } = await createClient()
-        .from("submitted_reports")
-        .insert({
-          template_name: template?.name || "Untitled Report",
-          template_description: template?.description || "",
-          submitted_by: (await createClient().auth.getUser()).data.user.id,
-          organization_id: organizationId,
-          report_data: reportData,
-          status: "completed",
-          submitted_at: new Date().toISOString(),
-          assignment_id: completedAssignmentId, // Link to specific assignment
-          daily_checklist_id: completedDailyChecklistId, // Link to specific daily checklist
-        })
-        .select()
-
-      if (submittedReportError) {
-        console.error("[v0] Error creating submitted_reports entry:", submittedReportError)
-      } else {
-        console.log("[v0] Submitted report entry created successfully:", submittedReport)
-        console.log(
-          "[v0] Report linked to assignment_id:",
-          completedAssignmentId,
-          "daily_checklist_id:",
-          completedDailyChecklistId,
-        )
-      }
-
-      // Create a completion notification for admin
-      const { error: notificationError } = await createClient()
-        .from("notifications")
-        .insert({
-          user_id: (await createClient().auth.getUser()).data.user.id,
-          template_id: checklistId,
-          type: "checklist_completed",
-          message: `${(await createClient().auth.getUser()).data.user.email} submitted a report: ${template?.name}`,
-          created_at: new Date().toISOString(),
-        })
-
-      if (notificationError) {
-        console.log("[v0] Note: Could not create notification:", notificationError)
-      } else {
-        console.log("[v0] Notification created successfully")
-      }
-
-      console.log("[v0] Checklist completion process finished successfully")
-      alert("Report submitted successfully!")
-      router.push("/staff")
-    } catch (error) {
-      console.error("[v0] Exception in checklist completion:", error)
-      alert("Error submitting report. Please try again.")
-    }
-
-    setIsSaving(false)
-  }
-
-  useEffect(() => {
-    setChecklistId(params.id)
-  }, [params])
-
-  useEffect(() => {
-    if (checklistId) {
-      loadChecklist()
-    }
-  }, [checklistId])
-
-  if (isLoading) {
-    return (
-      <div className="container mx-auto p-6 space-y-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="space-y-4">
-            <div className="h-4 bg-gray-200 rounded w-full"></div>
-            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (!template) {
-    return <div className="text-center py-8">Template not found or not assigned to you</div>
-  }
-
-  const completedTasks = responses.filter((r) => r.is_completed).length
-  const totalTasks = tasks.length
-  const progress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
-
-  const tasksByCategory = tasks.reduce(
-    (acc, task) => {
-      const category = task.category || "General"
-      if (!acc[category]) acc[category] = []
-      acc[category].push(task)
-      return acc
-    },
-    {} as Record<string, ChecklistTask[]>,
-  )
-
   return (
     <div className="min-h-screen bg-background p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4 md:space-y-6">
       <div className="space-y-3 sm:space-y-4">
@@ -904,21 +836,54 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
           </Badge>
         </div>
 
+        <div className="bg-card border rounded-lg p-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm font-medium">Progress</span>
+            <span className="text-sm text-muted-foreground">
+              {completedTasks} of {totalTasks} tasks completed ({Math.round(progress)}%)
+            </span>
+          </div>
+          <div className="w-full bg-secondary rounded-full h-2.5">
+            <div
+              className="bg-primary h-2.5 rounded-full transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            ></div>
+          </div>
+        </div>
+
         <div className="space-y-4">
           {Object.keys(tasksByCategory).map((category) => (
             <div key={category} className="space-y-3">
               <h2 className="text-lg font-semibold text-foreground">{category}</h2>
               {tasksByCategory[category].map((task) => (
-                <div key={task.id} className="space-y-2">
-                  <div className="flex items-center gap-2">
+                <div key={task.id} className="bg-card border rounded-lg p-4 space-y-3">
+                  <div className="flex items-start gap-3">
                     {getTaskIcon(task.task_type)}
-                    <span className="text-sm sm:text-base text-muted-foreground">{task.name}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium text-foreground">{task.name}</h3>
+                        {task.is_required && (
+                          <Badge variant="destructive" className="text-xs">
+                            Required
+                          </Badge>
+                        )}
+                      </div>
+                      {task.description && <p className="text-sm text-muted-foreground mt-1">{task.description}</p>}
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={task.id} className="text-sm font-medium text-foreground">
-                      {task.description}
+                  {renderTaskInput(task)}
+                  <div className="space-y-2 border-t pt-3">
+                    <Label htmlFor={`notes-${task.id}`} className="text-sm">
+                      Additional Notes (optional)
                     </Label>
-                    {renderTaskInput(task)}
+                    <Textarea
+                      id={`notes-${task.id}`}
+                      placeholder="Add any notes or observations..."
+                      value={localNotes[task.id] || ""}
+                      onChange={(e) => handleTaskNotes(task.id, e.target.value)}
+                      rows={2}
+                      className="text-sm"
+                    />
                   </div>
                 </div>
               ))}
@@ -926,8 +891,8 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
           ))}
         </div>
 
-        <div className="flex justify-end">
-          <Button type="button" variant="default" size="lg" onClick={handleCompleteChecklist} disabled={isSaving}>
+        <div className="flex justify-end pt-4">
+          <Button type="button" variant="default" size="lg" onClick={handleSubmit} disabled={isSaving}>
             {isSaving ? (
               <>
                 <Loader2 className="w-6 h-6 mr-2 animate-spin" />

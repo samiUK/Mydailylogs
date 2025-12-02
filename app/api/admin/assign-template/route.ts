@@ -49,13 +49,17 @@ export async function POST(request: NextRequest) {
 
     let duplicateWarnings: string[] = []
     if (assignmentDueDate) {
+      const todayStart = new Date()
+      todayStart.setHours(0, 0, 0, 0)
+
       const { data: existingAssignments } = await supabase
         .from("template_assignments")
-        .select("assigned_to, profiles!inner(full_name, first_name, last_name, email)")
+        .select("assigned_to, status, profiles!inner(full_name, first_name, last_name, email)")
         .eq("template_id", templateId)
-        .eq("due_date", assignmentDueDate)
+        .gte("assigned_at", todayStart.toISOString())
         .eq("is_active", true)
         .in("assigned_to", memberIds)
+        .neq("status", "completed") // Only warn about pending/active assignments
 
       if (existingAssignments && existingAssignments.length > 0) {
         duplicateWarnings = existingAssignments.map((assignment: any) => {
@@ -66,7 +70,7 @@ export async function POST(request: NextRequest) {
               : assignment.profiles?.email)
           return memberName || "Unknown member"
         })
-        console.log(`[v0] Warning: ${duplicateWarnings.length} user(s) already have pending assignments for this date`)
+        console.log(`[v0] Warning: ${duplicateWarnings.length} user(s) already have pending assignments today`)
       }
     }
 
@@ -98,15 +102,6 @@ export async function POST(request: NextRequest) {
 
     if (createError) {
       console.error("[v0] Database error (create):", createError)
-      if (createError.code === "23505") {
-        return NextResponse.json(
-          {
-            error: "One or more users already have an active assignment for this template",
-            duplicateWarnings,
-          },
-          { status: 409 },
-        )
-      }
       return NextResponse.json({ error: "Failed to create assignments" }, { status: 500 })
     }
 

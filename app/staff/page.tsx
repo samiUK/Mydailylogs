@@ -98,7 +98,22 @@ export default function StaffDashboard() {
                   .eq("is_active", true)
                   .eq("checklist_templates.is_active", true)
                   .order("assigned_at", { ascending: false })
-                  .limit(20),
+                  .limit(20)
+                  .then((result) => {
+                    console.log("[v0] Assigned templates for user:", profile.id)
+                    console.log("[v0] Found assignments:", result.data?.length || 0)
+                    if (result.data) {
+                      result.data.forEach((assignment: any) => {
+                        console.log(
+                          `[v0] - ${assignment.checklist_templates?.name} (Template ID: ${assignment.template_id}, Active: ${assignment.is_active})`,
+                        )
+                      })
+                    }
+                    if (result.error) {
+                      console.error("[v0] Error loading assignments:", result.error)
+                    }
+                    return result
+                  }),
                 supabase
                   .from("daily_checklists")
                   .select(`
@@ -198,7 +213,22 @@ export default function StaffDashboard() {
               .eq("is_active", true)
               .eq("checklist_templates.is_active", true)
               .order("assigned_at", { ascending: false })
-              .limit(20),
+              .limit(20)
+              .then((result) => {
+                console.log("[v0] Assigned templates for user:", user.id)
+                console.log("[v0] Found assignments:", result.data?.length || 0)
+                if (result.data) {
+                  result.data.forEach((assignment: any) => {
+                    console.log(
+                      `[v0] - ${assignment.checklist_templates?.name} (Template ID: ${assignment.template_id}, Active: ${assignment.is_active})`,
+                    )
+                  })
+                }
+                if (result.error) {
+                  console.error("[v0] Error loading assignments:", result.error)
+                }
+                return result
+              }),
             supabase
               .from("daily_checklists")
               .select(`

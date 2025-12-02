@@ -222,31 +222,31 @@ export default function AssignTemplatePage({ params }: { params: Promise<{ id: s
       }
 
       if (toAssign.length > 0) {
-        const assignmentDueDate = template.specific_date || template.deadline_date
+        const todayStart = new Date()
+        todayStart.setHours(0, 0, 0, 0)
 
-        if (assignmentDueDate) {
-          const { data: existingAssignments } = await supabase
-            .from("template_assignments")
-            .select("assigned_to, profiles!inner(full_name, first_name, last_name)")
-            .eq("template_id", template.id)
-            .eq("due_date", assignmentDueDate)
-            .eq("is_active", true)
-            .in("assigned_to", toAssign)
+        const { data: existingAssignments } = await supabase
+          .from("template_assignments")
+          .select("assigned_to, status, profiles!inner(full_name, first_name, last_name)")
+          .eq("template_id", template.id)
+          .gte("assigned_at", todayStart.toISOString())
+          .eq("is_active", true)
+          .in("assigned_to", toAssign)
+          .neq("status", "completed") // Only warn about pending assignments
 
-          if (existingAssignments && existingAssignments.length > 0) {
-            const duplicateNames = existingAssignments.map((a: any) => {
-              return a.profiles?.full_name || `${a.profiles?.first_name} ${a.profiles?.last_name}` || "Unknown member"
-            })
+        if (existingAssignments && existingAssignments.length > 0) {
+          const duplicateNames = existingAssignments.map((a: any) => {
+            return a.profiles?.full_name || `${a.profiles?.first_name} ${a.profiles?.last_name}` || "Unknown member"
+          })
 
-            const proceed = confirm(
-              `Warning: The following members already have pending assignments for the same date:\n\n${duplicateNames.join(", ")}\n\nDo you want to create duplicate assignments anyway?`,
-            )
+          const proceed = confirm(
+            `Warning: The following members already have pending assignments for this template today:\n\n${duplicateNames.join(", ")}\n\nThis might be accidental. Assign anyway?`,
+          )
 
-            if (!proceed) {
-              setSubmitting(false)
-              setConfirmDialogOpen(false)
-              return
-            }
+          if (!proceed) {
+            setSubmitting(false)
+            setConfirmDialogOpen(false)
+            return
           }
         }
       }
@@ -257,11 +257,16 @@ export default function AssignTemplatePage({ params }: { params: Promise<{ id: s
           assigned_to: memberId,
           assigned_by: user.id,
           organization_id: profile.organization_id,
+          assigned_at: new Date().toISOString(),
+          is_active: true,
         }))
 
         const { error: assignError } = await supabase.from("template_assignments").insert(assignments)
 
-        if (assignError) throw assignError
+        if (assignError) {
+          console.error("[v0] Assignment error:", assignError)
+          throw new Error("Failed to create assignments. Please try again.")
+        }
       }
 
       if (template.schedule_type === "recurring") {

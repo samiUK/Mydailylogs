@@ -1,12 +1,22 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Download, ArrowLeft } from "lucide-react"
+import { Download, ArrowLeft, Trash2 } from "lucide-react" // Added Trash2 icon
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { AuditPDFGenerator } from "@/lib/pdf-generator"
 import { formatDateUK } from "@/lib/date-formatter"
 import { createClient } from "@/lib/supabase/client"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
 
 interface ReportViewClientProps {
   submission: any
@@ -17,6 +27,10 @@ interface ReportViewClientProps {
 export function ReportViewClient({ submission, responses, autoDownload = false }: ReportViewClientProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [organizationData, setOrganizationData] = useState<any>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const router = useRouter()
+  const { toast } = useToast()
 
   useEffect(() => {
     const loadOrganizationData = async () => {
@@ -74,6 +88,44 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
     }
   }
 
+  const handleDelete = async (downloadFirst: boolean) => {
+    setIsDeleting(true)
+
+    try {
+      // Download first if requested
+      if (downloadFirst) {
+        await downloadPDF()
+      }
+
+      const supabase = createClient()
+
+      // Delete the submission (either from template_assignments or daily_checklists)
+      const tableName = submission.template_id ? "daily_checklists" : "template_assignments"
+
+      const { error: deleteError } = await supabase.from(tableName).delete().eq("id", submission.id)
+
+      if (deleteError) throw deleteError
+
+      toast({
+        title: "Report deleted",
+        description: "The report has been permanently deleted.",
+      })
+
+      // Navigate back to dashboard
+      router.push("/admin/dashboard-analytics")
+    } catch (error) {
+      console.error("[v0] Error deleting report:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete report. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeleting(false)
+      setDeleteDialogOpen(false)
+    }
+  }
+
   const companyName = organizationData?.organization_name || "Your Organization"
   const companyLogo = organizationData?.logo_url || null
   const companyAddress = organizationData?.address || null
@@ -87,12 +139,21 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
       <div className={`bg-gray-50 border-b p-4 ${isGenerating ? "hidden" : "print:hidden"}`}>
         <div className="container mx-auto flex items-center justify-between">
           <Button variant="outline" asChild>
-            <Link href="/admin/reports">
+            <Link href="/admin/dashboard-analytics">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Reports
+              Back
             </Link>
           </Button>
           <div className="flex gap-3">
+            <Button
+              variant="destructive"
+              onClick={() => setDeleteDialogOpen(true)}
+              disabled={isDeleting}
+              className="flex items-center gap-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </Button>
             <Button variant="default" onClick={downloadPDF} disabled={isGenerating} className="flex items-center gap-2">
               <Download className="h-4 w-4" />
               {isGenerating ? "Generating PDF..." : "Download PDF"}
@@ -327,6 +388,41 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
           </div>
         </div>
       </div>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Report?</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. The report will be permanently deleted from the system. Would you like to
+              download a copy before deleting?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => handleDelete(true)}
+              disabled={isDeleting}
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              {isDeleting ? "Deleting..." : "Download & Delete"}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => handleDelete(false)}
+              disabled={isDeleting}
+              className="flex items-center gap-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              {isDeleting ? "Deleting..." : "Just Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <style jsx global>{`
         @media print {

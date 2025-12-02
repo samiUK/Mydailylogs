@@ -198,72 +198,79 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
                     const isCompleted = response?.is_completed
 
                     return (
-                      <tr key={item.id} className="hover:bg-gray-50">
-                        <td className="border border-gray-400 px-3 py-3 text-center text-gray-800 font-semibold">
-                          {index + 1}
-                        </td>
-                        <td className="border border-gray-400 px-3 py-3 text-gray-900">{item.name}</td>
-                        <td className="border border-gray-400 px-3 py-3 text-center">
-                          {isCompleted ? (
-                            <span className="text-2xl text-green-600 font-bold">✓</span>
-                          ) : (
-                            <span className="text-2xl text-red-600 font-bold">✗</span>
-                          )}
-                        </td>
-                        <td className="border border-gray-400 px-3 py-3 text-gray-800">
-                          {item.task_type === "boolean" && <span>{isCompleted ? "Yes" : "No"}</span>}
-                          {item.task_type === "text" && response?.notes && (
-                            <span className="text-xs">{response.notes}</span>
-                          )}
-                          {item.task_type === "number" && response?.notes && <span>{response.notes}</span>}
-                          {item.task_type === "options" && response?.notes && <span>{response.notes}</span>}
-                          {item.task_type === "photo" && response?.response_value && (
-                            <div className="grid grid-cols-2 gap-2">
-                              {(() => {
-                                try {
-                                  const photos = JSON.parse(response.response_value)
-                                  return photos
-                                    .slice(0, 5)
-                                    .map((photo: { name: string; dataUrl: string }, idx: number) => (
-                                      <div key={idx} className="border border-gray-300 rounded p-1 bg-gray-50">
-                                        <img
-                                          src={photo.dataUrl || "/placeholder.svg"}
-                                          alt={`Photo ${idx + 1}`}
-                                          className="w-full h-24 object-cover rounded"
-                                        />
-                                        <p className="text-[10px] text-gray-500 mt-1 truncate text-center">
-                                          Photo {idx + 1}
-                                        </p>
-                                      </div>
-                                    ))
-                                } catch {
-                                  return <span className="text-xs text-gray-500">Invalid photo data</span>
-                                }
-                              })()}
-                            </div>
-                          )}
-                          {!response?.notes && item.task_type !== "boolean" && item.task_type !== "photo" && (
-                            <span className="text-gray-400 italic">N/A</span>
-                          )}
-                        </td>
-                        <td className="border border-gray-400 px-3 py-3 text-gray-800 text-xs">
-                          {response?.completed_at ? (
-                            <>
-                              <div className="font-medium">
-                                {formatDateUK(new Date(response.completed_at), "short")}
+                      <>
+                        <tr key={item.id} className="hover:bg-gray-50">
+                          <td className="border border-gray-400 px-3 py-3 text-center text-gray-800 font-semibold">
+                            {index + 1}
+                          </td>
+                          <td className="border border-gray-400 px-3 py-3 text-gray-900">{item.name}</td>
+                          <td className="border border-gray-400 px-3 py-3 text-center">
+                            {isCompleted ? (
+                              <span className="text-2xl text-green-600 font-bold">✓</span>
+                            ) : (
+                              <span className="text-2xl text-red-600 font-bold">✗</span>
+                            )}
+                          </td>
+                          <td className="border border-gray-400 px-3 py-3 text-gray-800">
+                            {item.task_type === "boolean" && <span>{isCompleted ? "Yes" : "No"}</span>}
+                            {item.task_type === "text" && response?.notes && (
+                              <span className="text-xs">{response.notes}</span>
+                            )}
+                            {item.task_type === "number" && response?.notes && <span>{response.notes}</span>}
+                            {item.task_type === "options" && response?.notes && <span>{response.notes}</span>}
+                            {item.task_type === "photo" && (
+                              <span className="text-xs text-blue-600 font-medium">See photo below</span>
+                            )}
+                            {!response?.notes && item.task_type !== "boolean" && item.task_type !== "photo" && (
+                              <span className="text-gray-400 italic">N/A</span>
+                            )}
+                          </td>
+                          <td className="border border-gray-400 px-3 py-3 text-gray-800 text-xs">
+                            {response?.completed_at ? (
+                              <>
+                                <div className="font-medium">
+                                  {formatDateUK(new Date(response.completed_at), "short")}
+                                </div>
+                                <div className="text-gray-600">
+                                  {new Date(response.completed_at).toLocaleTimeString("en-GB", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </div>
+                              </>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                        </tr>
+                        {item.task_type === "photo" && response?.response_value && (
+                          <tr key={`${item.id}-photo`}>
+                            <td className="border border-gray-400 px-3 py-2 bg-gray-50" colSpan={5}>
+                              <div className="flex items-center gap-3">
+                                <span className="text-xs font-semibold text-gray-700 uppercase">Photo Evidence:</span>
+                                {(() => {
+                                  try {
+                                    const photos = JSON.parse(response.response_value)
+                                    return photos
+                                      .slice(0, 1)
+                                      .map((photo: { name: string; dataUrl: string }, idx: number) => (
+                                        <div key={idx} className="border border-gray-300 rounded p-2 bg-white">
+                                          <img
+                                            src={photo.dataUrl || "/placeholder.svg"}
+                                            alt={`${item.name} - Photo evidence`}
+                                            className="h-32 w-auto object-contain rounded"
+                                          />
+                                        </div>
+                                      ))
+                                  } catch {
+                                    return <span className="text-xs text-red-500">Invalid photo data</span>
+                                  }
+                                })()}
                               </div>
-                              <div className="text-gray-600">
-                                {new Date(response.completed_at).toLocaleTimeString("en-GB", {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </div>
-                            </>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </td>
-                      </tr>
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     )
                   })}
                 </tbody>

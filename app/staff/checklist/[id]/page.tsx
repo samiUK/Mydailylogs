@@ -69,60 +69,65 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
   const router = useRouter()
   const supabase = createClient()
 
-  const compressImage = (file: File, targetSizeKB = 50): Promise<File> => {
-    return new Promise((resolve) => {
-      const canvas = document.createElement("canvas")
-      const ctx = canvas.getContext("2d")
-      const img = new Image()
+  const compressImage = async (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const img = new Image()
+        img.onload = () => {
+          const canvas = document.createElement("canvas")
+          const ctx = canvas.getContext("2d")
+          if (!ctx) {
+            resolve(file)
+            return
+          }
 
-      img.onload = () => {
-        let { width, height } = img
-        const maxDimension = 600
+          const maxDimension = 600
+          let width = img.width
+          let height = img.height
 
-        if (width > height) {
-          if (width > maxDimension) {
+          if (width > height && width > maxDimension) {
             height = (height * maxDimension) / width
             width = maxDimension
-          }
-        } else {
-          if (height > maxDimension) {
+          } else if (height > maxDimension) {
             width = (width * maxDimension) / height
             height = maxDimension
           }
-        }
 
-        canvas.width = width
-        canvas.height = height
-        ctx?.drawImage(img, 0, 0, width, height)
+          canvas.width = width
+          canvas.height = height
+          ctx.drawImage(img, 0, 0, width, height)
 
-        let quality = 0.35
-        const tryCompress = () => {
-          canvas.toBlob(
-            (blob) => {
-              if (blob) {
-                const sizeKB = blob.size / 1024
-                if (sizeKB <= targetSizeKB || quality <= 0.1) {
-                  const compressedFile = new File([blob], file.name, {
-                    type: "image/jpeg",
-                    lastModified: Date.now(),
-                  })
-                  console.log(
-                    `[v0] Compressed ${file.name}: ${(file.size / 1024).toFixed(1)}KB → ${(compressedFile.size / 1024).toFixed(1)}KB`,
-                  )
-                  resolve(compressedFile)
-                } else {
-                  quality -= 0.1
-                  tryCompress()
+          const targetSizeKB = 50
+          const quality = 0.35
+
+          const attemptCompression = (q: number) => {
+            canvas.toBlob(
+              (blob) => {
+                if (!blob) {
+                  resolve(file)
+                  return
                 }
-              }
-            },
-            "image/jpeg",
-            quality,
-          )
+
+                const sizeKB = blob.size / 1024
+                if (sizeKB <= targetSizeKB || q <= 0.1) {
+                  resolve(new File([blob], file.name, { type: file.type }))
+                } else {
+                  attemptCompression(q - 0.05)
+                }
+              },
+              file.type,
+              q,
+            )
+          }
+
+          attemptCompression(quality)
         }
-        tryCompress()
+        img.onerror = reject
+        img.src = e.target?.result as string
       }
-      img.src = URL.createObjectURL(file)
+      reader.onerror = reject
+      reader.readAsDataURL(file)
     })
   }
 
@@ -132,46 +137,24 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
     setUploading((prev) => ({ ...prev, [taskId]: true }))
 
     try {
-      const compressedFiles = await Promise.all(
-        Array.from(files).map(async (file) => {
-          if (file.type.startsWith("image/")) {
-            try {
-              const compressed = await compressImage(file)
-              return compressed
-            } catch (error) {
-              console.error("[v0] Error compressing image:", error)
-              return file
-            }
-          }
-          return file
-        }),
-      )
+      const file = files[0]
+      const compressedFile = file.type.startsWith("image/") ? await compressImage(file) : file
+      const fileDataUrl = await new Promise<{ name: string; dataUrl: string }>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve({ name: compressedFile.name, dataUrl: reader.result as string })
+        reader.onerror = reject
+        reader.readAsDataURL(compressedFile)
+      })
 
-      const fileDataUrls = await Promise.all(
-        compressedFiles.map(
-          (file) =>
-            new Promise<{ name: string; dataUrl: string }>((resolve, reject) => {
-              const reader = new FileReader()
-              reader.onload = () => resolve({ name: file.name, dataUrl: reader.result as string })
-              reader.onerror = reject
-              reader.readAsDataURL(file)
-            }),
-        ),
-      )
-
-      // Store File objects for preview
       setUploadedFiles((prev) => ({
         ...prev,
-        [taskId]: [...(prev[taskId] || []), ...compressedFiles],
+        [taskId]: [compressedFile],
       }))
 
-      // Store data URLs in database
-      const existingPhotos = localInputValues[taskId] ? JSON.parse(localInputValues[taskId]) : []
-      const allPhotos = [...existingPhotos, ...fileDataUrls]
-      const value = JSON.stringify(allPhotos)
+      const value = JSON.stringify([fileDataUrl])
 
       setLocalInputValues((prev) => ({ ...prev, [taskId]: value }))
-      handleTaskResponse(taskId, value, true)
+      handleTaskResponse(taskId, value, false)
     } catch (error) {
       console.error("[v0] Error handling file upload:", error)
     } finally {
@@ -553,22 +536,16 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
               </Card>
             ) : (
               <>
-                <div className="flex items-center justify-center w-full">
-                  <label
-                    htmlFor={`photo-${task.id}`}
-                    className="flex flex-col items-center justify-center w-full h-40 border-3 border-blue-300 border-dashed rounded-xl cursor-pointer bg-blue-50 hover:bg-blue-100 shadow-lg transition-all duration-200"
-                  >
-                    <div className="flex flex-col items-center justify-center pt-6 pb-6">
-                      <Camera className="w-12 h-12 mb-3 text-blue-500" />
-                      <p className="mb-2 text-lg font-semibold text-blue-700">Tap to Take Photo</p>
-                      <p className="text-sm text-blue-600">Photos auto-compressed for faster upload</p>
-                    </div>
+                <div className="bg-blue-50 border-2 border-dashed border-blue-300 rounded-xl p-8 text-center hover:bg-blue-100 transition-colors">
+                  <label htmlFor={`file-upload-${task.id}`} className="cursor-pointer block">
+                    <Camera className="w-16 h-16 mx-auto text-blue-600 mb-4" />
+                    <div className="text-xl font-semibold text-blue-800 mb-2">Tap to Take Photo</div>
+                    <div className="text-sm text-blue-600">Photos auto-compressed for faster upload</div>
                     <input
-                      id={`photo-${task.id}`}
+                      id={`file-upload-${task.id}`}
                       type="file"
                       className="hidden"
                       accept="image/*"
-                      multiple
                       capture="environment"
                       onChange={(e) => handleFileUpload(task.id, e.target.files)}
                     />
@@ -576,7 +553,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
                 </div>
 
                 {uploadedFiles[task.id] && uploadedFiles[task.id].length > 0 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4">
                     {uploadedFiles[task.id].map((file, index) => (
                       <div key={index} className="relative bg-white rounded-lg border-2 border-gray-200 shadow-md">
                         <img
@@ -606,9 +583,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
                 )}
                 {currentValue && (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                    <p className="text-sm font-medium text-green-700">
-                      ✓ {currentValue.split(",").length} photo(s) uploaded
-                    </p>
+                    <p className="text-sm font-medium text-green-700">✓ 1 photo(s) uploaded</p>
                   </div>
                 )}
               </>
@@ -842,6 +817,9 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
                 const response = responses.find((r) => r.item_id === task.id)
                 const isCompleted = response?.is_completed
                 const hasValue = !!localInputValues[task.id]
+                const hasUploadedPhotos = uploadedFiles[task.id]?.length > 0
+                const isPhotoField = task.task_type === "photo"
+                const canMarkComplete = !isPhotoField || !task.is_required || hasUploadedPhotos
 
                 return (
                   <Card
@@ -916,6 +894,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
                             console.log("[v0] Mark completed button clicked for task:", task.id)
                             handleMarkCompleted(task.id)
                           }}
+                          disabled={!canMarkComplete}
                           className="h-11 sm:h-12 px-4 sm:px-6 text-sm sm:text-base font-semibold shadow-md border-2 touch-manipulation"
                         >
                           {isCompleted ? "✓ Completed" : "Mark Complete"}

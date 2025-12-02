@@ -199,7 +199,7 @@ export default function BillingPage() {
       `⚠️ Cancel Subscription - Important Information\n\n` +
         `If you cancel your ${subscription.plan_name} subscription:\n\n` +
         `• Your subscription will remain active until ${new Date(subscription.current_period_end).toLocaleDateString()}\n` +
-        `• After that, you'll be downgraded to the free Starter plan\n` +
+        `• After that, you'll be automatically downgraded to the free Starter plan\n` +
         `• Only your last 3 templates will be kept (others will be archived)\n` +
         `• Only your last 50 reports will be retained (older ones will be deleted)\n` +
         `• You'll lose access to: Custom branding, advanced features, photo uploads\n\n` +

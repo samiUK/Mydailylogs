@@ -21,6 +21,72 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
     const today = new Date().toISOString().split("T")[0]
 
+    console.log("[v0] Checking for expired masteradmin test trials...")
+    let expiredTestTrials = 0
+
+    const { data: expiredTrials } = await supabase
+      .from("subscriptions")
+      .select("id, plan_name, organization_id, organizations(name), profiles(email, first_name)")
+      .eq("is_masteradmin_trial", true)
+      .eq("status", "active")
+      .lt("trial_ends_at", new Date().toISOString())
+
+    if (expiredTrials && expiredTrials.length > 0) {
+      for (const trial of expiredTrials) {
+        await supabase
+          .from("subscriptions")
+          .update({
+            plan_name: "starter",
+            status: "active",
+            is_trial: false,
+            is_masteradmin_trial: false,
+            trial_ends_at: null,
+            current_period_start: new Date().toISOString(),
+            current_period_end: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", trial.id)
+
+        if (trial.profiles?.email) {
+          await sendEmail(trial.profiles.email, {
+            subject: "Test Trial Ended - Downgraded to Starter Plan",
+            html: `
+              <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
+                <h2 style="color: #059669; margin-bottom: 20px;">Your Test Trial Has Ended</h2>
+                
+                <p>Hi ${trial.profiles.first_name || "there"},</p>
+                
+                <p>Your ${trial.plan_name} test trial for <strong>${trial.organizations?.name}</strong> has ended and your account has been downgraded to the free Starter plan.</p>
+                
+                <div style="background-color: #d1fae5; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #059669;">
+                  <h3 style="margin: 0 0 15px 0; color: #065f46;">Ready to Upgrade?</h3>
+                  <p>Upgrade to a paid plan to unlock premium features:</p>
+                  <ul style="margin: 10px 0;">
+                    <li>More templates and team members</li>
+                    <li>Task automation</li>
+                    <li>Custom branding</li>
+                    <li>Unlimited report history</li>
+                  </ul>
+                </div>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${process.env.NEXT_PUBLIC_SITE_URL}/admin/billing" style="background-color: #059669; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">View Pricing & Upgrade</a>
+                </div>
+                
+                <p>If you have any questions, please contact our support team at info@mydaylogs.co.uk.</p>
+                
+                <p>Best regards,<br>
+                <strong>The MyDayLogs Team</strong></p>
+              </div>
+            `,
+          })
+        }
+
+        expiredTestTrials++
+      }
+      console.log(`[v0] Expired ${expiredTestTrials} masteradmin test trials and downgraded to Starter`)
+    }
+
     // Expire grace periods for failed payments (7 days after failure)
     console.log("[v0] Checking for expired grace periods...")
     let expiredGracePeriods = 0
@@ -281,6 +347,7 @@ export async function GET(request: NextRequest) {
       skippedTasks,
       deletedReports,
       cancelledJobs,
+      expiredTestTrials,
       errors: errors.length > 0 ? errors : undefined,
     })
   } catch (error) {

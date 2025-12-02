@@ -6,16 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  CreditCard,
-  CheckCircle,
-  Calendar,
-  AlertCircle,
-  Crown,
-  Sparkles,
-  ArrowUpCircle,
-  ArrowDownCircle,
-} from "lucide-react"
+import { CreditCard, CheckCircle, Calendar, Crown, Sparkles, ArrowUpCircle, ArrowDownCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { getStripePriceId } from "@/lib/stripe-prices"
 import StripeCheckout from "@/components/stripe-checkout"
@@ -386,16 +377,6 @@ export default function BillingPage() {
               ) : null}
             </div>
           </div>
-
-          {!isFreePlan && (
-            <div className="mt-6 p-4 bg-muted rounded-lg border">
-              <p className="text-sm text-muted-foreground">
-                <AlertCircle className="w-4 h-4 inline mr-2" />
-                Need to downgrade to Starter? Please contact our support team for assistance with plan downgrades to the
-                free tier.
-              </p>
-            </div>
-          )}
         </CardContent>
       </Card>
 

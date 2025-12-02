@@ -50,6 +50,9 @@ export async function POST(request: NextRequest) {
           .update({
             plan_name: planName.toLowerCase(),
             status: "active",
+            is_trial: true,
+            is_masteradmin_trial: true,
+            trial_ends_at: trialEndsAt.toISOString(),
             current_period_start: new Date().toISOString(),
             current_period_end: trialEndsAt.toISOString(),
             updated_at: new Date().toISOString(),
@@ -66,6 +69,9 @@ export async function POST(request: NextRequest) {
           organization_id: organizationId,
           plan_name: planName.toLowerCase(),
           status: "active",
+          is_trial: true,
+          is_masteradmin_trial: true,
+          trial_ends_at: trialEndsAt.toISOString(),
           current_period_start: new Date().toISOString(),
           current_period_end: trialEndsAt.toISOString(),
         })
@@ -76,11 +82,11 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      console.log("[v0] Subscription created/updated successfully")
+      console.log("[v0] Masteradmin test trial created successfully")
 
       return NextResponse.json({
         success: true,
-        message: `30-day ${planName} trial started for ${organizationName}`,
+        message: `30-day ${planName} TEST TRIAL started for ${organizationName} (will auto-downgrade to Starter)`,
       })
     } else if (action === "cancel") {
       const { subscriptionId } = body

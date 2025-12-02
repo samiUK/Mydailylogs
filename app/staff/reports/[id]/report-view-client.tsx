@@ -217,7 +217,32 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
                           )}
                           {item.task_type === "number" && response?.notes && <span>{response.notes}</span>}
                           {item.task_type === "options" && response?.notes && <span>{response.notes}</span>}
-                          {!response?.notes && item.task_type !== "boolean" && (
+                          {item.task_type === "photo" && response?.response_value && (
+                            <div className="grid grid-cols-2 gap-2">
+                              {(() => {
+                                try {
+                                  const photos = JSON.parse(response.response_value)
+                                  return photos
+                                    .slice(0, 5)
+                                    .map((photo: { name: string; dataUrl: string }, idx: number) => (
+                                      <div key={idx} className="border border-gray-300 rounded p-1 bg-gray-50">
+                                        <img
+                                          src={photo.dataUrl || "/placeholder.svg"}
+                                          alt={`Photo ${idx + 1}`}
+                                          className="w-full h-24 object-cover rounded"
+                                        />
+                                        <p className="text-[10px] text-gray-500 mt-1 truncate text-center">
+                                          Photo {idx + 1}
+                                        </p>
+                                      </div>
+                                    ))
+                                } catch {
+                                  return <span className="text-xs text-gray-500">Invalid photo data</span>
+                                }
+                              })()}
+                            </div>
+                          )}
+                          {!response?.notes && item.task_type !== "boolean" && item.task_type !== "photo" && (
                             <span className="text-gray-400 italic">N/A</span>
                           )}
                         </td>

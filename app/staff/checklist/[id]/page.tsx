@@ -69,7 +69,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
   const router = useRouter()
   const supabase = createClient()
 
-  const compressImage = (file: File, targetSizeKB = 200): Promise<File> => {
+  const compressImage = (file: File, targetSizeKB = 150): Promise<File> => {
     return new Promise((resolve) => {
       const canvas = document.createElement("canvas")
       const ctx = canvas.getContext("2d")
@@ -95,7 +95,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
         canvas.height = height
         ctx?.drawImage(img, 0, 0, width, height)
 
-        let quality = 0.8
+        let quality = 0.5
         const tryCompress = () => {
           canvas.toBlob(
             (blob) => {
@@ -132,24 +132,43 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
     setUploading((prev) => ({ ...prev, [taskId]: true }))
 
     try {
-      const fileArray = Array.from(files)
       const compressedFiles = await Promise.all(
-        fileArray.map(async (file) => {
+        Array.from(files).map(async (file) => {
           if (file.type.startsWith("image/")) {
-            return await compressImage(file)
+            try {
+              const compressed = await compressImage(file)
+              return compressed
+            } catch (error) {
+              console.error("[v0] Error compressing image:", error)
+              return file
+            }
           }
           return file
         }),
       )
 
+      const fileDataUrls = await Promise.all(
+        compressedFiles.map(
+          (file) =>
+            new Promise<{ name: string; dataUrl: string }>((resolve, reject) => {
+              const reader = new FileReader()
+              reader.onload = () => resolve({ name: file.name, dataUrl: reader.result as string })
+              reader.onerror = reject
+              reader.readAsDataURL(file)
+            }),
+        ),
+      )
+
+      // Store File objects for preview
       setUploadedFiles((prev) => ({
         ...prev,
         [taskId]: [...(prev[taskId] || []), ...compressedFiles],
       }))
 
-      const fileNames = compressedFiles.map((file) => file.name)
-      const allFileNames = [...(localInputValues[taskId]?.split(",") || []), ...fileNames].filter(Boolean)
-      const value = allFileNames.join(",")
+      // Store data URLs in database
+      const existingPhotos = localInputValues[taskId] ? JSON.parse(localInputValues[taskId]) : []
+      const allPhotos = [...existingPhotos, ...fileDataUrls]
+      const value = JSON.stringify(allPhotos)
 
       setLocalInputValues((prev) => ({ ...prev, [taskId]: value }))
       handleTaskResponse(taskId, value, true)
@@ -167,12 +186,12 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
       return { ...prev, [taskId]: newFiles }
     })
 
-    const currentFiles = localInputValues[taskId]?.split(",") || []
-    currentFiles.splice(fileIndex, 1)
-    const value = currentFiles.filter(Boolean).join(",")
+    const existingPhotos = localInputValues[taskId] ? JSON.parse(localInputValues[taskId]) : []
+    existingPhotos.splice(fileIndex, 1)
+    const value = JSON.stringify(existingPhotos)
 
     setLocalInputValues((prev) => ({ ...prev, [taskId]: value }))
-    handleTaskResponse(taskId, value, !!value)
+    handleTaskResponse(taskId, value, uploadedFiles[taskId]?.length > 1)
   }
 
   const loadChecklist = async () => {
@@ -334,13 +353,22 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
           item_id: taskId,
           response_value: value,
           is_completed: isCompleted,
+          completed_at: isCompleted ? new Date().toISOString() : null,
           updated_at: new Date().toISOString(),
         })
         .select()
         .single()
 
       if (data) {
-        setResponses((prev) => prev.map((r) => (r.id === data.id ? data : r)))
+        setResponses((prev) => {
+          const existingIndex = prev.findIndex((r) => r.item_id === taskId)
+          if (existingIndex >= 0) {
+            const newResponses = [...prev]
+            newResponses[existingIndex] = data
+            return newResponses
+          }
+          return [...prev, data]
+        })
       }
     } catch (error) {
       console.error("[v0] Error handling task response:", error)

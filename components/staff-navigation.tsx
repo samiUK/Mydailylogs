@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { ChevronDownIcon, UserIcon, LogOutIcon, MenuIcon, MessageSquare } from "lucide-react"
+import { ChevronDownIcon, UserIcon, LogOutIcon, MenuIcon, MessageSquare, CalendarIcon } from "lucide-react"
 import { FeedbackModal } from "@/components/feedback-modal"
 import { NotificationBadge } from "@/components/notification-badge"
 
@@ -175,6 +175,12 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
                   <Link href="/staff/profile" className="flex items-center">
                     <UserIcon className="mr-2 h-4 w-4" />
                     <span>Profile</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="py-3">
+                  <Link href="/staff/holidays" className="flex items-center">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    <span>Holidays</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

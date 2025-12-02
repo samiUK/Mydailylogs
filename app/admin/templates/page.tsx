@@ -1,5 +1,9 @@
 "use client"
 import { createClient } from "@/lib/supabase/client"
+import { AlertDialogFooter } from "@/components/ui/alert-dialog"
+
+import { AlertDialogTrigger } from "@/components/ui/alert-dialog"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Trash2, Users, Crown, ExternalLink, ChevronDown, UserCheck } from "lucide-react"
@@ -18,7 +22,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { MultiLevelDeleteDialog } from "@/components/multi-level-delete-dialog"
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog"
 import { reportSecurity } from "@/lib/report-security"
 import Link from "next/link"
 import { useState, useEffect, useCallback, useMemo } from "react"
@@ -355,7 +367,7 @@ export default function AdminTemplatesPage() {
                     <p>Created: {new Date(template.created_at).toLocaleDateString()}</p>
                   </div>
                   <div className="flex gap-2 mt-4">
-                    <Link href={locked ? "#" : `/admin/templates/${template.id}`}>
+                    <Link href={locked ? "#" : `/admin/templates/edit/${template.id}`}>
                       <Button variant="outline" size="sm" disabled={locked}>
                         Edit
                       </Button>
@@ -442,8 +454,8 @@ export default function AdminTemplatesPage() {
                       </Button>
                     )}
 
-                    <MultiLevelDeleteDialog
-                      trigger={
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
                         <Button
                           variant="outline"
                           size="sm"
@@ -452,20 +464,25 @@ export default function AdminTemplatesPage() {
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
-                      }
-                      title="Delete Report Template"
-                      description="This will permanently remove the template and may affect business operations."
-                      itemName={template.name}
-                      itemDetails={{
-                        Frequency: template.frequency,
-                        "Created by": template.profiles?.full_name || "Unknown",
-                        Created: new Date(template.created_at).toLocaleDateString(),
-                        Status: template.is_active ? "Active" : "Inactive",
-                      }}
-                      riskLevel="high"
-                      requiresSecureSession={true}
-                      onConfirm={() => handleDeleteTemplate(template.id)}
-                    />
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Template</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete "{template.name}"? This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDeleteTemplate(template.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </CardContent>
               </Card>

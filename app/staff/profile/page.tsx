@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { User, Mail, Camera, Phone, MapPin, Briefcase, Building, Calendar, Clock } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { format } from "date-fns"
 
 interface Profile {
   id: string
@@ -553,14 +554,250 @@ export default function StaffProfilePage() {
                 </div>
               )}
 
-              <div className="flex justify-end">
-                <Button type="submit" disabled={saving}>
+              <div className="flex gap-3">
+                <Button type="submit" disabled={saving} className="flex-1">
                   {saving ? "Saving..." : "Save Changes"}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => router.push("/staff")} className="flex-1">
+                  Cancel
                 </Button>
               </div>
             </form>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Holidays & Time Off
+            </CardTitle>
+            <CardDescription>
+              Manage your personal unavailability periods. Tasks will not be assigned during these dates.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <HolidaysSection />
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+function HolidaysSection() {
+  const [myUnavailability, setMyUnavailability] = useState<
+    Array<{
+      id: string
+      start_date: string
+      end_date: string
+      reason: string | null
+    }>
+  >([])
+  const [holidays, setHolidays] = useState<Array<{ id: string; name: string; date: string }>>([])
+  const [loading, setLoading] = useState(true)
+  const [userId, setUserId] = useState<string>("")
+  const [organizationId, setOrganizationId] = useState<string>("")
+  const [startDate, setStartDate] = useState<Date>()
+  const [endDate, setEndDate] = useState<Date>()
+  const [reason, setReason] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [message, setMessage] = useState("")
+
+  const supabase = createClient()
+
+  useEffect(() => {
+    loadHolidaysData()
+  }, [])
+
+  const loadHolidaysData = async () => {
+    try {
+      setLoading(true)
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: profile } = await supabase.from("profiles").select("id, organization_id").eq("id", user.id).single()
+      if (!profile) return
+
+      setUserId(profile.id)
+      setOrganizationId(profile.organization_id)
+
+      const { data: unavailabilityData } = await supabase
+        .from("staff_unavailability")
+        .select("*")
+        .eq("staff_id", profile.id)
+        .order("start_date", { ascending: true })
+
+      setMyUnavailability(unavailabilityData || [])
+
+      const { data: holidaysData } = await supabase
+        .from("holidays")
+        .select("*")
+        .eq("organization_id", profile.organization_id)
+        .order("date", { ascending: true })
+
+      setHolidays(holidaysData || [])
+    } catch (error) {
+      console.error("Error loading holidays:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAddUnavailability = async () => {
+    if (!startDate || !endDate) {
+      setMessage("Please select both start and end dates.")
+      return
+    }
+
+    if (endDate < startDate) {
+      setMessage("End date must be after start date.")
+      return
+    }
+
+    try {
+      setIsSubmitting(true)
+      const { error } = await supabase.from("staff_unavailability").insert({
+        organization_id: organizationId,
+        staff_id: userId,
+        start_date: format(startDate, "yyyy-MM-dd"),
+        end_date: format(endDate, "yyyy-MM-dd"),
+        reason: reason || null,
+        created_by: userId,
+      })
+
+      if (error) throw error
+
+      setMessage("Time off added successfully!")
+      setStartDate(undefined)
+      setEndDate(undefined)
+      setReason("")
+      loadHolidaysData()
+    } catch (error) {
+      console.error("Error adding unavailability:", error)
+      setMessage("Failed to add time off period.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleDeleteUnavailability = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this time off period?")) return
+
+    try {
+      const { error } = await supabase.from("staff_unavailability").delete().eq("id", id)
+      if (error) throw error
+      setMessage("Time off period deleted successfully.")
+      loadHolidaysData()
+    } catch (error) {
+      console.error("Error deleting unavailability:", error)
+      setMessage("Failed to delete time off period.")
+    }
+  }
+
+  if (loading) {
+    return <div className="text-center text-muted-foreground py-4">Loading holidays...</div>
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold mb-4">Add Time Off</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div className="space-y-2">
+            <Label>Start Date</Label>
+            <Input
+              type="date"
+              value={startDate ? format(startDate, "yyyy-MM-dd") : ""}
+              onChange={(e) => setStartDate(e.target.value ? new Date(e.target.value) : undefined)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>End Date</Label>
+            <Input
+              type="date"
+              value={endDate ? format(endDate, "yyyy-MM-dd") : ""}
+              onChange={(e) => setEndDate(e.target.value ? new Date(e.target.value) : undefined)}
+            />
+          </div>
+        </div>
+        <div className="space-y-2 mb-4">
+          <Label htmlFor="time-off-reason">Reason (Optional)</Label>
+          <Input
+            id="time-off-reason"
+            placeholder="e.g., Annual leave, Personal day, Medical appointment..."
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </div>
+        <Button onClick={handleAddUnavailability} disabled={isSubmitting} className="w-full">
+          {isSubmitting ? "Adding..." : "Add Time Off"}
+        </Button>
+      </div>
+
+      {message && (
+        <div
+          className={`p-3 rounded-md text-sm ${
+            message.includes("Error") || message.includes("Failed")
+              ? "bg-red-50 text-red-700 border border-red-200"
+              : "bg-green-50 text-green-700 border border-green-200"
+          }`}
+        >
+          {message}
+        </div>
+      )}
+
+      <div>
+        <h3 className="text-lg font-semibold mb-4">My Upcoming Time Off</h3>
+        {myUnavailability.length === 0 ? (
+          <p className="text-center text-muted-foreground py-8 border rounded-lg">No time off scheduled</p>
+        ) : (
+          <div className="space-y-3">
+            {myUnavailability.map((period) => (
+              <div key={period.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-red-600" />
+                    <span className="font-medium">
+                      {format(new Date(period.start_date), "MMM dd, yyyy")} -{" "}
+                      {format(new Date(period.end_date), "MMM dd, yyyy")}
+                    </span>
+                  </div>
+                  {period.reason && <p className="text-sm text-muted-foreground mt-1">{period.reason}</p>}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDeleteUnavailability(period.id)}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Calendar className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h3 className="text-lg font-semibold mb-4">Organization Holidays</h3>
+        {holidays.length === 0 ? (
+          <p className="text-center text-muted-foreground py-8 border rounded-lg">No holidays configured</p>
+        ) : (
+          <div className="space-y-3">
+            {holidays.map((holiday) => (
+              <div key={holiday.id} className="flex items-center gap-3 p-4 border rounded-lg bg-green-50">
+                <Calendar className="w-5 h-5 text-green-600" />
+                <div className="flex-1">
+                  <p className="font-medium">{holiday.name}</p>
+                  <p className="text-sm text-muted-foreground">{format(new Date(holiday.date), "MMMM dd, yyyy")}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

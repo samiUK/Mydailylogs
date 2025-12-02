@@ -80,11 +80,11 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
                 </Link>
               )}
               <Link
-                href="/staff/holidays"
+                href="/staff/reports"
                 className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
                 style={{ "--hover-color": primaryColor } as React.CSSProperties}
               >
-                Holidays
+                Reports & Analytics
               </Link>
               <Link
                 href="/staff/team"
@@ -126,11 +126,11 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
                     </Link>
                   )}
                   <Link
-                    href="/staff/holidays"
+                    href="/staff/reports"
                     className="text-muted-foreground hover:text-indigo-600 px-4 py-4 rounded-md text-base font-medium border-b min-h-12 flex items-center"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Holidays
+                    Reports & Analytics
                   </Link>
                   <Link
                     href="/staff/team"

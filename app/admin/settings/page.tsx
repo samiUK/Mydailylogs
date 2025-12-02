@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-
+import { CalendarIcon, Plus, Trash2, Users, FileText, CalendarDaysIcon } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,18 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { getSubscriptionLimits } from "@/lib/subscription-limits"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Calendar } from "@/components/ui/calendar"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { format } from "date-fns"
+import { toast } from "@/components/ui/use-toast"
 
 interface Organization {
   organization_id: string
@@ -21,6 +33,9 @@ interface Organization {
   secondary_color: string | null
   slug: string
   business_hours?: BusinessHours | null
+  staff_team_page_enabled?: boolean
+  staff_reports_page_enabled?: boolean
+  staff_holidays_page_enabled?: boolean
 }
 
 interface BusinessHours {
@@ -39,7 +54,15 @@ interface DayHours {
   close: string
 }
 
-export default function SettingsPage() {
+// Add Holiday interface
+interface Holiday {
+  id: string
+  name: string
+  date: string
+  organization_id: string
+}
+
+export default function OrganizationSettingsPage() {
   const [organization, setOrganization] = useState<Organization | null>(null)
   const [profile, setProfile] = useState<any>(null) // Added profile state to check user role
   const [name, setName] = useState("")
@@ -76,8 +99,17 @@ export default function SettingsPage() {
     "sunday",
   ]
 
+  const [holidays, setHolidays] = useState<Holiday[]>([])
+  const [selectedHolidayDate, setSelectedHolidayDate] = useState<Date>()
+  const [holidayName, setHolidayName] = useState("")
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<string | null>(null)
+
+  const [staffTeamPageEnabled, setStaffTeamPageEnabled] = useState(true)
+  const [staffReportsPageEnabled, setStaffReportsPageEnabled] = useState(true)
+  const [staffHolidaysPageEnabled, setStaffHolidaysPageEnabled] = useState(true)
+
   useEffect(() => {
-    async function loadOrganization() {
+    async function loadSettings() {
       const supabase = createClient()
 
       console.log("[v0] Loading organization settings...")
@@ -171,12 +203,45 @@ export default function SettingsPage() {
         setBusinessHours(org.business_hours as BusinessHours)
       }
 
+      setStaffTeamPageEnabled(org.staff_team_page_enabled ?? true)
+      setStaffReportsPageEnabled(org.staff_reports_page_enabled ?? true)
+      setStaffHolidaysPageEnabled(org.staff_holidays_page_enabled ?? true)
+
       console.log("[v0] Successfully loaded organization settings")
       setIsLoading(false)
     }
 
-    loadOrganization()
+    loadSettings()
+    // Fetch holidays when loading settings
+    fetchHolidays()
   }, [])
+
+  const fetchHolidays = async () => {
+    try {
+      const {
+        data: { user },
+      } = await createClient().auth.getUser()
+      if (!user) return
+
+      const { data: profile } = await createClient()
+        .from("profiles")
+        .select("organization_id")
+        .eq("id", user.id)
+        .single()
+
+      if (!profile?.organization_id) return
+
+      const { data: holidaysData } = await createClient()
+        .from("holidays")
+        .select("*")
+        .eq("organization_id", profile.organization_id)
+        .order("date", { ascending: true })
+
+      setHolidays(holidaysData || [])
+    } catch (error) {
+      console.error("[v0] Error fetching holidays:", error)
+    }
+  }
 
   const extractColorFromImage = (imageUrl: string): Promise<string> => {
     return new Promise((resolve) => {
@@ -358,6 +423,9 @@ export default function SettingsPage() {
         logo_url: logoUrl,
         primary_color: primaryColor,
         updated_at: new Date().toISOString(),
+        staff_team_page_enabled: staffTeamPageEnabled,
+        staff_reports_page_enabled: staffReportsPageEnabled,
+        staff_holidays_page_enabled: staffHolidaysPageEnabled,
       }
 
       if (newSlug !== organization.slug) {
@@ -399,6 +467,9 @@ export default function SettingsPage() {
               logo_url: logoUrl,
               primary_color: primaryColor,
               business_hours: businessHours,
+              staff_team_page_enabled: staffTeamPageEnabled,
+              staff_reports_page_enabled: staffReportsPageEnabled,
+              staff_holidays_page_enabled: staffHolidaysPageEnabled,
             }
           : null,
       )
@@ -436,6 +507,76 @@ export default function SettingsPage() {
         [field]: value,
       },
     }))
+  }
+
+  const addHoliday = async () => {
+    if (!selectedHolidayDate) return
+
+    try {
+      const {
+        data: { user },
+      } = await createClient().auth.getUser()
+      if (!user) return
+
+      const { data: profile } = await createClient()
+        .from("profiles")
+        .select("organization_id")
+        .eq("id", user.id)
+        .single()
+
+      if (!profile?.organization_id) return
+
+      const { error } = await createClient()
+        .from("holidays")
+        .insert({
+          name: holidayName.trim() || format(selectedHolidayDate, "MMMM d, yyyy"),
+          date: format(selectedHolidayDate, "yyyy-MM-dd"),
+          organization_id: profile.organization_id,
+        })
+
+      if (!error) {
+        setHolidayName("")
+        setSelectedHolidayDate(undefined)
+        fetchHolidays()
+        toast({
+          title: "Success",
+          description: "Holiday added successfully",
+        })
+      } else {
+        throw error
+      }
+    } catch (error) {
+      console.error("[v0] Error adding holiday:", error)
+      toast({
+        title: "Error",
+        description: "Failed to add holiday. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const deleteHoliday = async (id: string) => {
+    try {
+      const { error } = await createClient().from("holidays").delete().eq("id", id)
+
+      if (!error) {
+        fetchHolidays()
+        setDeleteConfirmOpen(null)
+        toast({
+          title: "Success",
+          description: "Holiday deleted successfully",
+        })
+      } else {
+        throw error
+      }
+    } catch (error) {
+      console.error("[v0] Error deleting holiday:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete holiday. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   if (isLoading) {
@@ -544,7 +685,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="container mx-auto py-8 px-4 max-w-4xl">
       {isImpersonating && (
         <Alert className="bg-red-50 border-red-200">
           <AlertDescription>
@@ -708,6 +849,62 @@ export default function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>Brand Preview</CardTitle>
+          <CardDescription>See how your branding will appear in the platform</CardDescription>
+          {!hasCustomBranding && (
+            <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">★</span>
+                </div>
+                <p className="text-sm text-amber-800 font-medium">Premium Feature - Paid Plans Only</p>
+              </div>
+              <p className="text-xs text-amber-700 mt-1">
+                Custom branding with logo and colors is available on Growth and Scale plans.
+              </p>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent>
+          <div className="border rounded-lg p-6 bg-gray-50">
+            <div className="flex items-center gap-4 mb-6">
+              {logoPreview && (
+                <div className="w-12 h-12 rounded overflow-hidden bg-white flex items-center justify-center shadow-sm">
+                  <img
+                    src={logoPreview || "/placeholder.svg"}
+                    alt="Logo"
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+              )}
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-gray-900">{name || "Your Organization"}</h3>
+                <p className="text-sm text-gray-600">Organization Brand Preview</p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div
+                className="px-4 py-2 rounded text-white font-medium text-sm"
+                style={{ backgroundColor: hasCustomBranding ? primaryColor : "#10b981" }}
+              >
+                Primary Action Button
+              </div>
+              <div
+                className="px-4 py-2 rounded border font-medium text-sm"
+                style={{
+                  borderColor: hasCustomBranding ? primaryColor : "#10b981",
+                  color: hasCustomBranding ? primaryColor : "#10b981",
+                }}
+              >
+                Secondary Button
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Business Hours</CardTitle>
           <CardDescription>
             Set your operating hours for automated task scheduling (Growth & Scale plans)
@@ -763,44 +960,219 @@ export default function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Brand Preview</CardTitle>
-          <CardDescription>See how your branding will appear in the platform</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <CalendarIcon className="h-5 w-5" />
+            Holiday Management
+          </CardTitle>
+          <CardDescription>
+            Manage organization holidays that will be excluded from recurring task scheduling
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="border rounded-lg p-6 bg-gray-50">
-            <div className="flex items-center gap-4 mb-6">
-              {logoPreview && (
-                <div className="w-12 h-12 rounded overflow-hidden bg-white flex items-center justify-center shadow-sm">
-                  <img
-                    src={logoPreview || "/placeholder.svg"}
-                    alt="Logo"
-                    className="max-w-full max-h-full object-contain"
-                  />
+        <CardContent className="space-y-6">
+          {/* Add Holiday Section */}
+          <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+            <h3 className="font-semibold text-sm">Add New Holiday</h3>
+
+            <div className="space-y-2">
+              <Label htmlFor="holiday-name" className="text-sm">
+                Holiday Name <span className="text-muted-foreground">(Optional)</span>
+              </Label>
+              <Input
+                id="holiday-name"
+                value={holidayName}
+                onChange={(e) => setHolidayName(e.target.value)}
+                placeholder="e.g., Christmas Day, New Year's Day"
+                disabled={!canEditOrganizationName}
+              />
+              <p className="text-xs text-muted-foreground">Leave blank to use the date as the holiday name</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm">Select Date</Label>
+              <Calendar
+                mode="single"
+                selected={selectedHolidayDate}
+                onSelect={setSelectedHolidayDate}
+                modifiers={{
+                  holiday: holidays.map((h) => new Date(h.date)),
+                }}
+                modifiersStyles={{
+                  holiday: { backgroundColor: "#fef3c7", color: "#92400e" },
+                }}
+                className="rounded-md border"
+                disabled={!canEditOrganizationName}
+              />
+            </div>
+
+            <Button onClick={addHoliday} disabled={!selectedHolidayDate || !canEditOrganizationName} className="w-full">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Holiday
+            </Button>
+          </div>
+
+          {/* Holidays List */}
+          <div className="space-y-2">
+            <h3 className="font-semibold text-sm">Organization Holidays ({holidays.length})</h3>
+
+            {holidays.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8 text-sm">No holidays added yet</p>
+            ) : (
+              <div className="space-y-2">
+                {holidays.map((holiday) => (
+                  <div key={holiday.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="font-medium text-sm">{holiday.name}</p>
+                      <p className="text-xs text-muted-foreground">{format(new Date(holiday.date), "MMMM d, yyyy")}</p>
+                    </div>
+                    <Dialog
+                      open={deleteConfirmOpen === holiday.id}
+                      onOpenChange={(open) => !open && setDeleteConfirmOpen(null)}
+                    >
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeleteConfirmOpen(holiday.id)}
+                          className="text-red-600 hover:text-red-700"
+                          disabled={!canEditOrganizationName}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Delete Holiday</DialogTitle>
+                          <DialogDescription>
+                            Are you sure you want to delete "{holiday.name}" on{" "}
+                            {format(new Date(holiday.date), "MMMM d, yyyy")}? This action cannot be undone.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setDeleteConfirmOpen(null)}>
+                            Cancel
+                          </Button>
+                          <Button variant="destructive" onClick={() => deleteHoliday(holiday.id)}>
+                            Delete Holiday
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Team/Staff Page Settings</CardTitle>
+          <CardDescription>Control which pages are visible to your staff members in their navigation</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-4">
+            {/* Team Page Toggle */}
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <Users className="h-5 w-5 text-blue-600" />
                 </div>
-              )}
-              <div className="flex-1">
-                <h3 className="text-xl font-bold text-gray-900">{name || "Your Organization"}</h3>
-                <p className="text-sm text-gray-600">Organization Brand Preview</p>
+                <div>
+                  <Label htmlFor="team-page-toggle" className="font-medium text-base cursor-pointer">
+                    Team Page
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Allow staff to view team members and organizational structure
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  id="team-page-toggle"
+                  type="checkbox"
+                  checked={staffTeamPageEnabled}
+                  onChange={(e) => setStaffTeamPageEnabled(e.target.checked)}
+                  className="w-5 h-5 rounded border-gray-300"
+                  disabled={!canEditOrganizationName}
+                />
+                <span className="text-sm font-medium text-muted-foreground">
+                  {staffTeamPageEnabled ? "Enabled" : "Disabled"}
+                </span>
               </div>
             </div>
-            <div className="space-y-3">
-              <div
-                className="px-4 py-2 rounded text-white font-medium text-sm"
-                style={{ backgroundColor: hasCustomBranding ? primaryColor : "#10b981" }}
-              >
-                Primary Action Button
+
+            {/* Reports Page Toggle */}
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                  <FileText className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <Label htmlFor="reports-page-toggle" className="font-medium text-base cursor-pointer">
+                    Reports & Analytics Page
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Allow staff to view and download their submitted reports
+                  </p>
+                </div>
               </div>
-              <div
-                className="px-4 py-2 rounded border font-medium text-sm"
-                style={{
-                  borderColor: hasCustomBranding ? primaryColor : "#10b981",
-                  color: hasCustomBranding ? primaryColor : "#10b981",
-                }}
-              >
-                Secondary Button
+              <div className="flex items-center gap-2">
+                <input
+                  id="reports-page-toggle"
+                  type="checkbox"
+                  checked={staffReportsPageEnabled}
+                  onChange={(e) => setStaffReportsPageEnabled(e.target.checked)}
+                  className="w-5 h-5 rounded border-gray-300"
+                  disabled={!canEditOrganizationName}
+                />
+                <span className="text-sm font-medium text-muted-foreground">
+                  {staffReportsPageEnabled ? "Enabled" : "Disabled"}
+                </span>
+              </div>
+            </div>
+
+            {/* Holidays Page Toggle */}
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+                  <CalendarDaysIcon className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <Label htmlFor="holidays-page-toggle" className="font-medium text-base cursor-pointer">
+                    Holiday Management
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Allow staff to manage their personal holidays and time off
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  id="holidays-page-toggle"
+                  type="checkbox"
+                  checked={staffHolidaysPageEnabled}
+                  onChange={(e) => setStaffHolidaysPageEnabled(e.target.checked)}
+                  className="w-5 h-5 rounded border-gray-300"
+                  disabled={!canEditOrganizationName}
+                />
+                <span className="text-sm font-medium text-muted-foreground">
+                  {staffHolidaysPageEnabled ? "Enabled" : "Disabled"}
+                </span>
               </div>
             </div>
           </div>
+
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>Note:</strong> These settings apply to all staff members in your organization. Changes take effect
+              immediately after saving.
+            </p>
+          </div>
+
+          <Button onClick={handleSave} disabled={isSaving || !canEditOrganizationName} className="w-full">
+            {isSaving ? "Saving..." : "Save All Settings"}
+          </Button>
         </CardContent>
       </Card>
     </div>

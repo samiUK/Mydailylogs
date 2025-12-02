@@ -69,7 +69,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
   const router = useRouter()
   const supabase = createClient()
 
-  const compressImage = (file: File, targetSizeKB = 150): Promise<File> => {
+  const compressImage = (file: File, targetSizeKB = 50): Promise<File> => {
     return new Promise((resolve) => {
       const canvas = document.createElement("canvas")
       const ctx = canvas.getContext("2d")
@@ -77,7 +77,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
 
       img.onload = () => {
         let { width, height } = img
-        const maxDimension = 800
+        const maxDimension = 600
 
         if (width > height) {
           if (width > maxDimension) {
@@ -95,7 +95,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
         canvas.height = height
         ctx?.drawImage(img, 0, 0, width, height)
 
-        let quality = 0.5
+        let quality = 0.35
         const tryCompress = () => {
           canvas.toBlob(
             (blob) => {

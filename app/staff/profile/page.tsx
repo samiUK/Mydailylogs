@@ -4,12 +4,14 @@ import type React from "react"
 
 import { useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { getSubscriptionLimits } from "@/lib/subscription-limits"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { User, Mail, Camera, Phone, MapPin, Briefcase, Building, Badge } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { User, Mail, Camera, Phone, MapPin, Briefcase, Building, Calendar, Clock } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 interface Profile {
@@ -40,6 +42,8 @@ interface TemplateAssignment {
   assigned_at: string
   is_active: boolean
   status: string
+  specific_date: string | null
+  deadline_date: string | null
   checklist_templates: {
     id: string
     name: string
@@ -52,6 +56,7 @@ export default function StaffProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [organization, setOrganization] = useState<Organization | null>(null)
   const [templateAssignments, setTemplateAssignments] = useState<TemplateAssignment[]>([])
+  const [hasTaskAutomation, setHasTaskAutomation] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -87,6 +92,9 @@ export default function StaffProfilePage() {
           if (!orgError && orgData) {
             setOrganization(orgData)
           }
+
+          const limits = await getSubscriptionLimits(profileData.organization_id)
+          setHasTaskAutomation(limits.hasTaskAutomation)
         }
 
         const { data: assignments, error: assignmentsError } = await supabase
@@ -97,6 +105,8 @@ export default function StaffProfilePage() {
             assigned_at,
             is_active,
             status,
+            specific_date,
+            deadline_date,
             checklist_templates(
               id,
               name,
@@ -264,6 +274,21 @@ export default function StaffProfilePage() {
     )
   }
 
+  const recurringAssignments = templateAssignments.filter(
+    (assignment) =>
+      assignment.checklist_templates?.schedule_type === "recurring" &&
+      (assignment.checklist_templates?.frequency === "daily" ||
+        assignment.checklist_templates?.frequency === "weekly" ||
+        assignment.checklist_templates?.frequency === "monthly"),
+  )
+
+  const upcomingAssignments = templateAssignments.filter(
+    (assignment) =>
+      assignment.checklist_templates?.schedule_type === "specific_date" ||
+      assignment.checklist_templates?.schedule_type === "deadline" ||
+      assignment.checklist_templates?.schedule_type === "one_off",
+  )
+
   return (
     <div className="container mx-auto py-8">
       <div className="max-w-2xl mx-auto">
@@ -272,27 +297,70 @@ export default function StaffProfilePage() {
           <p className="text-muted-foreground mt-2">Manage your personal information and preferences</p>
         </div>
 
-        {templateAssignments.length > 0 && (
+        {upcomingAssignments.length > 0 && (
           <Card className="mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Briefcase className="h-5 w-5" />
-                Assigned Templates
+                <Calendar className="h-5 w-5" />
+                Upcoming Logs
               </CardTitle>
-              <CardDescription>Report templates currently assigned to you</CardDescription>
+              <CardDescription>One-off tasks, scheduled tasks, and deadlines assigned to you</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {templateAssignments.map((assignment) => (
+                {upcomingAssignments.map((assignment) => (
+                  <div key={assignment.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="font-medium">{assignment.checklist_templates?.name}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {assignment.checklist_templates?.schedule_type}
+                        </Badge>
+                        {assignment.specific_date && (
+                          <span className="text-xs text-muted-foreground">
+                            Due: {new Date(assignment.specific_date).toLocaleDateString()}
+                          </span>
+                        )}
+                        {assignment.deadline_date && (
+                          <span className="text-xs text-muted-foreground">
+                            Deadline: {new Date(assignment.deadline_date).toLocaleDateString()}
+                          </span>
+                        )}
+                        {!assignment.specific_date && !assignment.deadline_date && (
+                          <span className="text-xs text-muted-foreground">
+                            Assigned {new Date(assignment.assigned_at).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <Badge variant={assignment.status === "completed" ? "default" : "secondary"}>
+                      {assignment.status || "Active"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {hasTaskAutomation && recurringAssignments.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Regular Logs
+              </CardTitle>
+              <CardDescription>Recurring daily, weekly, and monthly tasks assigned to you</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {recurringAssignments.map((assignment) => (
                   <div key={assignment.id} className="flex items-center justify-between p-3 border rounded-lg">
                     <div>
                       <p className="font-medium">{assignment.checklist_templates?.name}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <Badge variant="outline" className="text-xs capitalize">
                           {assignment.checklist_templates?.frequency}
-                        </Badge>
-                        <Badge variant="secondary" className="text-xs">
-                          {assignment.checklist_templates?.schedule_type}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
                           Assigned {new Date(assignment.assigned_at).toLocaleDateString()}

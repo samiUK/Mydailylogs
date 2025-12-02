@@ -1,10 +1,12 @@
+"use client"
+
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
-import { Edit, User } from "lucide-react"
+import { Edit, User, X } from "lucide-react"
 import { redirect } from "next/navigation"
 
 export const dynamic = "force-dynamic"
@@ -26,6 +28,7 @@ interface TeamMember {
     id: string
     name: string
     frequency: string
+    assignmentId: string
   }>
   supervisor?: {
     id: string
@@ -37,7 +40,10 @@ interface TeamMember {
   organization_id?: string
 }
 
-function ProfileCard({ member }: { member: TeamMember }) {
+function ProfileCard({
+  member,
+  onCancelAssignment,
+}: { member: TeamMember; onCancelAssignment?: (assignmentId: string, templateName: string) => void }) {
   return (
     <Card className="w-64 mx-auto">
       <CardHeader className="text-center pb-4">
@@ -83,8 +89,25 @@ function ProfileCard({ member }: { member: TeamMember }) {
                     )
                     .slice(0, 2)
                     .map((template) => (
-                      <div key={template.id} className="text-xs bg-secondary/50 rounded px-2 py-1">
-                        {template.name} ({template.frequency})
+                      <div
+                        key={template.assignmentId}
+                        className="flex items-center justify-between text-xs bg-secondary/50 rounded px-2 py-1"
+                      >
+                        <span>
+                          {template.name} ({template.frequency})
+                        </span>
+                        {onCancelAssignment && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onCancelAssignment(template.assignmentId, template.name)
+                            }}
+                            className="ml-2 text-red-600 hover:text-red-800 transition-colors"
+                            title="Cancel recurring assignment"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     ))}
                   {member.assigned_templates.filter(
@@ -115,7 +138,10 @@ function ProfileCard({ member }: { member: TeamMember }) {
   )
 }
 
-function OrganizationalChart({ members }: { members: TeamMember[] }) {
+function OrganizationalChart({
+  members,
+  onCancelAssignment,
+}: { members: TeamMember[]; onCancelAssignment: (assignmentId: string, templateName: string) => void }) {
   const admins = members.filter((member) => member.role === "admin")
 
   const getDirectReports = (supervisorId: string) => {
@@ -129,7 +155,7 @@ function OrganizationalChart({ members }: { members: TeamMember[] }) {
         <div className="flex flex-wrap justify-center gap-8">
           {admins.map((admin) => (
             <div key={admin.id} className="flex flex-col items-center">
-              <ProfileCard member={admin} />
+              <ProfileCard member={admin} onCancelAssignment={onCancelAssignment} />
 
               {(() => {
                 const directReports = getDirectReports(admin.id)
@@ -141,7 +167,7 @@ function OrganizationalChart({ members }: { members: TeamMember[] }) {
                         {directReports.map((report) => (
                           <div key={report.id} className="relative">
                             <div className="w-px h-4 bg-border mx-auto mb-2"></div>
-                            <ProfileCard member={report} />
+                            <ProfileCard member={report} onCancelAssignment={onCancelAssignment} />
                           </div>
                         ))}
                       </div>
@@ -163,7 +189,7 @@ function OrganizationalChart({ members }: { members: TeamMember[] }) {
               <h3 className="text-lg font-semibold text-foreground mb-6">Unassigned Staff</h3>
               <div className="flex flex-wrap justify-center gap-6">
                 {unassignedStaff.map((staff) => (
-                  <ProfileCard key={staff.id} member={staff} />
+                  <ProfileCard key={staff.id} member={staff} onCancelAssignment={onCancelAssignment} />
                 ))}
               </div>
             </div>
@@ -274,7 +300,10 @@ export default async function AdminTeamPage() {
       assigned_templates:
         member.template_assignments
           ?.filter((assignment: any) => assignment.is_active && assignment.checklist_templates)
-          .map((assignment: any) => assignment.checklist_templates) || [],
+          .map((assignment: any) => ({
+            ...assignment.checklist_templates,
+            assignmentId: assignment.id,
+          })) || [],
     })) || []
 
   return (
@@ -290,7 +319,26 @@ export default async function AdminTeamPage() {
       </div>
 
       {processedMembers && processedMembers.length > 0 ? (
-        <OrganizationalChart members={processedMembers} />
+        <OrganizationalChart
+          members={processedMembers}
+          onCancelAssignment={async (assignmentId: string, templateName: string) => {
+            if (
+              confirm(`Are you sure you want to cancel "${templateName}"? This will stop all future auto-assignments.`)
+            ) {
+              const response = await fetch("/api/admin/cancel-assignment", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ assignmentId }),
+              })
+
+              if (response.ok) {
+                window.location.reload()
+              } else {
+                alert("Failed to cancel assignment")
+              }
+            }
+          }}
+        />
       ) : (
         <Card>
           <CardContent className="text-center py-12">

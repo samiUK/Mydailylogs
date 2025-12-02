@@ -230,7 +230,11 @@ export default async function StaffTeamPage() {
     assigned_templates:
       member.template_assignments
         ?.filter((assignment: any) => assignment.is_active && assignment.checklist_templates)
-        .map((assignment: any) => assignment.checklist_templates) || [],
+        .map((assignment: any) => assignment.checklist_templates)
+        .filter(
+          (template: any) =>
+            template.frequency === "daily" || template.frequency === "weekly" || template.frequency === "monthly",
+        ) || [],
   }))
 
   return (

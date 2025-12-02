@@ -153,12 +153,11 @@ export async function getCurrentUsage(organizationId: string) {
   const supabase = createClient()
 
   try {
-    // Get current template count
     const { count: templateCount } = await supabase
       .from("checklist_templates")
       .select("*", { count: "exact", head: true })
       .eq("organization_id", organizationId)
-      .eq("is_active", true)
+    // Removed: .eq("is_active", true) - now counts all templates
 
     // Get current team member count
     const { count: teamMemberCount } = await supabase

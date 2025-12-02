@@ -98,9 +98,7 @@ export default function SettingsPage() {
 
         const { data, error } = await supabase
           .from("profiles")
-          .select(
-            "*, organizations!inner(organization_id, organization_name, address, logo_url, primary_color, secondary_color)",
-          )
+          .select("*, organizations(*)")
           .eq("email", impersonatedUserEmail)
           .single()
 
@@ -120,13 +118,7 @@ export default function SettingsPage() {
           return
         }
 
-        const { data, error } = await supabase
-          .from("profiles")
-          .select(
-            "*, organizations!inner(organization_id, organization_name, address, logo_url, primary_color, secondary_color)",
-          )
-          .eq("id", user.id)
-          .single()
+        const { data, error } = await supabase.from("profiles").select("*, organizations(*)").eq("id", user.id).single()
 
         userProfile = data
         profileError = error
@@ -701,7 +693,7 @@ export default function SettingsPage() {
             </div>
             <p className="text-xs text-gray-500">
               {hasCustomBranding
-                ? "This color is automatically extracted from your logo, but you can adjust it manually"
+                ? "This color is automatically extracted from your logo, but you can adjust it manually below if needed."
                 : "This color will be used for buttons and accents throughout the platform"}
             </p>
           </div>

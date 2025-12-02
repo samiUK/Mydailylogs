@@ -82,7 +82,7 @@ export default function StaffDashboard() {
                   .from("template_assignments")
                   .select(`
                   *,
-                  checklist_templates:template_id(
+                  checklist_templates!inner(
                     id,
                     name,
                     description,
@@ -90,11 +90,13 @@ export default function StaffDashboard() {
                     schedule_type,
                     deadline_date,
                     specific_date,
-                    schedule_time
+                    schedule_time,
+                    is_active
                   )
                 `)
                   .eq("assigned_to", profile.id)
                   .eq("is_active", true)
+                  .eq("checklist_templates.is_active", true)
                   .order("assigned_at", { ascending: false })
                   .limit(20),
                 supabase
@@ -180,7 +182,7 @@ export default function StaffDashboard() {
               .from("template_assignments")
               .select(`
               *,
-              checklist_templates:template_id(
+              checklist_templates!inner(
                 id,
                 name,
                 description,
@@ -188,11 +190,13 @@ export default function StaffDashboard() {
                 schedule_type,
                 deadline_date,
                 specific_date,
-                schedule_time
+                schedule_time,
+                is_active
               )
             `)
               .eq("assigned_to", user.id)
               .eq("is_active", true)
+              .eq("checklist_templates.is_active", true)
               .order("assigned_at", { ascending: false })
               .limit(20),
             supabase

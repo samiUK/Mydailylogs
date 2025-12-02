@@ -117,7 +117,7 @@ export default function AdminTemplatesPage() {
           .select("id, name, description, frequency, is_active, created_at, created_by, schedule_type")
           .eq("organization_id", profileData.organization_id)
           .order("created_at", { ascending: false })
-          .limit(20),
+          .limit(100),
         supabase
           .from("profiles")
           .select("id, first_name, last_name, full_name, role")
@@ -263,8 +263,11 @@ export default function AdminTemplatesPage() {
     if (!subscriptionLimits) return false
     if (subscriptionLimits.planName !== "Starter") return false
 
-    // On free tier, only the 3 most recent templates are accessible
-    return index >= subscriptionLimits.maxTemplates
+    const allTemplatesSorted = [...templates].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    )
+    const templatePosition = allTemplatesSorted.findIndex((t) => t.id === template.id)
+    return templatePosition >= subscriptionLimits.maxTemplates
   }
 
   return (
@@ -275,15 +278,17 @@ export default function AdminTemplatesPage() {
           <p className="text-muted-foreground mt-2">Create and manage your compliance report templates</p>
           {subscriptionLimits && (
             <p className="text-sm text-muted-foreground mt-1">
-              {activeTemplatesCount} / {subscriptionLimits.maxTemplates} active templates
-              {subscriptionLimits.planName === "Starter" && activeTemplatesCount >= subscriptionLimits.maxTemplates && (
+              {templates.length} / {subscriptionLimits.maxTemplates} templates ({activeTemplatesCount} active)
+              {subscriptionLimits.planName === "Starter" && templates.length >= subscriptionLimits.maxTemplates && (
                 <span className="text-orange-600 ml-2">(Upgrade to create more)</span>
               )}
             </p>
           )}
         </div>
         <Link href="/admin/templates/new">
-          <Button>Create Report Template</Button>
+          <Button disabled={subscriptionLimits && templates.length >= subscriptionLimits.maxTemplates}>
+            Create Report Template
+          </Button>
         </Link>
       </div>
 

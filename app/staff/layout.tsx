@@ -5,6 +5,8 @@ import { DashboardFooter } from "@/components/dashboard-footer"
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { EmailVerificationBanner } from "@/components/email-verification-banner"
+import { ImpersonationBanner } from "@/components/impersonation-banner"
+import { cookies } from "next/headers"
 
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -62,6 +64,18 @@ export default async function StaffLayout({ children }: { children: React.ReactN
 
   const isEmailVerified = profile.is_email_verified === true
 
+  const cookieStore = await cookies()
+  const impersonationActive = cookieStore.get("impersonation-active")?.value === "true"
+  const impersonationData = cookieStore.get("impersonation-data")?.value
+  let parsedImpersonationData = null
+  if (impersonationData) {
+    try {
+      parsedImpersonationData = JSON.parse(impersonationData)
+    } catch (e) {
+      console.error("[v0] Failed to parse impersonation data:", e)
+    }
+  }
+
   return (
     <BrandingProvider
       initialBranding={{
@@ -73,6 +87,12 @@ export default async function StaffLayout({ children }: { children: React.ReactN
       }}
     >
       <div className="min-h-screen bg-background flex flex-col">
+        {impersonationActive && parsedImpersonationData && (
+          <ImpersonationBanner
+            userEmail={parsedImpersonationData.userEmail}
+            userRole={parsedImpersonationData.userRole}
+          />
+        )}
         <StaffNavigation user={profile} onSignOut={handleSignOut} profileId={profile.id} />
         <EmailVerificationBanner userEmail={user.email || ""} isVerified={isEmailVerified} />
         <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">{children}</main>

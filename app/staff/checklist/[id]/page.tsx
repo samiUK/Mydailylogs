@@ -10,6 +10,7 @@ import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Camera, FileText, Hash, CheckSquare, Check, X, Loader2 } from "lucide-react"
 import { toast } from "react-toastify"
+import { Card, CardContent } from "@/components/ui/card"
 
 interface ChecklistTask {
   id: string
@@ -72,6 +73,7 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
   const [completedAssignmentId, setCompletedAssignmentId] = useState<string | null>(null)
   const [completedDailyChecklistId, setCompletedDailyChecklistId] = useState<string | null>(null)
   const router = useRouter()
+  const [error, setError] = useState<string | null>(null)
 
   const compressImage = (file: File): Promise<File> => {
     return new Promise((resolve, reject) => {
@@ -282,8 +284,9 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
         .eq("id", assignmentIdFromUrl)
         .single()
 
-      if (!assignmentData) {
-        console.error("[v0] Assignment not found")
+      if (!assignmentData || !assignmentData.checklist_templates) {
+        console.error("[v0] Assignment or template not found for ID:", assignmentIdFromUrl)
+        setError("Assignment not found. Please contact your administrator.")
         setIsLoading(false)
         return
       }
@@ -614,8 +617,38 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
     )
   }
 
+  if (error) {
+    return (
+      <div className="container mx-auto p-4 max-w-4xl">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-8">
+              <h2 className="text-xl font-semibold mb-2">Error</h2>
+              <p className="text-muted-foreground mb-4">{error}</p>
+              <Button onClick={() => router.push("/staff")}>Back to Dashboard</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   if (!template) {
-    return <div className="text-center py-8">Template not found or not assigned to you</div>
+    return (
+      <div className="container mx-auto p-4 max-w-4xl">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-8">
+              <h2 className="text-xl font-semibold mb-2">Assignment Not Found</h2>
+              <p className="text-muted-foreground mb-4">
+                This assignment could not be loaded. It may have been deleted or you may not have access to it.
+              </p>
+              <Button onClick={() => router.push("/staff")}>Back to Dashboard</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   const completedTasks = responses.filter((r) => r.is_completed).length

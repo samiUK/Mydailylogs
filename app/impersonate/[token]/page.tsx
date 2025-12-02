@@ -2,35 +2,17 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
+import { AlertTriangle, CheckCircle2 } from "lucide-react"
 
-export default async function ImpersonatePage({
-  params,
-}: {
-  params: { token: string }
-}) {
+export default async function ImpersonatePage({ params }: { params: { token: string } }) {
   try {
     const { token } = params
-    console.log("[v0] Impersonation page accessed with token:", token)
 
     if (!token) {
-      console.error("[v0] No token provided")
-      return (
-        <div className="flex min-h-screen items-center justify-center bg-muted/30">
-          <div className="w-full max-w-md rounded-lg border bg-background p-8 text-center shadow-lg">
-            <h1 className="mb-4 text-2xl font-semibold">Master Admin Impersonation</h1>
-            <div className="mb-4 flex justify-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-destructive">
-                <span className="text-3xl text-destructive">✕</span>
-              </div>
-            </div>
-            <p className="text-muted-foreground">No impersonation token provided</p>
-          </div>
-        </div>
-      )
+      return <ErrorPage message="No impersonation token provided" />
     }
 
     const adminClient = createAdminClient()
-    console.log("[v0] Admin client created")
 
     const { data: tokenData, error: tokenError } = await adminClient
       .from("impersonation_tokens")
@@ -41,23 +23,8 @@ export default async function ImpersonatePage({
       .is("used_at", null)
       .single()
 
-    console.log("[v0] Token data:", { found: !!tokenData, error: tokenError?.message })
-
     if (tokenError || !tokenData) {
-      console.error("[v0] Invalid or expired token:", tokenError)
-      return (
-        <div className="flex min-h-screen items-center justify-center bg-muted/30">
-          <div className="w-full max-w-md rounded-lg border bg-background p-8 text-center shadow-lg">
-            <h1 className="mb-4 text-2xl font-semibold">Master Admin Impersonation</h1>
-            <div className="mb-4 flex justify-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-destructive">
-                <span className="text-3xl text-destructive">✕</span>
-              </div>
-            </div>
-            <p className="text-muted-foreground">Invalid or expired impersonation link</p>
-          </div>
-        </div>
-      )
+      return <ErrorPage message="Invalid or expired impersonation token" />
     }
 
     await adminClient
@@ -68,32 +35,13 @@ export default async function ImpersonatePage({
       })
       .eq("id", tokenData.id)
 
-    console.log("[v0] Token marked as used")
-
     const { data: sessionData, error: sessionError } = await adminClient.auth.admin.createSession({
       user_id: tokenData.target_user_id,
     })
 
-    console.log("[v0] Session creation:", {
-      success: !!sessionData,
-      error: sessionError?.message,
-    })
-
     if (sessionError || !sessionData) {
       console.error("[v0] Failed to create session:", sessionError)
-      return (
-        <div className="flex min-h-screen items-center justify-center bg-muted/30">
-          <div className="w-full max-w-md rounded-lg border bg-background p-8 text-center shadow-lg">
-            <h1 className="mb-4 text-2xl font-semibold">Master Admin Impersonation</h1>
-            <div className="mb-4 flex justify-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-destructive">
-                <span className="text-3xl text-destructive">✕</span>
-              </div>
-            </div>
-            <p className="text-muted-foreground">Failed to create impersonation session</p>
-          </div>
-        </div>
-      )
+      return <ErrorPage message="Failed to create impersonation session" />
     }
 
     const cookieStore = cookies()
@@ -119,10 +67,8 @@ export default async function ImpersonatePage({
       refresh_token: sessionData.session.refresh_token,
     })
 
-    console.log("[v0] Session established successfully, redirecting to:", `/${tokenData.target_user_role}`)
-
     cookieStore.set("impersonation-active", "true", {
-      maxAge: 60 * 60 * 24, // 24 hours
+      maxAge: 60 * 60 * 8, // 8 hours
       path: "/",
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
@@ -138,31 +84,58 @@ export default async function ImpersonatePage({
         masterAdminEmail: tokenData.master_admin_email,
       }),
       {
-        maxAge: 60 * 60 * 24,
+        maxAge: 60 * 60 * 8,
         path: "/",
         sameSite: "lax",
         secure: process.env.NODE_ENV === "production",
       },
     )
 
-    redirect(`/${tokenData.target_user_role}`)
+    const redirectPath = tokenData.target_user_role === "admin" ? "/admin" : "/staff"
+    redirect(redirectPath)
   } catch (error) {
     console.error("[v0] Impersonation error:", error)
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/30">
-        <div className="w-full max-w-md rounded-lg border bg-background p-8 text-center shadow-lg">
-          <h1 className="mb-4 text-2xl font-semibold">Master Admin Impersonation</h1>
-          <div className="mb-4 flex justify-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-destructive">
-              <span className="text-3xl text-destructive">✕</span>
-            </div>
-          </div>
-          <p className="text-muted-foreground">Internal server error</p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {error instanceof Error ? error.message : "Unknown error"}
-          </p>
-        </div>
-      </div>
-    )
+    return <ErrorPage message={error instanceof Error ? error.message : "Internal server error"} />
   }
+}
+
+function ErrorPage({ message }: { message: string }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+      <div className="w-full max-w-md rounded-lg border bg-background p-8 text-center shadow-lg">
+        <div className="mb-4 flex justify-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-destructive">
+            <AlertTriangle className="h-8 w-8 text-destructive" />
+          </div>
+        </div>
+        <h1 className="mb-2 text-2xl font-semibold">Impersonation Failed</h1>
+        <p className="text-muted-foreground">{message}</p>
+        <a
+          href="/masterdashboard"
+          className="mt-6 inline-block rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          Return to Master Dashboard
+        </a>
+      </div>
+    </div>
+  )
+}
+
+function SuccessPage({ userEmail, redirectPath }: { userEmail: string; redirectPath: string }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+      <div className="w-full max-w-md rounded-lg border bg-background p-8 text-center shadow-lg">
+        <div className="mb-4 flex justify-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-green-500">
+            <CheckCircle2 className="h-8 w-8 text-green-500" />
+          </div>
+        </div>
+        <h1 className="mb-2 text-2xl font-semibold">Impersonation Active</h1>
+        <p className="text-muted-foreground mb-4">
+          You are now viewing as <strong>{userEmail}</strong>
+        </p>
+        <p className="text-sm text-muted-foreground">Redirecting to dashboard...</p>
+      </div>
+    </div>
+  )
 }

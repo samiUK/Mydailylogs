@@ -26,9 +26,7 @@ import {
   RefreshCw,
   Trash2,
   AlertTriangle,
-  LogIn,
   X,
-  Search,
   Calendar,
   Shield,
   DollarSign,
@@ -49,12 +47,12 @@ import {
   FileText,
   Layout,
   CheckSquare,
+  Eye,
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react" // Added useMemo
 import { ReportDirectoryContent } from "./report-directory-content"
 import { toast } from "sonner" // Import toast
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import Link from "next/link" // Import Link
 
 // All admin operations now use server-side API routes for security
 
@@ -488,6 +486,7 @@ export default function MasterDashboardPage() {
             { data: feedbackData, error: feedbackError },
             { data: reportsData, error: reportsError },
             { data: checklistsData, error: checklistsError },
+            { data: templateAssignmentsData, error: templateAssignmentsError }, // Fetch template_assignments
             { data: notificationsData, error: notificationsError },
             { data: holidaysData, error: holidaysError },
             { data: staffUnavailabilityData, error: staffUnavailabilityError },
@@ -506,6 +505,9 @@ export default function MasterDashboardPage() {
             adminClient.from("feedback").select("*"),
             adminClient.from("submitted_reports").select("*"),
             adminClient.from("daily_checklists").select("id, status"),
+            adminClient
+              .from("template_assignments")
+              .select("*"), // Select template_assignments
             adminClient.from("notifications").select("id, is_read"),
             adminClient.from("holidays").select("id, date"),
             adminClient.from("staff_unavailability").select("id, start_date, end_date"),
@@ -528,6 +530,7 @@ export default function MasterDashboardPage() {
             feedback: { error: feedbackError, count: feedbackData?.length },
             reports: { error: reportsError, count: reportsData?.length },
             checklists: { error: checklistsError, count: checklistsData?.length },
+            templateAssignments: { error: templateAssignmentsError, count: templateAssignmentsData?.length }, // Log template assignment counts
             notifications: { error: notificationsError, count: notificationsData?.length },
             holidays: { error: holidaysError, count: holidaysData?.length },
             staffUnavailability: { error: staffUnavailabilityError, count: staffUnavailabilityData?.length },
@@ -561,6 +564,8 @@ export default function MasterDashboardPage() {
           if (feedbackError) console.error("[v0] Feedback fetch error:", feedbackError)
           if (reportsError) console.error("[v0] Reports fetch error:", reportsError)
           if (checklistsError) console.error("[v0] Checklists fetch error:", checklistsError)
+          if (templateAssignmentsError)
+            console.error("[v0] Template Assignments fetch error:", templateAssignmentsError) // Log template assignment errors
           if (notificationsError) console.error("[v0] Notifications fetch error:", notificationsError)
           if (holidaysError) console.error("[v0] Holidays fetch error:", holidaysError)
           if (staffUnavailabilityError)
@@ -624,11 +629,17 @@ export default function MasterDashboardPage() {
           const oneWeekAgo = new Date(today)
           oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
 
+          const activeAssignments = templateAssignmentsData?.filter((a: any) => a.is_active) || []
+          const completedAssignments = activeAssignments.filter((a: any) => a.status === "completed")
+          const pendingAssignments = activeAssignments.filter(
+            (a: any) => !a.status || a.status === "active" || a.status === "pending" || a.status === "in_progress",
+          )
+
           setDatabaseStats({
             checklists: {
-              total: checklistsData?.length || 0,
-              completed: checklistsData?.filter((c) => c.status === "completed").length || 0,
-              pending: checklistsData?.filter((c) => c.status === "pending" || c.status === "in_progress").length || 0,
+              total: activeAssignments.length,
+              completed: completedAssignments.length,
+              pending: pendingAssignments.length,
             },
             templates: {
               total: templatesData?.length || 0,
@@ -1517,25 +1528,148 @@ export default function MasterDashboardPage() {
     }
   }
 
-  const filteredUsers = allUsers.filter(
-    (user) =>
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.organizations?.name.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  const [userPage, setUserPage] = useState(1)
+  const [orgPage, setOrgPage] = useState(1)
+  const [subPage, setSubPage] = useState(1)
+  const [paymentPage, setPaymentPage] = useState(1)
+  const [feedbackPage, setFeedbackPage] = useState(1)
+  const ITEMS_PER_PAGE = 10
 
-  const filteredOrganizations = organizations.filter((org) =>
-    org.organization_name.toLowerCase().includes(organizationSearchTerm.toLowerCase()),
-  )
+  const [paymentSearchTerm, setPaymentSearchTerm] = useState("")
+  const [feedbackSearchTerm, setFeedbackSearchTerm] = useState("")
 
-  const filteredUsersNew = allUsers.filter(
-    (user) =>
-      user.email.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-      user.full_name?.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-      user.organizations?.name.toLowerCase().includes(userSearchTerm.toLowerCase()),
-  )
+  const filteredUsers = useMemo(() => {
+    const filtered = allUsers.filter(
+      (user) =>
+        user.email.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+        user.full_name?.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+        user.role.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+        user.organizations?.name.toLowerCase().includes(userSearchTerm.toLowerCase()),
+    )
+    const startIndex = (userPage - 1) * ITEMS_PER_PAGE
+    return filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+  }, [allUsers, userSearchTerm, userPage])
 
-  // Superuser Management Functions
+  const totalUserPages = useMemo(() => {
+    const filtered = allUsers.filter(
+      (user) =>
+        user.email.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+        user.full_name?.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+        user.role.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+        user.organizations?.name.toLowerCase().includes(userSearchTerm.toLowerCase()),
+    )
+    return Math.ceil(filtered.length / ITEMS_PER_PAGE)
+  }, [allUsers, userSearchTerm])
+
+  const filteredOrganizations = useMemo(() => {
+    const filtered = organizations.filter(
+      (org) =>
+        org.organization_name.toLowerCase().includes(organizationSearchTerm.toLowerCase()) ||
+        org.organization_id.toLowerCase().includes(organizationSearchTerm.toLowerCase()),
+    )
+    const startIndex = (orgPage - 1) * ITEMS_PER_PAGE
+    return filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+  }, [organizations, organizationSearchTerm, orgPage])
+
+  const totalOrgPages = useMemo(() => {
+    const filtered = organizations.filter(
+      (org) =>
+        org.organization_name.toLowerCase().includes(organizationSearchTerm.toLowerCase()) ||
+        org.organization_id.toLowerCase().includes(organizationSearchTerm.toLowerCase()),
+    )
+    return Math.ceil(filtered.length / ITEMS_PER_PAGE)
+  }, [organizations, organizationSearchTerm])
+
+  const filteredSubscriptions = useMemo(() => {
+    const filtered = allSubscriptions.filter(
+      (sub) =>
+        sub.plan_name.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) ||
+        sub.status.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) ||
+        sub.organizations?.organization_name.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()),
+    )
+    const startIndex = (subPage - 1) * ITEMS_PER_PAGE
+    return filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+  }, [allSubscriptions, subscriptionSearchTerm, subPage])
+
+  const totalSubPages = useMemo(() => {
+    const filtered = allSubscriptions.filter(
+      (sub) =>
+        sub.plan_name.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) ||
+        sub.status.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) ||
+        sub.organizations?.organization_name.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()),
+    )
+    return Math.ceil(filtered.length / ITEMS_PER_PAGE)
+  }, [allSubscriptions, subscriptionSearchTerm])
+
+  const filteredPayments = useMemo(() => {
+    const filtered = allPayments.filter(
+      (payment) =>
+        payment.amount.toLowerCase().includes(paymentSearchTerm.toLowerCase()) ||
+        payment.status.toLowerCase().includes(paymentSearchTerm.toLowerCase()) ||
+        payment.subscriptions?.organizations?.organization_name.toLowerCase().includes(paymentSearchTerm.toLowerCase()),
+    )
+    const startIndex = (paymentPage - 1) * ITEMS_PER_PAGE
+    return filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+  }, [allPayments, paymentSearchTerm, paymentPage])
+
+  const totalPaymentPages = useMemo(() => {
+    const filtered = allPayments.filter(
+      (payment) =>
+        payment.amount.toLowerCase().includes(paymentSearchTerm.toLowerCase()) ||
+        payment.status.toLowerCase().includes(paymentSearchTerm.toLowerCase()) ||
+        payment.subscriptions?.organizations?.organization_name.toLowerCase().includes(paymentSearchTerm.toLowerCase()),
+    )
+    return Math.ceil(filtered.length / ITEMS_PER_PAGE)
+  }, [allPayments, paymentSearchTerm])
+
+  const filteredFeedback = useMemo(() => {
+    const filtered = feedback.filter(
+      (item) =>
+        item.name.toLowerCase().includes(feedbackSearchTerm.toLowerCase()) ||
+        item.email.toLowerCase().includes(feedbackSearchTerm.toLowerCase()) ||
+        item.subject.toLowerCase().includes(feedbackSearchTerm.toLowerCase()) ||
+        item.message.toLowerCase().includes(feedbackSearchTerm.toLowerCase()),
+    )
+    const startIndex = (feedbackPage - 1) * ITEMS_PER_PAGE
+    return filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+  }, [feedback, feedbackSearchTerm, feedbackPage])
+
+  const totalFeedbackPages = useMemo(() => {
+    const filtered = feedback.filter(
+      (item) =>
+        item.name.toLowerCase().includes(feedbackSearchTerm.toLowerCase()) ||
+        item.email.toLowerCase().includes(feedbackSearchTerm.toLowerCase()) ||
+        item.subject.toLowerCase().includes(feedbackSearchTerm.toLowerCase()) ||
+        item.message.toLowerCase().includes(feedbackSearchTerm.toLowerCase()),
+    )
+    return Math.ceil(filtered.length / ITEMS_PER_PAGE)
+  }, [feedback, feedbackSearchTerm])
+
+  useEffect(() => {
+    setUserPage(1)
+  }, [userSearchTerm])
+
+  useEffect(() => {
+    setOrgPage(1)
+  }, [organizationSearchTerm])
+
+  useEffect(() => {
+    setSubPage(1)
+  }, [subscriptionSearchTerm])
+
+  useEffect(() => {
+    setPaymentPage(1)
+  }, [paymentSearchTerm])
+
+  useEffect(() => {
+    setFeedbackPage(1)
+  }, [feedbackSearchTerm])
+
+  const superusersFiltered = useMemo(() => {
+    const filtered = superusers.filter((user) => user.email.toLowerCase().includes(newSuperuserEmail.toLowerCase()))
+    return filtered
+  }, [superusers, newSuperuserEmail])
+
   const addSuperuser = async () => {
     if (currentUserRole !== "masteradmin") {
       alert("Only master admins can add superusers")
@@ -1751,6 +1885,38 @@ export default function MasterDashboardPage() {
       }))
     } finally {
       setIsRefreshingServerStats(false)
+    }
+  }
+
+  const generateImpersonationLink = async (user: any) => {
+    try {
+      setIsProcessing(true)
+
+      const response = await fetch("/api/impersonation/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userEmail: user.email,
+          userId: user.id,
+          userRole: user.role,
+          organizationId: user.organization_id,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to create impersonation link")
+      }
+
+      setImpersonationUrl(data.url)
+      setShowImpersonationModal(true)
+      showNotification("success", "Impersonation link generated! Copy it and open in an incognito window.")
+    } catch (error) {
+      console.error("[v0] Error generating impersonation link:", error)
+      showNotification("error", error instanceof Error ? error.message : "Failed to generate impersonation link")
+    } finally {
+      setIsProcessing(false)
     }
   }
 
@@ -2229,7 +2395,7 @@ export default function MasterDashboardPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Total Checklists</span>
+                  <span className="text-sm text-gray-600">Total Assignments</span>
                   <span className="font-semibold">{databaseStats.checklists.total}</span>
                 </div>
                 <div className="flex justify-between items-center">
@@ -2249,56 +2415,53 @@ export default function MasterDashboardPage() {
           </TabsContent>
 
           <TabsContent value="users" className="space-y-6">
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="flex-1"></div>
-                <div className="flex-shrink-0">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  All Users ({allUsers.length})
+                </CardTitle>
+                <CardDescription>Manage all users across organizations</CardDescription>
+                <div className="mt-4">
                   <Input
-                    placeholder="Search users..."
+                    placeholder="Search by email, name, role, or organization..."
                     value={userSearchTerm}
                     onChange={(e) => setUserSearchTerm(e.target.value)}
-                    className="w-full sm:w-64"
+                    className="max-w-md"
                   />
                 </div>
-              </div>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>All Users ({filteredUsersNew.length})</CardTitle>
-                  <CardDescription>Complete list of all registered users</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <Table className="min-w-full divide-y divide-gray-200">
-                      <TableHeader className="bg-gray-50">
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          User
+                        </TableHead>
+                        <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          Role
+                        </TableHead>
+                        <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          Organization
+                        </TableHead>
+                        <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          Last Sign In
+                        </TableHead>
+                        <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          Actions
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredUsers.length === 0 ? (
                         <TableRow>
-                          {/* <TableHead>Name</TableHead> */}
-                          <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                            Name
-                          </TableHead>
-                          <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                            Email
-                          </TableHead>
-                          {/* Removed Organization column header */}
-                          <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                            Verification
-                          </TableHead>
-                          <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                            Role
-                          </TableHead>
-                          <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                            Organization
-                          </TableHead>
-                          <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                            Last Seen
-                          </TableHead>
-                          <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                            Actions
-                          </TableHead>
+                          <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                            No users found matching your search
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody className="bg-white divide-y divide-gray-200">
-                        {filteredUsersNew.map((user) => {
+                      ) : (
+                        filteredUsers.map((user) => {
                           const authUser = authUserMap.get(user.id)
                           const lastSignIn = authUser?.last_sign_in_at
                             ? new Date(authUser.last_sign_in_at).toLocaleString()
@@ -2309,32 +2472,9 @@ export default function MasterDashboardPage() {
                               <TableCell className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
                                 {user.full_name || "N/A"}
                               </TableCell>
-                              <TableCell className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
-                                {user.email}
-                              </TableCell>
-                              <TableCell className="px-3 py-2 text-left text-xs whitespace-nowrap">
-                                <div className="flex items-center gap-2">
-                                  {user.is_email_verified ? (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-green-600 border-green-200 bg-green-50 text-xs"
-                                    >
-                                      Verified
-                                    </Badge>
-                                  ) : (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-orange-600 border-orange-200 bg-orange-50 text-xs"
-                                    >
-                                      Unverified
-                                    </Badge>
-                                  )}
-                                </div>
-                              </TableCell>
                               <TableCell className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 capitalize">
                                 {user.role}
                               </TableCell>
-                              {/* Removed Organization column data cell */}
                               <TableCell className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
                                 {user.organizations?.name || "N/A"}
                               </TableCell>
@@ -2342,15 +2482,16 @@ export default function MasterDashboardPage() {
                                 {lastSignIn}
                               </TableCell>
                               <TableCell className="px-3 py-2 text-left text-xs flex gap-1">
-                                <Link
-                                  href={`/auth/login?email=${encodeURIComponent(user.email)}&impersonate=true`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-blue-200 bg-background hover:bg-blue-50 text-blue-600 h-8 px-2 py-1"
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => generateImpersonationLink(user)}
+                                  className="text-blue-600 border-blue-200 hover:bg-blue-50 text-xs px-2 py-1"
+                                  disabled={isProcessing}
                                 >
-                                  <LogIn className="w-3 h-3 mr-1" />
+                                  <Eye className="w-3 h-3 mr-1" />
                                   Login
-                                </Link>
+                                </Button>
                                 {user.is_email_verified ? (
                                   <Button
                                     variant="outline"
@@ -2397,71 +2538,62 @@ export default function MasterDashboardPage() {
                               </TableCell>
                             </TableRow>
                           )
-                        })}
-                      </TableBody>
-                    </Table>
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                {totalUserPages > 1 && (
+                  <div className="flex items-center justify-between mt-4">
+                    <p className="text-sm text-gray-600">
+                      Page {userPage} of {totalUserPages}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setUserPage((prev) => Math.max(1, prev - 1))}
+                        disabled={userPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setUserPage((prev) => Math.min(totalUserPages, prev + 1))}
+                        disabled={userPage === totalUserPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
-          <TabsContent value="organizations" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Total Organizations</p>
-                      <p className="text-2xl font-bold">{organizationStats.total}</p>
-                      <p className="text-xs text-gray-500 mt-1">All orgs (with or without subs)</p>
-                    </div>
-                    <Building2 className="w-8 h-8 text-blue-500" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Total Admins</p>
-                      <p className="text-2xl font-bold">{organizationStats.totalAdmins || 0}</p>
-                    </div>
-                    <Shield className="w-8 h-8 text-green-500" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Total Staff</p>
-                      <p className="text-2xl font-bold">{organizationStats.totalStaff || 0}</p>
-                    </div>
-                    <Users className="w-8 h-8 text-orange-500" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
+          {/* Organizations Tab */}
+          {activeTab === "organizations" && (
             <Card>
               <CardHeader>
-                <CardTitle>Organization Hierarchy</CardTitle>
-                <CardDescription>View all organizations with their admin and staff members</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="w-5 h-5" />
+                  Organizations ({organizations.length})
+                </CardTitle>
+                <CardDescription>Manage all organizations</CardDescription>
+                <div className="mt-4">
+                  <Input
+                    placeholder="Search by organization name or ID..."
+                    value={organizationSearchTerm}
+                    onChange={(e) => setOrganizationSearchTerm(e.target.value)}
+                    className="max-w-md"
+                  />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-6">
+                <div className="space-y-4">
                   {filteredOrganizations.length === 0 ? (
-                    <div className="text-center py-12">
-                      <Building2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No Organizations Found</h3>
-                      <p className="text-gray-500 mb-4">
-                        Organizations will appear here once users sign up and create profiles.
-                      </p>
-                      {organizationSearchTerm && (
-                        <p className="text-sm text-gray-400">Try adjusting your search terms</p>
-                      )}
-                    </div>
+                    <div className="text-center py-8 text-gray-500">No organizations found matching your search</div>
                   ) : (
                     filteredOrganizations.map((org) => (
                       <div
@@ -2521,6 +2653,15 @@ export default function MasterDashboardPage() {
                               const planName = subscription?.plan_name || "starter"
                               const isActive = subscription?.status === "active"
                               const isTrial = subscription?.is_trial || false
+                              const trialEndsAt = subscription?.trial_ends_at
+                                ? new Date(subscription.trial_ends_at)
+                                : null
+                              let daysRemaining = 0
+                              if (isTrial && trialEndsAt) {
+                                const now = new Date()
+                                const diffTime = trialEndsAt.getTime() - now.getTime()
+                                daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+                              }
 
                               return (
                                 <div className="flex items-center gap-2">
@@ -2918,231 +3059,91 @@ export default function MasterDashboardPage() {
                   )}
                 </div>
               </CardContent>
+              {totalOrgPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                  <p className="text-sm text-gray-600">
+                    Page {orgPage} of {totalOrgPages}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setOrgPage((prev) => Math.max(1, prev - 1))}
+                      disabled={orgPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setOrgPage((prev) => Math.min(totalOrgPages, prev + 1))}
+                      disabled={orgPage === totalOrgPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Card>
-          </TabsContent>
+          )}
 
-          <TabsContent value="feedback" className="space-y-6">
+          {/* Subscriptions Tab */}
+          {activeTab === "subscriptions" && (
             <Card>
               <CardHeader>
-                <CardTitle>User Feedback & Support Requests</CardTitle>
-                <CardDescription>View and respond to feedback submitted by users across the platform</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {feedback.length === 0 ? (
-                  <div className="text-center py-12">
-                    <MessageSquare className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Feedback Yet</h3>
-                    <p className="text-gray-500">User feedback and support requests will appear here once submitted.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {feedback.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`border rounded-lg p-4 ${
-                          item.status === "unread" ? "bg-blue-50 border-blue-200" : "bg-white"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-semibold text-lg">{item.subject}</h3>
-                              <Badge variant={item.status === "unread" ? "default" : "secondary"}>{item.status}</Badge>
-                            </div>
-                            <div className="flex items-center gap-4 text-sm text-gray-600">
-                              <span className="flex items-center gap-1">
-                                <User className="w-4 h-4" />
-                                {item.name}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Mail className="w-4 h-4" />
-                                {item.email}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Clock className="w-4 h-4" />
-                                {new Date(item.created_at).toLocaleDateString("en-GB", {
-                                  day: "numeric",
-                                  month: "short",
-                                  year: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </span>
-                            </div>
-                            {item.page_url && <p className="text-xs text-gray-500 mt-1">From: {item.page_url}</p>}
-                          </div>
-                        </div>
-
-                        <div className="bg-gray-50 rounded p-3 mb-3">
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{item.message}</p>
-                        </div>
-
-                        {item.attachments && item.attachments.length > 0 && (
-                          <div className="mb-3">
-                            <p className="text-sm font-medium text-gray-700 mb-2">Attachments:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {item.attachments.map((attachment: any, index: number) => (
-                                <Badge key={index} variant="outline">
-                                  {attachment.name || `Attachment ${index + 1}`}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-2">
-                          <Button size="sm" variant="default" onClick={() => openResponseModal(item)}>
-                            <Mail className="w-4 h-4 mr-1" />
-                            Reply
-                          </Button>
-                          {item.status === "unread" && (
-                            <Button size="sm" variant="outline" onClick={() => markFeedbackAsRead(item.id)}>
-                              <CheckCircle className="w-4 h-4 mr-1" />
-                              Mark as Read
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => {
-                              if (confirm("Are you sure you want to delete this feedback?")) {
-                                deleteFeedback(item.id)
-                              }
-                            }}
-                          >
-                            <Trash2 className="w-4 h-4 mr-1" />
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="subscriptions" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Total Organizations</p>
-                      <p className="text-2xl font-bold">{organizations.length}</p>
-                      <p className="text-xs text-gray-500 mt-1">All orgs (with or without subs)</p>
-                    </div>
-                    <CreditCard className="w-8 h-8 text-blue-500" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Free Plans (Starter)</p>
-                      <p className="text-2xl font-bold">
-                        {
-                          organizations.filter(
-                            (org) =>
-                              !allSubscriptions.find((sub) => sub.organization_id === org.organization_id) ||
-                              allSubscriptions.find(
-                                (sub) =>
-                                  sub.organization_id === org.organization_id &&
-                                  sub.plan_name?.toLowerCase() === "starter",
-                              ),
-                          ).length
-                        }
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">Default plan</p>
-                    </div>
-                    <Users className="w-8 h-8 text-gray-500" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Growth Plans</p>
-                      <p className="text-2xl font-bold text-blue-600">
-                        {
-                          allSubscriptions.filter(
-                            (sub) => sub.plan_name?.toLowerCase() === "growth" && sub.status === "active",
-                          ).length
-                        }
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">£9/month</p>
-                    </div>
-                    <TrendingUp className="w-8 h-8 text-blue-500" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Scale Plans</p>
-                      <p className="text-2xl font-bold text-purple-600">
-                        {
-                          allSubscriptions.filter(
-                            (sub) => sub.plan_name?.toLowerCase() === "scale" && sub.status === "active",
-                          ).length
-                        }
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">£16/month</p>
-                    </div>
-                    <DollarSign className="w-8 h-8 text-purple-500" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Subscription Management</CardTitle>
-                <CardDescription>
-                  Search and manage subscriptions for all organizations. All organizations start on Starter plan by
-                  default.
-                </CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="w-5 h-5" />
+                  Subscriptions ({allSubscriptions.length})
+                </CardTitle>
+                <CardDescription>Monitor and manage all subscriptions</CardDescription>
                 <div className="mt-4">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input
-                      placeholder="Search organizations by name..."
-                      value={subscriptionSearchTerm}
-                      onChange={(e) => setSubscriptionSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
+                  <Input
+                    placeholder="Search by plan, status, or organization..."
+                    value={subscriptionSearchTerm}
+                    onChange={(e) => setSubscriptionSearchTerm(e.target.value)}
+                    className="max-w-md"
+                  />
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="border rounded-lg overflow-hidden">
+                <div className="rounded-md border overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Organization</TableHead>
-                        <TableHead>Plan</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Trial Status</TableHead>
-                        <TableHead>Period</TableHead>
-                        <TableHead>Actions</TableHead>
+                        <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          Organization
+                        </TableHead>
+                        <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          Plan
+                        </TableHead>
+                        <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          Status
+                        </TableHead>
+                        <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          Trial Status
+                        </TableHead>
+                        <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          Period
+                        </TableHead>
+                        <TableHead className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                          Actions
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {organizations
-                        .filter((org) =>
-                          org.organization_name.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()),
-                        )
-                        .map((org) => {
-                          const subscription = allSubscriptions.find(
-                            (sub) => sub.organization_id === org.organization_id,
-                          )
-                          const currentPlan = subscription?.plan_name || "starter"
-                          const isActive = subscription?.status === "active"
-                          const isTrial = subscription?.is_trial || false
-                          const trialEndsAt = subscription?.trial_ends_at ? new Date(subscription.trial_ends_at) : null
+                      {filteredSubscriptions.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                            No subscriptions found matching your search
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredSubscriptions.map((sub) => {
+                          const org = sub.organizations
+                          const currentPlan = sub?.plan_name || "starter"
+                          const isActive = sub?.status === "active"
+                          const isTrial = sub?.is_trial || false
+                          const trialEndsAt = sub?.trial_ends_at ? new Date(sub.trial_ends_at) : null
 
                           // Calculate days remaining for trial
                           let daysRemaining = 0
@@ -3153,8 +3154,10 @@ export default function MasterDashboardPage() {
                           }
 
                           return (
-                            <TableRow key={org.organization_id}>
-                              <TableCell className="font-medium">{org.organization_name}</TableCell>
+                            <TableRow key={sub.id}>
+                              <TableCell className="font-medium">
+                                {org ? org.organization_name : "Unknown Organization"}
+                              </TableCell>
                               <TableCell>
                                 <Badge variant={currentPlan === "starter" ? "secondary" : "default"}>
                                   {currentPlan === "starter" && "Free Starter"}
@@ -3182,10 +3185,10 @@ export default function MasterDashboardPage() {
                                 )}
                               </TableCell>
                               <TableCell className="text-sm text-muted-foreground">
-                                {subscription ? (
+                                {sub ? (
                                   <>
-                                    {new Date(subscription.current_period_start).toLocaleDateString()} -{" "}
-                                    {new Date(subscription.current_period_end).toLocaleDateString()}
+                                    {new Date(sub.current_period_start).toLocaleDateString()} -{" "}
+                                    {new Date(sub.current_period_end).toLocaleDateString()}
                                   </>
                                 ) : (
                                   "-"
@@ -3199,7 +3202,7 @@ export default function MasterDashboardPage() {
                                         variant="outline"
                                         size="sm"
                                         onClick={() =>
-                                          upgradeTierForFree(org.organization_id, org.organization_name, "Growth")
+                                          upgradeTierForFree(sub.organization_id!, org!.organization_name, "Growth")
                                         }
                                         disabled={isProcessing}
                                       >
@@ -3210,7 +3213,7 @@ export default function MasterDashboardPage() {
                                         variant="outline"
                                         size="sm"
                                         onClick={() =>
-                                          upgradeTierForFree(org.organization_id, org.organization_name, "Scale")
+                                          upgradeTierForFree(sub.organization_id!, org!.organization_name, "Scale")
                                         }
                                         disabled={isProcessing}
                                       >
@@ -3225,7 +3228,7 @@ export default function MasterDashboardPage() {
                                         variant="outline"
                                         size="sm"
                                         onClick={() =>
-                                          upgradeTierForFree(org.organization_id, org.organization_name, "Scale")
+                                          upgradeTierForFree(sub.organization_id!, org!.organization_name, "Scale")
                                         }
                                         disabled={isProcessing}
                                       >
@@ -3235,7 +3238,7 @@ export default function MasterDashboardPage() {
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => downgradeTierForFree(subscription.id, org.organization_name)}
+                                        onClick={() => downgradeTierForFree(sub.id, org!.organization_name)}
                                         disabled={isProcessing}
                                       >
                                         <ArrowDown className="w-4 h-4 mr-1" />
@@ -3247,18 +3250,18 @@ export default function MasterDashboardPage() {
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      onClick={() => downgradeTierForFree(subscription.id, org.organization_name)}
+                                      onClick={() => downgradeTierForFree(sub.id, org!.organization_name)}
                                       disabled={isProcessing}
                                     >
                                       <ArrowDown className="w-4 h-4 mr-1" />
                                       Downgrade to Starter
                                     </Button>
                                   )}
-                                  {subscription && subscription.status === "active" && (
+                                  {sub && sub.status === "active" && (
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      onClick={() => cancelSubscription(subscription.id, org.organization_name)}
+                                      onClick={() => cancelSubscription(sub.id, org!.organization_name)}
                                       disabled={isProcessing}
                                     >
                                       <X className="w-4 h-4 mr-1" />
@@ -3269,89 +3272,64 @@ export default function MasterDashboardPage() {
                               </TableCell>
                             </TableRow>
                           )
-                        })}
+                        })
+                      )}
                     </TableBody>
                   </Table>
                 </div>
+                {totalSubPages > 1 && (
+                  <div className="flex items-center justify-between mt-4">
+                    <p className="text-sm text-gray-600">
+                      Page {subPage} of {totalSubPages}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSubPage((prev) => Math.max(1, prev - 1))}
+                        disabled={subPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSubPage((prev) => Math.min(totalSubPages, prev + 1))}
+                        disabled={subPage === totalSubPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
-          </TabsContent>
+          )}
 
-          <TabsContent value="payments" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Total Revenue</p>
-                      <p className="text-2xl font-bold text-green-600">
-                        £
-                        {allPayments
-                          .filter((payment) => payment.status === "completed" || payment.status === "succeeded")
-                          .reduce((sum, payment) => sum + Number.parseFloat(payment.amount), 0)
-                          .toFixed(2)}
-                      </p>
-                    </div>
-                    <DollarSign className="w-8 h-8 text-green-500" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Total Payments</p>
-                      <p className="text-2xl font-bold">{allPayments.length}</p>
-                    </div>
-                    <CreditCard className="w-8 h-8 text-blue-500" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Successful</p>
-                      <p className="text-2xl font-bold text-green-600">
-                        {allPayments.filter((p) => p.status === "completed" || p.status === "succeeded").length}
-                      </p>
-                    </div>
-                    <CheckCircle className="w-8 h-8 text-green-500" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Failed/Pending</p>
-                      <p className="text-2xl font-bold text-orange-600">
-                        {allPayments.filter((p) => p.status !== "completed" && p.status !== "succeeded").length}
-                      </p>
-                    </div>
-                    <AlertCircle className="w-8 h-8 text-orange-500" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
+          {/* Payments Tab */}
+          {activeTab === "payments" && (
             <Card>
               <CardHeader>
-                <CardTitle>Payment Management</CardTitle>
-                <CardDescription>View and manage all payment transactions with refund capabilities</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="w-5 h-5" />
+                  Payments ({allPayments.length})
+                </CardTitle>
+                <CardDescription>Track all payment transactions</CardDescription>
+                <div className="mt-4">
+                  <Input
+                    placeholder="Search by amount, status, or organization..."
+                    value={paymentSearchTerm}
+                    onChange={(e) => setPaymentSearchTerm(e.target.value)}
+                    className="max-w-md"
+                  />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {allPayments.length === 0 ? (
-                    <div className="text-center py-12">
-                      <DollarSign className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No Payments Found</h3>
-                      <p className="text-gray-500">
-                        Payment transactions will appear here once organizations sign up to paid plans.
-                      </p>
-                    </div>
+                <div className="space-y-4">
+                  {filteredPayments.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">No payments found matching your search</div>
                   ) : (
-                    allPayments.map((payment) => (
+                    filteredPayments.map((payment) => (
                       <div
                         key={payment.id}
                         className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
@@ -3444,9 +3422,173 @@ export default function MasterDashboardPage() {
                     ))
                   )}
                 </div>
+                {totalPaymentPages > 1 && (
+                  <div className="flex items-center justify-between mt-4">
+                    <p className="text-sm text-gray-600">
+                      Page {paymentPage} of {totalPaymentPages}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPaymentPage((prev) => Math.max(1, prev - 1))}
+                        disabled={paymentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPaymentPage((prev) => Math.min(totalPaymentPages, prev + 1))}
+                        disabled={paymentPage === totalPaymentPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
-          </TabsContent>
+          )}
+
+          {/* Feedback Tab */}
+          {activeTab === "feedback" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  Feedback ({feedback.length})
+                  {unreadFeedbackCount > 0 && (
+                    <Badge variant="destructive" className="ml-2">
+                      {unreadFeedbackCount} unread
+                    </Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>User feedback and support requests</CardDescription>
+                <div className="mt-4">
+                  <Input
+                    placeholder="Search by name, email, subject, or message..."
+                    value={feedbackSearchTerm}
+                    onChange={(e) => setFeedbackSearchTerm(e.target.value)}
+                    className="max-w-md"
+                  />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {filteredFeedback.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">No feedback found matching your search</div>
+                  ) : (
+                    filteredFeedback.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`border rounded-lg p-4 ${
+                          item.status === "unread" ? "bg-blue-50 border-blue-200" : "bg-white"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-semibold text-lg">{item.subject}</h3>
+                              <Badge variant={item.status === "unread" ? "default" : "secondary"}>{item.status}</Badge>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-gray-600">
+                              <span className="flex items-center gap-1">
+                                <User className="w-4 h-4" />
+                                {item.name}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Mail className="w-4 h-4" />
+                                {item.email}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-4 h-4" />
+                                {new Date(item.created_at).toLocaleDateString("en-GB", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                            {item.page_url && <p className="text-xs text-gray-500 mt-1">From: {item.page_url}</p>}
+                          </div>
+                        </div>
+
+                        <div className="bg-gray-50 rounded p-3 mb-3">
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{item.message}</p>
+                        </div>
+
+                        {item.attachments && item.attachments.length > 0 && (
+                          <div className="mb-3">
+                            <p className="text-sm font-medium text-gray-700 mb-2">Attachments:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {item.attachments.map((attachment: any, index: number) => (
+                                <Badge key={index} variant="outline">
+                                  {attachment.name || `Attachment ${index + 1}`}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="default" onClick={() => openResponseModal(item)}>
+                            <Mail className="w-4 h-4 mr-1" />
+                            Reply
+                          </Button>
+                          {item.status === "unread" && (
+                            <Button size="sm" variant="outline" onClick={() => markFeedbackAsRead(item.id)}>
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              Mark as Read
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => {
+                              if (confirm("Are you sure you want to delete this feedback?")) {
+                                deleteFeedback(item.id)
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                {totalFeedbackPages > 1 && (
+                  <div className="flex items-center justify-between mt-4">
+                    <p className="text-sm text-gray-600">
+                      Page {feedbackPage} of {totalFeedbackPages}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFeedbackPage((prev) => Math.max(1, prev - 1))}
+                        disabled={feedbackPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFeedbackPage((prev) => Math.min(totalFeedbackPages, prev + 1))}
+                        disabled={feedbackPage === totalFeedbackPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <TabsContent value="reports" className="space-y-6">
             <Card>

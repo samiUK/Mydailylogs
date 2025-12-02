@@ -22,7 +22,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import Link from "next/link"
 import { FeedbackBanner } from "@/components/feedback-banner"
 import { useRouter } from "next/navigation"
-import { formatUKDate, formatUKDateTime, formatRelativeTime } from "@/lib/date-formatter"
+import { formatUKDate, formatRelativeTime } from "@/lib/date-formatter"
 
 export const dynamic = "force-dynamic"
 
@@ -296,11 +296,14 @@ export default function AdminDashboard() {
   }
 
   const reportStats = useMemo(() => {
-    const total = templates.length
-    const completed = templates.filter((template) => template.is_active).length
-    const pending = total - completed
+    if (!templateAssignments) return { total: 0, completed: 0, pending: 0 }
+
+    const total = templateAssignments.filter((a) => a.is_active).length
+    const completed = templateAssignments.filter((a) => a.status === "completed" && a.is_active).length
+    const pending = templateAssignments.filter((a) => a.status !== "completed" && a.is_active).length
+
     return { total, completed, pending }
-  }, [templates])
+  }, [templateAssignments])
 
   const pendingAssignments = useMemo(() => {
     if (!templateAssignments) return []
@@ -617,31 +620,27 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      if (!user || !organizationId) return
-
       try {
         const supabase = createClient()
 
         const [templatesRes, activeTemplatesRes, teamMembersRes, assignmentsRes, adminsRes] = await Promise.all([
           supabase
             .from("checklist_templates")
-            .select("id, name, description, is_active, created_at")
+            .select("*")
             .eq("organization_id", organizationId)
-            .limit(5),
+            .order("created_at", { ascending: false }),
           supabase
             .from("checklist_templates")
-            .select("id, name, description")
+            .select("*")
             .eq("organization_id", organizationId)
             .eq("is_active", true)
-            .order("name")
-            .limit(5),
+            .order("created_at", { ascending: false }),
           supabase
             .from("profiles")
             .select("id, first_name, last_name, full_name, role")
             .eq("organization_id", organizationId)
             .neq("id", user.id)
-            .order("first_name")
-            .limit(10),
+            .order("first_name"),
           supabase
             .from("template_assignments")
             .select(`
@@ -664,7 +663,6 @@ export default function AdminDashboard() {
               )
             `)
             .eq("organization_id", organizationId)
-            .neq("status", "completed")
             .eq("is_active", true)
             .order("assigned_at", { ascending: false }),
           supabase
@@ -677,7 +675,7 @@ export default function AdminDashboard() {
         setTemplates(templatesRes.data || [])
         setActiveTemplates(activeTemplatesRes.data || [])
         setTeamMembers(teamMembersRes.data || [])
-        setTodayChecklists(assignmentsRes.data || [])
+        setTodayChecklists(assignmentsRes.data?.filter((a) => a.status !== "completed") || [])
         setAdmins(adminsRes.data || [])
         setTemplateAssignments(assignmentsRes.data || [])
 
@@ -760,7 +758,7 @@ export default function AdminDashboard() {
             <CardDescription className="text-sm sm:text-base">Report templates awaiting completion</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-4 p-2 sm:p-3 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 p-2 sm:p-3 bg-gray-50 rounded-lg">
               <div className="text-center">
                 <div className="text-xl sm:text-2xl font-bold text-blue-600">{reportStats.total}</div>
                 <div className="text-xs text-muted-foreground">Total Reports</div>
@@ -773,43 +771,6 @@ export default function AdminDashboard() {
                 <div className="text-xl sm:text-2xl font-bold text-orange-600">{reportStats.pending}</div>
                 <div className="text-xs text-muted-foreground">Pending</div>
               </div>
-            </div>
-
-            <div className="space-y-3 max-h-64 sm:max-h-48 overflow-y-auto text-left">
-              {pendingAssignments.length === 0 ? (
-                <div className="text-sm sm:text-base text-muted-foreground text-left py-4">No pending reports</div>
-              ) : (
-                pendingAssignments.slice(0, 5).map((assignment) => (
-                  <div
-                    key={assignment.id}
-                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg gap-2"
-                  >
-                    <div className="flex-1 text-left">
-                      <h5 className="text-sm sm:text-base font-medium text-foreground">
-                        {assignment.checklist_templates?.name || "Template"}
-                      </h5>
-                      <p className="text-xs sm:text-sm text-muted-foreground">
-                        Assigned to: {assignment.assigned_to_profile?.full_name || "Team Member"}
-                      </p>
-                      <p className="text-xs sm:text-sm text-muted-foreground">
-                        {assignment.checklist_templates?.specific_date
-                          ? `Due: ${formatUKDate(new Date(assignment.checklist_templates.specific_date))}`
-                          : assignment.checklist_templates?.deadline_date
-                            ? `Deadline: ${formatUKDate(new Date(assignment.checklist_templates.deadline_date))}`
-                            : `Frequency: ${assignment.checklist_templates?.frequency || "Not scheduled"}`}
-                      </p>
-                      <p className="text-xs text-blue-600">
-                        Assigned: {formatUKDateTime(new Date(assignment.assigned_at))}
-                      </p>
-                    </div>
-                    <div className="text-left sm:text-right">
-                      <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
-                        Pending
-                      </Badge>
-                    </div>
-                  </div>
-                ))
-              )}
             </div>
           </CardContent>
         </Card>

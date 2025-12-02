@@ -6,6 +6,8 @@ import { BrandingProvider } from "@/components/branding-provider"
 import { DashboardFooter } from "@/components/dashboard-footer"
 import { EmailVerificationBanner } from "@/components/email-verification-banner"
 import { PaymentFailedBanner } from "@/components/payment-failed-banner"
+import { ImpersonationBanner } from "@/components/impersonation-banner"
+import { cookies } from "next/headers"
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -75,9 +77,27 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const hasPaymentFailed = subscription?.status === "past_due" && subscription?.grace_period_ends_at
   const gracePeriodEndsAt = subscription?.grace_period_ends_at || null
 
+  const cookieStore = await cookies()
+  const impersonationActive = cookieStore.get("impersonation-active")?.value === "true"
+  const impersonationData = cookieStore.get("impersonation-data")?.value
+  let parsedImpersonationData = null
+  if (impersonationData) {
+    try {
+      parsedImpersonationData = JSON.parse(impersonationData)
+    } catch (e) {
+      console.error("[v0] Failed to parse impersonation data:", e)
+    }
+  }
+
   return (
     <BrandingProvider initialBranding={brandingData}>
       <div className="min-h-screen bg-gray-50 flex flex-col">
+        {impersonationActive && parsedImpersonationData && (
+          <ImpersonationBanner
+            userEmail={parsedImpersonationData.userEmail}
+            userRole={parsedImpersonationData.userRole}
+          />
+        )}
         <AdminNavigation user={profile} onSignOut={handleSignOut} />
         <EmailVerificationBanner userEmail={user.email || ""} isVerified={isEmailVerified} />
         {hasPaymentFailed && gracePeriodEndsAt && <PaymentFailedBanner gracePeriodEndsAt={gracePeriodEndsAt} />}

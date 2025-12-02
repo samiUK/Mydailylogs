@@ -9,8 +9,7 @@ import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
-import { Camera, FileText, Hash, CheckSquare, Check, X, Lock } from "lucide-react"
-import Link from "next/link"
+import { Camera, FileText, Hash, CheckSquare, Check, X } from "lucide-react"
 import { toast } from "react-toastify"
 
 interface ChecklistTask {
@@ -594,95 +593,68 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
           <div key={task.id} className="space-y-4 pb-8 border-b-2 border-dashed border-gray-300">
             <h3 className="text-lg font-semibold text-gray-800">{task.name}</h3>
 
-            {!hasPhotoUpload ? (
-              <Card className="border-amber-200 bg-amber-50">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <Lock className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                    <div className="space-y-2">
-                      <p className="font-medium text-amber-900">Photo Upload - Premium Feature</p>
-                      <p className="text-sm text-amber-800">
-                        Upgrade to Growth or Scale plan to upload photos with your reports. Photo uploads help document
-                        work completion with visual evidence.
-                      </p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-amber-300 text-amber-900 hover:bg-amber-100 bg-transparent"
-                        asChild
-                      >
-                        <Link href="/admin/profile/billing">Upgrade Plan</Link>
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <>
-                <div className="bg-blue-50 border-2 border-dashed border-blue-300 rounded-xl p-8 text-center hover:bg-blue-100 transition-colors">
-                  <label htmlFor={`file-upload-${task.id}`} className="cursor-pointer block">
-                    <Camera className="w-16 h-16 mx-auto text-blue-600 mb-4" />
-                    <div className="text-xl font-semibold text-blue-800 mb-2">Tap to Take Photo</div>
-                    <div className="text-sm text-blue-600">Photos auto-compressed for faster upload</div>
-                    <input
-                      id={`file-upload-${task.id}`}
-                      type="file"
-                      className="hidden"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={(e) => handleFileUpload(task.id, e.target.files)}
-                    />
-                  </label>
-                </div>
+            <div className="bg-blue-50 border-2 border-dashed border-blue-300 rounded-xl p-8 text-center hover:bg-blue-100 transition-colors">
+              <label htmlFor={`file-upload-${task.id}`} className="cursor-pointer block">
+                <Camera className="w-16 h-16 mx-auto text-blue-600 mb-4" />
+                <div className="text-xl font-semibold text-blue-800 mb-2">Tap to Take Photo</div>
+                <div className="text-sm text-blue-600">Photos auto-compressed for faster upload</div>
+                <input
+                  id={`file-upload-${task.id}`}
+                  type="file"
+                  className="hidden"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => handleFileUpload(task.id, e.target.files)}
+                />
+              </label>
+            </div>
 
-                {uploadedFiles[task.id] && uploadedFiles[task.id].length > 0 && (
-                  <div className="grid grid-cols-1 gap-4">
-                    {uploadedFiles[task.id].map((file, index) => {
-                      const photoData = localInputValues[task.id] ? JSON.parse(localInputValues[task.id])[index] : null
-                      return (
-                        <div
-                          key={index}
-                          className="relative bg-white rounded-xl shadow-lg overflow-hidden border-2 border-green-200"
-                        >
-                          {photoData?.url ? (
-                            <img
-                              src={photoData.url || "/placeholder.svg"}
-                              alt={file.name}
-                              className="w-full h-auto object-contain"
-                            />
-                          ) : (
-                            <div className="w-full h-48 bg-gray-100 flex items-center justify-center">
-                              <p className="text-gray-500">Loading...</p>
-                            </div>
-                          )}
-                          <div className="absolute top-2 right-2">
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="icon"
-                              className="rounded-full shadow-lg"
-                              onClick={() => removeFile(task.id, index)}
-                            >
-                              <X className="w-5 h-5" />
-                            </Button>
-                          </div>
-                          <div className="bg-green-50 p-3 border-t border-green-200">
-                            <p className="text-sm font-medium text-green-800 truncate">{file.name}</p>
-                          </div>
+            {uploadedFiles[task.id] && uploadedFiles[task.id].length > 0 && (
+              <div className="grid grid-cols-1 gap-4">
+                {uploadedFiles[task.id].map((file, index) => {
+                  const photoData = localInputValues[task.id] ? JSON.parse(localInputValues[task.id])[index] : null
+                  return (
+                    <div
+                      key={index}
+                      className="relative bg-white rounded-xl shadow-lg overflow-hidden border-2 border-green-200"
+                    >
+                      {photoData?.url ? (
+                        <img
+                          src={photoData.url || "/placeholder.svg"}
+                          alt={file.name}
+                          className="w-full h-auto object-contain"
+                        />
+                      ) : (
+                        <div className="w-full h-48 bg-gray-100 flex items-center justify-center">
+                          <p className="text-gray-500">Loading...</p>
                         </div>
-                      )
-                    })}
-                  </div>
-                )}
+                      )}
+                      <div className="absolute top-2 right-2">
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="rounded-full shadow-lg"
+                          onClick={() => removeFile(task.id, index)}
+                        >
+                          <X className="w-5 h-5" />
+                        </Button>
+                      </div>
+                      <div className="bg-green-50 p-3 border-t border-green-200">
+                        <p className="text-sm font-medium text-green-800 truncate">{file.name}</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
 
-                {uploadedFiles[task.id] && uploadedFiles[task.id].length > 0 && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <p className="text-sm font-semibold text-green-800 flex items-center gap-2">
-                      <Check className="w-5 h-5" />✓ {uploadedFiles[task.id].length} photo(s) uploaded
-                    </p>
-                  </div>
-                )}
-              </>
+            {uploadedFiles[task.id] && uploadedFiles[task.id].length > 0 && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <p className="text-sm font-semibold text-green-800 flex items-center gap-2">
+                  <Check className="w-5 h-5" />✓ {uploadedFiles[task.id].length} photo(s) uploaded
+                </p>
+              </div>
             )}
           </div>
         )

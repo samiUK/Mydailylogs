@@ -4,7 +4,7 @@ VALUES (
   'report-photos',
   'report-photos', 
   true,
-  5242880, -- 5MB limit (raw files, before compression)
+  153600, -- 150KB limit (provides 3x buffer above compressed 50KB photos)
   ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/heic']
 ) ON CONFLICT (id) DO NOTHING;
 

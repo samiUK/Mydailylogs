@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
-import { Camera, FileText, Hash, CheckSquare, Check, X, ImageIcon, Loader2 } from "lucide-react"
+import { Camera, FileText, Hash, CheckSquare, Check, X, Loader2 } from "lucide-react"
 import { toast } from "react-toastify"
 
 interface ChecklistTask {
@@ -629,18 +629,15 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
 
       case "photo":
         return (
-          <div key={task.id} className="space-y-4 pb-8 border-b-2 border-dashed border-gray-300">
-            <h3 className="text-lg font-semibold text-gray-800">{task.name}</h3>
-
-            <div className="grid grid-cols-2 gap-4">
-              {/* Camera Option */}
-              <div className="bg-blue-50 border-2 border-dashed border-blue-300 rounded-xl p-6 text-center hover:bg-blue-100 transition-colors">
-                <label htmlFor={`camera-upload-${task.id}`} className="cursor-pointer block">
-                  <Camera className="w-12 h-12 mx-auto text-blue-600 mb-2" />
-                  <div className="text-base font-semibold text-blue-800 mb-1">Take Photo</div>
-                  <div className="text-xs text-blue-600">Use camera</div>
+          <div key={task.id} className="space-y-4">
+            {!uploadedFiles[task.id] || uploadedFiles[task.id].length === 0 ? (
+              <div className="bg-blue-50 border-2 border-dashed border-blue-300 rounded-xl p-8 text-center">
+                <label htmlFor={`photo-upload-${task.id}`} className="cursor-pointer block">
+                  <Camera className="w-16 h-16 mx-auto text-blue-600 mb-3" />
+                  <div className="text-lg font-semibold text-blue-800 mb-2">Tap to Take Photo</div>
+                  <div className="text-sm text-blue-600">Photos auto-compressed for faster upload</div>
                   <input
-                    id={`camera-upload-${task.id}`}
+                    id={`photo-upload-${task.id}`}
                     type="file"
                     className="hidden"
                     accept="image/*"
@@ -650,34 +647,8 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
                   />
                 </label>
               </div>
-
-              {/* Gallery Option */}
-              <div className="bg-green-50 border-2 border-dashed border-green-300 rounded-xl p-6 text-center hover:bg-green-100 transition-colors">
-                <label htmlFor={`gallery-upload-${task.id}`} className="cursor-pointer block">
-                  <ImageIcon className="w-12 h-12 mx-auto text-green-600 mb-2" />
-                  <div className="text-base font-semibold text-green-800 mb-1">Choose Photo</div>
-                  <div className="text-xs text-green-600">From gallery</div>
-                  <input
-                    id={`gallery-upload-${task.id}`}
-                    type="file"
-                    className="hidden"
-                    accept="image/*"
-                    disabled={uploading[task.id]}
-                    onChange={(e) => handleFileUpload(task.id, e.target.files)}
-                  />
-                </label>
-              </div>
-            </div>
-
-            {uploading[task.id] && (
-              <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4 text-center">
-                <Loader2 className="w-8 h-8 mx-auto text-yellow-600 animate-spin mb-2" />
-                <p className="text-sm font-medium text-yellow-800">Uploading photo...</p>
-              </div>
-            )}
-
-            {uploadedFiles[task.id] && uploadedFiles[task.id].length > 0 && (
-              <div className="grid grid-cols-1 gap-4">
+            ) : (
+              <div className="space-y-4">
                 {uploadedFiles[task.id].map((file, index) => {
                   const photoData = localInputValues[task.id] ? JSON.parse(localInputValues[task.id])[index] : null
                   return (
@@ -688,7 +659,7 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
                       {photoData?.url ? (
                         <img
                           src={photoData.url || "/placeholder.svg"}
-                          alt={file.name}
+                          alt="Uploaded photo"
                           className="w-full h-auto object-contain"
                         />
                       ) : (
@@ -708,7 +679,10 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
                         </Button>
                       </div>
                       <div className="bg-green-50 p-3 border-t border-green-200">
-                        <p className="text-sm font-medium text-green-800 truncate">{file.name}</p>
+                        <p className="text-sm font-medium text-green-800 flex items-center gap-2">
+                          <Check className="w-4 h-4" />
+                          Photo uploaded successfully
+                        </p>
                       </div>
                     </div>
                   )
@@ -716,11 +690,10 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
               </div>
             )}
 
-            {uploadedFiles[task.id] && uploadedFiles[task.id].length > 0 && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <p className="text-sm font-semibold text-green-800 flex items-center gap-2">
-                  <Check className="w-5 h-5" />✓ {uploadedFiles[task.id].length} photo(s) uploaded
-                </p>
+            {uploading[task.id] && (
+              <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4 text-center">
+                <Loader2 className="w-8 h-8 mx-auto text-yellow-600 animate-spin mb-2" />
+                <p className="text-sm font-medium text-yellow-800">Uploading photo...</p>
               </div>
             )}
           </div>

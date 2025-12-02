@@ -261,13 +261,34 @@ export default function LoginPage() {
 
       console.log("[v0] Auth successful, user ID:", authData.user?.id)
 
-      const profileId = selectedProfile || availableProfiles[0]?.id
-      if (!profileId) {
-        console.error("[v0] No profile found after successful auth")
-        throw new Error("Account created but profile not found. Please contact support.")
+      let profilesToCheck = availableProfiles
+      if (profilesToCheck.length === 0 && authData.user?.id) {
+        console.log("[v0] No profiles found by email, querying by user ID...")
+        const { data: profilesByUserId, error: profileError } = await supabase
+          .from("profiles")
+          .select("id, role, organization_name, organization_id, email")
+          .eq("id", authData.user.id)
+          .limit(10)
+
+        if (profileError) {
+          console.error("[v0] Error fetching profile by user ID:", profileError)
+        } else if (profilesByUserId && profilesByUserId.length > 0) {
+          console.log("[v0] Found profiles by user ID:", profilesByUserId.length)
+          profilesToCheck = profilesByUserId
+          setAvailableProfiles(profilesByUserId)
+        }
       }
 
-      const selectedProfileData = availableProfiles.find((p) => p.id === profileId)
+      if (profilesToCheck.length === 0) {
+        console.error("[v0] No profile found after successful auth for user:", authData.user?.id)
+        throw new Error(
+          "Your account exists but no profile is set up. Please contact your organization administrator or support at support@mydaylogs.co.uk to complete your account setup.",
+        )
+      }
+
+      const profileId = selectedProfile || profilesToCheck[0]?.id
+      const selectedProfileData = profilesToCheck.find((p) => p.id === profileId)
+
       if (!selectedProfileData) {
         console.error("[v0] Selected profile data not found:", profileId)
         throw new Error("Selected profile not found. Please try again.")

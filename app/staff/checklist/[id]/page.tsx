@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
-import { Camera, FileText, Hash, CheckSquare, Check, X } from "lucide-react"
+import { Camera, FileText, Hash, CheckSquare, Check, X, ImageIcon, Loader2 } from "lucide-react"
 import { toast } from "react-toastify"
 
 interface ChecklistTask {
@@ -143,13 +143,19 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
     try {
       const file = files[0]
 
+      console.log("[v0] Starting photo upload:", { taskId, fileName: file.name, fileSize: file.size })
+
       // Compress the image first
       const compressedFile = file.type.startsWith("image/") ? await compressImage(file) : file
+
+      console.log("[v0] Image compressed:", { originalSize: file.size, compressedSize: compressedFile.size })
 
       // Generate unique file path: organizationId/profileId/taskId-timestamp.ext
       const fileExt = compressedFile.name.split(".").pop()?.toLowerCase()
       const timestamp = Date.now()
       const fileName = `${organizationId}/${profileId}/${taskId}-${timestamp}.${fileExt}`
+
+      console.log("[v0] Uploading to Supabase Storage:", fileName)
 
       // Upload to Supabase Storage
       const { error: uploadError } = await createClient()
@@ -161,6 +167,11 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
 
       if (uploadError) {
         console.error("[v0] Error uploading to storage:", uploadError)
+        toast({
+          title: "Upload Failed",
+          description: `Failed to upload photo: ${uploadError.message}`,
+          variant: "destructive",
+        })
         throw uploadError
       }
 
@@ -168,6 +179,8 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
       const {
         data: { publicUrl },
       } = createClient().storage.from("report-photos").getPublicUrl(fileName)
+
+      console.log("[v0] Photo uploaded successfully:", publicUrl)
 
       // Store URL in state for display
       setUploadedFiles((prev) => ({
@@ -177,11 +190,22 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
 
       // Store URL (not base64) in database
       const value = JSON.stringify([{ name: compressedFile.name, url: publicUrl }])
-
       setLocalInputValues((prev) => ({ ...prev, [taskId]: value }))
-      handleTaskResponse(taskId, value, false)
+
+      // Save to database immediately
+      await handleTaskResponse(taskId, value, true)
+
+      toast({
+        title: "Photo Uploaded",
+        description: "Photo uploaded and saved successfully",
+      })
     } catch (error) {
-      console.error("[v0] Error handling file upload:", error)
+      console.error("[v0] Photo upload error:", error)
+      toast({
+        title: "Upload Failed",
+        description: "Failed to upload photo. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setUploading((prev) => ({ ...prev, [taskId]: false }))
     }
@@ -608,21 +632,49 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
           <div key={task.id} className="space-y-4 pb-8 border-b-2 border-dashed border-gray-300">
             <h3 className="text-lg font-semibold text-gray-800">{task.name}</h3>
 
-            <div className="bg-blue-50 border-2 border-dashed border-blue-300 rounded-xl p-8 text-center hover:bg-blue-100 transition-colors">
-              <label htmlFor={`file-upload-${task.id}`} className="cursor-pointer block">
-                <Camera className="w-16 h-16 mx-auto text-blue-600 mb-4" />
-                <div className="text-xl font-semibold text-blue-800 mb-2">Tap to Take Photo</div>
-                <div className="text-sm text-blue-600">Photos auto-compressed for faster upload</div>
-                <input
-                  id={`file-upload-${task.id}`}
-                  type="file"
-                  className="hidden"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(e) => handleFileUpload(task.id, e.target.files)}
-                />
-              </label>
+            <div className="grid grid-cols-2 gap-4">
+              {/* Camera Option */}
+              <div className="bg-blue-50 border-2 border-dashed border-blue-300 rounded-xl p-6 text-center hover:bg-blue-100 transition-colors">
+                <label htmlFor={`camera-upload-${task.id}`} className="cursor-pointer block">
+                  <Camera className="w-12 h-12 mx-auto text-blue-600 mb-2" />
+                  <div className="text-base font-semibold text-blue-800 mb-1">Take Photo</div>
+                  <div className="text-xs text-blue-600">Use camera</div>
+                  <input
+                    id={`camera-upload-${task.id}`}
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    capture="environment"
+                    disabled={uploading[task.id]}
+                    onChange={(e) => handleFileUpload(task.id, e.target.files)}
+                  />
+                </label>
+              </div>
+
+              {/* Gallery Option */}
+              <div className="bg-green-50 border-2 border-dashed border-green-300 rounded-xl p-6 text-center hover:bg-green-100 transition-colors">
+                <label htmlFor={`gallery-upload-${task.id}`} className="cursor-pointer block">
+                  <ImageIcon className="w-12 h-12 mx-auto text-green-600 mb-2" />
+                  <div className="text-base font-semibold text-green-800 mb-1">Choose Photo</div>
+                  <div className="text-xs text-green-600">From gallery</div>
+                  <input
+                    id={`gallery-upload-${task.id}`}
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    disabled={uploading[task.id]}
+                    onChange={(e) => handleFileUpload(task.id, e.target.files)}
+                  />
+                </label>
+              </div>
             </div>
+
+            {uploading[task.id] && (
+              <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4 text-center">
+                <Loader2 className="w-8 h-8 mx-auto text-yellow-600 animate-spin mb-2" />
+                <p className="text-sm font-medium text-yellow-800">Uploading photo...</p>
+              </div>
+            )}
 
             {uploadedFiles[task.id] && uploadedFiles[task.id].length > 0 && (
               <div className="grid grid-cols-1 gap-4">
@@ -641,7 +693,7 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
                         />
                       ) : (
                         <div className="w-full h-48 bg-gray-100 flex items-center justify-center">
-                          <p className="text-gray-500">Loading...</p>
+                          <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
                         </div>
                       )}
                       <div className="absolute top-2 right-2">

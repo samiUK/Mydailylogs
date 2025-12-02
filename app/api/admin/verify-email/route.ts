@@ -38,16 +38,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to verify email" }, { status: 500 })
     }
 
-    const { error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .update({ is_email_verified: true })
-      .eq("email", userEmail)
-
-    if (profileError) {
-      console.error("[v0] Error updating profile verification status:", profileError)
-      // Continue anyway since auth was updated
-    }
-
     console.log("[v0] Email verified successfully for:", userEmail)
 
     return NextResponse.json({

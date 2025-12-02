@@ -19,6 +19,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect("/auth/login")
   }
 
+  console.log("[v0] Admin Layout - User Email:", user.email)
+  console.log("[v0] Admin Layout - Email Confirmed At:", user.email_confirmed_at)
+  console.log("[v0] Admin Layout - Is Verified:", user.email_confirmed_at !== null)
+
   const { data: profile } = await supabase
     .from("profiles")
     .select(`
@@ -29,7 +33,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       avatar_url,
       email,
       organization_name,
-      is_email_verified,
       organizations(
         organization_id,
         organization_name,
@@ -64,7 +67,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     hasCustomBranding: true,
   }
 
-  const isEmailVerified = profile.is_email_verified === true
+  const isEmailVerified = user.email_confirmed_at !== null
 
   const { data: subscription } = await supabase
     .from("subscriptions")

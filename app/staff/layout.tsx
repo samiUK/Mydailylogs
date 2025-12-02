@@ -28,7 +28,6 @@ export default async function StaffLayout({ children }: { children: React.ReactN
       avatar_url,
       email,
       organization_name,
-      is_email_verified,
       organizations(
         organization_id,
         organization_name,
@@ -60,7 +59,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
     redirect("/auth/login")
   }
 
-  const isEmailVerified = profile.is_email_verified === true
+  const isEmailVerified = user.email_confirmed_at !== null
 
   return (
     <BrandingProvider

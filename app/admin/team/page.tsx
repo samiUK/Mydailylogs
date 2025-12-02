@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
 import { Edit, User } from "lucide-react"
 import { redirect } from "next/navigation"
+import { CancelAssignmentButton } from "./cancel-assignment-button"
 
 export const dynamic = "force-dynamic"
 
@@ -26,6 +27,8 @@ interface TeamMember {
     id: string
     name: string
     frequency: string
+    schedule_type: string
+    assignment_id: string
   }>
   supervisor?: {
     id: string
@@ -37,7 +40,9 @@ interface TeamMember {
   organization_id?: string
 }
 
-function ProfileCard({ member }: { member: TeamMember }) {
+function ProfileCard({ member, organizationId }: { member: TeamMember; organizationId: string }) {
+  const recurringTemplates = member.assigned_templates?.filter((t: any) => t.schedule_type === "recurring") || []
+
   return (
     <Card className="w-64 mx-auto">
       <CardHeader className="text-center pb-4">
@@ -67,40 +72,31 @@ function ProfileCard({ member }: { member: TeamMember }) {
               <p className="text-sm font-medium">{member.position}</p>
             </div>
           )}
-          {member.assigned_templates &&
-            member.assigned_templates.filter(
-              (t: any) => t.frequency === "daily" || t.frequency === "weekly" || t.frequency === "monthly",
-            ).length > 0 && (
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">Regular Jobs</p>
-                <div className="space-y-1">
-                  {member.assigned_templates
-                    .filter(
-                      (template: any) =>
-                        template.frequency === "daily" ||
-                        template.frequency === "weekly" ||
-                        template.frequency === "monthly",
-                    )
-                    .slice(0, 2)
-                    .map((template) => (
-                      <div key={template.id} className="text-xs bg-secondary/50 rounded px-2 py-1">
-                        {template.name} ({template.frequency})
-                      </div>
-                    ))}
-                  {member.assigned_templates.filter(
-                    (t: any) => t.frequency === "daily" || t.frequency === "weekly" || t.frequency === "monthly",
-                  ).length > 2 && (
-                    <div className="text-xs text-muted-foreground">
-                      +
-                      {member.assigned_templates.filter(
-                        (t: any) => t.frequency === "daily" || t.frequency === "weekly" || t.frequency === "monthly",
-                      ).length - 2}{" "}
-                      more
-                    </div>
-                  )}
-                </div>
+          {recurringTemplates.length > 0 && (
+            <div>
+              <p className="text-sm text-muted-foreground mb-2">Regular Jobs</p>
+              <div className="space-y-1">
+                {recurringTemplates.slice(0, 2).map((template: any) => (
+                  <div
+                    key={template.assignment_id}
+                    className="flex items-center justify-between text-xs bg-secondary/50 rounded px-2 py-1"
+                  >
+                    <span className="flex-1 text-left truncate">
+                      {template.name} ({template.frequency})
+                    </span>
+                    <CancelAssignmentButton
+                      assignmentId={template.assignment_id}
+                      organizationId={organizationId}
+                      templateName={template.name}
+                    />
+                  </div>
+                ))}
+                {recurringTemplates.length > 2 && (
+                  <div className="text-xs text-muted-foreground">+{recurringTemplates.length - 2} more</div>
+                )}
               </div>
-            )}
+            </div>
+          )}
           <div className="flex gap-2 justify-center mt-4">
             <Link href={`/admin/team/edit/${member.id}`}>
               <Button variant="outline" size="sm">
@@ -115,7 +111,7 @@ function ProfileCard({ member }: { member: TeamMember }) {
   )
 }
 
-function OrganizationalChart({ members }: { members: TeamMember[] }) {
+function OrganizationalChart({ members, organizationId }: { members: TeamMember[]; organizationId: string }) {
   const admins = members.filter((member) => member.role === "admin")
 
   const getDirectReports = (supervisorId: string) => {
@@ -129,7 +125,7 @@ function OrganizationalChart({ members }: { members: TeamMember[] }) {
         <div className="flex flex-wrap justify-center gap-8">
           {admins.map((admin) => (
             <div key={admin.id} className="flex flex-col items-center">
-              <ProfileCard member={admin} />
+              <ProfileCard member={admin} organizationId={organizationId} />
 
               {(() => {
                 const directReports = getDirectReports(admin.id)
@@ -141,7 +137,7 @@ function OrganizationalChart({ members }: { members: TeamMember[] }) {
                         {directReports.map((report) => (
                           <div key={report.id} className="relative">
                             <div className="w-px h-4 bg-border mx-auto mb-2"></div>
-                            <ProfileCard member={report} />
+                            <ProfileCard member={report} organizationId={organizationId} />
                           </div>
                         ))}
                       </div>
@@ -163,7 +159,7 @@ function OrganizationalChart({ members }: { members: TeamMember[] }) {
               <h3 className="text-lg font-semibold text-foreground mb-6">Unassigned Staff</h3>
               <div className="flex flex-wrap justify-center gap-6">
                 {unassignedStaff.map((staff) => (
-                  <ProfileCard key={staff.id} member={staff} />
+                  <ProfileCard key={staff.id} member={staff} organizationId={organizationId} />
                 ))}
               </div>
             </div>
@@ -235,7 +231,7 @@ export default async function AdminTeamPage() {
       template_assignments!template_assignments_assigned_to_fkey(
         id,
         is_active,
-        checklist_templates(id, name, frequency)
+        checklist_templates(id, name, frequency, schedule_type)
       )
     `)
     .eq("organization_id", profile.organization_id)
@@ -274,7 +270,10 @@ export default async function AdminTeamPage() {
       assigned_templates:
         member.template_assignments
           ?.filter((assignment: any) => assignment.is_active && assignment.checklist_templates)
-          .map((assignment: any) => assignment.checklist_templates) || [],
+          .map((assignment: any) => ({
+            ...assignment.checklist_templates,
+            assignment_id: assignment.id,
+          })) || [],
     })) || []
 
   return (
@@ -290,7 +289,7 @@ export default async function AdminTeamPage() {
       </div>
 
       {processedMembers && processedMembers.length > 0 ? (
-        <OrganizationalChart members={processedMembers} />
+        <OrganizationalChart members={processedMembers} organizationId={profile.organization_id} />
       ) : (
         <Card>
           <CardContent className="text-center py-12">

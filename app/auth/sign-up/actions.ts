@@ -51,11 +51,11 @@ export async function createUserWithProfile(formData: {
 
     console.log("[v0] Organization created:", organizationId)
 
-    console.log("[v0] Creating auth user - hybrid approach (login allowed, verification tracked separately)")
+    console.log("[v0] Creating auth user - allows login but encourages verification")
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // Allow immediate login
+      email_confirm: true, // Allows immediate login
       user_metadata: {
         full_name: fullName,
         first_name: firstName,
@@ -73,7 +73,7 @@ export async function createUserWithProfile(formData: {
     console.log("[v0] Auth user created:", authData.user.id)
     const userId = authData.user.id
 
-    console.log("[v0] Creating profile with email verification tracking")
+    console.log("[v0] Creating profile")
     const { error: profileError } = await supabaseAdmin.from("profiles").insert({
       id: userId,
       email: email,
@@ -83,7 +83,6 @@ export async function createUserWithProfile(formData: {
       organization_name: organizationName,
       role: "admin",
       organization_id: organizationId,
-      is_email_verified: false, // Track verification separately
       created_at: new Date().toISOString(),
     })
 
@@ -115,35 +114,42 @@ export async function createUserWithProfile(formData: {
       console.log("[v0] Starter subscription created")
     }
 
-    console.log("[v0] Generating custom verification link...")
-    const verificationToken = crypto.randomUUID()
-    const verificationLink = `${process.env.NEXT_PUBLIC_SITE_URL || "https://mydaylogs.co.uk"}/auth/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`
+    console.log("[v0] Generating email verification link...")
+    const { data: verificationData, error: verificationError } = await supabaseAdmin.auth.admin.generateLink({
+      type: "signup",
+      email: email,
+      options: {
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "https://mydaylogs.co.uk"}/auth/callback`,
+      },
+    })
 
-    // Store verification token (you could create a separate table, but for now we'll send it in the email)
-    console.log("[v0] Sending verification email via Resend...")
+    if (verificationError) {
+      console.error("[v0] Failed to generate verification link:", verificationError)
+    } else if (verificationData.properties?.action_link) {
+      console.log("[v0] Verification link generated:", verificationData.properties.action_link)
 
-    const emailResult = await sendVerificationEmail(email, firstName || fullName, verificationLink)
+      // Send verification email via Resend
+      const emailResult = await sendVerificationEmail(
+        email,
+        firstName || fullName,
+        verificationData.properties.action_link,
+      )
 
-    if (emailResult.success) {
-      console.log("[v0] Verification email sent successfully via Resend")
-      console.log("[v0] Email ID:", emailResult.data?.id)
-    } else {
-      console.error("[v0] Failed to send verification email:", emailResult.error)
-      console.error("[v0] Email error details:", JSON.stringify(emailResult.error, null, 2))
-      // Don't fail the signup, user can resend later from the banner
+      if (emailResult.success) {
+        console.log("[v0] Verification email sent successfully via Resend")
+      } else {
+        console.error("[v0] Failed to send verification email:", emailResult.error)
+      }
     }
 
-    console.log("[v0] Signup completed successfully - user can login immediately")
+    console.log("[v0] Signup completed successfully")
     revalidatePath("/")
 
     return {
       success: true,
       userId,
       organizationId,
-      email,
-      password,
-      message:
-        "Account created successfully! You can login now. Please check your email to verify your account for full access.",
+      message: "Account created successfully. You can login now. Please verify your email to unlock all features.",
     }
   } catch (error: any) {
     console.error("[v0] Signup error:", error)

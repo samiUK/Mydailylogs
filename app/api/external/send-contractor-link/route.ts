@@ -1,16 +1,27 @@
 import { NextResponse } from "next/server"
 import { sendEmail } from "@/lib/email/resend"
 import { createClient } from "@/lib/supabase/server"
+import { checkCanUseContractorLinkShare } from "@/lib/subscription-limits"
 
 export async function POST(request: Request) {
   try {
     const { contractorEmail, contractorName, templateName, shareableLink, organizationId } = await request.json()
 
-    console.log("[v0] Sending contractor link email:", { contractorEmail, contractorName, templateName })
-
     if (!contractorEmail || !contractorName || !shareableLink || !organizationId) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
+
+    const contractorCheck = await checkCanUseContractorLinkShare(organizationId)
+    if (!contractorCheck.canUse) {
+      return NextResponse.json(
+        {
+          error: "Contractor link share not available",
+          message: contractorCheck.reason,
+        },
+        { status: 403 },
+      )
+    }
+    // </CHANGE>
 
     const supabase = await createClient()
 
@@ -34,7 +45,6 @@ export async function POST(request: Request) {
     const EMAIL_LIMIT = 15
 
     if ((count || 0) >= EMAIL_LIMIT) {
-      console.log("[v0] Email limit reached for organization:", organizationId)
       return NextResponse.json(
         {
           error: `Email limit reached (${EMAIL_LIMIT} per billing cycle)`,
@@ -42,7 +52,6 @@ export async function POST(request: Request) {
         { status: 429 },
       )
     }
-    // </CHANGE>
 
     const emailHtml = `
       <!DOCTYPE html>
@@ -88,7 +97,6 @@ export async function POST(request: Request) {
         </body>
       </html>
     `
-    // </CHANGE>
 
     const result = await sendEmail({
       to: contractorEmail,
@@ -109,11 +117,8 @@ export async function POST(request: Request) {
 
       if (insertError) {
         console.error("[v0] Failed to track email send:", insertError)
-        // Don't fail the request if tracking fails
       }
-      // </CHANGE>
 
-      console.log("[v0] Contractor link email sent successfully")
       return NextResponse.json({ success: true })
     } else {
       console.error("[v0] Failed to send contractor link email:", result.error)

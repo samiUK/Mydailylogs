@@ -81,13 +81,12 @@ interface UserProfile {
   avatar_url: string | null
   role: string
   created_at: string
-  organizations?: { name: string; logo_url: string | null; slug: string }
+  organizations?: { name: string; logo_url: string | null; slug: string } // Added slug
   last_sign_in_at?: string | null
   organization_id?: string
   organization_name?: string
   updated_at?: string
-  email_confirmed_at?: string | null
-  is_email_verified?: boolean // Add is_email_verified field
+  email_confirmed_at?: string | null // Added email_confirmed_at field
 }
 
 interface Subscription {
@@ -463,7 +462,6 @@ export default function MasterDashboardPage() {
             email_confirmed_at: data.email_confirmed_at,
             last_sign_in_at: data.last_sign_in_at || null,
             created_at: data.created_at || null, // Assuming created_at is available
-            is_email_verified: data.email_confirmed_at !== null, // Added from map data
           }))
 
           const tempAuthUserMap = new Map()
@@ -697,13 +695,7 @@ export default function MasterDashboardPage() {
               // Enrich profile with email_confirmed_at status from auth users
               const confirmedAt = tempAuthUserMap.get(profile.id)?.email_confirmed_at || null
               const lastSignInAt = tempAuthUserMap.get(profile.id)?.last_sign_in_at || null
-              const isVerified = tempAuthUserMap.get(profile.id)?.is_email_verified || false // Get verification status
-              const enrichedProfile = {
-                ...profile,
-                email_confirmed_at: confirmedAt,
-                last_sign_in_at: lastSignInAt,
-                is_email_verified: isVerified,
-              }
+              const enrichedProfile = { ...profile, email_confirmed_at: confirmedAt, last_sign_in_at: lastSignInAt }
 
               if (enrichedProfile.organization_id) {
                 const org = organizationMap.get(enrichedProfile.organization_id)
@@ -753,13 +745,7 @@ export default function MasterDashboardPage() {
               // Ensure allUsers also gets email_confirmed_at and last_sign_in_at
               const confirmedAt = tempAuthUserMap.get(profile.id)?.email_confirmed_at || null
               const lastSignInAt = tempAuthUserMap.get(profile.id)?.last_sign_in_at || null
-              const isVerified = tempAuthUserMap.get(profile.id)?.is_email_verified || false // Get verification status
-              return {
-                ...profile,
-                email_confirmed_at: confirmedAt,
-                last_sign_in_at: lastSignInAt,
-                is_email_verified: isVerified,
-              }
+              return { ...profile, email_confirmed_at: confirmedAt, last_sign_in_at: lastSignInAt }
             }) || [],
           )
 
@@ -769,13 +755,7 @@ export default function MasterDashboardPage() {
               profilesData?.map((profile) => {
                 const confirmedAt = tempAuthUserMap.get(profile.id)?.email_confirmed_at || null
                 const lastSignInAt = tempAuthUserMap.get(profile.id)?.last_sign_in_at || null
-                const isVerified = tempAuthUserMap.get(profile.id)?.is_email_verified || false // Get verification status
-                return {
-                  ...profile,
-                  email_confirmed_at: confirmedAt,
-                  last_sign_in_at: lastSignInAt,
-                  is_email_verified: isVerified,
-                }
+                return { ...profile, email_confirmed_at: confirmedAt, last_sign_in_at: lastSignInAt }
               }) || []
             ).length,
             superusers: superusersData?.length || 0,
@@ -791,13 +771,7 @@ export default function MasterDashboardPage() {
               // Ensure admins also get email_confirmed_at and last_sign_in_at
               const confirmedAt = tempAuthUserMap.get(profile.id)?.email_confirmed_at || null
               const lastSignInAt = tempAuthUserMap.get(profile.id)?.last_sign_in_at || null
-              const isVerified = tempAuthUserMap.get(profile.id)?.is_email_verified || false // Get verification status
-              return {
-                ...profile,
-                email_confirmed_at: confirmedAt,
-                last_sign_in_at: lastSignInAt,
-                is_email_verified: isVerified,
-              }
+              return { ...profile, email_confirmed_at: confirmedAt, last_sign_in_at: lastSignInAt }
             }) || []
           ).filter((user) => user.role === "admin")
           const staff = (
@@ -805,13 +779,7 @@ export default function MasterDashboardPage() {
               // Ensure staff also get email_confirmed_at and last_sign_in_at
               const confirmedAt = tempAuthUserMap.get(profile.id)?.email_confirmed_at || null
               const lastSignInAt = tempAuthUserMap.get(profile.id)?.last_sign_in_at || null
-              const isVerified = tempAuthUserMap.get(profile.id)?.is_email_verified || false // Get verification status
-              return {
-                ...profile,
-                email_confirmed_at: confirmedAt,
-                last_sign_in_at: lastSignInAt,
-                is_email_verified: isVerified,
-              }
+              return { ...profile, email_confirmed_at: confirmedAt, last_sign_in_at: lastSignInAt }
             }) || []
           ).filter((user) => user.role === "staff")
 
@@ -944,14 +912,13 @@ export default function MasterDashboardPage() {
     fetchCurrentUserRole()
   }, []) // Removed getCookie, localStorage, createClient as dependencies
 
-  const fetchData = () => {
-    // Renamed from fetchDashboardData for clarity and to be used in other functions
+  const fetchDashboardData = () => {
     setIsLoading(true)
     checkAuthAndLoadData().finally(() => setIsLoading(false))
   }
 
   useEffect(() => {
-    fetchData()
+    fetchDashboardData()
 
     // Cleanup function to prevent memory leaks
     return () => {
@@ -1019,7 +986,7 @@ export default function MasterDashboardPage() {
         throw new Error(result.error || "Failed to start trial")
       }
 
-      await fetchData() // Use fetchData
+      await checkAuthAndLoadData()
       showNotification("success", result.message)
     } catch (error: any) {
       console.error("Error upgrading subscription:", error)
@@ -1055,7 +1022,7 @@ export default function MasterDashboardPage() {
         throw new Error(result.error || "Failed to cancel subscription")
       }
 
-      await fetchData() // Use fetchData
+      await checkAuthAndLoadData()
       showNotification("success", result.message)
     } catch (error: any) {
       console.error("Error cancelling subscription:", error)
@@ -1088,7 +1055,7 @@ export default function MasterDashboardPage() {
         throw new Error(result.error || "Failed to downgrade")
       }
 
-      await fetchData() // Use fetchData
+      await checkAuthAndLoadData()
       showNotification("success", result.message)
     } catch (error: any) {
       console.error("Error downgrading subscription:", error)
@@ -1114,7 +1081,7 @@ export default function MasterDashboardPage() {
       if (error) throw error
 
       // Refresh data
-      await fetchData() // Use fetchData
+      checkAuthAndLoadData()
       showNotification("success", `${planName} subscription added successfully`)
       setNewSubscriptionPlan("")
     } catch (error) {
@@ -1161,80 +1128,6 @@ export default function MasterDashboardPage() {
     }
   }
 
-  const unverifyAndResendEmail = async (userEmail: string) => {
-    if (!userEmail) {
-      showNotification("error", "Please enter a user email")
-      return
-    }
-
-    try {
-      console.log("[v0] Unverifying and resending verification email for:", userEmail)
-      setIsProcessing(true)
-
-      const response = await fetch("/api/admin/unverify-and-resend", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userEmail }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        showNotification("error", `Failed to resend verification: ${errorData.error}`)
-        return
-      }
-
-      const data = await response.json()
-      showNotification("success", `Verification email sent to ${userEmail}. User must verify their email.`)
-
-      // Refresh data to show updated status
-      fetchData()
-    } catch (error) {
-      console.error("[v0] Unverify and resend error:", error)
-      showNotification("error", "Failed to resend verification email")
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const verifyUserEmail = async (userEmail: string) => {
-    if (!userEmail) {
-      showNotification("error", "Please enter a user email")
-      return
-    }
-
-    try {
-      console.log("[v0] Manually verifying email for:", userEmail)
-      setIsProcessing(true)
-
-      const response = await fetch("/api/admin/verify-email", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userEmail }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        showNotification("error", `Failed to verify email: ${errorData.error}`)
-        return
-      }
-
-      const data = await response.json()
-      showNotification("success", `Email manually verified for ${userEmail}`)
-
-      // Refresh data to show updated status
-      fetchData()
-    } catch (error) {
-      console.error("[v0] Manual verification error:", error)
-      showNotification("error", "Failed to verify email")
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
   const deleteUser = async (userId: string) => {
     if (!confirm("Are you sure you want to delete this user? This action cannot be undone.")) return
 
@@ -1252,7 +1145,7 @@ export default function MasterDashboardPage() {
       if (profileError) throw profileError
 
       // Refresh data
-      await fetchData() // Use fetchData
+      checkAuthAndLoadData()
       alert("User deleted successfully")
     } catch (error) {
       console.error("Error deleting user:", error)
@@ -1370,6 +1263,46 @@ export default function MasterDashboardPage() {
     }
   }
 
+  const verifyUserEmail = async (userEmail: string) => {
+    if (!userEmail) {
+      showNotification("error", "Please enter a user email")
+      return
+    }
+
+    try {
+      console.log("[v0] Starting email verification for:", userEmail)
+
+      const response = await fetch("/api/admin/verify-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userEmail }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        showNotification("error", `Failed to verify email: ${errorData.error}`)
+        return
+      }
+
+      const data = await response.json()
+      showNotification("success", `Email verified successfully for ${userEmail}`)
+
+      setAllUsers((prevUsers) =>
+        prevUsers.map((user) =>
+          user.email === userEmail ? { ...user, email_confirmed_at: new Date().toISOString() } : user,
+        ),
+      )
+
+      // Refresh the data to show updated verification status
+      checkAuthAndLoadData()
+    } catch (error) {
+      console.error("[v0] Email verification error:", error)
+      showNotification("error", "Failed to verify email")
+    }
+  }
+
   const handleDeleteUser = async (userId: string, userEmail: string) => {
     const confirmed = confirm(
       `⚠️ GDPR DELETION WARNING ⚠️\n\n` +
@@ -1413,7 +1346,7 @@ export default function MasterDashboardPage() {
       }
 
       // Refresh data
-      await fetchData() // Use fetchData
+      await checkAuthAndLoadData()
       showNotification("success", `User ${userEmail} and all associated data deleted successfully (GDPR compliant)`)
     } catch (error) {
       console.error("[v0] Error deleting user:", error)
@@ -1556,7 +1489,7 @@ export default function MasterDashboardPage() {
       }
 
       // Refresh superusers list
-      await fetchData() // Use fetchData
+      checkAuthAndLoadData()
       setNewSuperuserEmail("")
       setNewSuperuserPassword("")
       alert("Superuser added successfully")
@@ -1591,7 +1524,7 @@ export default function MasterDashboardPage() {
       }
 
       // Refresh superusers list
-      await fetchData() // Use fetchData
+      checkAuthAndLoadData()
       alert("Superuser removed successfully")
     } catch (error) {
       console.error("Error removing superuser:", error)
@@ -1623,7 +1556,7 @@ export default function MasterDashboardPage() {
       }
 
       // Refresh superusers list
-      await fetchData() // Use fetchData
+      checkAuthAndLoadData()
       setEditingSuperuser(null)
       setNewSuperuserPassword("")
       alert("Superuser updated successfully")
@@ -2274,7 +2207,7 @@ export default function MasterDashboardPage() {
                               </TableCell>
                               <TableCell className="px-3 py-2 text-left text-xs whitespace-nowrap">
                                 <div className="flex items-center gap-2">
-                                  {user.is_email_verified ? (
+                                  {user.email_confirmed_at ? (
                                     <Badge
                                       variant="outline"
                                       className="text-green-600 border-green-200 bg-green-50 text-xs"
@@ -2311,28 +2244,25 @@ export default function MasterDashboardPage() {
                                   <LogIn className="w-3 h-3 mr-1" />
                                   Login
                                 </Link>
-                                {user.is_email_verified ? (
+                                {user.email_confirmed_at ? (
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => unverifyAndResendEmail(user.email)}
-                                    className="text-orange-600 border-orange-200 hover:bg-orange-50 text-xs px-2 py-1"
-                                    disabled={isProcessing}
+                                    disabled
+                                    className="text-green-600 border-green-200 bg-green-50 text-xs px-2 py-1 cursor-not-allowed"
                                   >
                                     <Mail className="w-3 h-3 mr-1" />
-                                    Resend Verification
+                                    Verified
                                   </Button>
                                 ) : (
-                                  // Users can resend email from their dashboard banner, so no need here
                                   <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => verifyUserEmail(user.email)}
-                                    className="text-green-600 border-green-200 hover:bg-green-50 text-xs px-2 py-1"
-                                    disabled={isProcessing}
+                                    className="text-purple-600 border-purple-200 hover:bg-purple-50 text-xs px-2 py-1"
                                   >
-                                    <CheckCircle className="w-3 h-3 mr-1" />
-                                    Verify Manually
+                                    <Mail className="w-3 h-3 mr-1" />
+                                    Verify Email
                                   </Button>
                                 )}
                                 <Button
@@ -2406,8 +2336,23 @@ export default function MasterDashboardPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Organization Hierarchy</CardTitle>
-                <CardDescription>View all organizations with their admin and staff members</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Organization Hierarchy</CardTitle>
+                    <CardDescription>View all organizations with their admin and staff members</CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <Input
+                        placeholder="Search organizations..."
+                        value={organizationSearchTerm}
+                        onChange={(e) => setOrganizationSearchTerm(e.target.value)}
+                        className="pl-10 w-64"
+                      />
+                    </div>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
@@ -2681,7 +2626,7 @@ export default function MasterDashboardPage() {
                                                 e.target.value = admin.role // Reset the dropdown
                                               } else {
                                                 alert(data.message)
-                                                fetchData() // Use fetchData
+                                                checkAuthAndLoadData()
                                               }
                                             } catch (error) {
                                               console.error("Error changing role:", error)
@@ -2757,7 +2702,7 @@ export default function MasterDashboardPage() {
                                                 .then((data) => {
                                                   if (data.success) {
                                                     alert(data.message)
-                                                    fetchData() // Use fetchData
+                                                    checkAuthAndLoadData()
                                                   } else {
                                                     alert(data.error)
                                                   }
@@ -2853,7 +2798,7 @@ export default function MasterDashboardPage() {
                                       alert(
                                         `✓ Success!\n\n${data.message}\nReports: ${data.reportCount}\nEmails sent: ${data.emailsSent}`,
                                       )
-                                      fetchData() // Use fetchData
+                                      fetchDashboardData()
                                     } else {
                                       alert(`Error: ${data.error}`)
                                     }

@@ -72,17 +72,15 @@ export function EmailVerificationBanner({ userEmail, isVerified }: EmailVerifica
       console.log("[v0] Resend verification response:", data)
 
       if (data.success) {
-        setMessage("✓ Verification email sent! Check your inbox and spam folder.")
+        setMessage("Verification email sent! Please check your inbox.")
       } else {
-        console.error("[v0] Resend failed:", data.error)
-        setMessage(`Failed: ${data.error || "Please try again or contact support."}`)
+        setMessage(data.error || "Failed to send verification email. Please try again.")
       }
     } catch (error) {
       console.error("[v0] Resend verification error:", error)
-      setMessage("Network error. Please try again later.")
+      setMessage("An error occurred. Please try again later.")
     } finally {
       setResending(false)
-      setTimeout(() => setMessage(""), 8000)
     }
   }
 
@@ -96,15 +94,10 @@ export function EmailVerificationBanner({ userEmail, isVerified }: EmailVerifica
             <span className="text-amber-800">
               Please verify your email address <strong>({userEmail})</strong> to ensure uninterrupted access to all
               features.
-              <span className="text-xs block mt-1">Check your spam folder if you don't see the email.</span>
             </span>
           </div>
           <div className="flex items-center gap-2">
-            {message && (
-              <span className={`text-xs ${message.startsWith("✓") ? "text-green-700" : "text-amber-700"}`}>
-                {message}
-              </span>
-            )}
+            {message && <span className="text-xs text-amber-700">{message}</span>}
             <Button
               onClick={handleResendVerification}
               disabled={resending}

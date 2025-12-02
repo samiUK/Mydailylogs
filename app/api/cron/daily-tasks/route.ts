@@ -92,18 +92,21 @@ export async function GET(request: NextRequest) {
         organization_id,
         is_recurring,
         recurrence_type,
+        schedule_type,
+        multi_day_dates,
         created_at,
         template_assignments!inner(
           id,
           assigned_to,
           is_active,
+          status,
+          schedule_type,
           profiles!inner(id, organization_id)
         )
       `)
-      .eq("is_recurring", true)
+      .or(`and(is_recurring.eq.true,schedule_type.eq.recurring),schedule_type.eq.multi_day`)
       .eq("is_active", true)
       .eq("template_assignments.is_active", true)
-      .in("recurrence_type", ["daily", "weekdays", "weekly", "monthly"])
 
     if (templatesError) {
       console.error("[v0] Error fetching templates:", templatesError)
@@ -116,54 +119,111 @@ export async function GET(request: NextRequest) {
 
     for (const template of templates || []) {
       try {
-        const limits = await getSubscriptionLimits(template.organization_id)
-
-        if (!limits.hasTaskAutomation) {
-          console.log(
-            `[v0] Skipping template ${template.id} - organization ${template.organization_id} doesn't have task automation feature`,
-          )
-          skippedTasks++
-          continue
-        }
-
-        const shouldRunToday = await checkIfShouldRunToday(template, today, supabase)
-
-        if (!shouldRunToday) {
-          console.log(`[v0] Skipping template ${template.id} - not scheduled for today`)
-          continue
-        }
-
-        for (const assignment of template.template_assignments) {
-          const { data: existingChecklist } = await supabase
-            .from("daily_checklists")
-            .select("id")
-            .eq("template_id", template.id)
-            .eq("assigned_to", assignment.assigned_to)
-            .eq("date", today)
-            .single()
-
-          if (existingChecklist) {
-            console.log(
-              `[v0] Daily checklist already exists for template ${template.id}, user ${assignment.assigned_to}`,
-            )
+        if (template.schedule_type === "multi_day") {
+          // Check if today is one of the multi-day dates
+          const multiDayDates = template.multi_day_dates || []
+          if (!multiDayDates.includes(today)) {
+            console.log(`[v0] Skipping multi_day template ${template.id} - today (${today}) not in scheduled dates`)
             continue
           }
 
-          const { error: createError } = await supabase.from("daily_checklists").insert({
-            template_id: template.id,
-            assigned_to: assignment.assigned_to,
-            date: today,
-            status: "pending",
-            organization_id: assignment.profiles.organization_id,
-          })
+          console.log(`[v0] Multi-day template ${template.id} scheduled for today (${today})`)
 
-          if (createError) {
-            errors.push(
-              `Failed to create task for template ${template.id}, user ${assignment.assigned_to}: ${createError.message}`,
+          // Create tasks for all assigned staff
+          for (const assignment of template.template_assignments) {
+            const { data: existingChecklist } = await supabase
+              .from("daily_checklists")
+              .select("id")
+              .eq("template_id", template.id)
+              .eq("assigned_to", assignment.assigned_to)
+              .eq("date", today)
+              .single()
+
+            if (existingChecklist) {
+              console.log(
+                `[v0] Daily checklist already exists for multi_day template ${template.id}, user ${assignment.assigned_to}`,
+              )
+              continue
+            }
+
+            const { error: createError } = await supabase.from("daily_checklists").insert({
+              template_id: template.id,
+              assigned_to: assignment.assigned_to,
+              date: today,
+              status: "pending",
+              organization_id: assignment.profiles.organization_id,
+            })
+
+            if (createError) {
+              errors.push(
+                `Failed to create multi_day task for template ${template.id}, user ${assignment.assigned_to}: ${createError.message}`,
+              )
+            } else {
+              createdTasks++
+              console.log(
+                `[v0] Created daily checklist for multi_day template ${template.id}, user ${assignment.assigned_to}`,
+              )
+            }
+          }
+        } else if (template.schedule_type === "recurring") {
+          // Existing recurring logic
+          const limits = await getSubscriptionLimits(template.organization_id)
+
+          if (!limits.hasTaskAutomation) {
+            console.log(
+              `[v0] Skipping template ${template.id} - organization ${template.organization_id} doesn't have task automation feature`,
             )
-          } else {
-            createdTasks++
-            console.log(`[v0] Created daily checklist for template ${template.id}, user ${assignment.assigned_to}`)
+            skippedTasks++
+            continue
+          }
+
+          const shouldRunToday = await checkIfShouldRunToday(template, today, supabase)
+
+          if (!shouldRunToday) {
+            console.log(`[v0] Skipping template ${template.id} - not scheduled for today`)
+            continue
+          }
+
+          for (const assignment of template.template_assignments) {
+            // Additional safety check: only process if assignment is truly recurring
+            if (assignment.schedule_type !== "recurring") {
+              console.log(
+                `[v0] Skipping assignment ${assignment.id} - not marked as recurring (schedule_type: ${assignment.schedule_type})`,
+              )
+              continue
+            }
+
+            const { data: existingChecklist } = await supabase
+              .from("daily_checklists")
+              .select("id")
+              .eq("template_id", template.id)
+              .eq("assigned_to", assignment.assigned_to)
+              .eq("date", today)
+              .single()
+
+            if (existingChecklist) {
+              console.log(
+                `[v0] Daily checklist already exists for template ${template.id}, user ${assignment.assigned_to}`,
+              )
+              continue
+            }
+
+            const { error: createError } = await supabase.from("daily_checklists").insert({
+              template_id: template.id,
+              assigned_to: assignment.assigned_to,
+              date: today,
+              status: "pending",
+              organization_id: assignment.profiles.organization_id,
+            })
+
+            if (createError) {
+              errors.push(
+                `Failed to create task for template ${template.id}, user ${assignment.assigned_to}: ${createError.message}`,
+              )
+            } else {
+              createdTasks++
+              console.log(`[v0] Created daily checklist for template ${template.id}, user ${assignment.assigned_to}`)
+            }
           }
         }
       } catch (error) {
@@ -228,44 +288,63 @@ export async function GET(request: NextRequest) {
       yesterday.setDate(yesterday.getDate() - 1)
       const yesterdayDate = yesterday.toISOString().split("T")[0]
 
-      // Cancel specific_date assignments that are overdue (past their specific date)
-      const { data: overdueSpecificDate, error: specificDateError } = await supabase
+      // Get all active non-recurring assignments with their template data
+      const { data: activeAssignments } = await supabase
         .from("template_assignments")
-        .update({
-          is_active: false,
-          status: "cancelled",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("schedule_type", "specific_date")
+        .select(`
+          id,
+          schedule_type,
+          due_date,
+          checklist_templates!inner(
+            specific_date,
+            deadline_date,
+            schedule_type
+          )
+        `)
         .eq("is_active", true)
-        .lt("specific_date", today)
-        .select("id")
+        .neq("schedule_type", "recurring")
+        .is("completed_at", null)
 
-      if (specificDateError) {
-        console.error("[v0] Error cancelling overdue specific_date jobs:", specificDateError)
-      } else if (overdueSpecificDate) {
-        cancelledJobs += overdueSpecificDate.length
-        console.log(`[v0] Cancelled ${overdueSpecificDate.length} overdue specific_date assignments`)
-      }
+      if (activeAssignments) {
+        for (const assignment of activeAssignments) {
+          let shouldCancel = false
+          const template = assignment.checklist_templates
 
-      // Cancel deadline assignments that are overdue (past their deadline)
-      const { data: overdueDeadline, error: deadlineError } = await supabase
-        .from("template_assignments")
-        .update({
-          is_active: false,
-          status: "cancelled",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("schedule_type", "deadline")
-        .eq("is_active", true)
-        .lt("deadline_date", today)
-        .select("id")
+          // Check specific_date assignments
+          if (assignment.schedule_type === "specific_date" || template.schedule_type === "specific_date") {
+            const dateToCheck = assignment.due_date || template.specific_date
+            if (dateToCheck && dateToCheck < today) {
+              shouldCancel = true
+              console.log(`[v0] Cancelling specific_date assignment ${assignment.id} - overdue (date: ${dateToCheck})`)
+            }
+          }
 
-      if (deadlineError) {
-        console.error("[v0] Error cancelling overdue deadline jobs:", deadlineError)
-      } else if (overdueDeadline) {
-        cancelledJobs += overdueDeadline.length
-        console.log(`[v0] Cancelled ${overdueDeadline.length} overdue deadline assignments`)
+          // Check deadline assignments
+          if (assignment.schedule_type === "deadline" || template.schedule_type === "deadline") {
+            const dateToCheck = assignment.due_date || template.deadline_date
+            if (dateToCheck && dateToCheck < today) {
+              shouldCancel = true
+              console.log(`[v0] Cancelling deadline assignment ${assignment.id} - overdue (deadline: ${dateToCheck})`)
+            }
+          }
+
+          if (shouldCancel) {
+            const { error } = await supabase
+              .from("template_assignments")
+              .update({
+                is_active: false,
+                status: "cancelled",
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", assignment.id)
+
+            if (error) {
+              console.error(`[v0] Error cancelling assignment ${assignment.id}:`, error)
+            } else {
+              cancelledJobs++
+            }
+          }
+        }
       }
 
       console.log(`[v0] Auto-cancel completed. Total cancelled jobs: ${cancelledJobs}`)

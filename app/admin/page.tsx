@@ -6,6 +6,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { useState, useEffect, useMemo } from "react"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  ChevronDown,
+  Users,
+  UserCheck,
   Plus,
   UserPlus,
   AlertTriangle,
@@ -60,7 +81,6 @@ export default function AdminDashboard() {
   const [overdueCount, setOverdueCount] = useState(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [templateAssignments, setTemplateAssignments] = useState<any[]>([])
-  const [showVerificationSuccess, setShowVerificationSuccess] = useState(false)
 
   const router = useRouter()
   const organizationId = profile?.organization_id
@@ -155,7 +175,6 @@ export default function AdminDashboard() {
     if (memberIds.length === 0) return
 
     setAssigningTemplate(templateId)
-    const supabase = createClient()
 
     try {
       const response = await fetch("/api/admin/assign-template", {
@@ -168,13 +187,24 @@ export default function AdminDashboard() {
         }),
       })
 
-      if (!response.ok) throw new Error("Failed to assign template")
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to assign template")
+      }
 
       setSelectedMembers((prev) => ({ ...prev, [templateId]: [] }))
-      alert("Template assigned successfully!")
+
+      if (data.duplicateWarnings && data.duplicateWarnings.length > 0) {
+        alert(
+          `Template assigned successfully!\n\n⚠️ Note: The following team members already had active assignments:\n${data.duplicateWarnings.join("\n")}`,
+        )
+      } else {
+        alert("Template assigned successfully!")
+      }
     } catch (error) {
       console.error("Error assigning template:", error)
-      alert("Failed to assign template")
+      alert(error instanceof Error ? error.message : "Failed to assign template")
     } finally {
       setAssigningTemplate(null)
     }
@@ -184,7 +214,6 @@ export default function AdminDashboard() {
     if (memberIds.length === 0) return
 
     setAssigningTemplate(templateId)
-    const supabase = createClient()
 
     try {
       const response = await fetch("/api/admin/assign-template", {
@@ -197,13 +226,24 @@ export default function AdminDashboard() {
         }),
       })
 
-      if (!response.ok) throw new Error("Failed to assign template")
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to assign template")
+      }
 
       setSelectedMembers((prev) => ({ ...prev, [templateId]: [] }))
-      alert("Report template assigned successfully!")
+
+      if (data.duplicateWarnings && data.duplicateWarnings.length > 0) {
+        alert(
+          `Report template assigned successfully!\n\n⚠️ Note: The following team members already had active assignments:\n${data.duplicateWarnings.join("\n")}`,
+        )
+      } else {
+        alert("Report template assigned successfully!")
+      }
     } catch (error) {
       console.error("Error assigning template:", error)
-      alert("Failed to assign report template")
+      alert(error instanceof Error ? error.message : "Failed to assign report template")
     } finally {
       setAssigningTemplate(null)
     }
@@ -410,17 +450,6 @@ export default function AdminDashboard() {
 
     loadUser()
   }, [router])
-
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    if (urlParams.get("verified") === "true") {
-      setShowVerificationSuccess(true)
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname)
-      // Hide message after 5 seconds
-      setTimeout(() => setShowVerificationSuccess(false), 5000)
-    }
-  }, [])
 
   const fetchActivityLog = async () => {
     if (!organizationId) return
@@ -705,24 +734,14 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       <FeedbackBanner />
 
-      {showVerificationSuccess && (
-        <Alert className="border-green-200 bg-green-50">
-          <CheckCircle2 className="h-4 w-4 text-green-600" />
-          <AlertTitle className="text-green-800">Email Verified Successfully</AlertTitle>
-          <AlertDescription className="text-green-700">
-            Your email has been verified. You now have full access to all features.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back, {profile?.first_name || profile?.full_name || "Admin"}</p>
-        </div>
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Admin Dashboard</h1>
+        <p className="text-sm sm:text-base text-muted-foreground mt-2">
+          Manage your organization's compliance checklists and team members
+        </p>
       </div>
 
       {missedTasks.length > 0 && (
@@ -855,12 +874,176 @@ export default function AdminDashboard() {
               </Button>
             </Link>
 
-            <Link href="/admin/team">
-              <Button variant="outline" className="w-full justify-start bg-transparent h-12 text-sm sm:text-base">
-                <UserPlus className="h-4 w-4 mr-2" />
-                View Team Members
-              </Button>
-            </Link>
+            <Dialog open={showTeamModal} onOpenChange={setShowTeamModal}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="w-full justify-start bg-transparent h-12 text-sm sm:text-base">
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Add Team Member
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Add Team Member</DialogTitle>
+                  <DialogDescription>Create a new team member account with login credentials</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleCreateTeamMember} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">First Name</Label>
+                      <Input
+                        id="firstName"
+                        value={teamForm.firstName}
+                        onChange={(e) => setTeamForm({ ...teamForm, firstName: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName">Last Name</Label>
+                      <Input
+                        id="lastName"
+                        value={teamForm.lastName}
+                        onChange={(e) => setTeamForm({ ...teamForm, lastName: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="position">Position</Label>
+                    <Input
+                      id="position"
+                      placeholder="e.g. Operations Manager"
+                      value={teamForm.position}
+                      onChange={(e) => setTeamForm({ ...teamForm, position: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="user@company.com"
+                      value={teamForm.email}
+                      onChange={(e) => setTeamForm({ ...teamForm, email: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="Minimum 6 characters"
+                      value={teamForm.password}
+                      onChange={(e) => setTeamForm({ ...teamForm, password: e.target.value })}
+                      minLength={6}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="role">Role</Label>
+                    <Select
+                      value={teamForm.role}
+                      onValueChange={(value: "admin" | "staff") => setTeamForm({ ...teamForm, role: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="staff">Staff</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reportsTo">Reports To</Label>
+                    <Select
+                      value={teamForm.reportsTo}
+                      onValueChange={(value) => setTeamForm({ ...teamForm, reportsTo: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select supervisor (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No supervisor</SelectItem>
+                        {admins.map((admin) => (
+                          <SelectItem key={admin.id} value={admin.id}>
+                            {admin.full_name || `${admin.first_name} ${admin.last_name}` || admin.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex gap-2 pt-4">
+                    <Button type="submit" disabled={isCreatingTeamMember} className="flex-1">
+                      {isCreatingTeamMember ? "Creating..." : "Create Member"}
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => setShowTeamModal(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+
+            {activeTemplates.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No active templates available</p>
+            ) : (
+              activeTemplates.map((template) => (
+                <div key={template.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex-1">
+                    <h5 className="text-sm font-medium text-foreground">{template.name}</h5>
+                    {template.description && (
+                      <p className="text-xs text-muted-foreground mt-1">{template.description}</p>
+                    )}
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" disabled={assigningTemplate === template.id}>
+                        {assigningTemplate === template.id ? "Assigning..." : "Assign"}
+                        <ChevronDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem onClick={() => selectAllMembers(template.id)}>
+                        <Users className="mr-2 h-4 w-4" />
+                        Select All ({teamMembers.length})
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => clearSelection(template.id)}>Clear Selection</DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      {teamMembers.map((member) => (
+                        <DropdownMenuItem
+                          key={member.id}
+                          onSelect={(e) => e.preventDefault()}
+                          onClick={() => toggleMember(template.id, member.id)}
+                        >
+                          <div className="flex items-center w-full">
+                            <input
+                              type="checkbox"
+                              checked={(selectedMembers[template.id] || []).includes(member.id)}
+                              onChange={() => {}}
+                              className="mr-2"
+                            />
+                            <span className="flex-1">
+                              {member.full_name || `${member.first_name} ${member.last_name}`}
+                            </span>
+                            <span className="text-xs text-muted-foreground ml-2">{member.role}</span>
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => handleAssign(template.id, selectedMembers[template.id] || [])}
+                        disabled={(selectedMembers[template.id] || []).length === 0}
+                      >
+                        <UserCheck className="mr-2 h-4 w-4" />
+                        Assign to {(selectedMembers[template.id] || []).length} member(s)
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
 

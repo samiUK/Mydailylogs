@@ -296,15 +296,11 @@ export default function AddTeamMemberPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="staff">Staff</SelectItem>
-                  {subscriptionLimits && subscriptionLimits.planName !== "Starter" && (
-                    <SelectItem value="manager">Manager</SelectItem>
-                  )}
+                  <SelectItem value="manager">Manager</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {subscriptionLimits?.planName === "Starter"
-                  ? "Starter plan includes 1 admin only. Upgrade to Growth or Scale to add managers."
-                  : "Managers have full admin access. Only the organization owner can be an Admin."}
+                Managers have full admin access. Only the organization owner can be an Admin.
               </p>
             </div>
 

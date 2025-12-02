@@ -11,7 +11,6 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
 import { ArrowLeft, Check } from "lucide-react"
 import { createUserWithProfile } from "./actions"
-import { createClient } from "@/lib/supabase/client"
 
 export default function SignUpPage() {
   const [email, setEmail] = useState("")
@@ -60,32 +59,16 @@ export default function SignUpPage() {
       console.log("[v0] Server action result:", result)
 
       if (result.success) {
-        console.log("[v0] Auto-logging in user...")
-        const supabase = createClient()
-        const { error: loginError } = await supabase.auth.signInWithPassword({
-          email: result.email!,
-          password: result.password!,
-        })
-
-        if (loginError) {
-          console.error("[v0] Auto-login failed:", loginError)
-          setError("Account created but login failed. Please login manually.")
-          setTimeout(() => router.push("/auth/login"), 2000)
-          return
-        }
-
-        console.log("[v0] Auto-login successful, redirecting to dashboard...")
-
         if (planFromUrl) {
-          setSuccess(`Account created! Redirecting to ${planFromUrl} plan checkout...`)
+          setSuccess(`Account created successfully! Redirecting to ${planFromUrl} plan checkout...`)
           setTimeout(() => {
-            router.push(`/admin/profile/billing?plan=${planFromUrl}`)
-          }, 1500)
+            router.push(`/auth/login?redirect=/admin/profile/billing&plan=${planFromUrl}`)
+          }, 2000)
         } else {
-          setSuccess("Account created! Redirecting to your dashboard...")
+          setSuccess(result.message || "Account created successfully! Redirecting to login...")
           setTimeout(() => {
-            router.push("/admin")
-          }, 1500)
+            router.push("/auth/login")
+          }, 2000)
         }
       } else {
         setError(result.error || "Failed to create account")

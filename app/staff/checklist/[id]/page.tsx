@@ -143,19 +143,13 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
     try {
       const file = files[0]
 
-      console.log("[v0] Starting photo upload:", { taskId, fileName: file.name, fileSize: file.size })
-
       // Compress the image first
       const compressedFile = file.type.startsWith("image/") ? await compressImage(file) : file
-
-      console.log("[v0] Image compressed:", { originalSize: file.size, compressedSize: compressedFile.size })
 
       // Generate unique file path: organizationId/profileId/taskId-timestamp.ext
       const fileExt = compressedFile.name.split(".").pop()?.toLowerCase()
       const timestamp = Date.now()
       const fileName = `${organizationId}/${profileId}/${taskId}-${timestamp}.${fileExt}`
-
-      console.log("[v0] Uploading to Supabase Storage:", fileName)
 
       // Upload to Supabase Storage
       const { error: uploadError } = await createClient()
@@ -166,21 +160,19 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
         })
 
       if (uploadError) {
-        console.error("[v0] Error uploading to storage:", uploadError)
         toast({
           title: "Upload Failed",
           description: `Failed to upload photo: ${uploadError.message}`,
           variant: "destructive",
         })
-        throw uploadError
+        setUploading((prev) => ({ ...prev, [taskId]: false }))
+        return
       }
 
       // Get public URL
       const {
         data: { publicUrl },
       } = createClient().storage.from("report-photos").getPublicUrl(fileName)
-
-      console.log("[v0] Photo uploaded successfully:", publicUrl)
 
       // Store URL in state for display
       setUploadedFiles((prev) => ({
@@ -200,10 +192,10 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
         description: "Photo uploaded and saved successfully",
       })
     } catch (error) {
-      console.error("[v0] Photo upload error:", error)
+      console.error("Error uploading photo:", error)
       toast({
-        title: "Upload Failed",
-        description: "Failed to upload photo. Please try again.",
+        title: "Upload Error",
+        description: "An unexpected error occurred",
         variant: "destructive",
       })
     } finally {
@@ -641,7 +633,6 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
                     type="file"
                     className="hidden"
                     accept="image/*"
-                    capture="environment"
                     disabled={uploading[task.id]}
                     onChange={(e) => handleFileUpload(task.id, e.target.files)}
                   />

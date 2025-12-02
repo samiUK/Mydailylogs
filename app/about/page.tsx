@@ -31,9 +31,6 @@ export default function AboutPage() {
             <Link href="/">
               <Button variant="ghost">Home</Button>
             </Link>
-            <Link href="/contact">
-              <Button variant="ghost">Contact</Button>
-            </Link>
             <Link href="/auth/login">
               <Button>Sign In</Button>
             </Link>

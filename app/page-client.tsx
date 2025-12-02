@@ -283,7 +283,8 @@ export default function HomePageClient() {
                 <CardTitle>Digital Checklists</CardTitle>
                 <CardDescription>
                   Create custom task templates for your team. Complete them on any device - mobile, tablet, or desktop.
-                  Track completion status in real-time with photo evidence and timestamps for compliance documentation.
+                  Track completion status in real-time with photo evidence, digital signatures, and timestamps for
+                  compliance documentation.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -295,9 +296,9 @@ export default function HomePageClient() {
                 </div>
                 <CardTitle>Professional Reporting</CardTitle>
                 <CardDescription>
-                  Generate branded reports with your company logo. Complete task history, photos, and timestamps
-                  submitted from anywhere - perfect for audit-ready compliance records and professional client
-                  documentation.
+                  Generate professional reports with your business branding, company logo, complete task history,
+                  photos, and timestamps. Perfect for audit-ready compliance records, documentation, and professional
+                  client reporting needs.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -310,7 +311,8 @@ export default function HomePageClient() {
                 <CardTitle>Team Management</CardTitle>
                 <CardDescription>
                   Manage your entire team from one dashboard. Assign tasks to staff, track progress in real-time, and
-                  monitor completion rates across all team members, locations, and departments - office or field-based.
+                  monitor completion rates across all team members, locations, and departments - whether office-based or
+                  in the field.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -323,8 +325,8 @@ export default function HomePageClient() {
                 <CardTitle>Smart Automation</CardTitle>
                 <CardDescription>
                   Set up recurring tasks (daily/weekly/monthly) or schedule for specific dates. Automatic email
-                  reminders ensure your team never misses critical compliance checks, safety inspections, or operational
-                  tasks.
+                  reminders and notifications ensure your team never misses critical compliance checks, safety
+                  inspections, or operational tasks.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -443,7 +445,7 @@ export default function HomePageClient() {
                   </Button>
                 </Link>
               </div>
-              <div className="bg-muted/30 p-8 lg:p-12 flex items-center justify-center">
+              <div className="bg-muted/30 flex items-center justify-center p-8">
                 <div className="w-full max-w-md">
                   <div className="bg-background rounded-lg shadow-2xl border-2 border-border overflow-hidden transform hover:scale-105 transition-transform duration-300">
                     <img
@@ -460,59 +462,7 @@ export default function HomePageClient() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <Card className="border-border/50 bg-card hover:shadow-lg transition-shadow duration-300">
-              <CardHeader>
-                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
-                  <CheckSquare className="w-6 h-6 text-accent" />
-                </div>
-                <CardTitle>Digital Task Checklists</CardTitle>
-                <CardDescription>
-                  Create custom task templates and assign them to your team. Track completion status in real-time with
-                  photo evidence and digital signatures.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-border/50 bg-card hover:shadow-lg transition-shadow duration-300">
-              <CardHeader>
-                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
-                  <FileText className="w-6 h-6 text-accent" />
-                </div>
-                <CardTitle>Professional Reporting</CardTitle>
-                <CardDescription>
-                  Generate professional reports with your business branding, complete task history, and timestamps.
-                  Perfect for documentation, record-keeping, and business reporting needs.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-border/50 bg-card hover:shadow-lg transition-shadow duration-300">
-              <CardHeader>
-                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
-                  <Users className="w-6 h-6 text-accent" />
-                </div>
-                <CardTitle>Multi-User Management</CardTitle>
-                <CardDescription>
-                  Manage your entire team from one dashboard. Assign tasks, track progress, and monitor completion rates
-                  across all team members and departments.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-border/50 bg-card hover:shadow-lg transition-shadow duration-300">
-              <CardHeader>
-                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
-                  <Calendar className="w-6 h-6 text-accent" />
-                </div>
-                <CardTitle>Smart Scheduling & Reminders</CardTitle>
-                <CardDescription>
-                  Set up recurring tasks with customizable schedules. Automatic email reminders ensure nothing falls
-                  through the cracks - perfect for regular compliance checks.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </div>
+          {/* Removed duplicate feature cards section */}
         </div>
       </section>
 

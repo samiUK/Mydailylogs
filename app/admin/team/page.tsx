@@ -1,15 +1,14 @@
 "use client"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
 import { Edit, User, X } from "lucide-react"
-import { redirect } from "next/navigation"
-
-export const dynamic = "force-dynamic"
+import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 
 console.log("[v0] Admin Team page - File loaded and parsing")
 
@@ -201,83 +200,119 @@ function OrganizationalChart({
   )
 }
 
-export default async function AdminTeamPage() {
-  console.log("[v0] Admin Team page - Component function called")
+export default function AdminTeamPage() {
+  const router = useRouter()
+  const [members, setMembers] = useState<TeamMember[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const supabase = await createClient()
+  useEffect(() => {
+    async function loadTeamData() {
+      try {
+        const supabase = createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
 
-  console.log("[v0] Admin Team page - User ID:", user?.id)
+        if (!user) {
+          router.push("/auth/login")
+          return
+        }
 
-  if (!user) {
-    console.log("[v0] Admin Team page - No user found, redirecting to login")
-    redirect("/auth/login")
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("organization_id")
+          .eq("id", user.id)
+          .single()
+
+        if (profileError || !profile?.organization_id) {
+          setError("User profile not found")
+          setLoading(false)
+          return
+        }
+
+        const { data: membersData, error: membersError } = await supabase
+          .from("profiles")
+          .select(`
+            *,
+            supervisor:reports_to(id, first_name, last_name, full_name, email),
+            template_assignments!template_assignments_assigned_to_fkey(
+              id,
+              is_active,
+              checklist_templates(id, name, frequency)
+            )
+          `)
+          .eq("organization_id", profile.organization_id)
+          .order("role", { ascending: false })
+          .order("created_at", { ascending: false })
+
+        if (membersError) {
+          setError(membersError.message)
+          setLoading(false)
+          return
+        }
+
+        const processedMembers =
+          membersData?.map((member) => ({
+            ...member,
+            assigned_templates:
+              member.template_assignments
+                ?.filter((assignment: any) => assignment.is_active && assignment.checklist_templates)
+                .map((assignment: any) => ({
+                  ...assignment.checklist_templates,
+                  assignmentId: assignment.id,
+                })) || [],
+          })) || []
+
+        setMembers(processedMembers)
+        setLoading(false)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred")
+        setLoading(false)
+      }
+    }
+
+    loadTeamData()
+  }, [router])
+
+  const handleCancelAssignment = async (assignmentId: string, templateName: string) => {
+    if (confirm(`Are you sure you want to cancel "${templateName}"? This will stop all future auto-assignments.`)) {
+      const response = await fetch("/api/admin/cancel-assignment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignmentId }),
+      })
+
+      if (response.ok) {
+        // Reload the page to reflect changes
+        window.location.reload()
+      } else {
+        alert("Failed to cancel assignment")
+      }
+    }
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("organization_id")
-    .eq("id", user.id)
-    .single()
-
-  console.log("[v0] Admin Team page - Profile query error:", profileError)
-
-  if (profileError || !profile?.organization_id) {
-    console.log("[v0] Admin Team page - Profile not found or no organization")
+  if (loading) {
     return (
       <div className="space-y-8">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Team Management</h1>
-            <p className="text-red-600 mt-2">Error: User profile not found</p>
+            <p className="text-muted-foreground mt-2">Loading...</p>
           </div>
         </div>
-        <Card>
-          <CardContent className="text-center py-12">
-            <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">Unable to Load Team</h3>
-            <p className="text-muted-foreground mb-4">
-              Your user profile could not be found. Please try logging in again.
-            </p>
-            <Link href="/auth/login">
-              <Button>Go to Login</Button>
-            </Link>
-          </CardContent>
-        </Card>
       </div>
     )
   }
 
-  console.log("[v0] Admin Team page - Profile found, organization_id:", profile.organization_id)
-
-  const { data: members, error: membersError } = await supabase
-    .from("profiles")
-    .select(`
-      *,
-      supervisor:reports_to(id, first_name, last_name, full_name, email),
-      template_assignments!template_assignments_assigned_to_fkey(
-        id,
-        is_active,
-        checklist_templates(id, name, frequency)
-      )
-    `)
-    .eq("organization_id", profile.organization_id)
-    .order("role", { ascending: false })
-    .order("created_at", { ascending: false })
-
-  console.log("[v0] Admin Team page - Members query error:", membersError)
-  console.log("[v0] Admin Team page - Members found:", members?.length || 0)
-
-  if (membersError) {
+  if (error) {
     return (
       <div className="space-y-8">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Team Management</h1>
-            <p className="text-red-600 mt-2">Error: {membersError.message}</p>
+            <p className="text-red-600 mt-2">Error: {error}</p>
           </div>
         </div>
         <Card>
@@ -294,18 +329,6 @@ export default async function AdminTeamPage() {
     )
   }
 
-  const processedMembers =
-    members?.map((member) => ({
-      ...member,
-      assigned_templates:
-        member.template_assignments
-          ?.filter((assignment: any) => assignment.is_active && assignment.checklist_templates)
-          .map((assignment: any) => ({
-            ...assignment.checklist_templates,
-            assignmentId: assignment.id,
-          })) || [],
-    })) || []
-
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
@@ -318,27 +341,8 @@ export default async function AdminTeamPage() {
         </Link>
       </div>
 
-      {processedMembers && processedMembers.length > 0 ? (
-        <OrganizationalChart
-          members={processedMembers}
-          onCancelAssignment={async (assignmentId: string, templateName: string) => {
-            if (
-              confirm(`Are you sure you want to cancel "${templateName}"? This will stop all future auto-assignments.`)
-            ) {
-              const response = await fetch("/api/admin/cancel-assignment", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ assignmentId }),
-              })
-
-              if (response.ok) {
-                window.location.reload()
-              } else {
-                alert("Failed to cancel assignment")
-              }
-            }
-          }}
-        />
+      {members && members.length > 0 ? (
+        <OrganizationalChart members={members} onCancelAssignment={handleCancelAssignment} />
       ) : (
         <Card>
           <CardContent className="text-center py-12">

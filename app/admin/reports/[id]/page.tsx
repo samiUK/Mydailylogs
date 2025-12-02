@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { createClient } from "@/lib/supabase/server"
-import { redirect, notFound } from 'next/navigation'
+import { redirect, notFound } from "next/navigation"
 import { ReportViewClient } from "./report-view-client"
 
 interface ReportViewPageProps {
@@ -93,13 +93,23 @@ export default async function ReportViewPage({ params, searchParams }: ReportVie
   const { data: responses, error: responsesError } = await supabase
     .from("checklist_responses")
     .select("*")
-    .eq("checklist_id", submission.template_id)
+    .eq(isDaily ? "daily_checklist_id" : "assignment_id", submission.id)
 
-  console.log("[v0] ReportViewPage - Responses query result:", { responses, responsesError })
+  console.log(
+    "[v0] ReportViewPage - Loading responses for",
+    isDaily ? "daily_checklist_id" : "assignment_id",
+    ":",
+    submission.id,
+  )
+  console.log("[v0] ReportViewPage - Responses loaded:", responses?.length || 0, "records")
+
+  if (responsesError) {
+    console.error("[v0] ReportViewPage - Error loading responses:", responsesError)
+  }
 
   const reportResponses = responses || []
 
-  console.log("[v0] ReportViewPage - Passing data to client component")
+  console.log("[v0] ReportViewPage - Passing", reportResponses.length, "responses to client component")
 
   return <ReportViewClient submission={submission} responses={reportResponses} autoDownload={autoDownload} />
 }

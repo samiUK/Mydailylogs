@@ -14,6 +14,7 @@ export default function StaffDashboard() {
   const [user, setUser] = useState<any>(null)
   const [profile, setProfile] = useState<any>(null)
   const [assignedTemplates, setAssignedTemplates] = useState<any[]>([])
+  const [dailyChecklists, setDailyChecklists] = useState<any[]>([])
   const [notifications, setNotifications] = useState<any[]>([])
   const [completedReports, setCompletedReports] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -24,7 +25,6 @@ export default function StaffDashboard() {
     try {
       const supabase = createClient()
 
-      // Update the notification in the database to mark as read
       const { error } = await supabase.from("notifications").update({ is_read: true }).eq("id", notificationId)
 
       if (error) {
@@ -32,7 +32,6 @@ export default function StaffDashboard() {
         return
       }
 
-      // Remove from local state after successful database update
       setNotifications((prev) => prev.filter((n) => n.id !== notificationId))
     } catch (error) {
       console.error("Error updating notification:", error)
@@ -77,11 +76,11 @@ export default function StaffDashboard() {
             setProfile(profile)
             setLoading(false)
 
-            // Continue loading data with impersonated user
-            const [assignedTemplatesData, completedReportsData, notificationsData] = await Promise.all([
-              supabase
-                .from("template_assignments")
-                .select(`
+            const [assignedTemplatesData, dailyChecklistsData, completedReportsData, notificationsData] =
+              await Promise.all([
+                supabase
+                  .from("template_assignments")
+                  .select(`
                   *,
                   checklist_templates:template_id(
                     id,
@@ -94,13 +93,27 @@ export default function StaffDashboard() {
                     schedule_time
                   )
                 `)
-                .eq("assigned_to", profile.id)
-                .eq("is_active", true)
-                .order("assigned_at", { ascending: false })
-                .limit(20),
-              supabase
-                .from("template_assignments")
-                .select(`
+                  .eq("assigned_to", profile.id)
+                  .eq("is_active", true)
+                  .order("assigned_at", { ascending: false })
+                  .limit(20),
+                supabase
+                  .from("daily_checklists")
+                  .select(`
+                  *,
+                  checklist_templates:template_id(
+                    id,
+                    name,
+                    description
+                  )
+                `)
+                  .eq("assigned_to", profile.id)
+                  .in("status", ["pending", "overdue"])
+                  .order("date", { ascending: true })
+                  .limit(30),
+                supabase
+                  .from("template_assignments")
+                  .select(`
                   *,
                   checklist_templates:template_id(
                     id,
@@ -112,22 +125,23 @@ export default function StaffDashboard() {
                     email
                   )
                 `)
-                .eq("assigned_to", profile.id)
-                .eq("status", "completed")
-                .not("completed_at", "is", null)
-                .order("completed_at", { ascending: false })
-                .limit(5),
-              supabase
-                .from("notifications")
-                .select("*")
-                .eq("user_id", profile.id)
-                .eq("is_read", false)
-                .eq("type", "missed_task")
-                .order("created_at", { ascending: false })
-                .limit(10),
-            ])
+                  .eq("assigned_to", profile.id)
+                  .eq("status", "completed")
+                  .not("completed_at", "is", null)
+                  .order("completed_at", { ascending: false })
+                  .limit(5),
+                supabase
+                  .from("notifications")
+                  .select("*")
+                  .eq("user_id", profile.id)
+                  .eq("is_read", false)
+                  .eq("type", "missed_task")
+                  .order("created_at", { ascending: false })
+                  .limit(10),
+              ])
 
             setAssignedTemplates(assignedTemplatesData.data || [])
+            setDailyChecklists(dailyChecklistsData.data || [])
             setCompletedReports(completedReportsData.data || [])
             setNotifications(notificationsData.data || [])
             return
@@ -160,10 +174,11 @@ export default function StaffDashboard() {
         setUser({ email: user.email, id: user.id })
         setProfile(profile)
 
-        const [assignedTemplatesData, completedReportsData, notificationsData] = await Promise.all([
-          supabase
-            .from("template_assignments")
-            .select(`
+        const [assignedTemplatesData, dailyChecklistsData, completedReportsData, notificationsData] = await Promise.all(
+          [
+            supabase
+              .from("template_assignments")
+              .select(`
               *,
               checklist_templates:template_id(
                 id,
@@ -176,13 +191,27 @@ export default function StaffDashboard() {
                 schedule_time
               )
             `)
-            .eq("assigned_to", user.id)
-            .eq("is_active", true)
-            .order("assigned_at", { ascending: false })
-            .limit(20),
-          supabase
-            .from("template_assignments")
-            .select(`
+              .eq("assigned_to", user.id)
+              .eq("is_active", true)
+              .order("assigned_at", { ascending: false })
+              .limit(20),
+            supabase
+              .from("daily_checklists")
+              .select(`
+              *,
+              checklist_templates:template_id(
+                id,
+                name,
+                description
+              )
+            `)
+              .eq("assigned_to", user.id)
+              .in("status", ["pending", "overdue"])
+              .order("date", { ascending: true })
+              .limit(30),
+            supabase
+              .from("template_assignments")
+              .select(`
               *,
               checklist_templates:template_id(
                 id,
@@ -194,22 +223,24 @@ export default function StaffDashboard() {
                 email
               )
             `)
-            .eq("assigned_to", user.id)
-            .eq("status", "completed")
-            .not("completed_at", "is", null)
-            .order("completed_at", { ascending: false })
-            .limit(5),
-          supabase
-            .from("notifications")
-            .select("*")
-            .eq("user_id", user.id)
-            .eq("is_read", false)
-            .eq("type", "missed_task")
-            .order("created_at", { ascending: false })
-            .limit(10),
-        ])
+              .eq("assigned_to", user.id)
+              .eq("status", "completed")
+              .not("completed_at", "is", null)
+              .order("completed_at", { ascending: false })
+              .limit(5),
+            supabase
+              .from("notifications")
+              .select("*")
+              .eq("user_id", user.id)
+              .eq("is_read", false)
+              .eq("type", "missed_task")
+              .order("created_at", { ascending: false })
+              .limit(10),
+          ],
+        )
 
         setAssignedTemplates(assignedTemplatesData.data || [])
+        setDailyChecklists(dailyChecklistsData.data || [])
         setCompletedReports(completedReportsData.data || [])
         setNotifications(notificationsData.data || [])
       } catch (error) {
@@ -236,8 +267,10 @@ export default function StaffDashboard() {
   if (!user) return null
 
   const today = new Date()
-  const todayString = today.toDateString()
-  console.log("Today's date string:", todayString)
+  const todayString = today.toISOString().split("T")[0]
+
+  const overdueDailyTasks = dailyChecklists.filter((dc) => dc.status === "overdue")
+  const todayDailyTasks = dailyChecklists.filter((dc) => dc.status === "pending" && dc.date === todayString)
 
   const upcomingReports: any[] = []
   const regularReports: any[] = []
@@ -246,7 +279,7 @@ export default function StaffDashboard() {
     const template = assignment.checklist_templates
     if (!template) return
 
-    if (assignment.completed_at && new Date(assignment.completed_at).toDateString() === todayString) {
+    if (assignment.completed_at && new Date(assignment.completed_at).toDateString() === today.toDateString()) {
       return
     }
 
@@ -274,7 +307,6 @@ export default function StaffDashboard() {
       template.deadline_date ||
       template.specific_date
     ) {
-      // These are one-off reports with specific deadlines
       upcomingReports.push({ ...assignment, dueDate, template })
     } else if (
       template.schedule_type === "daily" ||
@@ -284,10 +316,8 @@ export default function StaffDashboard() {
       template.frequency === "weekly" ||
       template.frequency === "monthly"
     ) {
-      // These are recurring regular reports
       regularReports.push({ ...assignment, dueDate, template })
     } else {
-      // Default to regular reports for any other cases
       regularReports.push({ ...assignment, dueDate, template })
     }
   })
@@ -308,12 +338,12 @@ export default function StaffDashboard() {
 
   const totalAssigned = assignedTemplates?.length || 0
   const completedTemplates = assignedTemplates?.filter((a) => a.status === "completed").length || 0
-  const activeTemplates = upcomingReports.length + regularReports.length
+  const activeTemplates = upcomingReports.length + regularReports.length + todayDailyTasks.length
 
   const completedToday =
     assignedTemplates?.filter((a) => {
       if (!a.completed_at) return false
-      return new Date(a.completed_at).toDateString() === todayString
+      return new Date(a.completed_at).toDateString() === today.toDateString()
     }).length || 0
 
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
@@ -322,15 +352,6 @@ export default function StaffDashboard() {
       if (!a.completed_at) return false
       return new Date(a.completed_at) >= weekAgo
     }).length || 0
-
-  console.log("Dashboard stats:", {
-    totalAssigned,
-    completedTemplates,
-    activeTemplates,
-    completedToday,
-    upcomingReports: upcomingReports.length,
-    regularReports: regularReports.length,
-  })
 
   return (
     <div className="space-y-8">
@@ -397,6 +418,104 @@ export default function StaffDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {overdueDailyTasks.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold text-red-600 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" />
+            Overdue Tasks ({overdueDailyTasks.length})
+          </h2>
+          <p className="text-sm text-red-600">
+            These daily tasks were not completed on time and need immediate attention.
+          </p>
+          <div className="space-y-4">
+            {overdueDailyTasks.map((task) => {
+              const taskDate = new Date(task.date)
+              const daysOverdue = Math.floor((today.getTime() - taskDate.getTime()) / (1000 * 60 * 60 * 24))
+
+              return (
+                <Card key={task.id} className="border-red-300 bg-red-50">
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-lg text-red-900">{task.checklist_templates?.name}</CardTitle>
+                        <CardDescription className="mt-1 text-red-700">
+                          {task.checklist_templates?.description}
+                        </CardDescription>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge variant="destructive" className="text-xs">
+                            Daily Task
+                          </Badge>
+                          <span className="text-xs font-medium text-red-700">Due: {taskDate.toLocaleDateString()}</span>
+                          <span className="text-xs text-red-600 font-semibold">
+                            {daysOverdue} day{daysOverdue > 1 ? "s" : ""} overdue
+                          </span>
+                        </div>
+                      </div>
+                      <Badge variant="destructive">Overdue</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex justify-between items-center">
+                      <div className="text-sm text-red-700">
+                        <p>Status: Requires immediate action</p>
+                      </div>
+                      <Link href={`/staff/checklist/${task.template_id}?daily_id=${task.id}`}>
+                        <Button size="sm" variant="destructive">
+                          Complete Now
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {todayDailyTasks.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Today's Tasks ({todayDailyTasks.length})
+          </h2>
+          <p className="text-sm text-muted-foreground">Daily tasks that need to be completed today</p>
+          <div className="space-y-4">
+            {todayDailyTasks.map((task) => (
+              <Card key={task.id} className="border-blue-200 bg-blue-50">
+                <CardHeader className="pb-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="text-lg">{task.checklist_templates?.name}</CardTitle>
+                      <CardDescription className="mt-1">{task.checklist_templates?.description}</CardDescription>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Badge variant="outline" className="text-xs bg-white">
+                          Daily
+                        </Badge>
+                        <span className="text-xs text-blue-700 font-medium">Due: Today</span>
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                      Pending
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex justify-between items-center">
+                    <div className="text-sm text-muted-foreground">
+                      <p>Status: Ready to start</p>
+                    </div>
+                    <Link href={`/staff/checklist/${task.template_id}?daily_id=${task.id}`}>
+                      <Button size="sm">Start Log</Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       {upcomingReports.length > 0 && (
         <div className="space-y-4">
@@ -509,22 +628,25 @@ export default function StaffDashboard() {
         </div>
       )}
 
-      {upcomingReports.length === 0 && regularReports.length === 0 && (
-        <Card>
-          <CardContent className="text-center py-12">
-            <h3 className="text-lg font-semibold text-foreground mb-2">
-              {assignedTemplates && assignedTemplates.length > 0
-                ? "All logs completed for today! Great job!"
-                : "No logs assigned"}
-            </h3>
-            <p className="text-muted-foreground">
-              {assignedTemplates && assignedTemplates.length > 0
-                ? "Your assigned logs will reappear tomorrow for the next day's work."
-                : "Contact your administrator to get assigned compliance checklists."}
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {overdueDailyTasks.length === 0 &&
+        todayDailyTasks.length === 0 &&
+        upcomingReports.length === 0 &&
+        regularReports.length === 0 && (
+          <Card>
+            <CardContent className="text-center py-12">
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                {assignedTemplates && assignedTemplates.length > 0
+                  ? "All logs completed for today! Great job!"
+                  : "No logs assigned"}
+              </h3>
+              <p className="text-muted-foreground">
+                {assignedTemplates && assignedTemplates.length > 0
+                  ? "Your assigned logs will reappear tomorrow for the next day's work."
+                  : "Contact your administrator to get assigned compliance checklists."}
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
       {impersonationBanner?.show && (
         <div className="bg-orange-50 border border-orange-200 text-orange-800 px-3 py-2 rounded-md text-sm">

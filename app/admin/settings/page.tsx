@@ -15,11 +15,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 interface Organization {
   organization_id: string
   organization_name: string
+  address: string | null
   logo_url: string | null
   primary_color: string | null
   secondary_color: string | null
   slug: string
-  business_hours?: BusinessHours | null // Made optional to handle missing column
+  business_hours?: BusinessHours | null
 }
 
 interface BusinessHours {
@@ -42,6 +43,7 @@ export default function SettingsPage() {
   const [organization, setOrganization] = useState<Organization | null>(null)
   const [profile, setProfile] = useState<any>(null) // Added profile state to check user role
   const [name, setName] = useState("")
+  const [address, setAddress] = useState("") // Added address state variable
   const [primaryColor, setPrimaryColor] = useState("#10b981")
   const [colorAutoExtracted, setColorAutoExtracted] = useState(false) // Added state to track if color was auto-extracted from logo
   const [logoFile, setLogoFile] = useState<File | null>(null)
@@ -97,7 +99,7 @@ export default function SettingsPage() {
         const { data, error } = await supabase
           .from("profiles")
           .select(
-            "*, organizations!inner(organization_id, organization_name, logo_url, primary_color, secondary_color)",
+            "*, organizations!inner(organization_id, organization_name, address, logo_url, primary_color, secondary_color)",
           )
           .eq("email", impersonatedUserEmail)
           .single()
@@ -121,7 +123,7 @@ export default function SettingsPage() {
         const { data, error } = await supabase
           .from("profiles")
           .select(
-            "*, organizations!inner(organization_id, organization_name, logo_url, primary_color, secondary_color)",
+            "*, organizations!inner(organization_id, organization_name, address, logo_url, primary_color, secondary_color)",
           )
           .eq("id", user.id)
           .single()
@@ -170,6 +172,7 @@ export default function SettingsPage() {
 
       setOrganization(org)
       setName(org.organization_name || "")
+      setAddress(org.address || "") // Load address from organization
       setPrimaryColor(org.primary_color || "#10b981")
       setLogoPreview(org.logo_url)
       if (org.business_hours) {
@@ -359,6 +362,7 @@ export default function SettingsPage() {
 
       const updateData: any = {
         organization_name: name.trim(),
+        address: address.trim() || null, // Include address in update
         logo_url: logoUrl,
         primary_color: primaryColor,
         updated_at: new Date().toISOString(),
@@ -398,6 +402,7 @@ export default function SettingsPage() {
           ? {
               ...prev,
               organization_name: name,
+              address: address.trim() || null, // Update address in state
               slug: newSlug,
               logo_url: logoUrl,
               primary_color: primaryColor,
@@ -591,6 +596,22 @@ export default function SettingsPage() {
             />
             {canEditOrganizationName && (
               <p className="text-xs text-gray-500">This name will appear throughout the platform and in reports.</p>
+            )}
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="address">Organization Address</Label>
+            <Input
+              id="address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="123 Business Street, London, UK, SW1A 1AA"
+              disabled={!canEditOrganizationName}
+            />
+            {canEditOrganizationName && (
+              <p className="text-xs text-gray-500">
+                This address will appear on reports. Leave blank if you don't want to show an address.
+              </p>
             )}
           </div>
 

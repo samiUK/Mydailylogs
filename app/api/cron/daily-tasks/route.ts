@@ -147,6 +147,47 @@ export async function GET(request: NextRequest) {
       console.log(`[v0] Expired ${expiredGracePeriods} grace periods and downgraded to Starter`)
     }
 
+    console.log("[v0] Marking old incomplete daily tasks as overdue...")
+    let markedOverdue = 0
+
+    const { data: incompleteTasks, error: incompleteError } = await supabase
+      .from("daily_checklists")
+      .update({
+        status: "overdue",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("status", "pending")
+      .lt("date", today)
+      .select("id")
+
+    if (incompleteError) {
+      console.error("[v0] Error marking tasks as overdue:", incompleteError)
+    } else if (incompleteTasks) {
+      markedOverdue = incompleteTasks.length
+      console.log(`[v0] Marked ${markedOverdue} incomplete daily tasks as overdue`)
+    }
+
+    console.log("[v0] Deleting overdue tasks older than 24 hours...")
+    let deletedOverdueTasks = 0
+
+    const twoDaysAgo = new Date()
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
+    const twoDaysAgoDate = twoDaysAgo.toISOString().split("T")[0]
+
+    const { data: deletedTasks, error: deleteError } = await supabase
+      .from("daily_checklists")
+      .delete()
+      .eq("status", "overdue")
+      .lt("date", twoDaysAgoDate)
+      .select("id")
+
+    if (deleteError) {
+      console.error("[v0] Error deleting old overdue tasks:", deleteError)
+    } else if (deletedTasks) {
+      deletedOverdueTasks = deletedTasks.length
+      console.log(`[v0] Deleted ${deletedOverdueTasks} overdue tasks that were 24+ hours old`)
+    }
+
     // Daily automated task creation
     console.log(`[v0] Starting automated task creation for ${today}`)
 
@@ -348,6 +389,8 @@ export async function GET(request: NextRequest) {
       deletedReports,
       cancelledJobs,
       expiredTestTrials,
+      markedOverdue,
+      deletedOverdueTasks,
       errors: errors.length > 0 ? errors : undefined,
     })
   } catch (error) {

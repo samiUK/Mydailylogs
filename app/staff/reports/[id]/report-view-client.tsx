@@ -76,7 +76,7 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
 
   const companyName = organizationData?.organization_name || "Your Organization"
   const companyLogo = organizationData?.logo_url || null
-  const companyAddress = organizationData?.address || "123 Business Street, London, UK, SW1A 1AA"
+  const companyAddress = organizationData?.address || null
   const submitterName = submission.profiles?.full_name || submission.profiles?.email || "Unknown"
   const submitterEmail = submission.profiles?.email || ""
   const submissionDate = submission.completed_at ? new Date(submission.completed_at) : new Date()
@@ -120,7 +120,9 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
                   )}
                   <div>
                     <h1 className="text-2xl font-bold text-gray-900 mb-1">{companyName}</h1>
-                    <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{companyAddress}</p>
+                    {companyAddress && (
+                      <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{companyAddress}</p>
+                    )}
                   </div>
                 </div>
                 <div className="text-right">
@@ -251,18 +253,25 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
                                 {(() => {
                                   try {
                                     const photos = JSON.parse(response.response_value)
-                                    return photos
-                                      .slice(0, 1)
-                                      .map((photo: { name: string; url?: string; dataUrl?: string }, idx: number) => (
-                                        <div key={idx} className="border border-gray-300 rounded p-2 bg-white">
+                                    if (Array.isArray(photos) && photos.length > 0) {
+                                      const photo = photos[0]
+                                      return (
+                                        <div className="border border-gray-300 rounded p-2 bg-white">
                                           <img
                                             src={photo.url || photo.dataUrl || "/placeholder.svg"}
                                             alt={`${item.name} - Photo evidence`}
                                             className="h-32 w-auto object-contain rounded"
+                                            onError={(e) => {
+                                              console.error("[v0] Failed to load photo:", photo)
+                                              e.currentTarget.src = "/placeholder.svg"
+                                            }}
                                           />
                                         </div>
-                                      ))
-                                  } catch {
+                                      )
+                                    }
+                                    return <span className="text-xs text-red-500">No photo available</span>
+                                  } catch (err) {
+                                    console.error("[v0] Error parsing photo data:", err, response.response_value)
                                     return <span className="text-xs text-red-500">Invalid photo data</span>
                                   }
                                 })()}

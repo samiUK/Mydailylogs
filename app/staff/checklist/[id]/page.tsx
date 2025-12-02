@@ -10,8 +10,8 @@ import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Camera, FileText, Hash, CheckSquare, Check, X, Lock } from "lucide-react"
-import { getSubscriptionLimits } from "@/lib/subscription-limits"
 import Link from "next/link"
+import { toast } from "react-toastify"
 
 interface ChecklistTask {
   id: string
@@ -50,7 +50,11 @@ interface DailyChecklist {
   completed_at: string | null
 }
 
-export default function ChecklistPage({ params }: { params: Promise<{ id: string }> }) {
+interface ChecklistPageProps {
+  params: { id: string }
+}
+
+export default function ChecklistPage({ params }: ChecklistPageProps) {
   const [template, setTemplate] = useState<Template | null>(null)
   const [dailyChecklist, setDailyChecklist] = useState<DailyChecklist | null>(null)
   const [tasks, setTasks] = useState<ChecklistTask[]>([])
@@ -66,8 +70,9 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
   const [checklistId, setChecklistId] = useState<string | null>(null)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
   const [profileId, setProfileId] = useState<string | null>(null)
+  const [completedAssignmentId, setCompletedAssignmentId] = useState<string | null>(null)
+  const [completedDailyChecklistId, setCompletedDailyChecklistId] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClient()
 
   const compressImage = async (file: File): Promise<File> => {
     return new Promise((resolve, reject) => {
@@ -148,10 +153,12 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
       const fileName = `${organizationId}/${profileId}/${taskId}-${timestamp}.${fileExt}`
 
       // Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage.from("report-photos").upload(fileName, compressedFile, {
-        contentType: compressedFile.type,
-        upsert: false,
-      })
+      const { error: uploadError } = await createClient()
+        .storage.from("report-photos")
+        .upload(fileName, compressedFile, {
+          contentType: compressedFile.type,
+          upsert: false,
+        })
 
       if (uploadError) {
         console.error("[v0] Error uploading to storage:", uploadError)
@@ -161,7 +168,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
       // Get public URL
       const {
         data: { publicUrl },
-      } = supabase.storage.from("report-photos").getPublicUrl(fileName)
+      } = createClient().storage.from("report-photos").getPublicUrl(fileName)
 
       // Store URL in state for display
       setUploadedFiles((prev) => ({
@@ -191,7 +198,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
         const urlParts = photoToDelete.url.split("/report-photos/")
         if (urlParts.length > 1) {
           const filePath = urlParts[1].split("?")[0] // Remove query params
-          await supabase.storage.from("report-photos").remove([filePath])
+          await createClient().storage.from("report-photos").remove([filePath])
         }
       }
 
@@ -212,183 +219,225 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
   }
 
   const loadChecklist = async () => {
-    try {
-      setIsLoading(true)
+    if (!checklistId) {
+      console.log("[v0] No checklist ID provided")
+      return
+    }
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) throw new Error("Not authenticated")
+    setIsLoading(true)
+    const supabase = createClient()
 
-      const { data: profile } = await supabase.from("profiles").select("id, organization_id").eq("id", user.id).single()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-      if (!profile) throw new Error("Profile not found")
+    if (!user) {
+      console.error("[v0] No authenticated user")
+      setTemplate(null)
+      setIsLoading(false)
+      return
+    }
 
-      setOrganizationId(profile.organization_id)
-      setProfileId(profile.id)
+    console.log("[v0] Fetching profile for user:", user.id)
 
-      const limits = await getSubscriptionLimits(profile.organization_id)
-      setHasPhotoUpload(limits.hasPhotoUpload)
+    const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single()
 
-      const { data: assignmentData, error: assignmentError } = await supabase
-        .from("template_assignments")
-        .select(`
-          *,
-          checklist_templates:template_id(
-            id,
-            name,
-            description,
-            frequency
-          )
-        `)
-        .eq("template_id", checklistId)
-        .eq("assigned_to", user.id)
-        .eq("is_active", true)
-        .maybeSingle()
+    if (!profile) {
+      console.error("[v0] Profile not found for user")
+      setTemplate(null)
+      setIsLoading(false)
+      return
+    }
 
-      console.log("[v0] Assignment query result:", assignmentData)
-      console.log("[v0] Assignment query error:", assignmentError)
+    const { data: assignmentData, error: assignmentError } = await supabase
+      .from("template_assignments")
+      .select(
+        `
+        id,
+        assigned_to,
+        is_active,
+        due_date,
+        status,
+        checklist_templates!inner(
+          id,
+          name,
+          description,
+          frequency
+        )
+      `,
+      )
+      .eq("template_id", checklistId)
+      .eq("assigned_to", user.id)
+      .eq("is_active", true)
+      .maybeSingle()
 
-      if (assignmentError) {
-        console.error("[v0] Error fetching assignment:", assignmentError)
-        setTemplate(null)
-        setIsLoading(false)
-        return
-      }
+    console.log("[v0] Assignment query result:", assignmentData)
+    console.log("[v0] Assignment query error:", assignmentError)
 
-      if (!assignmentData) {
-        console.error("[v0] No assignment found for this template and user")
-        setTemplate(null)
-        setIsLoading(false)
-        return
-      }
+    if (assignmentError) {
+      console.error("[v0] Error fetching assignment:", assignmentError)
+      setTemplate(null)
+      setIsLoading(false)
+      return
+    }
 
-      if (assignmentData?.checklist_templates) {
-        const templateData = assignmentData.checklist_templates
-        setTemplate(templateData)
-        console.log("[v0] Template loaded:", templateData)
+    if (!assignmentData) {
+      console.error("[v0] No assignment found for this template and user")
+      setTemplate(null)
+      setIsLoading(false)
+      return
+    }
 
-        let dailyChecklistData = null
-        if (templateData.frequency === "daily") {
-          const today = new Date().toISOString().split("T")[0] // YYYY-MM-DD format
-          console.log("[v0] Daily template detected, checking for today's instance:", today)
+    if (assignmentData?.checklist_templates) {
+      const templateData = assignmentData.checklist_templates
+      setTemplate(templateData)
+      console.log("[v0] Template loaded:", templateData)
 
-          // Check if today's daily checklist already exists
-          const { data: existingDaily } = await supabase
-            .from("daily_checklists")
-            .select("*")
-            .eq("template_id", checklistId)
-            .eq("assigned_to", profile.id)
-            .eq("date", today)
-            .single()
+      let dailyChecklistData = null
+      const assignmentInstanceId = assignmentData.id // Store assignment ID for this instance
 
-          console.log("[v0] Existing daily checklist:", existingDaily)
+      if (templateData.frequency === "daily") {
+        const today = new Date().toISOString().split("T")[0] // YYYY-MM-DD format
+        console.log("[v0] Daily template detected, checking for today's instance:", today)
 
-          if (existingDaily) {
-            dailyChecklistData = existingDaily
-            console.log("[v0] Using existing daily checklist")
-          } else {
-            // Create new daily checklist for today
-            console.log("[v0] Creating new daily checklist for today")
-            const { data: newDaily, error: dailyError } = await supabase
-              .from("daily_checklists")
-              .insert({
-                template_id: checklistId,
-                assigned_to: profile.id,
-                date: today,
-                status: "in_progress",
-                organization_id: assignmentData.organization_id,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              })
-              .select()
-              .single()
-
-            if (dailyError) {
-              console.error("[v0] Error creating daily checklist:", dailyError)
-            } else {
-              dailyChecklistData = newDaily
-              console.log("[v0] Created new daily checklist:", newDaily)
-            }
-          }
-
-          setDailyChecklist(dailyChecklistData)
-        }
-
-        // Load tasks
-        const { data: tasksData } = await supabase
-          .from("checklist_items")
+        // Check if today's daily checklist already exists
+        const { data: existingDaily } = await supabase
+          .from("daily_checklists")
           .select("*")
           .eq("template_id", checklistId)
-          .order("order_index")
+          .eq("assigned_to", profile.id)
+          .eq("date", today)
+          .single()
 
-        console.log("[v0] Tasks loaded:", tasksData?.length)
-        if (tasksData) {
-          setTasks(tasksData)
+        console.log("[v0] Existing daily checklist:", existingDaily)
+
+        if (existingDaily) {
+          dailyChecklistData = existingDaily
+          console.log("[v0] Using existing daily checklist")
+        } else {
+          // Create new daily checklist for today
+          console.log("[v0] Creating new daily checklist for today")
+          const { data: newDaily, error: dailyError } = await supabase
+            .from("daily_checklists")
+            .insert({
+              template_id: checklistId,
+              assigned_to: profile.id,
+              date: today,
+              status: "in_progress",
+              organization_id: assignmentData.organization_id,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .select()
+            .single()
+
+          if (dailyError) {
+            console.error("[v0] Error creating daily checklist:", dailyError)
+          } else {
+            dailyChecklistData = newDaily
+            console.log("[v0] Created new daily checklist:", newDaily)
+          }
         }
 
-        const checklistIdForResponses = dailyChecklist?.id || checklistId
-        console.log("[v0] Loading responses for checklist ID:", checklistIdForResponses)
-
-        const { data: responsesData } = await supabase
-          .from("checklist_responses")
-          .select("*")
-          .eq("checklist_id", checklistIdForResponses)
-
-        console.log("[v0] Responses loaded:", responsesData?.length)
-        if (responsesData) {
-          setResponses(responsesData)
-          const initialInputValues: Record<string, string> = {}
-          const initialNotes: Record<string, string> = {}
-
-          responsesData.forEach((response) => {
-            if (response.notes) {
-              initialNotes[response.item_id] = response.notes
-            }
-            if (response.response_value) {
-              initialInputValues[response.item_id] = response.response_value
-            }
-          })
-
-          setLocalInputValues(initialInputValues)
-          setLocalNotes(initialNotes)
-        }
+        setDailyChecklist(dailyChecklistData)
       }
-    } catch (error) {
-      console.error("[v0] Error loading checklist:", error)
-    } finally {
-      setIsLoading(false)
+
+      // Load tasks
+      const { data: tasksData } = await supabase
+        .from("checklist_items")
+        .select("*")
+        .eq("template_id", checklistId)
+        .order("order_index")
+
+      console.log("[v0] Tasks loaded:", tasksData?.length)
+      if (tasksData) {
+        setTasks(tasksData)
+      }
+
+      // This ensures each assignment has completely independent responses
+      const { data: responsesData } = await supabase
+        .from("checklist_responses")
+        .select("*")
+        .or(
+          dailyChecklistData
+            ? `daily_checklist_id.eq.${dailyChecklistData.id}`
+            : `assignment_id.eq.${assignmentInstanceId}`,
+        )
+
+      console.log("[v0] Responses loaded for this assignment instance:", responsesData?.length)
+      if (responsesData) {
+        setResponses(responsesData)
+        const initialInputValues: Record<string, string> = {}
+        const initialNotes: Record<string, string> = {}
+
+        responsesData.forEach((response) => {
+          if (response.notes) {
+            initialNotes[response.item_id] = response.notes
+          }
+          if (response.response_value) {
+            initialInputValues[response.item_id] = response.response_value
+          }
+        })
+
+        setLocalInputValues(initialInputValues)
+        setLocalNotes(initialNotes)
+      }
+
+      if (dailyChecklistData) {
+        setCompletedDailyChecklistId(dailyChecklistData.id)
+      } else {
+        setCompletedAssignmentId(assignmentInstanceId)
+      }
     }
+
+    setIsLoading(false)
   }
 
-  const handleTaskResponse = async (taskId: string, value: string, isCompleted = true) => {
+  const handleTaskResponse = async (taskId: string, value: string, isCompleted = false) => {
+    const supabase = createClient()
+
     try {
-      const { data } = await supabase
+      const responseData: any = {
+        checklist_id: checklistId,
+        item_id: taskId,
+        response_value: value,
+        is_completed: isCompleted,
+        completed_at: isCompleted ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      }
+
+      if (dailyChecklist?.id) {
+        responseData.daily_checklist_id = dailyChecklist.id
+      } else if (completedAssignmentId) {
+        responseData.assignment_id = completedAssignmentId
+      }
+
+      const { data, error } = await supabase
         .from("checklist_responses")
-        .upsert({
-          checklist_id: dailyChecklist?.id || checklistId,
-          item_id: taskId,
-          response_value: value,
-          is_completed: isCompleted,
-          completed_at: isCompleted ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString(),
+        .upsert(responseData, {
+          onConflict: "item_id,checklist_id",
         })
         .select()
         .single()
 
-      if (data) {
-        setResponses((prev) => {
-          const existingIndex = prev.findIndex((r) => r.item_id === taskId)
-          if (existingIndex >= 0) {
-            const newResponses = [...prev]
-            newResponses[existingIndex] = data
-            return newResponses
-          }
-          return [...prev, data]
-        })
+      if (error) {
+        console.error("[v0] Error saving response:", error)
+        toast.error("Failed to save response")
+        return
       }
+
+      setResponses((prev) => {
+        const existingIndex = prev.findIndex((r) => r.item_id === taskId)
+        if (existingIndex >= 0) {
+          const newResponses = [...prev]
+          newResponses[existingIndex] = data
+          return newResponses
+        }
+        return [...prev, data]
+      })
     } catch (error) {
-      console.error("[v0] Error handling task response:", error)
+      console.error("[v0] Error in handleTaskResponse:", error)
+      toast.error("Failed to save response")
     }
   }
 
@@ -396,7 +445,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
     try {
       setLocalNotes((prev) => ({ ...prev, [taskId]: notes }))
 
-      const { data } = await supabase
+      const { data } = await createClient()
         .from("checklist_responses")
         .upsert({
           checklist_id: dailyChecklist?.id || checklistId,
@@ -419,7 +468,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
     console.log("[v0] Mark completed button clicked for task:", taskId)
 
     try {
-      const { data } = await supabase
+      const { data } = await createClient()
         .from("checklist_responses")
         .upsert({
           checklist_id: dailyChecklist?.id || checklistId,
@@ -680,7 +729,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
 
       if (template?.frequency === "daily" && dailyChecklist) {
         console.log("[v0] Completing daily checklist instance")
-        const { data: dailyUpdateData, error: dailyError } = await supabase
+        const { data: dailyUpdateData, error: dailyError } = await createClient()
           .from("daily_checklists")
           .update({
             status: "completed",
@@ -701,7 +750,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
         console.log("[v0] Daily checklist completed successfully:", dailyUpdateData)
       } else {
         console.log("[v0] Updating template assignment to completed")
-        const { data: updateData, error: assignmentError } = await supabase
+        const { data: updateData, error: assignmentError } = await createClient()
           .from("template_assignments")
           .update({
             status: "completed",
@@ -731,12 +780,12 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
         console.log("[v0] Template assignment updated successfully, assignment ID:", completedAssignmentId)
       }
 
-      const { data: submittedReport, error: submittedReportError } = await supabase
+      const { data: submittedReport, error: submittedReportError } = await createClient()
         .from("submitted_reports")
         .insert({
           template_name: template?.name || "Untitled Report",
           template_description: template?.description || "",
-          submitted_by: (await supabase.auth.getUser()).data.user.id,
+          submitted_by: (await createClient().auth.getUser()).data.user.id,
           organization_id: organizationId,
           report_data: reportData,
           status: "completed",
@@ -759,13 +808,15 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
       }
 
       // Create a completion notification for admin
-      const { error: notificationError } = await supabase.from("notifications").insert({
-        user_id: (await supabase.auth.getUser()).data.user.id,
-        template_id: checklistId,
-        type: "checklist_completed",
-        message: `${(await supabase.auth.getUser()).data.user.email} submitted a report: ${template?.name}`,
-        created_at: new Date().toISOString(),
-      })
+      const { error: notificationError } = await createClient()
+        .from("notifications")
+        .insert({
+          user_id: (await createClient().auth.getUser()).data.user.id,
+          template_id: checklistId,
+          type: "checklist_completed",
+          message: `${(await createClient().auth.getUser()).data.user.email} submitted a report: ${template?.name}`,
+          created_at: new Date().toISOString(),
+        })
 
       if (notificationError) {
         console.log("[v0] Note: Could not create notification:", notificationError)
@@ -785,9 +836,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
   }
 
   useEffect(() => {
-    params.then((resolvedParams) => {
-      setChecklistId(resolvedParams.id)
-    })
+    setChecklistId(params.id)
   }, [params])
 
   useEffect(() => {

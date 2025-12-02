@@ -449,11 +449,7 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
         updated_at: new Date().toISOString(),
       }
 
-      if (dailyChecklist?.id) {
-        responseData.daily_checklist_id = dailyChecklist.id
-      } else if (completedAssignmentId) {
-        responseData.assignment_id = completedAssignmentId
-      }
+      console.log("[v0] Saving response with data:", responseData)
 
       const { data, error } = await supabase
         .from("checklist_responses")
@@ -468,6 +464,8 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
         toast.error("Failed to save response")
         return
       }
+
+      console.log("[v0] Response saved successfully:", data)
 
       setResponses((prev) => {
         const existingIndex = prev.findIndex((r) => r.item_id === taskId)

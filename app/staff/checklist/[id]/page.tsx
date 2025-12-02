@@ -368,6 +368,7 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
         setResponses(responsesData)
         const initialInputValues: Record<string, string> = {}
         const initialNotes: Record<string, string> = {}
+        const initialUploadedFiles: Record<string, File[]> = {}
 
         responsesData.forEach((response) => {
           if (response.notes) {
@@ -375,11 +376,25 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
           }
           if (response.response_value) {
             initialInputValues[response.item_id] = response.response_value
+
+            try {
+              const photoData = JSON.parse(response.response_value)
+              if (Array.isArray(photoData) && photoData.length > 0) {
+                // Create dummy File objects for display (we have the URLs, not actual files)
+                const dummyFiles = photoData.map(
+                  (photo: any) => new File([], photo.name || "photo.jpg", { type: "image/jpeg" }),
+                )
+                initialUploadedFiles[response.item_id] = dummyFiles
+              }
+            } catch (e) {
+              // Not JSON or not photo data, ignore
+            }
           }
         })
 
         setLocalInputValues(initialInputValues)
         setLocalNotes(initialNotes)
+        setUploadedFiles(initialUploadedFiles)
       }
 
       if (dailyChecklistData) {

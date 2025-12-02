@@ -175,7 +175,30 @@ export default function AdminTemplatesPage() {
           }),
         })
 
-        if (!response.ok) throw new Error("Failed to assign template")
+        const result = await response.json()
+
+        if (!response.ok) {
+          if (response.status === 409 && result.duplicateWarnings) {
+            toast.error(
+              `Cannot assign: ${result.duplicateWarnings.join(", ")} already have active assignments for this template`,
+            )
+          } else {
+            throw new Error(result.error || "Failed to assign template")
+          }
+          setAssignConfirmOpen(null)
+          setAssigningTemplate(null)
+          return
+        }
+
+        if (result.duplicateWarnings && result.duplicateWarnings.length > 0) {
+          toast.warning(
+            `Note: ${result.duplicateWarnings.join(", ")} already have pending assignments for the same date`,
+          )
+        }
+
+        if (result.holidayWarning) {
+          toast.warning(result.holidayWarning)
+        }
 
         setSelectedMembers((prev) => ({ ...prev, [templateId]: [] }))
         setAssignConfirmOpen(null)

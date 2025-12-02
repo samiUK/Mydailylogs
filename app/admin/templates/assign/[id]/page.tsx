@@ -8,10 +8,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Calendar } from "@/components/ui/calendar"
 import { Label } from "@/components/ui/label"
-import { ArrowLeft, Users, CalendarIcon, X } from 'lucide-react'
+import { ArrowLeft, Users, CalendarIcon, X } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation"
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,8 @@ interface Template {
   description: string | null
   frequency: string
   schedule_type: string
+  specific_date?: string
+  deadline_date?: string
 }
 
 interface TeamMember {
@@ -94,7 +96,7 @@ export default function AssignTemplatePage({ params }: { params: Promise<{ id: s
 
       const { data: templateData, error: templateError } = await supabase
         .from("checklist_templates")
-        .select("id, name, description, frequency, schedule_type")
+        .select("id, name, description, frequency, schedule_type, specific_date, deadline_date")
         .eq("id", templateId)
         .eq("organization_id", profile.organization_id)
         .single()
@@ -217,6 +219,36 @@ export default function AssignTemplatePage({ params }: { params: Promise<{ id: s
           .in("assigned_to", toUnassign)
 
         if (unassignError) throw unassignError
+      }
+
+      if (toAssign.length > 0) {
+        const assignmentDueDate = template.specific_date || template.deadline_date
+
+        if (assignmentDueDate) {
+          const { data: existingAssignments } = await supabase
+            .from("template_assignments")
+            .select("assigned_to, profiles!inner(full_name, first_name, last_name)")
+            .eq("template_id", template.id)
+            .eq("due_date", assignmentDueDate)
+            .eq("is_active", true)
+            .in("assigned_to", toAssign)
+
+          if (existingAssignments && existingAssignments.length > 0) {
+            const duplicateNames = existingAssignments.map((a: any) => {
+              return a.profiles?.full_name || `${a.profiles?.first_name} ${a.profiles?.last_name}` || "Unknown member"
+            })
+
+            const proceed = confirm(
+              `Warning: The following members already have pending assignments for the same date:\n\n${duplicateNames.join(", ")}\n\nDo you want to create duplicate assignments anyway?`,
+            )
+
+            if (!proceed) {
+              setSubmitting(false)
+              setConfirmDialogOpen(false)
+              return
+            }
+          }
+        }
       }
 
       if (toAssign.length > 0) {

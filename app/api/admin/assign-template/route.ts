@@ -14,7 +14,6 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // Verify user is admin or manager
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -48,6 +47,29 @@ export async function POST(request: NextRequest) {
 
     const assignmentDueDate = dueDate || template.specific_date || template.deadline_date
 
+    let duplicateWarnings: string[] = []
+    if (assignmentDueDate) {
+      const { data: existingAssignments } = await supabase
+        .from("template_assignments")
+        .select("assigned_to, profiles!inner(full_name, first_name, last_name, email)")
+        .eq("template_id", templateId)
+        .eq("due_date", assignmentDueDate)
+        .eq("is_active", true)
+        .in("assigned_to", memberIds)
+
+      if (existingAssignments && existingAssignments.length > 0) {
+        duplicateWarnings = existingAssignments.map((assignment: any) => {
+          const memberName =
+            assignment.profiles?.full_name ||
+            (assignment.profiles?.first_name && assignment.profiles?.last_name
+              ? `${assignment.profiles.first_name} ${assignment.profiles.last_name}`
+              : assignment.profiles?.email)
+          return memberName || "Unknown member"
+        })
+        console.log(`[v0] Warning: ${duplicateWarnings.length} user(s) already have pending assignments for this date`)
+      }
+    }
+
     let holidayWarning = null
     if (assignmentDueDate) {
       const { data: holidays } = await supabase
@@ -76,6 +98,15 @@ export async function POST(request: NextRequest) {
 
     if (createError) {
       console.error("[v0] Database error (create):", createError)
+      if (createError.code === "23505") {
+        return NextResponse.json(
+          {
+            error: "One or more users already have an active assignment for this template",
+            duplicateWarnings,
+          },
+          { status: 409 },
+        )
+      }
       return NextResponse.json({ error: "Failed to create assignments" }, { status: 500 })
     }
 
@@ -143,6 +174,7 @@ export async function POST(request: NextRequest) {
       success: true,
       assignedCount: assignments.length,
       holidayWarning,
+      duplicateWarnings: duplicateWarnings.length > 0 ? duplicateWarnings : null,
     })
   } catch (error) {
     console.error("Error assigning template:", error)

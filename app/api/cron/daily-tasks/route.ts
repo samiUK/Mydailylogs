@@ -241,6 +241,22 @@ export async function GET(request: NextRequest) {
         }
 
         for (const assignment of template.template_assignments) {
+          const { data: unavailability } = await supabase
+            .from("staff_unavailability")
+            .select("id")
+            .eq("staff_id", assignment.assigned_to)
+            .eq("organization_id", template.organization_id)
+            .lte("start_date", today)
+            .gte("end_date", today)
+            .single()
+
+          if (unavailability) {
+            console.log(
+              `[v0] Skipping template ${template.id} for user ${assignment.assigned_to} - staff unavailable on ${today}`,
+            )
+            continue
+          }
+
           const { data: existingChecklist } = await supabase
             .from("daily_checklists")
             .select("id")

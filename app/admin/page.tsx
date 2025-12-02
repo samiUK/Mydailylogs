@@ -6,27 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { useState, useEffect, useMemo } from "react"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  ChevronDown,
-  Users,
-  UserCheck,
   Plus,
   UserPlus,
   AlertTriangle,
@@ -744,12 +723,6 @@ export default function AdminDashboard() {
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground">Welcome back, {profile?.first_name || profile?.full_name || "Admin"}</p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={() => setShowTeamModal(true)}>
-            <UserPlus className="mr-2 h-4 w-4" />
-            Add Team Member
-          </Button>
-        </div>
       </div>
 
       {missedTasks.length > 0 && (
@@ -882,176 +855,12 @@ export default function AdminDashboard() {
               </Button>
             </Link>
 
-            <Dialog open={showTeamModal} onOpenChange={setShowTeamModal}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="w-full justify-start bg-transparent h-12 text-sm sm:text-base">
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Add Team Member
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Add Team Member</DialogTitle>
-                  <DialogDescription>Create a new team member account with login credentials</DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleCreateTeamMember} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">First Name</Label>
-                      <Input
-                        id="firstName"
-                        value={teamForm.firstName}
-                        onChange={(e) => setTeamForm({ ...teamForm, firstName: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Last Name</Label>
-                      <Input
-                        id="lastName"
-                        value={teamForm.lastName}
-                        onChange={(e) => setTeamForm({ ...teamForm, lastName: e.target.value })}
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="position">Position</Label>
-                    <Input
-                      id="position"
-                      placeholder="e.g. Operations Manager"
-                      value={teamForm.position}
-                      onChange={(e) => setTeamForm({ ...teamForm, position: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="user@company.com"
-                      value={teamForm.email}
-                      onChange={(e) => setTeamForm({ ...teamForm, email: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Minimum 6 characters"
-                      value={teamForm.password}
-                      onChange={(e) => setTeamForm({ ...teamForm, password: e.target.value })}
-                      minLength={6}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Role</Label>
-                    <Select
-                      value={teamForm.role}
-                      onValueChange={(value: "admin" | "staff") => setTeamForm({ ...teamForm, role: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="staff">Staff</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reportsTo">Reports To</Label>
-                    <Select
-                      value={teamForm.reportsTo}
-                      onValueChange={(value) => setTeamForm({ ...teamForm, reportsTo: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select supervisor (optional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No supervisor</SelectItem>
-                        {admins.map((admin) => (
-                          <SelectItem key={admin.id} value={admin.id}>
-                            {admin.full_name || `${admin.first_name} ${admin.last_name}` || admin.email}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex gap-2 pt-4">
-                    <Button type="submit" disabled={isCreatingTeamMember} className="flex-1">
-                      {isCreatingTeamMember ? "Creating..." : "Create Member"}
-                    </Button>
-                    <Button type="button" variant="outline" onClick={() => setShowTeamModal(false)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
-
-            {activeTemplates.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No active templates available</p>
-            ) : (
-              activeTemplates.map((template) => (
-                <div key={template.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex-1">
-                    <h5 className="text-sm font-medium text-foreground">{template.name}</h5>
-                    {template.description && (
-                      <p className="text-xs text-muted-foreground mt-1">{template.description}</p>
-                    )}
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" disabled={assigningTemplate === template.id}>
-                        {assigningTemplate === template.id ? "Assigning..." : "Assign"}
-                        <ChevronDown className="ml-2 h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
-                      <DropdownMenuItem onClick={() => selectAllMembers(template.id)}>
-                        <Users className="mr-2 h-4 w-4" />
-                        Select All ({teamMembers.length})
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => clearSelection(template.id)}>Clear Selection</DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      {teamMembers.map((member) => (
-                        <DropdownMenuItem
-                          key={member.id}
-                          onSelect={(e) => e.preventDefault()}
-                          onClick={() => toggleMember(template.id, member.id)}
-                        >
-                          <div className="flex items-center w-full">
-                            <input
-                              type="checkbox"
-                              checked={(selectedMembers[template.id] || []).includes(member.id)}
-                              onChange={() => {}}
-                              className="mr-2"
-                            />
-                            <span className="flex-1">
-                              {member.full_name || `${member.first_name} ${member.last_name}`}
-                            </span>
-                            <span className="text-xs text-muted-foreground ml-2">{member.role}</span>
-                          </div>
-                        </DropdownMenuItem>
-                      ))}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => handleAssign(template.id, selectedMembers[template.id] || [])}
-                        disabled={(selectedMembers[template.id] || []).length === 0}
-                      >
-                        <UserCheck className="mr-2 h-4 w-4" />
-                        Assign to {(selectedMembers[template.id] || []).length} member(s)
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              ))
-            )}
+            <Link href="/admin/team">
+              <Button variant="outline" className="w-full justify-start bg-transparent h-12 text-sm sm:text-base">
+                <UserPlus className="h-4 w-4 mr-2" />
+                View Team Members
+              </Button>
+            </Link>
           </CardContent>
         </Card>
 

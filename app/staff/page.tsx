@@ -494,7 +494,7 @@ export default function StaffDashboard() {
                       <div className="text-sm text-red-700">
                         <p>Status: Requires immediate action</p>
                       </div>
-                      <Link href={`/staff/checklist/${task.template_id}?daily_id=${task.id}`}>
+                      <Link href={`/staff/checklist/${task.id}`}>
                         <Button size="sm" variant="destructive">
                           Complete Now
                         </Button>
@@ -540,7 +540,7 @@ export default function StaffDashboard() {
                     <div className="text-sm text-muted-foreground">
                       <p>Status: Ready to start</p>
                     </div>
-                    <Link href={`/staff/checklist/${task.template_id}?daily_id=${task.id}`}>
+                    <Link href={`/staff/checklist/${task.id}`}>
                       <Button size="sm">Start Log</Button>
                     </Link>
                   </div>
@@ -600,7 +600,7 @@ export default function StaffDashboard() {
                       <div className="text-sm text-muted-foreground">
                         <p>Status: Ready to start</p>
                       </div>
-                      <Link href={`/staff/checklist/${report.template.id}`}>
+                      <Link href={`/staff/checklist/${report.id}`}>
                         <Button size="sm" variant={isOverdue ? "destructive" : "default"}>
                           {isOverdue ? "Start Now" : "Start Log"}
                         </Button>
@@ -651,7 +651,7 @@ export default function StaffDashboard() {
                     <div className="text-sm text-muted-foreground">
                       <p>Status: Ready to start</p>
                     </div>
-                    <Link href={`/staff/checklist/${report.template.id}`}>
+                    <Link href={`/staff/checklist/${report.id}`}>
                       <Button size="sm">Start Log</Button>
                     </Link>
                   </div>

@@ -28,6 +28,8 @@ interface TeamMember {
     name: string
     frequency: string
     assignmentId: string
+    assigned_at: string
+    status: string
   }>
   supervisor?: {
     id: string
@@ -43,8 +45,18 @@ function ProfileCard({
   member,
   onCancelAssignment,
 }: { member: TeamMember; onCancelAssignment?: (assignmentId: string, templateName: string) => void }) {
+  const regularJobs =
+    member.assigned_templates?.filter(
+      (t) => t.frequency === "daily" || t.frequency === "weekly" || t.frequency === "monthly",
+    ) || []
+
+  const customAssignments =
+    member.assigned_templates?.filter(
+      (t) => t.frequency !== "daily" && t.frequency !== "weekly" && t.frequency !== "monthly",
+    ) || []
+
   return (
-    <Card className="w-64 mx-auto">
+    <Card className="w-72 mx-auto">
       <CardHeader className="text-center pb-4">
         <div className="flex justify-center mb-3">
           <Avatar className="w-16 h-16">
@@ -72,57 +84,80 @@ function ProfileCard({
               <p className="text-sm font-medium">{member.position}</p>
             </div>
           )}
-          {member.assigned_templates &&
-            member.assigned_templates.filter(
-              (t: any) => t.frequency === "daily" || t.frequency === "weekly" || t.frequency === "monthly",
-            ).length > 0 && (
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">Regular Jobs</p>
-                <div className="space-y-1">
-                  {member.assigned_templates
-                    .filter(
-                      (template: any) =>
-                        template.frequency === "daily" ||
-                        template.frequency === "weekly" ||
-                        template.frequency === "monthly",
-                    )
-                    .slice(0, 2)
-                    .map((template) => (
-                      <div
-                        key={template.assignmentId}
-                        className="flex items-center justify-between text-xs bg-secondary/50 rounded px-2 py-1"
-                      >
-                        <span>
-                          {template.name} ({template.frequency})
-                        </span>
-                        {onCancelAssignment && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onCancelAssignment(template.assignmentId, template.name)
-                            }}
-                            className="ml-2 text-red-600 hover:text-red-800 transition-colors"
-                            title="Cancel recurring assignment"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  {member.assigned_templates.filter(
-                    (t: any) => t.frequency === "daily" || t.frequency === "weekly" || t.frequency === "monthly",
-                  ).length > 2 && (
-                    <div className="text-xs text-muted-foreground">
-                      +
-                      {member.assigned_templates.filter(
-                        (t: any) => t.frequency === "daily" || t.frequency === "weekly" || t.frequency === "monthly",
-                      ).length - 2}{" "}
-                      more
+
+          {regularJobs.length > 0 && (
+            <div className="text-left">
+              <p className="text-sm text-muted-foreground mb-2 font-semibold">Regular Jobs</p>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {regularJobs.map((template) => (
+                  <div
+                    key={template.assignmentId}
+                    className="flex items-center justify-between text-xs bg-blue-50 border border-blue-200 rounded px-2 py-1.5"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{template.name}</div>
+                      <div className="text-muted-foreground capitalize">{template.frequency}</div>
                     </div>
-                  )}
-                </div>
+                    {onCancelAssignment && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onCancelAssignment(template.assignmentId, template.name)
+                        }}
+                        className="ml-2 text-red-600 hover:text-red-800 transition-colors flex-shrink-0"
+                        title="Cancel recurring assignment"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
+          )}
+
+          {customAssignments.length > 0 && (
+            <div className="text-left">
+              <p className="text-sm text-muted-foreground mb-2 font-semibold">Custom Assignments</p>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {customAssignments.map((template) => (
+                  <div
+                    key={template.assignmentId}
+                    className="flex items-center justify-between text-xs bg-yellow-50 border border-yellow-200 rounded px-2 py-1.5"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{template.name}</div>
+                      <div className="text-muted-foreground capitalize">
+                        {template.frequency === "custom" ? "One-time" : template.frequency}
+                      </div>
+                    </div>
+                    {onCancelAssignment && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onCancelAssignment(template.assignmentId, template.name)
+                        }}
+                        className="ml-2 text-red-600 hover:text-red-800 transition-colors flex-shrink-0"
+                        title="Cancel assignment"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(regularJobs.length > 0 || customAssignments.length > 0) && (
+            <div className="pt-2 border-t">
+              <p className="text-xs text-muted-foreground">
+                Total: {regularJobs.length + customAssignments.length} active assignment
+                {regularJobs.length + customAssignments.length !== 1 ? "s" : ""}
+              </p>
+            </div>
+          )}
+
           <div className="flex gap-2 justify-center mt-4">
             <Link href={`/admin/team/edit/${member.id}`}>
               <Button variant="outline" size="sm">
@@ -262,6 +297,8 @@ export default function AdminTeamPage() {
                 .map((assignment: any) => ({
                   ...assignment.checklist_templates,
                   assignmentId: assignment.id,
+                  assigned_at: assignment.assigned_at,
+                  status: assignment.status,
                 })) || [],
           })) || []
 
@@ -277,18 +314,27 @@ export default function AdminTeamPage() {
   }, [router])
 
   const handleCancelAssignment = async (assignmentId: string, templateName: string) => {
-    if (confirm(`Are you sure you want to cancel "${templateName}"? This will stop all future auto-assignments.`)) {
-      const response = await fetch("/api/admin/cancel-assignment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignmentId }),
-      })
+    if (
+      confirm(
+        `Are you sure you want to cancel "${templateName}"?\n\nThis will:\n• Stop the staff member from seeing this assignment\n• Preserve historical data for auditing\n• Can be reassigned later if needed`,
+      )
+    ) {
+      try {
+        const response = await fetch("/api/admin/cancel-assignment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assignmentId }),
+        })
 
-      if (response.ok) {
-        // Reload the page to reflect changes
-        window.location.reload()
-      } else {
-        alert("Failed to cancel assignment")
+        if (response.ok) {
+          window.location.reload()
+        } else {
+          const data = await response.json()
+          alert(`Failed to cancel assignment: ${data.error || "Unknown error"}`)
+        }
+      } catch (error) {
+        alert("Failed to cancel assignment. Please try again.")
+        console.error("[v0] Error canceling assignment:", error)
       }
     }
   }

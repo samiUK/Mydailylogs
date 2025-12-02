@@ -296,12 +296,11 @@ export default function UseCasesPage() {
               Mobile Task Management for Field Teams
             </Badge>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6 leading-tight">
-              Built for Teams Across <span className="text-accent">All Industries</span>
+              Built for Teams Who Work <span className="text-accent">On the Move</span>
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
-              MyDayLogs empowers teams working on-site, in the field, or at your business premises to capture compliance
-              data, complete operational checks, and submit professional reports from any device - mobile, tablet, or
-              desktop.
+              MyDayLogs empowers field teams across industries to capture compliance data, complete safety checks, and
+              submit professional reports directly from mobile devices - anywhere, anytime.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild size="lg">
@@ -325,8 +324,8 @@ export default function UseCasesPage() {
                 Proven Solutions Across Industries
               </h2>
               <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                See how teams in different sectors use MyDayLogs to streamline operations, improve compliance, and
-                maintain audit-ready documentation - whether working remotely, on-site, or in-office.
+                See how mobile teams in different sectors use MyDayLogs to streamline compliance, improve safety, and
+                maintain audit-ready documentation.
               </p>
             </div>
 

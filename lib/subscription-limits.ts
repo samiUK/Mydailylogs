@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client"
+import { createClient as createServerClient } from "@/lib/supabase/server"
 
 export interface SubscriptionLimits {
   maxTemplates: number
@@ -14,7 +15,12 @@ export interface SubscriptionLimits {
 }
 
 export async function getSubscriptionLimits(organizationId: string): Promise<SubscriptionLimits> {
-  const supabase = createClient()
+  let supabase
+  try {
+    supabase = await createServerClient()
+  } catch {
+    supabase = createClient()
+  }
 
   try {
     console.log("[v0] Fetching subscription for organization:", organizationId)
@@ -150,7 +156,12 @@ export async function getSubscriptionLimits(organizationId: string): Promise<Sub
 }
 
 export async function getCurrentUsage(organizationId: string) {
-  const supabase = createClient()
+  let supabase
+  try {
+    supabase = await createServerClient()
+  } catch {
+    supabase = createClient()
+  }
 
   try {
     // Get current template count

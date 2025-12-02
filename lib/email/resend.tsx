@@ -9,8 +9,6 @@ const getBaseUrl = () => {
 
 // Email layout wrapper with MyDayLogs branding
 const getEmailLayout = (content: string, preheader?: string) => {
-  const logoUrl = `${getBaseUrl()}/mydaylogs-logo.png`
-
   return `
     <!DOCTYPE html>
     <html>
@@ -39,7 +37,9 @@ const getEmailLayout = (content: string, preheader?: string) => {
         <div class="email-container">
           <div class="header">
             <div class="logo-container">
-              <img src="${logoUrl}" alt="MyDayLogs Logo" width="48" height="48" style="display: block; border-radius: 8px;" />
+              <div class="logo">
+                <img src="${getBaseUrl()}/mydaylogs-logo.png" alt="MyDayLogs" width="48" height="48" style="display: block; border-radius: 8px;" />
+              </div>
               <span class="logo-text">MyDayLogs</span>
             </div>
           </div>
@@ -98,6 +98,17 @@ export async function sendEmail({
 
 // Send verification email
 export async function sendVerificationEmail(email: string, userName: string, verificationUrl: string) {
+  if (!process.env.RESEND_API_KEY) {
+    console.error("[v0] RESEND_API_KEY is not configured!")
+    return {
+      success: false,
+      error: "Email service not configured. Please contact support.",
+    }
+  }
+
+  console.log("[v0] Preparing verification email for:", email)
+  console.log("[v0] Using Resend API key:", process.env.RESEND_API_KEY?.substring(0, 10) + "...")
+
   const html = getEmailLayout(
     `
       <h1 style="color: #059669; margin-bottom: 24px;">Verify Your Email</h1>
@@ -119,11 +130,20 @@ export async function sendVerificationEmail(email: string, userName: string, ver
     "Verify your email address to get started with MyDayLogs",
   )
 
-  return sendEmail({
+  const result = await sendEmail({
     to: email,
     subject: "Verify Your Email - MyDayLogs",
     html,
   })
+
+  if (result.success) {
+    console.log("[v0] Verification email sent successfully to:", email)
+  } else {
+    console.error("[v0] Failed to send verification email to:", email)
+    console.error("[v0] Error details:", result.error)
+  }
+
+  return result
 }
 
 // Send password reset email

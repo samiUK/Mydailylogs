@@ -44,11 +44,9 @@ const createTransporter = async () => {
 
 const getEmailHeader = () => {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://mydaylogs.co.uk"
-  const logoUrl = `${siteUrl}/mydaylogs-logo.png`
-
   return `
     <div style="text-align: center; padding: 20px 0; border-bottom: 1px solid #e5e7eb;">
-      <img src="${logoUrl}" alt="MyDayLogs Logo" style="height: 48px; width: 48px; margin-bottom: 10px; border-radius: 8px;" />
+      <img src="${siteUrl}/images/mydaylogs-logo.png" alt="MyDayLogs" style="height: 40px; margin-bottom: 10px;" />
       <h1 style="color: #10b981; font-size: 24px; margin: 0; font-family: Arial, sans-serif;">MyDayLogs</h1>
     </div>
   `

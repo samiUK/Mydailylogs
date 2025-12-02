@@ -11,6 +11,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { ArrowLeft, UserPlus, AlertTriangle, Crown } from "lucide-react"
 import { checkCanCreateTeamMember, checkCanCreateAdmin, getSubscriptionLimits } from "@/lib/subscription-limits"
 import { UpgradeNotification } from "@/components/upgrade-notification"
@@ -34,6 +44,18 @@ export default function AddTeamMemberPage() {
   const [limitCheckResult, setLimitCheckResult] = useState<any>(null)
   const [subscriptionLimits, setSubscriptionLimits] = useState<any>(null)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
+  const [alertDialog, setAlertDialog] = useState<{
+    open: boolean
+    title: string
+    description: string
+    variant?: "default" | "success" | "error"
+    onConfirm?: () => void
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    variant: "default",
+  })
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -96,33 +118,32 @@ export default function AddTeamMemberPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (formData.role === "admin" && !canCreateAdmin) {
-      alert(adminLimitCheck?.reason || "Cannot create admin account due to plan limits")
+    if (formData.role === "manager" && !canCreateAdmin) {
+      setAlertDialog({
+        open: true,
+        title: "Manager Limit Reached",
+        description: adminLimitCheck?.reason || "Cannot create manager account due to plan limits",
+        variant: "error",
+      })
       return
     }
 
-    if (!canCreateTeamMember || !organizationId) return
-
-    const limitCheck = await checkCanCreateTeamMember(organizationId)
-    if (!limitCheck.canCreate) {
-      alert(limitCheck.reason || "Cannot create team member due to plan limits")
+    if (!canCreateTeamMember) {
+      setAlertDialog({
+        open: true,
+        title: "Team Member Limit Reached",
+        description: limitCheckResult?.reason || "Cannot add more team members. Please upgrade your plan.",
+        variant: "error",
+        onConfirm: () => {
+          router.push("/admin/settings#subscription")
+        },
+      })
       return
     }
 
     setIsLoading(true)
 
     try {
-      const supabase = createClient()
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) throw new Error("Not authenticated")
-
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("id", user.id).single()
-
-      if (!profile?.organization_id) throw new Error("No organization found")
-
       const response = await fetch("/api/admin/create-user", {
         method: "POST",
         headers: {
@@ -135,20 +156,48 @@ export default function AddTeamMemberPage() {
           lastName: formData.lastName,
           position: formData.position,
           role: formData.role,
-          organizationId: profile.organization_id,
+          organizationId,
           reportsTo: formData.reportsTo === "none" ? null : formData.reportsTo,
         }),
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || "Failed to create user")
+        if (data.limitReached) {
+          setAlertDialog({
+            open: true,
+            title: "Plan Limit Reached",
+            description: data.message || "Plan limit reached. Please upgrade to add more team members.",
+            variant: "error",
+            onConfirm: data.requiresUpgrade
+              ? () => {
+                  router.push("/admin/settings#subscription")
+                }
+              : undefined,
+          })
+          return
+        }
+        throw new Error(data.message || "Failed to create team member")
       }
 
-      router.push("/admin/team")
-    } catch (error) {
+      setAlertDialog({
+        open: true,
+        title: "Success",
+        description: "Team member created successfully!",
+        variant: "success",
+        onConfirm: () => {
+          router.push("/admin/team")
+        },
+      })
+    } catch (error: any) {
       console.error("Error creating team member:", error)
-      alert(error instanceof Error ? error.message : "Failed to create team member")
+      setAlertDialog({
+        open: true,
+        title: "Error",
+        description: error.message || "Failed to create team member",
+        variant: "error",
+      })
     } finally {
       setIsLoading(false)
     }
@@ -156,6 +205,27 @@ export default function AddTeamMemberPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-8">
+      <AlertDialog open={alertDialog.open} onOpenChange={(open) => setAlertDialog({ ...alertDialog, open })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{alertDialog.title}</AlertDialogTitle>
+            <AlertDialogDescription>{alertDialog.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            {alertDialog.onConfirm ? (
+              <>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={alertDialog.onConfirm}>
+                  {alertDialog.variant === "error" ? "Go to Settings" : "Continue"}
+                </AlertDialogAction>
+              </>
+            ) : (
+              <AlertDialogAction onClick={() => setAlertDialog({ ...alertDialog, open: false })}>OK</AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="flex items-center gap-4">
         <Link href="/admin/team">
           <Button variant="outline" size="sm">
@@ -296,11 +366,17 @@ export default function AddTeamMemberPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="staff">Staff</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="manager" disabled={subscriptionLimits?.planName === "Starter" || !canCreateAdmin}>
+                    Manager {subscriptionLimits?.planName === "Starter" && "(Growth/Scale plan required)"}
+                  </SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Managers have full admin access. Only the organization owner can be an Admin.
+                {subscriptionLimits?.planName === "Starter"
+                  ? "Upgrade to Growth or Scale to add managers with full admin access."
+                  : formData.role === "manager" && !canCreateAdmin
+                    ? `Manager limit reached (${adminLimitCheck?.currentCount}/${adminLimitCheck?.maxAllowed}). Upgrade for more admin accounts.`
+                    : "Managers have full admin access. Only the organization owner can be an Admin."}
               </p>
             </div>
 

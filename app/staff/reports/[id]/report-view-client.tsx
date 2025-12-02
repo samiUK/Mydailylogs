@@ -253,10 +253,10 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
                                     const photos = JSON.parse(response.response_value)
                                     return photos
                                       .slice(0, 1)
-                                      .map((photo: { name: string; dataUrl: string }, idx: number) => (
+                                      .map((photo: { name: string; url?: string; dataUrl?: string }, idx: number) => (
                                         <div key={idx} className="border border-gray-300 rounded p-2 bg-white">
                                           <img
-                                            src={photo.dataUrl || "/placeholder.svg"}
+                                            src={photo.url || photo.dataUrl || "/placeholder.svg"}
                                             alt={`${item.name} - Photo evidence`}
                                             className="h-32 w-auto object-contain rounded"
                                           />

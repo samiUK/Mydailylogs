@@ -138,20 +138,39 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
 
     try {
       const file = files[0]
+
+      // Compress the image first
       const compressedFile = file.type.startsWith("image/") ? await compressImage(file) : file
-      const fileDataUrl = await new Promise<{ name: string; dataUrl: string }>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve({ name: compressedFile.name, dataUrl: reader.result as string })
-        reader.onerror = reject
-        reader.readAsDataURL(compressedFile)
+
+      // Generate unique file path: organizationId/profileId/taskId-timestamp.ext
+      const fileExt = compressedFile.name.split(".").pop()?.toLowerCase()
+      const timestamp = Date.now()
+      const fileName = `${organizationId}/${profileId}/${taskId}-${timestamp}.${fileExt}`
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage.from("report-photos").upload(fileName, compressedFile, {
+        contentType: compressedFile.type,
+        upsert: false,
       })
 
+      if (uploadError) {
+        console.error("[v0] Error uploading to storage:", uploadError)
+        throw uploadError
+      }
+
+      // Get public URL
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("report-photos").getPublicUrl(fileName)
+
+      // Store URL in state for display
       setUploadedFiles((prev) => ({
         ...prev,
         [taskId]: [compressedFile],
       }))
 
-      const value = JSON.stringify([fileDataUrl])
+      // Store URL (not base64) in database
+      const value = JSON.stringify([{ name: compressedFile.name, url: publicUrl }])
 
       setLocalInputValues((prev) => ({ ...prev, [taskId]: value }))
       handleTaskResponse(taskId, value, false)
@@ -162,19 +181,34 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
     }
   }
 
-  const removeFile = (taskId: string, fileIndex: number) => {
-    setUploadedFiles((prev) => {
-      const newFiles = [...(prev[taskId] || [])]
-      newFiles.splice(fileIndex, 1)
-      return { ...prev, [taskId]: newFiles }
-    })
+  const removeFile = async (taskId: string, fileIndex: number) => {
+    try {
+      const existingPhotos = localInputValues[taskId] ? JSON.parse(localInputValues[taskId]) : []
+      const photoToDelete = existingPhotos[fileIndex]
 
-    const existingPhotos = localInputValues[taskId] ? JSON.parse(localInputValues[taskId]) : []
-    existingPhotos.splice(fileIndex, 1)
-    const value = JSON.stringify(existingPhotos)
+      if (photoToDelete?.url) {
+        // Extract file path from URL
+        const urlParts = photoToDelete.url.split("/report-photos/")
+        if (urlParts.length > 1) {
+          const filePath = urlParts[1].split("?")[0] // Remove query params
+          await supabase.storage.from("report-photos").remove([filePath])
+        }
+      }
 
-    setLocalInputValues((prev) => ({ ...prev, [taskId]: value }))
-    handleTaskResponse(taskId, value, uploadedFiles[taskId]?.length > 1)
+      setUploadedFiles((prev) => {
+        const newFiles = [...(prev[taskId] || [])]
+        newFiles.splice(fileIndex, 1)
+        return { ...prev, [taskId]: newFiles }
+      })
+
+      existingPhotos.splice(fileIndex, 1)
+      const value = JSON.stringify(existingPhotos)
+
+      setLocalInputValues((prev) => ({ ...prev, [taskId]: value }))
+      handleTaskResponse(taskId, value, existingPhotos.length > 0)
+    } catch (error) {
+      console.error("[v0] Error removing file:", error)
+    }
   }
 
   const loadChecklist = async () => {
@@ -494,7 +528,7 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
                 handleTaskResponse(task.id, value, !!value)
               }}
               rows={4}
-              className="text-lg border-2 shadow-md focus:ring-4 focus:ring-blue-200 min-h-[100px]"
+              className="text-lg border-2 shadow-md focus:ring-4 focus:ring-blue-200 min-h-[100px] touch-manipulation"
             />
             {textValidation.maxLength && (
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
@@ -554,36 +588,49 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
 
                 {uploadedFiles[task.id] && uploadedFiles[task.id].length > 0 && (
                   <div className="grid grid-cols-1 gap-4">
-                    {uploadedFiles[task.id].map((file, index) => (
-                      <div key={index} className="relative bg-white rounded-lg border-2 border-gray-200 shadow-md">
-                        <img
-                          src={URL.createObjectURL(file) || "/placeholder.svg"}
-                          alt={`Upload ${index + 1}`}
-                          className="w-full h-32 object-cover rounded-t-lg"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeFile(task.id, index)}
-                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 shadow-lg"
+                    {uploadedFiles[task.id].map((file, index) => {
+                      const photoData = localInputValues[task.id] ? JSON.parse(localInputValues[task.id])[index] : null
+                      return (
+                        <div
+                          key={index}
+                          className="relative bg-white rounded-xl shadow-lg overflow-hidden border-2 border-green-200"
                         >
-                          <X className="w-4 h-4" />
-                        </button>
-                        <div className="p-2">
-                          <p className="text-sm font-medium text-gray-700 truncate">{file.name}</p>
+                          {photoData?.url ? (
+                            <img
+                              src={photoData.url || "/placeholder.svg"}
+                              alt={file.name}
+                              className="w-full h-auto object-contain"
+                            />
+                          ) : (
+                            <div className="w-full h-48 bg-gray-100 flex items-center justify-center">
+                              <p className="text-gray-500">Loading...</p>
+                            </div>
+                          )}
+                          <div className="absolute top-2 right-2">
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="rounded-full shadow-lg"
+                              onClick={() => removeFile(task.id, index)}
+                            >
+                              <X className="w-5 h-5" />
+                            </Button>
+                          </div>
+                          <div className="bg-green-50 p-3 border-t border-green-200">
+                            <p className="text-sm font-medium text-green-800 truncate">{file.name}</p>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
 
-                {uploading[task.id] && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div className="text-lg font-medium text-blue-700">📸 Processing photos...</div>
-                  </div>
-                )}
-                {currentValue && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                    <p className="text-sm font-medium text-green-700">✓ 1 photo(s) uploaded</p>
+                {uploadedFiles[task.id] && uploadedFiles[task.id].length > 0 && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <p className="text-sm font-semibold text-green-800 flex items-center gap-2">
+                      <Check className="w-5 h-5" />✓ {uploadedFiles[task.id].length} photo(s) uploaded
+                    </p>
                   </div>
                 )}
               </>
@@ -738,11 +785,9 @@ export default function ChecklistPage({ params }: { params: Promise<{ id: string
   }
 
   useEffect(() => {
-    const resolveParams = async () => {
-      const resolvedParams = await params
+    params.then((resolvedParams) => {
       setChecklistId(resolvedParams.id)
-    }
-    resolveParams()
+    })
   }, [params])
 
   useEffect(() => {

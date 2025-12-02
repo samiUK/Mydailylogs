@@ -44,6 +44,56 @@ export async function GET() {
     totalSizeBytes = totalRows * 2048
     databaseSize = `~${formatBytes(totalSizeBytes)}`
 
+    let storageSizeBytes = 0
+    let photoCount = 0
+
+    try {
+      // List all files in report-photos bucket
+      const { data: files, error: storageError } = await supabase.storage.from("report-photos").list("", {
+        limit: 10000,
+        offset: 0,
+      })
+
+      if (!storageError && files) {
+        // Calculate total storage size by listing all organization folders
+        const { data: orgFolders } = await supabase.storage.from("report-photos").list("", {
+          limit: 1000,
+        })
+
+        if (orgFolders) {
+          for (const orgFolder of orgFolders) {
+            if (orgFolder.id) {
+              const { data: userFolders } = await supabase.storage.from("report-photos").list(orgFolder.name, {
+                limit: 1000,
+              })
+
+              if (userFolders) {
+                for (const userFolder of userFolders) {
+                  const { data: photoFiles } = await supabase.storage
+                    .from("report-photos")
+                    .list(`${orgFolder.name}/${userFolder.name}`, {
+                      limit: 10000,
+                    })
+
+                  if (photoFiles) {
+                    photoFiles.forEach((file) => {
+                      if (file.metadata?.size) {
+                        storageSizeBytes += file.metadata.size
+                        photoCount++
+                      }
+                    })
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (storageErr) {
+      console.error("[v0] Error fetching storage stats:", storageErr)
+      // Continue even if storage fetch fails
+    }
+
     // Get notification count (sent emails)
     let sentEmailsCount = 0
     try {
@@ -57,6 +107,8 @@ export async function GET() {
       success: true,
       databaseSize,
       totalSizeBytes,
+      storageSizeBytes, // Added storage bytes
+      photoCount, // Added photo count
       totalBandwidthBytes: 0, // Not tracking bandwidth yet
       sentEmailsCount,
     })

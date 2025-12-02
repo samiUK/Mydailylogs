@@ -201,6 +201,8 @@ export default function MasterDashboardPage() {
     backups: { total: 0, thisWeek: 0 },
     // New state for server management
     totalSize: 0, // Supabase Database Storage in bytes
+    storageSize: 0, // Supabase Storage (blob) in bytes
+    photoCount: 0, // Number of photos in storage
     totalBandwidth: 0, // Vercel Bandwidth in bytes
     sentEmails: 0, // Resend Emails sent
   })
@@ -673,6 +675,8 @@ export default function MasterDashboardPage() {
             },
             // Update server management stats - these will now be fetched via API routes if needed
             totalSize: 0, // Placeholder, as RPC is removed
+            storageSize: 0, // Added storage size
+            photoCount: 0, // Added photo count
             totalBandwidth: 0, // Placeholder, as RPC is removed
             sentEmails: 0, // Placeholder, as RPC is removed
           })
@@ -857,6 +861,8 @@ export default function MasterDashboardPage() {
             setDatabaseStats((prevStats) => ({
               ...prevStats,
               totalSize: data.totalSizeBytes || 0,
+              storageSize: data.storageSizeBytes || 0, // Added storage size
+              photoCount: data.photoCount || 0, // Added photo count
               totalBandwidth: data.totalBandwidthBytes || 0,
               sentEmails: data.sentEmailsCount || 0,
             }))
@@ -871,6 +877,8 @@ export default function MasterDashboardPage() {
             setDatabaseStats((prevStats) => ({
               ...prevStats,
               totalSize: 0,
+              storageSize: 0, // Reset storage size
+              photoCount: 0, // Reset photo count
               totalBandwidth: 0,
               sentEmails: 0,
             }))
@@ -1721,6 +1729,8 @@ export default function MasterDashboardPage() {
       setDatabaseStats((prevStats) => ({
         ...prevStats,
         totalSize: data.totalSizeBytes || 0,
+        storageSize: data.storageSizeBytes || 0, // Added storage size
+        photoCount: data.photoCount || 0, // Added photo count
         totalBandwidth: data.totalBandwidthBytes || 0,
         sentEmails: data.sentEmailsCount || 0,
       }))
@@ -1734,6 +1744,8 @@ export default function MasterDashboardPage() {
       setDatabaseStats((prevStats) => ({
         ...prevStats,
         totalSize: 0,
+        storageSize: 0, // Reset storage size
+        photoCount: 0, // Reset photo count
         totalBandwidth: 0,
         sentEmails: 0,
       }))
@@ -1939,7 +1951,7 @@ export default function MasterDashboardPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {/* Supabase Usage */}
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
@@ -1961,6 +1973,32 @@ export default function MasterDashboardPage() {
                         <div
                           className={`h-2 rounded-full ${(databaseStats.totalSize / 1024 / 1024) > 400 ? "bg-red-500" : databaseStats.totalSize / 1024 / 1024 > 250 ? "bg-orange-500" : "bg-green-500"}`}
                           style={{ width: `${Math.min((databaseStats.totalSize / 1024 / 1024 / 500) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium">Supabase Storage</span>
+                      <span className="text-xs text-gray-500">1GB limit</span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">
+                          {(databaseStats.storageSize / 1024 / 1024 || 0).toFixed(2)} MB ({databaseStats.photoCount}{" "}
+                          photos)
+                        </span>
+                        <span
+                          className={`font-medium ${(databaseStats.storageSize / 1024 / 1024) > 800 ? "text-red-600" : databaseStats.storageSize / 1024 / 1024 > 500 ? "text-orange-600" : "text-green-600"}`}
+                        >
+                          {((databaseStats.storageSize / 1024 / 1024 / 1024) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full ${(databaseStats.storageSize / 1024 / 1024) > 800 ? "bg-red-500" : databaseStats.storageSize / 1024 / 1024 > 500 ? "bg-orange-500" : "bg-green-500"}`}
+                          style={{ width: `${Math.min((databaseStats.storageSize / 1024 / 1024 / 1024) * 100, 100)}%` }}
                         />
                       </div>
                     </div>
@@ -2024,10 +2062,12 @@ export default function MasterDashboardPage() {
                   <p className="text-sm font-medium mb-2">Status Summary:</p>
                   <p className="text-sm text-gray-600">
                     {databaseStats.totalSize / 1024 / 1024 > 400 ||
+                    databaseStats.storageSize / 1024 / 1024 > 800 ||
                     allUsers.length * 2.5 > 2500 ||
                     (totalSubmittedReports * 0.3) / 1024 > 80
                       ? "⚠️ Warning: Approaching free tier limits. Consider upgrading soon."
                       : databaseStats.totalSize / 1024 / 1024 > 250 ||
+                          databaseStats.storageSize / 1024 / 1024 > 500 ||
                           allUsers.length * 2.5 > 1500 ||
                           (totalSubmittedReports * 0.3) / 1024 > 50
                         ? "🟡 Moderate usage. Monitor regularly."

@@ -4,9 +4,10 @@ VALUES (
   'report-photos',
   'report-photos', 
   true,
-  153600, -- 150KB limit (provides 3x buffer above compressed 50KB photos)
+  307200, -- 300KB limit (provides buffer for various device photo compressions)
   ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/heic']
-) ON CONFLICT (id) DO NOTHING;
+) ON CONFLICT (id) DO UPDATE
+SET file_size_limit = 307200;
 
 -- Create RLS policies for the report photos bucket
 CREATE POLICY "Users can upload report photos for their organization" ON storage.objects

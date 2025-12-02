@@ -1,7 +1,6 @@
 "use client"
 
 import { createClient } from "@/lib/supabase/client"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -73,7 +72,7 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
   const [completedDailyChecklistId, setCompletedDailyChecklistId] = useState<string | null>(null)
   const router = useRouter()
 
-  const compressImage = async (file: File): Promise<File> => {
+  const compressImage = (file: File): Promise<File> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
       reader.onload = (e) => {
@@ -86,24 +85,23 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
             return
           }
 
-          const maxDimension = 600
           let width = img.width
           let height = img.height
+          const maxWidth = 400
 
-          if (width > height && width > maxDimension) {
-            height = (height * maxDimension) / width
-            width = maxDimension
-          } else if (height > maxDimension) {
-            width = (width * maxDimension) / height
-            height = maxDimension
+          if (width > maxWidth) {
+            height = (height / width) * maxWidth
+            width = maxWidth
           }
 
           canvas.width = width
           canvas.height = height
           ctx.drawImage(img, 0, 0, width, height)
 
-          const targetSizeKB = 50
-          const quality = 0.35
+          console.log("[v0] Original dimensions:", img.width, "x", img.height, "→ Resized to:", width, "x", height)
+
+          const targetSizeKB = 100
+          const quality = 0.7
 
           const attemptCompression = (q: number) => {
             canvas.toBlob(
@@ -114,13 +112,17 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
                 }
 
                 const sizeKB = blob.size / 1024
+                console.log("[v0] Compression attempt - Quality:", q, "Size:", sizeKB.toFixed(1), "KB")
+
                 if (sizeKB <= targetSizeKB || q <= 0.1) {
-                  resolve(new File([blob], file.name, { type: file.type }))
+                  console.log("[v0] Final compressed size:", sizeKB.toFixed(1), "KB")
+                  const fileName = file.name.replace(/\.[^/.]+$/, ".jpg")
+                  resolve(new File([blob], fileName, { type: "image/jpeg" }))
                 } else {
                   attemptCompression(q - 0.05)
                 }
               },
-              file.type,
+              "image/jpeg",
               q,
             )
           }
@@ -142,60 +144,68 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
 
     try {
       const file = files[0]
+      console.log("[v0] Starting photo upload for task:", taskId, "File:", file.name, "Size:", file.size)
 
-      // Compress the image first
       const compressedFile = file.type.startsWith("image/") ? await compressImage(file) : file
+      console.log("[v0] Compressed file size:", compressedFile.size)
 
-      // Generate unique file path: organizationId/profileId/taskId-timestamp.ext
       const fileExt = compressedFile.name.split(".").pop()?.toLowerCase()
       const timestamp = Date.now()
       const fileName = `${organizationId}/${profileId}/${taskId}-${timestamp}.${fileExt}`
 
-      // Upload to Supabase Storage
-      const { error: uploadError } = await createClient()
-        .storage.from("report-photos")
+      console.log("[v0] Uploading to Supabase Storage:", fileName)
+
+      const supabase = createClient()
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("report-photos")
         .upload(fileName, compressedFile, {
           contentType: compressedFile.type,
           upsert: false,
         })
 
       if (uploadError) {
+        console.error("[v0] Upload error:", uploadError)
         toast({
           title: "Upload Failed",
-          description: `Failed to upload photo: ${uploadError.message}`,
+          description: uploadError.message,
           variant: "destructive",
         })
         setUploading((prev) => ({ ...prev, [taskId]: false }))
         return
       }
 
-      // Get public URL
+      console.log("[v0] Upload successful, getting public URL")
+
       const {
         data: { publicUrl },
-      } = createClient().storage.from("report-photos").getPublicUrl(fileName)
+      } = supabase.storage.from("report-photos").getPublicUrl(fileName)
 
-      // Store URL in state for display
+      console.log("[v0] Public URL:", publicUrl)
+
+      const previewUrl = URL.createObjectURL(compressedFile)
+
+      const displayFile = new File([compressedFile], compressedFile.name, { type: compressedFile.type })
       setUploadedFiles((prev) => ({
         ...prev,
-        [taskId]: [compressedFile],
+        [taskId]: [displayFile],
       }))
 
-      // Store URL (not base64) in database
       const value = JSON.stringify([{ name: compressedFile.name, url: publicUrl }])
       setLocalInputValues((prev) => ({ ...prev, [taskId]: value }))
 
-      // Save to database immediately
       await handleTaskResponse(taskId, value, true)
+
+      console.log("[v0] Photo saved to database successfully")
 
       toast({
         title: "Photo Uploaded",
-        description: "Photo uploaded and saved successfully",
+        description: "Photo saved successfully",
       })
     } catch (error) {
-      console.error("Error uploading photo:", error)
+      console.error("[v0] Error uploading photo:", error)
       toast({
         title: "Upload Error",
-        description: "An unexpected error occurred",
+        description: "Failed to upload photo. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -263,6 +273,9 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
       setIsLoading(false)
       return
     }
+
+    setOrganizationId(profile.organization_id)
+    setProfileId(user.id)
 
     const { data: assignmentData, error: assignmentError } = await supabase
       .from("template_assignments")
@@ -633,6 +646,7 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
                     type="file"
                     className="hidden"
                     accept="image/*"
+                    capture="environment"
                     disabled={uploading[task.id]}
                     onChange={(e) => handleFileUpload(task.id, e.target.files)}
                   />
@@ -892,157 +906,41 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
           </Badge>
         </div>
 
-        <div className="space-y-2">
-          <div className="w-full bg-muted rounded-full h-2.5 sm:h-2">
-            <div
-              className="bg-primary h-2.5 sm:h-2 rounded-full transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            ></div>
-          </div>
-          <p className="text-xs sm:text-sm text-muted-foreground font-medium">
-            {completedTasks} of {totalTasks} tasks completed ({Math.round(progress)}%)
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-3 sm:space-y-4 md:space-y-6">
-        {Object.entries(tasksByCategory).map(([category, categoryTasks]) => (
-          <div key={category} className="space-y-2 sm:space-y-3">
-            <h2 className="text-base sm:text-lg md:text-xl font-semibold text-foreground">{category}</h2>
-            <div className="space-y-3 md:space-y-4">
-              {categoryTasks.map((task) => {
-                const response = responses.find((r) => r.item_id === task.id)
-                const isCompleted = response?.is_completed
-                const hasValue = !!localInputValues[task.id]
-                const hasUploadedPhotos = uploadedFiles[task.id]?.length > 0
-                const isPhotoField = task.task_type === "photo"
-                const canMarkComplete = !isPhotoField || !task.is_required || hasUploadedPhotos
-
-                return (
-                  <Card
-                    key={task.id}
-                    className={`${isCompleted ? "bg-green-50 border-green-300 shadow-lg" : "bg-white border-gray-300 shadow-md"} border-2 transition-all duration-200`}
-                  >
-                    <CardHeader className="pb-3 sm:pb-4">
-                      <div className="flex items-start space-x-3 sm:space-x-4">
-                        <div className="mt-1 flex-shrink-0 p-1.5 sm:p-2 rounded-full bg-gray-100">
-                          {getTaskIcon(task.task_type)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
-                            <CardTitle
-                              className={`text-base sm:text-lg md:text-xl font-bold ${isCompleted ? "line-through text-gray-500" : "text-gray-900"}`}
-                            >
-                              {task.name}
-                            </CardTitle>
-                            {task.is_required && (
-                              <Badge
-                                variant="destructive"
-                                className="text-xs sm:text-sm px-2 sm:px-3 py-0.5 sm:py-1 font-semibold"
-                              >
-                                Required
-                              </Badge>
-                            )}
-                          </div>
-                          <CardDescription
-                            className={`text-sm sm:text-base ${isCompleted ? "line-through text-gray-500" : "text-gray-700"}`}
-                          >
-                            {task.description}
-                          </CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4 sm:space-y-6">
-                      <div>{renderTaskInput(task)}</div>
-
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor={`notes-${task.id}`}
-                          className="text-sm sm:text-base font-semibold text-gray-900"
-                        >
-                          Additional Notes (optional)
-                        </Label>
-                        <Textarea
-                          id={`notes-${task.id}`}
-                          placeholder="Add any notes or observations..."
-                          value={localNotes[task.id] || ""}
-                          onChange={(e) => handleTaskNotes(task.id, e.target.value)}
-                          className="text-base sm:text-lg border-2 shadow-md focus:ring-4 focus:ring-blue-200 min-h-[80px] touch-manipulation"
-                          rows={3}
-                        />
-                      </div>
-
-                      <div className="flex justify-between items-center pt-3 sm:pt-4 border-t-2 border-gray-200">
-                        <div className="flex items-center gap-2">
-                          {isCompleted && (
-                            <Badge
-                              variant="default"
-                              className="text-xs sm:text-sm px-3 sm:px-4 py-1.5 sm:py-2 font-semibold bg-green-600"
-                            >
-                              <Check className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                              Completed
-                            </Badge>
-                          )}
-                        </div>
-                        <Button
-                          size="lg"
-                          variant={isCompleted ? "outline" : "default"}
-                          onClick={() => {
-                            console.log("[v0] Mark completed button clicked for task:", task.id)
-                            handleMarkCompleted(task.id)
-                          }}
-                          disabled={!canMarkComplete}
-                          className="h-11 sm:h-12 px-4 sm:px-6 text-sm sm:text-base font-semibold shadow-md border-2 touch-manipulation"
-                        >
-                          {isCompleted ? "✓ Completed" : "Mark Complete"}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {progress === 100 && (
-        <div className="sticky bottom-3 sm:bottom-4 z-10">
-          <Card className="bg-green-50 border-green-300 border-2 shadow-xl">
-            <CardContent className="pt-4 sm:pt-6 pb-4 sm:pb-6">
-              <div className="text-center space-y-3 sm:space-y-4">
-                <div className="text-base sm:text-lg font-semibold text-green-800">
-                  🎉 All tasks completed! Ready to submit your report.
+        <div className="space-y-4">
+          {Object.keys(tasksByCategory).map((category) => (
+            <div key={category} className="space-y-3">
+              <h2 className="text-lg font-semibold text-foreground">{category}</h2>
+              {tasksByCategory[category].map((task) => (
+                <div key={task.id} className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    {getTaskIcon(task.task_type)}
+                    <span className="text-sm sm:text-base text-muted-foreground">{task.name}</span>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor={task.id} className="text-sm font-medium text-foreground">
+                      {task.description}
+                    </Label>
+                    {renderTaskInput(task)}
+                  </div>
                 </div>
-                <Button
-                  onClick={handleCompleteChecklist}
-                  disabled={isSaving}
-                  size="lg"
-                  className="w-full h-14 sm:h-16 text-lg sm:text-xl font-bold shadow-lg bg-green-600 hover:bg-green-700 touch-manipulation"
-                >
-                  {isSaving ? "Submitting Report..." : "Submit Report"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              ))}
+            </div>
+          ))}
         </div>
-      )}
 
-      {progress < 100 && (
-        <div className="flex flex-col gap-3 pt-4 border-t">
-          <div className="text-center text-sm sm:text-base text-muted-foreground">
-            Complete all tasks to finish this report ({Math.round(progress)}% done)
-          </div>
-          <Button
-            variant="outline"
-            onClick={() => router.push("/staff")}
-            size="lg"
-            className="w-full h-11 sm:h-auto touch-manipulation"
-          >
-            Back to Tasks
+        <div className="flex justify-end">
+          <Button type="button" variant="default" size="lg" onClick={handleCompleteChecklist} disabled={isSaving}>
+            {isSaving ? (
+              <>
+                <Loader2 className="w-6 h-6 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Complete Checklist"
+            )}
           </Button>
         </div>
-      )}
+      </div>
     </div>
   )
 }

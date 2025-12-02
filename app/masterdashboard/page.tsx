@@ -2323,28 +2323,17 @@ export default function MasterDashboardPage() {
                                     Resend Verification
                                   </Button>
                                 ) : (
-                                  <>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => verifyUserEmail(user.email)}
-                                      className="text-green-600 border-green-200 hover:bg-green-50 text-xs px-2 py-1"
-                                      disabled={isProcessing}
-                                    >
-                                      <CheckCircle className="w-3 h-3 mr-1" />
-                                      Verify Manually
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => unverifyAndResendEmail(user.email)}
-                                      className="text-purple-600 border-purple-200 hover:bg-purple-50 text-xs px-2 py-1"
-                                      disabled={isProcessing}
-                                    >
-                                      <Mail className="w-3 h-3 mr-1" />
-                                      Resend Email
-                                    </Button>
-                                  </>
+                                  // Users can resend email from their dashboard banner, so no need here
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => verifyUserEmail(user.email)}
+                                    className="text-green-600 border-green-200 hover:bg-green-50 text-xs px-2 py-1"
+                                    disabled={isProcessing}
+                                  >
+                                    <CheckCircle className="w-3 h-3 mr-1" />
+                                    Verify Manually
+                                  </Button>
                                 )}
                                 <Button
                                   variant="outline"
@@ -2417,23 +2406,8 @@ export default function MasterDashboardPage() {
 
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Organization Hierarchy</CardTitle>
-                    <CardDescription>View all organizations with their admin and staff members</CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                      <Input
-                        placeholder="Search organizations..."
-                        value={organizationSearchTerm}
-                        onChange={(e) => setOrganizationSearchTerm(e.target.value)}
-                        className="pl-10 w-64"
-                      />
-                    </div>
-                  </div>
-                </div>
+                <CardTitle>Organization Hierarchy</CardTitle>
+                <CardDescription>View all organizations with their admin and staff members</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">

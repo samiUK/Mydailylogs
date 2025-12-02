@@ -1909,12 +1909,11 @@ export default function MasterDashboardPage() {
         throw new Error(data.error || "Failed to create impersonation link")
       }
 
-      setImpersonationUrl(data.url)
-      setShowImpersonationModal(true)
-      showNotification("success", "Impersonation link generated! Copy it and open in an incognito window.")
+      window.open(data.url, "_blank")
+      showNotification("success", `Login link opened! Viewing as ${user.email}`)
     } catch (error) {
       console.error("[v0] Error generating impersonation link:", error)
-      showNotification("error", error instanceof Error ? error.message : "Failed to generate impersonation link")
+      showNotification("error", error instanceof Error ? error.message : "Failed to generate login link")
     } finally {
       setIsProcessing(false)
     }
@@ -3836,53 +3835,6 @@ export default function MasterDashboardPage() {
           </TabsContent>
         </Tabs>
       </div>
-
-      {/* Impersonation Modal */}
-      {showImpersonationModal && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-5"
-          onClick={() => setShowImpersonationModal(false)}
-        >
-          <div className="bg-white rounded-lg p-5 max-w-2xl w-full" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-4">Impersonation Link Generated</h3>
-            <p className="text-sm text-gray-600 mb-3">
-              Copy this URL and paste it into an incognito/private window to impersonate the user:
-            </p>
-            <div className="bg-gray-100 p-3 rounded mb-4 break-all font-mono text-xs">{impersonationUrl}</div>
-            <p className="text-xs text-amber-600 mb-4 flex items-start gap-2">
-              <span>⚠️</span>
-              <span>
-                <strong>Important:</strong> Right-click "Open in Incognito" and select "Open in Incognito Window"
-                (Chrome) or "Open in Private Window" (Firefox/Safari) to avoid session conflicts with your current admin
-                session.
-              </span>
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(impersonationUrl)
-                  showNotification("success", "Copied to clipboard!")
-                }}
-                className="flex-1 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-              >
-                Copy to Clipboard
-              </button>
-              <button
-                onClick={() => window.open(impersonationUrl, "_blank")}
-                className="flex-1 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
-              >
-                Open in Incognito (Right-Click)
-              </button>
-              <button
-                onClick={() => setShowImpersonationModal(false)}
-                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 text-sm"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {editingOrg && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

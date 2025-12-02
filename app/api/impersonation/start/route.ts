@@ -13,52 +13,52 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
-    const { userEmail, userId, userRole, organizationId } = await request.json()
+    const { userEmail, userId, userRole } = await request.json()
 
     if (!userEmail || !userId) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // Generate short, secure token (10 characters)
-    const token = Array.from(crypto.getRandomValues(new Uint8Array(8)))
-      .map((b) => b.toString(36))
-      .join("")
-      .substring(0, 10)
-      .toUpperCase()
-
     const adminClient = createAdminClient()
 
-    // Store token in database (expires in 10 minutes)
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+    const { data, error } = await adminClient.auth.admin.generateLink({
+      type: "magiclink",
+      email: userEmail,
+      options: {
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || request.headers.get("origin")}${
+          userRole === "admin" ? "/admin" : "/staff"
+        }`,
+      },
+    })
 
-    const { error: tokenError } = await adminClient.from("impersonation_tokens").insert({
-      token,
+    if (error || !data) {
+      console.error("[v0] Error generating magic link:", error)
+      return NextResponse.json({ error: "Failed to generate login link" }, { status: 500 })
+    }
+
+    // Log impersonation activity
+    await adminClient.from("impersonation_logs").insert({
       master_admin_email: superuserSession || "master@mydaylogs.co.uk",
       target_user_id: userId,
       target_user_email: userEmail,
       target_user_role: userRole || "staff",
-      organization_id: organizationId,
-      expires_at: expiresAt,
+      action: "impersonation_started",
       ip_address: request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip"),
       user_agent: request.headers.get("user-agent"),
     })
 
-    if (tokenError) {
-      console.error("[v0] Error creating impersonation token:", tokenError)
-      return NextResponse.json({ error: "Failed to create token" }, { status: 500 })
-    }
-
-    // Return the impersonation URL
-    const impersonateUrl = `${process.env.NEXT_PUBLIC_SITE_URL || request.headers.get("origin")}/impersonate/${token}`
-
+    // Return the direct login URL
     return NextResponse.json({
       success: true,
-      url: impersonateUrl,
-      token,
-      expiresAt,
+      url: data.properties.action_link, // Direct magic link URL
+      userEmail,
+      userRole,
     })
   } catch (error) {
     console.error("[v0] Impersonation error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: 500 },
+    )
   }
 }

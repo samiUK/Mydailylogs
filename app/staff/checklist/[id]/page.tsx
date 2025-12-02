@@ -295,25 +295,36 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
       const templateData = assignmentData.checklist_templates
       setTemplate(templateData)
 
-      const { data: tasksData } = await supabase
+      const { data: tasksData, error: tasksError } = await supabase
         .from("checklist_items")
+        .select("*")
         .eq("template_id", templateData.id)
         .order("order_index")
-        .select()
 
-      console.log("[v0] Tasks loaded:", tasksData?.length)
-      if (tasksData) {
-        setTasks(tasksData)
+      if (tasksError) {
+        console.error("[v0] Error loading tasks:", tasksError)
       }
 
-      const { data: responsesData } = await supabase
+      console.log("[v0] Tasks loaded for template", templateData.id, ":", tasksData?.length || 0)
+      if (tasksData && tasksData.length > 0) {
+        setTasks(tasksData)
+      } else {
+        console.warn("[v0] No tasks found for template:", templateData.id)
+        setTasks([])
+      }
+
+      const { data: responsesData, error: responsesError } = await supabase
         .from("checklist_responses")
         .select("*")
         .eq("assignment_id", assignmentIdFromUrl)
 
-      console.log("[v0] Responses loaded for assignment:", assignmentIdFromUrl, "count:", responsesData?.length)
+      if (responsesError) {
+        console.error("[v0] Error loading responses:", responsesError)
+      }
 
-      if (responsesData) {
+      console.log("[v0] Responses loaded for assignment:", assignmentIdFromUrl, "count:", responsesData?.length || 0)
+
+      if (responsesData && responsesData.length > 0) {
         setResponses(responsesData)
         const initialInputValues: Record<string, string> = {}
         const initialNotes: Record<string, string> = {}
@@ -328,14 +339,15 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
 
             try {
               const photoData = JSON.parse(response.response_value)
-              if (Array.isArray(photoData) && photoData.length > 0) {
-                const dummyFiles = photoData.map(
-                  (photo: any) => new File([], photo.name || "photo.jpg", { type: "image/jpeg" }),
-                )
-                initialUploadedFiles[response.item_id] = dummyFiles
+
+              if (photoData.photos && Array.isArray(photoData.photos)) {
+                initialUploadedFiles[response.item_id] = photoData.photos.map((url: string) => ({
+                  name: url.split("/").pop() || "photo.jpg",
+                  url,
+                })) as any
               }
             } catch (e) {
-              // Not JSON or not photo data, ignore
+              // Not a photo response, just a regular value
             }
           }
         })
@@ -343,9 +355,13 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
         setLocalInputValues(initialInputValues)
         setLocalNotes(initialNotes)
         setUploadedFiles(initialUploadedFiles)
+      } else {
+        console.log("[v0] Fresh assignment - starting with empty responses")
+        setResponses([])
+        setLocalInputValues({})
+        setLocalNotes({})
+        setUploadedFiles({})
       }
-
-      setCompletedAssignmentId(assignmentIdFromUrl)
     } catch (error) {
       console.error("[v0] Error loading checklist:", error)
     } finally {
@@ -651,7 +667,7 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
     )
   }
 
-  const completedTasks = responses.filter((r) => r.is_completed).length
+  const completedTasks = responses.filter((r) => r.is_completed && r.assignment_id === assignmentId).length
   const totalTasks = tasks.length
   const progress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
 

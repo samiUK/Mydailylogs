@@ -254,12 +254,13 @@ export default function HomePageClient() {
       <section className="py-20 px-4 sm:px-6 lg:px-8 text-center">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-foreground mb-6 leading-tight">
-            Task Management & Compliance <span className="text-accent block">for Growing Teams</span>
+            Mobile Task Management <span className="text-accent block">for On-the-Go Field Teams</span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground leading-relaxed">
-            Professional task management and digital reporting for teams that work on-site, in the field, or at your
-            premises. Complete checklists, capture evidence, and generate audit-ready reports from any device - perfect
-            for construction, hospitality, healthcare, retail, logistics, and operations teams.
+            Professional mobile-friendly task management and compliance reporting built for field teams who work
+            on-site. Complete checklists, capture photos, and generate professional reports directly from your mobile
+            device - perfect for construction, hospitality, healthcare, retail, logistics, sales teams, surveyors, and
+            kitchen operations.
           </p>
         </div>
       </section>
@@ -280,11 +281,10 @@ export default function HomePageClient() {
                 <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
                   <CheckSquare className="w-6 h-6 text-accent" />
                 </div>
-                <CardTitle>Digital Checklists</CardTitle>
+                <CardTitle>Mobile Digital Checklists</CardTitle>
                 <CardDescription>
-                  Create custom task templates for your team. Complete them on any device - mobile, tablet, or desktop.
-                  Track completion status in real-time with photo evidence, digital signatures, and timestamps for
-                  compliance documentation.
+                  Create custom task templates and complete them on mobile devices. Field teams can track completion
+                  status in real-time with photo evidence and timestamps - perfect for on-site compliance checks.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -294,11 +294,11 @@ export default function HomePageClient() {
                 <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
                   <FileText className="w-6 h-6 text-accent" />
                 </div>
-                <CardTitle>Professional Reporting</CardTitle>
+                <CardTitle>Professional Mobile Reporting</CardTitle>
                 <CardDescription>
-                  Generate professional reports with your business branding, company logo, complete task history,
-                  photos, and timestamps. Perfect for audit-ready compliance records, documentation, and professional
-                  client reporting needs.
+                  Generate professional reports with your business branding directly from mobile devices. Complete task
+                  history, photos, and timestamps submitted on-site - perfect for field documentation and audit-ready
+                  compliance records.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -308,11 +308,10 @@ export default function HomePageClient() {
                 <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
                   <Users className="w-6 h-6 text-accent" />
                 </div>
-                <CardTitle>Team Management</CardTitle>
+                <CardTitle>Field Team Management</CardTitle>
                 <CardDescription>
-                  Manage your entire team from one dashboard. Assign tasks to staff, track progress in real-time, and
-                  monitor completion rates across all team members, locations, and departments - whether office-based or
-                  in the field.
+                  Manage your entire field team from one dashboard. Assign mobile tasks to on-site workers, track
+                  progress in real-time, and monitor completion rates across all team members and locations.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -322,11 +321,10 @@ export default function HomePageClient() {
                 <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
                   <Calendar className="w-6 h-6 text-accent" />
                 </div>
-                <CardTitle>Smart Automation</CardTitle>
+                <CardTitle>Smart Mobile Reminders</CardTitle>
                 <CardDescription>
-                  Set up recurring tasks (daily/weekly/monthly) or schedule for specific dates. Automatic email
-                  reminders and notifications ensure your team never misses critical compliance checks, safety
-                  inspections, or operational tasks.
+                  Set up recurring tasks with customizable schedules for field teams. Automatic mobile-friendly email
+                  reminders ensure on-site teams never miss critical compliance checks or safety inspections.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -334,8 +332,7 @@ export default function HomePageClient() {
         </div>
       </section>
 
-      {/* How It Works Section */}
-      <section className="py-20 bg-background">
+      <section className="py-2.5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">How It Works</h2>
@@ -401,7 +398,7 @@ export default function HomePageClient() {
             <div className="grid lg:grid-cols-2 gap-0">
               <div className="p-8 lg:p-12 flex flex-col justify-center bg-gradient-to-br from-accent/5 to-transparent">
                 <Badge variant="secondary" className="mb-4 w-fit">
-                  Professional Reporting
+                  Sample Compliance Report
                 </Badge>
                 <h3 className="text-2xl md:text-3xl font-bold text-foreground mb-4">
                   Professional Reports for Your Business
@@ -445,7 +442,7 @@ export default function HomePageClient() {
                   </Button>
                 </Link>
               </div>
-              <div className="bg-muted/30 flex items-center justify-center p-8">
+              <div className="bg-muted/30 p-8 lg:p-12 flex items-center justify-center">
                 <div className="w-full max-w-md">
                   <div className="bg-background rounded-lg shadow-2xl border-2 border-border overflow-hidden transform hover:scale-105 transition-transform duration-300">
                     <img
@@ -462,34 +459,85 @@ export default function HomePageClient() {
             </div>
           </div>
 
-          {/* Removed duplicate feature cards section */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <Card className="border-border/50 bg-card hover:shadow-lg transition-shadow duration-300">
+              <CardHeader>
+                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
+                  <CheckSquare className="w-6 h-6 text-accent" />
+                </div>
+                <CardTitle>Digital Task Checklists</CardTitle>
+                <CardDescription>
+                  Create custom task templates and assign them to your team. Track completion status in real-time with
+                  photo evidence and digital signatures.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            <Card className="border-border/50 bg-card hover:shadow-lg transition-shadow duration-300">
+              <CardHeader>
+                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
+                  <FileText className="w-6 h-6 text-accent" />
+                </div>
+                <CardTitle>Professional Reporting</CardTitle>
+                <CardDescription>
+                  Generate professional reports with your business branding, complete task history, and timestamps.
+                  Perfect for documentation, record-keeping, and business reporting needs.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            <Card className="border-border/50 bg-card hover:shadow-lg transition-shadow duration-300">
+              <CardHeader>
+                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
+                  <Users className="w-6 h-6 text-accent" />
+                </div>
+                <CardTitle>Multi-User Management</CardTitle>
+                <CardDescription>
+                  Manage your entire team from one dashboard. Assign tasks, track progress, and monitor completion rates
+                  across all team members and departments.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            <Card className="border-border/50 bg-card hover:shadow-lg transition-shadow duration-300">
+              <CardHeader>
+                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
+                  <Calendar className="w-6 h-6 text-accent" />
+                </div>
+                <CardTitle>Smart Scheduling & Reminders</CardTitle>
+                <CardDescription>
+                  Set up recurring tasks with customizable schedules. Automatic email reminders ensure nothing falls
+                  through the cracks - perfect for regular compliance checks.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </div>
         </div>
       </section>
 
       <section id="pricing" className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Simple, Transparent Pricing</h2>
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">SME-Friendly Pricing</h2>
             <p className="text-xl text-muted-foreground">
-              Professional features at prices that work for growing businesses
+              Enterprise-grade compliance features at small business prices - no hidden costs
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {/* Starter Plan */}
             <Card className="hover:shadow-xl hover:scale-[1.02] transition-all duration-300">
               <CardHeader className="pb-4">
                 <CardTitle className="text-2xl">Starter</CardTitle>
-                <CardDescription className="text-base">Perfect for micro-businesses testing the waters</CardDescription>
+                <CardDescription className="text-base">Perfect for micro-businesses and startups</CardDescription>
                 <div className="mt-4">
                   <span className="text-5xl font-bold text-foreground">Free</span>
-                  <p className="text-sm text-muted-foreground mt-2">Forever free - no credit card required</p>
+                  <p className="text-sm text-muted-foreground mt-2">Forever free</p>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <ul className="space-y-3">
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span>1 Admin/Manager</span>
+                    <span>1 Manager</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
@@ -501,7 +549,7 @@ export default function HomePageClient() {
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span>50 reports/month</span>
+                    <span>50 report submissions</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
@@ -510,10 +558,6 @@ export default function HomePageClient() {
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
                     <span>Manual task assignments</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span>Multi-day scheduling (30 days max)</span>
                   </li>
                 </ul>
                 <Link href="/auth/sign-up" className="mt-auto">
@@ -524,10 +568,8 @@ export default function HomePageClient() {
               </CardContent>
             </Card>
 
-            {/* Growth Plan */}
             <Card className="group hover:shadow-lg hover:scale-[1.02] transition-all duration-300 border-2 border-accent/50 bg-gradient-to-br from-accent/5 to-transparent">
               <CardHeader className="pb-4">
-                <Badge className="w-fit mb-2 bg-accent text-accent-foreground">Most Popular</Badge>
                 <CardTitle className="text-2xl">Growth</CardTitle>
                 <CardDescription className="text-base">Ideal for growing small-medium businesses</CardDescription>
                 <div className="mt-4">
@@ -550,7 +592,7 @@ export default function HomePageClient() {
                 <ul className="space-y-3">
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span>3 Admin/Managers</span>
+                    <span>3 Managers</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
@@ -566,15 +608,7 @@ export default function HomePageClient() {
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span>90-day report storage</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span className="font-semibold">⚡ Recurring Task Automation</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span className="font-semibold">📅 Unlimited Multi-Day Scheduling</span>
+                    <span className="font-semibold">⚡ Task Automation (Recurring Tasks)</span>
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
@@ -594,7 +628,7 @@ export default function HomePageClient() {
                   </li>
                   <li className="flex items-center">
                     <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span className="font-semibold">🕐 Business Hours Integration</span>
+                    <span className="font-semibold">90-day report storage</span>
                   </li>
                 </ul>
                 <Button
@@ -602,18 +636,15 @@ export default function HomePageClient() {
                   disabled={checkingAuth}
                   className="w-full h-12 text-lg font-semibold bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
                 >
-                  {checkingAuth ? "Loading..." : "Get Started"}
+                  {checkingAuth ? "Loading..." : "Get Started Free"}
                 </Button>
               </CardContent>
             </Card>
 
-            {/* Scale Plan */}
             <Card className="hover:shadow-xl hover:scale-[1.02] transition-all duration-300">
               <CardHeader className="pb-4">
                 <CardTitle className="text-2xl">Scale</CardTitle>
-                <CardDescription className="text-base">
-                  For established businesses ready to scale operations
-                </CardDescription>
+                <CardDescription className="text-base">For established SMEs ready to scale</CardDescription>
                 <div className="mt-4">
                   {isLoadingCurrency ? (
                     <span className="text-5xl font-bold text-muted-foreground">...</span>
@@ -633,64 +664,52 @@ export default function HomePageClient() {
               <CardContent className="space-y-4">
                 <ul className="space-y-3">
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span>7 Admin/Managers</span>
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
+                    <span>7 Managers</span>
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                     <span>Up to 75 team members</span>
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                     <span>20 task templates</span>
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                     <span>Unlimited report submissions</span>
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span>90-day report storage</span>
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
+                    <span className="font-semibold">⚡ Task Automation (Recurring Tasks)</span>
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span className="font-semibold">⚡ Recurring Task Automation</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span className="font-semibold">📅 Unlimited Multi-Day Scheduling</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                     <span className="font-semibold">🎨 Custom Business Branding</span>
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                     <span className="font-semibold">📧 Email Notifications</span>
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                     <span className="font-semibold">🔗 Contractor Link Share</span>
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                     <span className="font-semibold">📸 Photo Upload on Reports</span>
                   </li>
                   <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span className="font-semibold">🕐 Business Hours Integration</span>
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                    <span className="font-semibold">🔄 Report Recovery (via support)</span>
+                    <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
+                    <span className="font-semibold">90-day report storage</span>
                   </li>
                 </ul>
                 <Button
                   onClick={() => handleUpgradeFromHomepage("scale")}
                   disabled={checkingAuth}
-                  className="w-full h-12 text-lg font-semibold"
+                  className="w-full h-12 text-lg font-semibold bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
                 >
-                  {checkingAuth ? "Loading..." : "Get Started"}
+                  {checkingAuth ? "Loading..." : "Get Started Free"}
                 </Button>
               </CardContent>
             </Card>

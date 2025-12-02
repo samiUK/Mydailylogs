@@ -15,16 +15,26 @@ export async function GET() {
 
     console.log(`[v0] Successfully fetched ${data.users.length} auth users`)
 
-    // Return only the necessary verification data
+    // Return verification data including last sign in timestamp
     const verificationMap = data.users.reduce(
       (acc, user) => {
         acc[user.id] = {
           email_confirmed_at: user.email_confirmed_at,
           email: user.email,
+          last_sign_in_at: user.last_sign_in_at || null,
+          created_at: user.created_at || null,
         }
         return acc
       },
-      {} as Record<string, { email_confirmed_at: string | null; email: string }>,
+      {} as Record<
+        string,
+        {
+          email_confirmed_at: string | null
+          email: string
+          last_sign_in_at: string | null
+          created_at: string | null
+        }
+      >,
     )
 
     return NextResponse.json({ verificationMap })

@@ -40,7 +40,6 @@ export default function NewTemplatePage() {
   const [scheduleType, setScheduleType] = useState("one-off")
   const [specificDate, setSpecificDate] = useState("")
   const [deadlineDate, setDeadlineDate] = useState("")
-  const [multiDayDates, setMultiDayDates] = useState<string[]>([])
   const [scheduleTime, setScheduleTime] = useState("")
   const [tasks, setTasks] = useState<Task[]>([])
   const [categories, setCategories] = useState<string[]>([])
@@ -220,17 +219,6 @@ export default function NewTemplatePage() {
     return { categorizedTasks, uncategorizedTasks }
   }
 
-  const getMaxMultiDayDate = () => {
-    if (!subscriptionLimits || subscriptionLimits.hasTaskAutomation) {
-      // Paid users have no restriction
-      return null
-    }
-    // Starter users can only schedule 30 days ahead
-    const maxDate = new Date()
-    maxDate.setDate(maxDate.getDate() + 30)
-    return maxDate.toISOString().split("T")[0]
-  }
-
   const validateDates = () => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -252,43 +240,6 @@ export default function NewTemplatePage() {
       if (selectedDeadline < today) {
         setError("Deadline date cannot be in the past")
         return false
-      }
-    }
-
-    if (scheduleType === "multi_day" && multiDayDates.length === 0) {
-      setError("Please add at least one date for multi-day scheduling")
-      return false
-    }
-
-    if (scheduleType === "multi_day" && multiDayDates.length > 0) {
-      const pastDates = multiDayDates.filter((date) => {
-        const d = new Date(date)
-        d.setHours(0, 0, 0, 0)
-        return d < today
-      })
-
-      if (pastDates.length > 0) {
-        setError("Multi-day dates cannot be in the past")
-        return false
-      }
-
-      if (subscriptionLimits && !subscriptionLimits.hasTaskAutomation) {
-        const maxDate = new Date()
-        maxDate.setDate(maxDate.getDate() + 30)
-        maxDate.setHours(0, 0, 0, 0)
-
-        const futureDates = multiDayDates.filter((date) => {
-          const d = new Date(date)
-          d.setHours(0, 0, 0, 0)
-          return d > maxDate
-        })
-
-        if (futureDates.length > 0) {
-          setError(
-            "Starter plan can only schedule multi-day dates within 30 days. Upgrade to Growth or Scale for unlimited scheduling.",
-          )
-          return false
-        }
       }
     }
 
@@ -345,7 +296,6 @@ export default function NewTemplatePage() {
 
       let processedSpecificDate = null
       let processedDeadlineDate = null
-      let processedMultiDayDates = null
 
       if (scheduleType === "specific_date" && specificDate) {
         processedSpecificDate = specificDate
@@ -355,37 +305,28 @@ export default function NewTemplatePage() {
         processedDeadlineDate = deadlineDate
       }
 
-      if (scheduleType === "multi_day" && multiDayDates.length > 0) {
-        processedMultiDayDates = multiDayDates
-      }
-
       let mappedFrequency: string
       if (scheduleType === "recurring") {
         mappedFrequency = frequency
       } else {
-        // For specific_date, deadline, multi_day, and one-off, use 'custom' as the frequency
+        // For specific_date, deadline, and one-off, use 'custom' as the frequency
         mappedFrequency = "custom"
       }
-
-      const isRecurringTemplate = scheduleType === "recurring"
 
       const templateData = {
         name,
         description,
         frequency: mappedFrequency,
         schedule_type: scheduleType,
-        is_recurring: isRecurringTemplate, // Always sync this field
-        recurrence_type: isRecurringTemplate ? frequency : null, // Set recurrence_type for cron job
         specific_date: processedSpecificDate,
         deadline_date: processedDeadlineDate,
-        multi_day_dates: processedMultiDayDates, // Added multi-day dates
         schedule_time: scheduleTime || null,
         organization_id: organizationId,
         created_by: user.id,
         is_active: true,
       }
 
-      console.log("[v0] Creating template with synchronized data:", templateData)
+      console.log("[v0] Creating template with data:", templateData)
 
       const { data: templateResult, error: templateError } = await supabase
         .from("checklist_templates")
@@ -523,7 +464,6 @@ export default function NewTemplatePage() {
                       <SelectItem value="one-off">One-off</SelectItem>
                       <SelectItem value="deadline">Deadline</SelectItem>
                       <SelectItem value="specific_date">Specific Date</SelectItem>
-                      <SelectItem value="multi_day">Multi-Day (Multiple Dates)</SelectItem>
                       <SelectItem value="recurring" disabled={!hasTaskAutomation}>
                         Recurring (Daily/Weekly/Monthly)
                         {!hasTaskAutomation && " 👑 Premium"}
@@ -620,91 +560,7 @@ export default function NewTemplatePage() {
                   </div>
                 )}
 
-                {scheduleType === "multi_day" && (
-                  <div className="grid gap-2">
-                    <Label required>Multiple Dates</Label>
-                    {subscriptionLimits && !subscriptionLimits.hasTaskAutomation && (
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2">
-                        <p className="text-sm text-amber-800 flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4" />
-                          <span>
-                            <strong>Starter Plan:</strong> Multi-day dates limited to 30 days ahead. Upgrade to Growth
-                            or Scale for unlimited scheduling.
-                          </span>
-                        </p>
-                      </div>
-                    )}
-                    <div className="space-y-3">
-                      <div className="flex gap-2">
-                        <Input
-                          type="date"
-                          id="multiDayDateInput"
-                          min={new Date().toISOString().split("T")[0]}
-                          max={getMaxMultiDayDate() || undefined}
-                          className="bg-white border-2 border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault()
-                              const input = e.currentTarget
-                              if (input.value && !multiDayDates.includes(input.value)) {
-                                setMultiDayDates([...multiDayDates, input.value].sort())
-                                input.value = ""
-                                if (error && error.includes("multi-day")) {
-                                  setError(null)
-                                }
-                              }
-                            }
-                          }}
-                        />
-                        <Button
-                          type="button"
-                          onClick={() => {
-                            const input = document.getElementById("multiDayDateInput") as HTMLInputElement
-                            if (input.value && !multiDayDates.includes(input.value)) {
-                              setMultiDayDates([...multiDayDates, input.value].sort())
-                              input.value = ""
-                              if (error && error.includes("multi-day")) {
-                                setError(null)
-                              }
-                            }
-                          }}
-                          className="bg-emerald-600 hover:bg-emerald-700"
-                        >
-                          Add Date
-                        </Button>
-                      </div>
-                      {multiDayDates.length > 0 && (
-                        <div className="bg-gray-50 border-2 border-gray-200 rounded-lg p-3">
-                          <p className="text-sm font-medium text-gray-700 mb-2">Selected Dates:</p>
-                          <div className="flex flex-wrap gap-2">
-                            {multiDayDates.map((date) => (
-                              <div
-                                key={date}
-                                className="flex items-center gap-2 bg-white border border-emerald-300 rounded-full px-3 py-1 text-sm"
-                              >
-                                <span>{new Date(date).toLocaleDateString("en-GB")}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => setMultiDayDates(multiDayDates.filter((d) => d !== date))}
-                                  className="text-red-500 hover:text-red-700 font-bold"
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        {subscriptionLimits && !subscriptionLimits.hasTaskAutomation
-                          ? "Add specific dates within the next 30 days. For automated recurring tasks, upgrade to a paid plan."
-                          : "Add multiple specific dates when this task should be completed (e.g., 1st and 15th of each month)"}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {(scheduleType === "specific_date" || scheduleType === "deadline" || scheduleType === "multi_day") && (
+                {(scheduleType === "specific_date" || scheduleType === "deadline") && (
                   <div className="grid gap-2">
                     <Label htmlFor="scheduleTime">Time (Optional)</Label>
                     <Input
@@ -1028,7 +884,6 @@ export default function NewTemplatePage() {
                         {scheduleType === "recurring" && (frequency || "Frequency")}
                         {scheduleType === "specific_date" && `Due: ${specificDate || "Select date"}`}
                         {scheduleType === "deadline" && `Deadline: ${deadlineDate || "Select deadline"}`}
-                        {scheduleType === "multi_day" && `${multiDayDates.length} date(s) selected`}
                         {scheduleType === "one-off" && "One-off Task"}
                       </span>
                       {scheduleTime && (

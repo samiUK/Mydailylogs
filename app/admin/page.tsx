@@ -81,6 +81,7 @@ export default function AdminDashboard() {
   const [overdueCount, setOverdueCount] = useState(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [templateAssignments, setTemplateAssignments] = useState<any[]>([])
+  const [showVerificationSuccess, setShowVerificationSuccess] = useState(false)
 
   const router = useRouter()
   const organizationId = profile?.organization_id
@@ -175,6 +176,7 @@ export default function AdminDashboard() {
     if (memberIds.length === 0) return
 
     setAssigningTemplate(templateId)
+    const supabase = createClient()
 
     try {
       const response = await fetch("/api/admin/assign-template", {
@@ -187,24 +189,13 @@ export default function AdminDashboard() {
         }),
       })
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to assign template")
-      }
+      if (!response.ok) throw new Error("Failed to assign template")
 
       setSelectedMembers((prev) => ({ ...prev, [templateId]: [] }))
-
-      if (data.duplicateWarnings && data.duplicateWarnings.length > 0) {
-        alert(
-          `Template assigned successfully!\n\n⚠️ Note: The following team members already had active assignments:\n${data.duplicateWarnings.join("\n")}`,
-        )
-      } else {
-        alert("Template assigned successfully!")
-      }
+      alert("Template assigned successfully!")
     } catch (error) {
       console.error("Error assigning template:", error)
-      alert(error instanceof Error ? error.message : "Failed to assign template")
+      alert("Failed to assign template")
     } finally {
       setAssigningTemplate(null)
     }
@@ -214,6 +205,7 @@ export default function AdminDashboard() {
     if (memberIds.length === 0) return
 
     setAssigningTemplate(templateId)
+    const supabase = createClient()
 
     try {
       const response = await fetch("/api/admin/assign-template", {
@@ -226,24 +218,13 @@ export default function AdminDashboard() {
         }),
       })
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to assign template")
-      }
+      if (!response.ok) throw new Error("Failed to assign template")
 
       setSelectedMembers((prev) => ({ ...prev, [templateId]: [] }))
-
-      if (data.duplicateWarnings && data.duplicateWarnings.length > 0) {
-        alert(
-          `Report template assigned successfully!\n\n⚠️ Note: The following team members already had active assignments:\n${data.duplicateWarnings.join("\n")}`,
-        )
-      } else {
-        alert("Report template assigned successfully!")
-      }
+      alert("Report template assigned successfully!")
     } catch (error) {
       console.error("Error assigning template:", error)
-      alert(error instanceof Error ? error.message : "Failed to assign report template")
+      alert("Failed to assign report template")
     } finally {
       setAssigningTemplate(null)
     }
@@ -450,6 +431,17 @@ export default function AdminDashboard() {
 
     loadUser()
   }, [router])
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.get("verified") === "true") {
+      setShowVerificationSuccess(true)
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname)
+      // Hide message after 5 seconds
+      setTimeout(() => setShowVerificationSuccess(false), 5000)
+    }
+  }, [])
 
   const fetchActivityLog = async () => {
     if (!organizationId) return
@@ -734,14 +726,30 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div className="space-y-8">
       <FeedbackBanner />
 
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Admin Dashboard</h1>
-        <p className="text-sm sm:text-base text-muted-foreground mt-2">
-          Manage your organization's compliance checklists and team members
-        </p>
+      {showVerificationSuccess && (
+        <Alert className="border-green-200 bg-green-50">
+          <CheckCircle2 className="h-4 w-4 text-green-600" />
+          <AlertTitle className="text-green-800">Email Verified Successfully</AlertTitle>
+          <AlertDescription className="text-green-700">
+            Your email has been verified. You now have full access to all features.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">Welcome back, {profile?.first_name || profile?.full_name || "Admin"}</p>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => setShowTeamModal(true)}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Add Team Member
+          </Button>
+        </div>
       </div>
 
       {missedTasks.length > 0 && (

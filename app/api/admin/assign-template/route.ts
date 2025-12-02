@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     const { data: template } = await supabase
       .from("checklist_templates")
-      .select("name, description, specific_date, deadline_date, schedule_type, frequency, is_recurring")
+      .select("name, description, specific_date, deadline_date")
       .eq("id", templateId)
       .single()
 
@@ -47,40 +47,6 @@ export async function POST(request: NextRequest) {
     }
 
     const assignmentDueDate = dueDate || template.specific_date || template.deadline_date
-    const assignmentScheduleType = template.schedule_type || "one-off"
-
-    const duplicateWarnings: string[] = []
-
-    if (assignmentScheduleType !== "recurring") {
-      for (const memberId of memberIds) {
-        const { data: existingAssignments } = await supabase
-          .from("template_assignments")
-          .select("assigned_at, status")
-          .eq("template_id", templateId)
-          .eq("assigned_to", memberId)
-          .eq("is_active", true)
-          .is("completed_at", null)
-          .order("assigned_at", { ascending: false })
-          .limit(1)
-
-        if (existingAssignments && existingAssignments.length > 0) {
-          const { data: memberData } = await supabase
-            .from("profiles")
-            .select("full_name, first_name, last_name")
-            .eq("id", memberId)
-            .single()
-
-          const memberName =
-            memberData?.full_name ||
-            (memberData?.first_name && memberData?.last_name
-              ? `${memberData.first_name} ${memberData.last_name}`
-              : "this team member")
-
-          const assignedDate = formatUKDate(existingAssignments[0].assigned_at)
-          duplicateWarnings.push(`${memberName} (assigned on ${assignedDate})`)
-        }
-      }
-    }
 
     let holidayWarning = null
     if (assignmentDueDate) {
@@ -103,7 +69,6 @@ export async function POST(request: NextRequest) {
       organization_id: profile.organization_id,
       assigned_at: new Date().toISOString(),
       due_date: assignmentDueDate,
-      schedule_type: assignmentScheduleType, // Sync schedule_type to assignment
       is_active: true,
     }))
 
@@ -111,10 +76,10 @@ export async function POST(request: NextRequest) {
 
     if (createError) {
       console.error("[v0] Database error (create):", createError)
-      return NextResponse.json({ error: createError.message || "Failed to create assignments" }, { status: 500 })
+      return NextResponse.json({ error: "Failed to create assignments" }, { status: 500 })
     }
 
-    console.log(`[v0] Created ${assignments.length} new assignments with schedule_type: ${assignmentScheduleType}`)
+    console.log(`[v0] Created ${assignments.length} new assignments`)
 
     const { data: assignedMembers } = await supabase
       .from("profiles")
@@ -178,7 +143,6 @@ export async function POST(request: NextRequest) {
       success: true,
       assignedCount: assignments.length,
       holidayWarning,
-      duplicateWarnings: duplicateWarnings.length > 0 ? duplicateWarnings : null,
     })
   } catch (error) {
     console.error("Error assigning template:", error)

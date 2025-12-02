@@ -8,10 +8,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Calendar } from "@/components/ui/calendar"
 import { Label } from "@/components/ui/label"
-import { ArrowLeft, Users, CalendarIcon, X, AlertCircle } from "lucide-react"
+import { ArrowLeft, Users, CalendarIcon, X } from 'lucide-react'
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from 'next/navigation'
 import {
   Dialog,
   DialogContent,
@@ -20,7 +20,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 interface Template {
   id: string
@@ -28,8 +27,6 @@ interface Template {
   description: string | null
   frequency: string
   schedule_type: string
-  specific_date: string | null
-  deadline_date: string | null
 }
 
 interface TeamMember {
@@ -59,7 +56,6 @@ export default function AssignTemplatePage({ params }: { params: Promise<{ id: s
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
-  const [duplicateWarnings, setDuplicateWarnings] = useState<string[]>([])
   const [templateId, setTemplateId] = useState<string>("")
 
   const router = useRouter()
@@ -98,7 +94,7 @@ export default function AssignTemplatePage({ params }: { params: Promise<{ id: s
 
       const { data: templateData, error: templateError } = await supabase
         .from("checklist_templates")
-        .select("id, name, description, frequency, schedule_type, specific_date, deadline_date")
+        .select("id, name, description, frequency, schedule_type")
         .eq("id", templateId)
         .eq("organization_id", profile.organization_id)
         .single()
@@ -180,36 +176,8 @@ export default function AssignTemplatePage({ params }: { params: Promise<{ id: s
     }
   }
 
-  const handleSubmitClick = async () => {
+  const handleSubmitClick = () => {
     if (!template) return
-
-    const supabase = createClient()
-    const newlySelected = Array.from(selectedMembers)
-    const warnings: string[] = []
-
-    for (const memberId of newlySelected) {
-      const { data: existingAssignments } = await supabase
-        .from("template_assignments")
-        .select("assigned_at, status")
-        .eq("template_id", template.id)
-        .eq("assigned_to", memberId)
-        .eq("is_active", true)
-        .is("completed_at", null)
-        .order("assigned_at", { ascending: false })
-        .limit(1)
-
-      if (existingAssignments && existingAssignments.length > 0) {
-        const member = teamMembers.find((m) => m.id === memberId)
-        const memberName =
-          member?.full_name ||
-          (member?.first_name && member?.last_name ? `${member.first_name} ${member.last_name}` : "Unknown")
-
-        const assignedDate = new Date(existingAssignments[0].assigned_at).toLocaleDateString("en-GB")
-        warnings.push(`${memberName} (assigned on ${assignedDate})`)
-      }
-    }
-
-    setDuplicateWarnings(warnings)
     setConfirmDialogOpen(true)
   }
 
@@ -257,7 +225,6 @@ export default function AssignTemplatePage({ params }: { params: Promise<{ id: s
           assigned_to: memberId,
           assigned_by: user.id,
           organization_id: profile.organization_id,
-          due_date: template.specific_date || template.deadline_date || null,
         }))
 
         const { error: assignError } = await supabase.from("template_assignments").insert(assignments)
@@ -522,7 +489,7 @@ export default function AssignTemplatePage({ params }: { params: Promise<{ id: s
       </div>
 
       <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Assignment Changes</DialogTitle>
             <DialogDescription>
@@ -549,23 +516,6 @@ export default function AssignTemplatePage({ params }: { params: Promise<{ id: s
               )}
             </DialogDescription>
           </DialogHeader>
-
-          {duplicateWarnings.length > 0 && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Duplicate Assignment Warning</AlertTitle>
-              <AlertDescription>
-                <p className="mb-2">The following team members already have an active assignment for this template:</p>
-                <ul className="list-disc list-inside space-y-1 text-sm">
-                  {duplicateWarnings.map((warning, index) => (
-                    <li key={index}>{warning}</li>
-                  ))}
-                </ul>
-                <p className="mt-2 text-sm font-medium">Proceeding will create additional assignments.</p>
-              </AlertDescription>
-            </Alert>
-          )}
-
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmDialogOpen(false)}>
               Cancel

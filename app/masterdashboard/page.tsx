@@ -51,6 +51,7 @@ import {
   Minus,
   Plus,
   Settings,
+  BarChart3,
 } from "lucide-react"
 import { useEffect, useState, useMemo } from "react" // Added useMemo
 import { ReportDirectoryContent } from "./report-directory-content"
@@ -243,6 +244,8 @@ export default function MasterDashboardPage() {
     currentValue: number
     isCustom: boolean
   } | null>(null)
+  const [loadingQuotaForOrg, setLoadingQuotaForOrg] = useState<string | null>(null)
+  // </CHANGE>
   const [quotaReason, setQuotaReason] = useState("")
   const [masterPassword, setMasterPassword] = useState("")
   // </CHANGE>
@@ -788,33 +791,34 @@ export default function MasterDashboardPage() {
             org.last_report_email_sent = lastSentReport?.created_at // Assuming reports have a created_at field
           })
 
-          const orgsWithQuota = await Promise.all(
-            allOrganizations.map(async (org: Organization) => {
-              try {
-                const quotaResponse = await fetch("/api/master/organization-quota", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ organizationId: org.organization_id }),
-                })
+          // const orgsWithQuota = await Promise.all(
+          //   allOrganizations.map(async (org: Organization) => {
+          //     try {
+          //       const quotaResponse = await fetch("/api/master/organization-quota", {
+          //         method: "POST",
+          //         headers: { "Content-Type": "application/json" },
+          //         body: JSON.stringify({ organizationId: org.organization_id }),
+          //       })
 
-                if (quotaResponse.ok) {
-                  const quotaData = await quotaResponse.json()
-                  return {
-                    ...org,
-                    quotaData,
-                  }
-                }
-              } catch (error) {
-                console.error("Error fetching quota for org:", org.organization_id, error)
-              }
+          //       if (quotaResponse.ok) {
+          //         const quotaData = await quotaResponse.json()
+          //         return {
+          //           ...org,
+          //           quotaData,
+          //         }
+          //       }
+          //     } catch (error) {
+          //       console.error("Error fetching quota for org:", org.organization_id, error)
+          //     }
 
-              return {
-                ...org,
-              }
-            }),
-          )
-
-          setOrganizations(orgsWithQuota)
+          //     return {
+          //       ...org,
+          //     }
+          //   }),
+          // )
+          // setOrganizations(orgsWithQuota)
+          // </CHANGE>
+          setOrganizations(allOrganizations) // Now organizations are set without quota data initially
           setAllUsers(
             profilesData?.map((profile) => {
               // Ensure allUsers also gets email_confirmed_at and last_sign_in_at
@@ -831,7 +835,7 @@ export default function MasterDashboardPage() {
           )
 
           console.log("[v0] Enhanced data loaded:", {
-            organizations: orgsWithQuota.length,
+            organizations: allOrganizations.length, // Use length of set organizations
             users: (
               profilesData?.map((profile) => {
                 const confirmedAt = tempAuthUserMap.get(profile.id)?.email_confirmed_at || null
@@ -893,7 +897,7 @@ export default function MasterDashboardPage() {
           })
           setNewSignupsThisMonth(signupsThisMonth.length)
 
-          const totalOrgs = orgsWithQuota.length // Use the processed organizations list
+          const totalOrgs = allOrganizations.length // Use the processed organizations list
 
           const paidSubscriptions = allSubscriptions.filter(
             (sub) =>
@@ -915,7 +919,6 @@ export default function MasterDashboardPage() {
           setPaidCustomers(paidOrgs)
           setComplimentaryCustomers(complimentaryOrgs)
           // </CHANGE>
-
           const conversion = totalOrgs > 0 ? ((paidOrgs / totalOrgs) * 100).toFixed(1) : "0.0"
           setConversionRate(Number(conversion))
 
@@ -2065,6 +2068,35 @@ export default function MasterDashboardPage() {
       alert("Failed to reset quota")
     }
   }
+  const loadQuotaForOrganization = async (organizationId: string) => {
+    setLoadingQuotaForOrg(organizationId)
+    try {
+      const quotaResponse = await fetch("/api/master/organization-quota", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId }),
+      })
+
+      if (quotaResponse.ok) {
+        const quotaData = await quotaResponse.json()
+
+        // Update the specific organization with quota data
+        setOrganizations((prevOrgs) =>
+          prevOrgs.map((org) => (org.organization_id === organizationId ? { ...org, quotaData } : org)),
+        )
+      } else {
+        // Removed toast call as it's not defined in this context. Use showNotification or similar if needed.
+        console.error("Failed to load quota information")
+      }
+    } catch (error) {
+      console.error("Error fetching quota:", error)
+      // Removed toast call
+      console.error("Failed to load quota information")
+    } finally {
+      setLoadingQuotaForOrg(null)
+    }
+  }
+  // </CHANGE>
   // </CHANGE>
 
   if (isLoading) {
@@ -2802,55 +2834,64 @@ export default function MasterDashboardPage() {
                           <div className="flex items-center gap-2">
                             {(() => {
                               const subscription = allSubscriptions.find(
-                                (sub) => sub.organization_id === org.organization_id,
+                                (sub) => sub.organization_id === org.organization_id && sub.status === "active",
                               )
-                              const planName = subscription?.plan_name || "starter"
-                              const isActive = subscription?.status === "active"
-                              const isTrial = subscription?.is_trial || false
-                              const trialEndsAt = subscription?.trial_ends_at
-                                ? new Date(subscription.trial_ends_at)
-                                : null
-                              let daysRemaining = 0
-                              if (isTrial && trialEndsAt) {
-                                const now = new Date()
-                                const diffTime = trialEndsAt.getTime() - now.getTime()
-                                daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-                              }
 
+                              if (subscription) {
+                                const planName = subscription.plan_name.toLowerCase()
+                                const isTrial = subscription.is_trial
+                                const isActive = subscription.status === "active"
+
+                                return (
+                                  <div className="flex items-center gap-2">
+                                    <Badge
+                                      variant={
+                                        planName === "starter"
+                                          ? "secondary"
+                                          : planName === "growth"
+                                            ? "default"
+                                            : "default"
+                                      }
+                                      className={
+                                        planName === "scale"
+                                          ? "bg-purple-100 text-purple-700 border-purple-200"
+                                          : planName === "growth"
+                                            ? "bg-blue-100 text-blue-700 border-blue-200"
+                                            : ""
+                                      }
+                                    >
+                                      <CreditCard className="w-3 h-3 mr-1" />
+                                      {planName === "starter" && "Free Starter"}
+                                      {planName === "growth" && "Growth Plan"}
+                                      {planName === "scale" && "Scale Plan"}
+                                    </Badge>
+                                    {isTrial && (
+                                      <Badge
+                                        variant="outline"
+                                        className="bg-yellow-50 border-yellow-200 text-yellow-700"
+                                      >
+                                        Trial
+                                      </Badge>
+                                    )}
+                                    {subscription.is_masteradmin_trial && (
+                                      <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700">
+                                        Complimentary
+                                      </Badge>
+                                    )}
+                                    {!isActive && subscription && (
+                                      <Badge variant="outline" className="bg-red-50 border-red-200 text-red-700">
+                                        Inactive
+                                      </Badge>
+                                    )}
+                                  </div>
+                                )
+                              }
+                              // Fallback: No active subscription found
                               return (
-                                <div className="flex items-center gap-2">
-                                  <Badge
-                                    variant={
-                                      planName === "starter"
-                                        ? "secondary"
-                                        : planName === "growth"
-                                          ? "default"
-                                          : "default"
-                                    }
-                                    className={
-                                      planName === "scale"
-                                        ? "bg-purple-100 text-purple-700 border-purple-200"
-                                        : planName === "growth"
-                                          ? "bg-blue-100 text-blue-700 border-blue-200"
-                                          : ""
-                                    }
-                                  >
-                                    <CreditCard className="w-3 h-3 mr-1" />
-                                    {planName === "starter" && "Free Starter"}
-                                    {planName === "growth" && "Growth Plan"}
-                                    {planName === "scale" && "Scale Plan"}
-                                  </Badge>
-                                  {isTrial && (
-                                    <Badge variant="outline" className="bg-yellow-50 border-yellow-200 text-yellow-700">
-                                      Trial
-                                    </Badge>
-                                  )}
-                                  {!isActive && subscription && (
-                                    <Badge variant="outline" className="bg-red-50 border-red-200 text-red-700">
-                                      Inactive
-                                    </Badge>
-                                  )}
-                                </div>
+                                <Badge variant="secondary">
+                                  <CreditCard className="w-3 h-3 mr-1" />
+                                  Free Starter
+                                </Badge>
                               )
                             })()}
                             {/* </CHANGE> */}
@@ -2947,8 +2988,29 @@ export default function MasterDashboardPage() {
                             </span>
                           </div>
 
-                          {/* Quota Display */}
-                          {org.quotaData && (
+                          {!org.quotaData ? (
+                            <div className="flex items-center justify-center p-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => loadQuotaForOrganization(org.organization_id)}
+                                disabled={loadingQuotaForOrg === org.organization_id}
+                              >
+                                {loadingQuotaForOrg === org.organization_id ? (
+                                  <>
+                                    <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin mr-2" />
+                                    Loading...
+                                  </>
+                                ) : (
+                                  <>
+                                    <BarChart3 className="w-4 h-4 mr-2" />
+                                    View Quota Limits
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          ) : (
+                            // </CHANGE>
                             <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
                               <h4 className="text-sm font-semibold text-gray-900 mb-3">
                                 Plan Quota ({org.quotaData.limits.planName})
@@ -3579,9 +3641,17 @@ export default function MasterDashboardPage() {
                                         ? "secondary"
                                         : "outline"
                                   }
-                                  className="capitalize"
+                                  className={
+                                    currentPlan === "scale"
+                                      ? "bg-purple-100 text-purple-700 border-purple-200"
+                                      : currentPlan === "growth"
+                                        ? "bg-blue-100 text-blue-700 border-blue-200"
+                                        : ""
+                                  }
                                 >
-                                  {currentPlan}
+                                  {currentPlan === "starter" && "Free Starter"}
+                                  {currentPlan === "growth" && "Growth Plan"}
+                                  {currentPlan === "scale" && "Scale Plan"}
                                 </Badge>
                               </TableCell>
 
@@ -4198,44 +4268,6 @@ export default function MasterDashboardPage() {
         </div>
       )}
       {/* </CHANGE> */}
-
-      {editingOrg && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold mb-4">Edit Organization Name</h3>
-            <input
-              type="text"
-              value={editOrgName}
-              onChange={(e) => setEditOrgName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter organization name"
-            />
-            <div className="flex justify-end gap-3 mt-6">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setEditingOrg(null)
-                  setEditOrgName("")
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={async () => {
-                  if (editOrgName.trim() && editOrgName !== editingOrg.name) {
-                    console.log("[v0] Update organization name:", editingOrg.id, editOrgName.trim())
-                    await updateOrganizationName(editingOrg.id, editOrgName.trim())
-                  }
-                  setEditingOrg(null)
-                  setEditOrgName("")
-                }}
-              >
-                Save
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

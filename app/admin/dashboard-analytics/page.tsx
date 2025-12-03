@@ -111,11 +111,10 @@ export default async function AdminDashboardAnalyticsPage() {
         const result = await supabase
           .from("organizations")
           .select(`
-            id,
-            subscription_plan,
-            subscriptions(id, plan, status)
+            organization_id,
+            subscriptions(id, plan_name, status)
           `)
-          .eq("id", profile.organization_id)
+          .eq("organization_id", profile.organization_id)
           .single()
         return { data: result.data, error: result.error }
       },
@@ -127,12 +126,8 @@ export default async function AdminDashboardAnalyticsPage() {
     const teamMembers = batchResult.data?.[3] || []
     const organization = batchResult.data?.[4] || null
 
-    const hasPaidPlan =
-      organization?.subscription_plan === "growth" ||
-      organization?.subscription_plan === "scale" ||
-      organization?.subscriptions?.some(
-        (sub: any) => sub.status === "active" && (sub.plan === "growth" || sub.plan === "scale"),
-      )
+    console.log("[v0] Submitted reports count:", submittedReports.length)
+    console.log("[v0] First few submitted reports:", submittedReports.slice(0, 3))
 
     const submissionMap = new Map()
     submittedReports.forEach((report: any) => {
@@ -142,10 +137,15 @@ export default async function AdminDashboardAnalyticsPage() {
       submissionMap.get(report.assignment_id).push(report)
     })
 
+    console.log("[v0] Submission map size:", submissionMap.size)
+    console.log("[v0] Submission map entries:", Array.from(submissionMap.entries()).slice(0, 3))
+
     const allReports = [
       ...(assignments || []).map((a: any) => {
         const submissions = submissionMap.get(a.id) || []
         const latestSubmission = submissions.length > 0 ? submissions[0] : null
+
+        const submittedAt = latestSubmission?.submitted_at || (a.status === "completed" ? a.completed_at : null)
 
         return {
           id: a.id,
@@ -156,7 +156,7 @@ export default async function AdminDashboardAnalyticsPage() {
           status: a.status,
           completed_at: a.completed_at,
           assigned_at: a.assigned_at,
-          submitted_at: latestSubmission?.submitted_at || null,
+          submitted_at: submittedAt,
           type: "assignment" as const,
           submission_count: submissions.length,
           submissions: submissions.sort(
@@ -180,11 +180,14 @@ export default async function AdminDashboardAnalyticsPage() {
       })),
     ]
 
-    const subscriptionPlan =
-      organization?.subscriptions?.find((sub: any) => sub.status === "active")?.plan ||
-      organization?.subscription_plan ||
-      "starter"
-    const retentionDays = subscriptionPlan === "starter" ? 30 : 90
+    const hasPaidPlan =
+      organization?.subscription_plan === "growth" ||
+      organization?.subscription_plan === "scale" ||
+      organization?.subscriptions?.some(
+        (sub: any) => sub.status === "active" && (sub.plan_name === "growth" || sub.plan_name === "scale"),
+      )
+
+    const retentionDays = hasPaidPlan ? 90 : 30
 
     const now = new Date()
     const reportsNearDeletion = allReports

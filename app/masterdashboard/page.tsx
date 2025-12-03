@@ -4023,6 +4023,110 @@ export default function MasterDashboardPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {currentUserRole === "masteradmin" && (
+            <TabsContent value="login-as" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-red-600">Superuser Management</CardTitle>
+                  <CardDescription>Manage superuser accounts - Add, update, or remove superusers</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    {/* Add Superuser Section */}
+                    <div className="p-4 border border-red-200 rounded-lg bg-red-50">
+                      <h3 className="text-sm font-semibold mb-4 text-red-900">Add New Superuser</h3>
+                      <div className="space-y-3">
+                        <Input
+                          type="email"
+                          placeholder="Email address"
+                          value={newSuperuserEmail}
+                          onChange={(e) => setNewSuperuserEmail(e.target.value)}
+                          className="bg-white"
+                        />
+                        <Input
+                          type="password"
+                          placeholder="Password"
+                          value={newSuperuserPassword}
+                          onChange={(e) => setNewSuperuserPassword(e.target.value)}
+                          className="bg-white"
+                        />
+                        <Button onClick={addSuperuser} className="w-full bg-red-600 hover:bg-red-700">
+                          Add Superuser
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Existing Superusers List */}
+                    <div>
+                      <h3 className="text-sm font-semibold mb-3">Existing Superusers ({superusers.length})</h3>
+                      <div className="space-y-2">
+                        {superusersFiltered.length === 0 ? (
+                          <p className="text-sm text-gray-500 text-center py-4">No superusers found</p>
+                        ) : (
+                          superusersFiltered.map((superuser) => (
+                            <div
+                              key={superuser.id}
+                              className="flex items-center justify-between p-3 border rounded-lg bg-white"
+                            >
+                              <div>
+                                <p className="font-medium">{superuser.email}</p>
+                                <p className="text-xs text-gray-500">
+                                  Created: {new Date(superuser.created_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingSuperuser(superuser)
+                                    setNewSuperuserPassword("")
+                                  }}
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </Button>
+                                <Button variant="destructive" size="sm" onClick={() => removeSuperuser(superuser.id)}>
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Edit Superuser Modal */}
+              {editingSuperuser && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                  <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+                    <h3 className="text-lg font-semibold mb-4">Update Superuser Password</h3>
+                    <p className="text-sm text-gray-600 mb-4">{editingSuperuser.email}</p>
+                    <div className="space-y-4">
+                      <Input
+                        type="password"
+                        placeholder="New password"
+                        value={newSuperuserPassword}
+                        onChange={(e) => setNewSuperuserPassword(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => setEditingSuperuser(null)} className="flex-1">
+                          Cancel
+                        </Button>
+                        <Button onClick={updateSuperuser} className="flex-1 bg-red-600 hover:bg-red-700">
+                          Update
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+          )}
+          {/* </CHANGE> */}
         </Tabs>
       </div>
 

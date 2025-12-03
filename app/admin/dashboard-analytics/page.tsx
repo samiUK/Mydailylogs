@@ -135,32 +135,27 @@ export default async function AdminDashboardAnalyticsPage() {
           .order("full_name")
         return { data: result.data, error: result.error }
       },
+      async () => {
+        const result = await supabase
+          .from("organizations")
+          .select(`
+            id,
+            subscription_plan,
+            subscriptions(id, plan, status)
+          `)
+          .eq("id", profile.organization_id)
+          .single()
+        return { data: result.data, error: result.error }
+      },
     ])
-
-    if (batchResult.error) {
-      console.log("[v0] Admin Dashboard Analytics page - Batch query error:", batchResult.error)
-      return (
-        <div className="space-y-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">Reports and Analytics</h1>
-              <p className="text-red-600 mt-2">Error loading data</p>
-            </div>
-          </div>
-          <ErrorDisplay
-            error={batchResult.error}
-            title="Unable to Load Analytics"
-            description="There was an error loading your analytics data."
-            onRetry={() => window.location.reload()}
-          />
-        </div>
-      )
-    }
 
     const assignments = batchResult.data?.[0] || []
     const submittedReports = batchResult.data?.[1] || []
     const externalSubmissions = batchResult.data?.[2] || []
     const teamMembers = batchResult.data?.[3] || []
+    const organization = batchResult.data?.[4] || null
+
+    const hasPaidPlan = organization?.subscription_plan === "growth" || organization?.subscription_plan === "scale"
 
     const submissionMap = new Map()
     submittedReports.forEach((report: any) => {
@@ -173,6 +168,8 @@ export default async function AdminDashboardAnalyticsPage() {
     const allReports = [
       ...(assignments || []).map((a: any) => {
         const submissions = submissionMap.get(a.id) || []
+        const latestSubmission = submissions.length > 0 ? submissions[0] : null
+
         return {
           id: a.id,
           template_id: a.template_id,
@@ -182,7 +179,9 @@ export default async function AdminDashboardAnalyticsPage() {
           status: a.status,
           completed_at: a.completed_at,
           assigned_at: a.assigned_at,
+          submitted_at: latestSubmission?.submitted_at || null,
           type: "assignment" as const,
+          submission_count: submissions.length,
           submissions: submissions.sort(
             (a: any, b: any) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime(),
           ),
@@ -197,7 +196,9 @@ export default async function AdminDashboardAnalyticsPage() {
         status: e.status || "completed",
         completed_at: e.submitted_at,
         assigned_at: e.submitted_at,
+        submitted_at: e.submitted_at,
         type: "external" as const,
+        submission_count: 1,
         submissions: [{ id: e.id, submitted_at: e.submitted_at, report_data: null }],
       })),
     ]
@@ -238,7 +239,7 @@ export default async function AdminDashboardAnalyticsPage() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Completed Today</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Submissions Today</CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -274,6 +275,8 @@ export default async function AdminDashboardAnalyticsPage() {
           reports={allReports}
           teamMembers={teamMembers}
           organizationId={profile.organization_id}
+          // Pass hasPaidPlan flag to show Submission Type column only for paid users
+          hasPaidPlan={hasPaidPlan}
         />
       </div>
     )

@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import {
   AlertDialog,
@@ -15,8 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Eye, Download, Trash2, FileText, Search, CheckSquare, ArrowUpDown, AlertTriangle } from "lucide-react"
+import { Eye, Download, Trash2, FileText, Search, CheckSquare, ArrowUpDown } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -28,7 +26,9 @@ interface Report {
   status: string
   completed_at: string | null
   assigned_at: string
-  type: "assignment"
+  submitted_at: string | null
+  submission_count: number
+  type: "assignment" | "external"
   submissions: Array<{
     id: string
     submitted_at: string
@@ -38,16 +38,16 @@ interface Report {
 
 interface DashboardAnalyticsClientProps {
   reports: Report[]
-  totalStorage: number
-  photoCount: number
-  storageLimit?: number
+  teamMembers: any[]
+  organizationId: string
+  hasPaidPlan: boolean
 }
 
 export function DashboardAnalyticsClient({
   reports,
-  totalStorage,
-  photoCount,
-  storageLimit = 1073741824, // 1GB in bytes
+  teamMembers,
+  organizationId,
+  hasPaidPlan,
 }: DashboardAnalyticsClientProps) {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
@@ -58,16 +58,6 @@ export function DashboardAnalyticsClient({
   const [sortColumn, setSortColumn] = useState<"assigned" | "submitted" | "submittedBy">("submitted")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const itemsPerPage = 20
-
-  const storageUsagePercent = (totalStorage / storageLimit) * 100
-  const storageWarningLevel =
-    storageUsagePercent >= 95
-      ? "critical"
-      : storageUsagePercent >= 85
-        ? "high"
-        : storageUsagePercent >= 70
-          ? "warning"
-          : "normal"
 
   const filteredReports = reports.filter(
     (report) =>
@@ -82,14 +72,12 @@ export function DashboardAnalyticsClient({
       const bTime = new Date(b.assigned_at).getTime()
       return sortOrder === "desc" ? bTime - aTime : aTime - bTime
     } else if (sortColumn === "submitted") {
-      const aLatestSubmission =
-        a.submissions.length > 0 ? new Date(a.submissions[0].submitted_at).getTime() : new Date(a.assigned_at).getTime()
-
-      const bLatestSubmission =
-        b.submissions.length > 0 ? new Date(b.submissions[0].submitted_at).getTime() : new Date(b.assigned_at).getTime()
-
-      return sortOrder === "desc" ? bLatestSubmission - aLatestSubmission : aLatestSubmission - bLatestSubmission
+      // Use submitted_at if available, otherwise use assigned_at
+      const aTime = a.submitted_at ? new Date(a.submitted_at).getTime() : new Date(a.assigned_at).getTime()
+      const bTime = b.submitted_at ? new Date(b.submitted_at).getTime() : new Date(b.assigned_at).getTime()
+      return sortOrder === "desc" ? bTime - aTime : aTime - bTime
     } else {
+      // submittedBy column
       const aName = a.user_name.toLowerCase()
       const bName = b.user_name.toLowerCase()
       return sortOrder === "desc" ? bName.localeCompare(aName) : aName.localeCompare(bName)
@@ -115,7 +103,7 @@ export function DashboardAnalyticsClient({
         await new Promise((resolve) => setTimeout(resolve, 1000))
       }
 
-      const response = await fetch(`/api/admin/delete-report?id=${deleteReport.id}&type=assignment`, {
+      const response = await fetch(`/api/admin/delete-report?id=${deleteReport.id}&type=${deleteReport.type}`, {
         method: "DELETE",
       })
 
@@ -223,53 +211,6 @@ export function DashboardAnalyticsClient({
 
   return (
     <>
-      {storageWarningLevel !== "normal" && (
-        <Alert
-          variant={storageWarningLevel === "critical" ? "destructive" : "default"}
-          className={
-            storageWarningLevel === "critical"
-              ? "border-red-500 bg-red-50 dark:bg-red-950"
-              : storageWarningLevel === "high"
-                ? "border-orange-500 bg-orange-50 dark:bg-orange-950"
-                : "border-yellow-500 bg-yellow-50 dark:bg-yellow-950"
-          }
-        >
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>
-            {storageWarningLevel === "critical"
-              ? "Critical Storage Alert"
-              : storageWarningLevel === "high"
-                ? "High Storage Usage"
-                : "Storage Warning"}
-          </AlertTitle>
-          <AlertDescription>
-            <p className="mb-3">
-              You're using {storageUsagePercent.toFixed(1)}% of your 1GB storage limit ({photoCount} photos).
-              {storageWarningLevel === "critical" && " Action required immediately!"}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant={storageWarningLevel === "critical" ? "default" : "outline"}
-                onClick={() => {
-                  const reportsSection = document.querySelector("[data-reports-list]")
-                  reportsSection?.scrollIntoView({ behavior: "smooth" })
-                }}
-              >
-                Delete Old Reports
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => window.open("https://mydaylogs.co.uk/pricing", "_blank")}
-              >
-                Upgrade Plan
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
-
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -348,7 +289,7 @@ export function DashboardAnalyticsClient({
                           />
                         </button>
                       </th>
-                      <th className="p-3 text-left font-medium">Status</th>
+                      {hasPaidPlan && <th className="p-3 text-left font-medium">Submission Type</th>}
                       <th className="p-3 text-left font-medium">
                         <button
                           onClick={() => handleColumnSort("assigned")}
@@ -391,24 +332,30 @@ export function DashboardAnalyticsClient({
                         <td className="p-3">
                           <div className="text-sm">{report.user_name}</div>
                         </td>
-                        <td className="p-3">
-                          <Badge variant={report.status === "completed" ? "default" : "secondary"}>
-                            {report.status || "pending"}
-                          </Badge>
-                        </td>
+                        {hasPaidPlan && (
+                          <td className="p-3">
+                            <span
+                              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                report.type === "external"
+                                  ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                                  : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                              }`}
+                            >
+                              {report.type === "external" ? "External" : "Internal"}
+                            </span>
+                          </td>
+                        )}
                         <td className="p-3">
                           <div className="text-sm">{formatDateTime(report.assigned_at)}</div>
                         </td>
                         <td className="p-3">
-                          {report.submissions.length > 0 ? (
+                          {report.submitted_at ? (
                             <div>
                               <div className="text-sm text-green-600 dark:text-green-400 font-medium">
-                                {formatDateTime(report.submissions[0].submitted_at)}
+                                {formatDateTime(report.submitted_at)}
                               </div>
-                              {report.submissions.length > 1 && (
-                                <div className="text-xs text-muted-foreground">
-                                  +{report.submissions.length - 1} more
-                                </div>
+                              {report.submission_count > 1 && (
+                                <div className="text-xs text-muted-foreground">+{report.submission_count - 1} more</div>
                               )}
                             </div>
                           ) : (

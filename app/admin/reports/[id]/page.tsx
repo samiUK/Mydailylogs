@@ -102,6 +102,18 @@ export default async function ReportViewPage({ params, searchParams }: ReportVie
     submission.id,
   )
   console.log("[v0] ReportViewPage - Responses loaded:", responses?.length || 0, "records")
+  console.log("[v0] ReportViewPage - Full responses data:", JSON.stringify(responses, null, 2))
+
+  if (responses) {
+    responses.forEach((resp, idx) => {
+      console.log(`[v0] Response ${idx + 1}:`, {
+        item_id: resp.item_id,
+        response_value: resp.response_value,
+        response_type: typeof resp.response_value,
+        is_photo: resp.response_value?.includes("url") || resp.response_value?.includes("dataUrl"),
+      })
+    })
+  }
 
   if (responsesError) {
     console.error("[v0] ReportViewPage - Error loading responses:", responsesError)

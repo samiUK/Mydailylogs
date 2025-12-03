@@ -216,6 +216,8 @@ export default function MasterDashboardPage() {
   const [showImpersonationModal, setShowImpersonationModal] = useState(false)
   const [impersonationUrl, setImpersonationUrl] = useState("")
 
+  const [impersonationLinks, setImpersonationLinks] = useState<Record<string, string>>({})
+
   const [activityLogs, setActivityLogs] = useState<any[]>([])
   const [activityLogsLoading, setActivityLogsLoading] = useState(false)
 
@@ -1533,7 +1535,7 @@ export default function MasterDashboardPage() {
   const [subPage, setSubPage] = useState(1)
   const [paymentPage, setPaymentPage] = useState(1)
   const [feedbackPage, setFeedbackPage] = useState(1)
-  const ITEMS_PER_PAGE = 10
+  const ITEMS_PER_PAGE = 20
 
   const [paymentSearchTerm, setPaymentSearchTerm] = useState("")
   const [feedbackSearchTerm, setFeedbackSearchTerm] = useState("")
@@ -1909,8 +1911,13 @@ export default function MasterDashboardPage() {
         throw new Error(data.error || "Failed to create impersonation link")
       }
 
-      window.open(data.url, "_blank")
-      showNotification("success", `Login link opened! Viewing as ${user.email}`)
+      // Store the link for this user
+      setImpersonationLinks((prev) => ({
+        ...prev,
+        [user.id]: data.url,
+      }))
+
+      showNotification("success", `Login link generated for ${user.email}`)
     } catch (error) {
       console.error("[v0] Error generating impersonation link:", error)
       showNotification("error", error instanceof Error ? error.message : "Failed to generate login link")
@@ -2481,16 +2488,26 @@ export default function MasterDashboardPage() {
                                 {lastSignIn}
                               </TableCell>
                               <TableCell className="px-3 py-2 text-left text-xs flex gap-1">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => generateImpersonationLink(user)}
-                                  className="text-blue-600 border-blue-200 hover:bg-blue-50 text-xs px-2 py-1"
-                                  disabled={isProcessing}
-                                >
-                                  <Eye className="w-3 h-3 mr-1" />
-                                  Login
-                                </Button>
+                                {impersonationLinks[user.id] ? (
+                                  <a
+                                    href={impersonationLinks[user.id]}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center text-xs px-2 py-1 border border-blue-200 rounded-md text-blue-600 hover:bg-blue-50 transition-colors"
+                                  >
+                                    <Eye className="w-3 h-3 mr-1" />
+                                    Login
+                                  </a>
+                                ) : (
+                                  <button
+                                    onClick={() => generateImpersonationLink(user)}
+                                    className="inline-flex items-center text-xs px-2 py-1 border border-blue-200 rounded-md text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
+                                    disabled={isProcessing}
+                                  >
+                                    <Eye className="w-3 h-3 mr-1" />
+                                    Generate Link
+                                  </button>
+                                )}
                                 {user.is_email_verified ? (
                                   <Button
                                     variant="outline"

@@ -318,24 +318,38 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
                                       Photo Evidence:
                                     </span>
                                     {(() => {
+                                      console.log(
+                                        "[v0] Parsing photo for item:",
+                                        item.name,
+                                        "Value:",
+                                        response.response_value,
+                                      )
                                       try {
                                         const photos = JSON.parse(response.response_value)
+                                        console.log("[v0] Parsed photos:", photos)
                                         if (Array.isArray(photos) && photos.length > 0) {
                                           const photo = photos[0]
+                                          console.log("[v0] First photo:", photo)
+                                          const photoUrl = photo.url || photo.dataUrl
+                                          console.log("[v0] Photo URL:", photoUrl)
                                           return (
                                             <div className="border border-gray-300 rounded p-2 bg-white">
                                               <img
-                                                src={photo.url || photo.dataUrl || "/placeholder.svg"}
+                                                src={photoUrl || "/placeholder.svg"}
                                                 alt={`${item.name} - Photo evidence`}
                                                 className="h-32 w-auto object-contain rounded"
                                                 onError={(e) => {
-                                                  console.error("[v0] Failed to load photo:", photo)
+                                                  console.error("[v0] Failed to load photo:", photo, "URL:", photoUrl)
                                                   e.currentTarget.src = "/placeholder.svg"
+                                                }}
+                                                onLoad={() => {
+                                                  console.log("[v0] Photo loaded successfully:", photoUrl)
                                                 }}
                                               />
                                             </div>
                                           )
                                         }
+                                        console.error("[v0] No photos in array or empty array:", photos)
                                         return <span className="text-xs text-red-500">No photo available</span>
                                       } catch (err) {
                                         console.error("[v0] Error parsing photo data:", err, response.response_value)

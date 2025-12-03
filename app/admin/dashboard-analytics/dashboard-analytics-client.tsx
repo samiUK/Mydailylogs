@@ -15,7 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Eye, Download, Trash2, FileText, Search, CheckSquare } from "lucide-react"
+import { Eye, Download, Trash2, FileText, Search, CheckSquare, ArrowUp, ArrowDown } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -42,7 +42,8 @@ export function DashboardAnalyticsClient({ reports }: { reports: Report[] }) {
   const [deleteReport, setDeleteReport] = useState<Report | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set())
-  const itemsPerPage = 10
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
+  const itemsPerPage = 20 // Updated from 10 to 20 items per page
 
   // Filter reports based on search
   const filteredReports = reports.filter(
@@ -52,10 +53,29 @@ export function DashboardAnalyticsClient({ reports }: { reports: Report[] }) {
       report.user_name.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
-  // Paginate filtered reports
-  const totalPages = Math.ceil(filteredReports.length / itemsPerPage)
+  const sortedReports = [...filteredReports].sort((a, b) => {
+    // Get the latest submission time for each report
+    const aLatestSubmission =
+      a.submissions.length > 0 ? new Date(a.submissions[0].submitted_at).getTime() : new Date(a.assigned_at).getTime()
+
+    const bLatestSubmission =
+      b.submissions.length > 0 ? new Date(b.submissions[0].submitted_at).getTime() : new Date(b.assigned_at).getTime()
+
+    // Sort based on selected order
+    return sortOrder === "desc"
+      ? bLatestSubmission - aLatestSubmission // Newest first
+      : aLatestSubmission - bLatestSubmission // Oldest first
+  })
+
+  // Paginate sorted reports
+  const totalPages = Math.ceil(sortedReports.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
-  const paginatedReports = filteredReports.slice(startIndex, startIndex + itemsPerPage)
+  const paginatedReports = sortedReports.slice(startIndex, startIndex + itemsPerPage)
+
+  const toggleSort = () => {
+    setSortOrder(sortOrder === "desc" ? "asc" : "desc")
+    setCurrentPage(1) // Reset to first page when sorting
+  }
 
   const handleDelete = async (downloadFirst: boolean) => {
     if (!deleteReport) return
@@ -156,19 +176,25 @@ export function DashboardAnalyticsClient({ reports }: { reports: Report[] }) {
       {/* Reports List with Pagination */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <CardTitle>Recent Activity</CardTitle>
               <CardDescription>
                 Latest assignments and report submissions (Page {currentPage} of {totalPages})
               </CardDescription>
             </div>
-            {paginatedReports.length > 0 && (
-              <Button variant="outline" size="sm" onClick={toggleSelectAll}>
-                <CheckSquare className="w-4 h-4 mr-2" />
-                {selectedReports.size === paginatedReports.length ? "Deselect All" : "Select All"}
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={toggleSort}>
+                {sortOrder === "desc" ? <ArrowDown className="w-4 h-4 mr-2" /> : <ArrowUp className="w-4 h-4 mr-2" />}
+                {sortOrder === "desc" ? "Newest First" : "Oldest First"}
               </Button>
-            )}
+              {paginatedReports.length > 0 && (
+                <Button variant="outline" size="sm" onClick={toggleSelectAll}>
+                  <CheckSquare className="w-4 h-4 mr-2" />
+                  {selectedReports.size === paginatedReports.length ? "Deselect All" : "Select All"}
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -191,21 +217,20 @@ export function DashboardAnalyticsClient({ reports }: { reports: Report[] }) {
                     </div>
                     <p className="text-sm text-muted-foreground mb-2">{report.user_name}</p>
 
-                    {/* Show multiple submissions with timestamps */}
-                    {report.submissions.length > 0 ? (
-                      <div className="space-y-1">
-                        {report.submissions.map((submission, idx) => (
-                          <div key={submission.id} className="text-sm text-muted-foreground">
-                            <span className="font-medium">Submission {idx + 1}:</span>{" "}
-                            {formatDateTime(submission.submitted_at)}
-                          </div>
-                        ))}
+                    <div className="space-y-1">
+                      <div className="text-sm text-muted-foreground">
+                        <span className="font-medium">Assigned:</span> {formatDateTime(report.assigned_at)}
                       </div>
-                    ) : report.assigned_at ? (
-                      <span className="text-sm text-muted-foreground">
-                        Assigned: {formatDateTime(report.assigned_at)}
-                      </span>
-                    ) : null}
+                      {report.submissions.length > 0 && (
+                        <div className="text-sm text-green-600 dark:text-green-400">
+                          <span className="font-medium">Submitted:</span>{" "}
+                          {formatDateTime(report.submissions[0].submitted_at)}
+                          {report.submissions.length > 1 && (
+                            <span className="ml-1 text-muted-foreground">(+{report.submissions.length - 1} more)</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Link href={`/admin/reports/${report.id}`}>
@@ -214,14 +239,6 @@ export function DashboardAnalyticsClient({ reports }: { reports: Report[] }) {
                         View
                       </Button>
                     </Link>
-                    {report.status === "completed" && report.submissions.length > 0 && (
-                      <Link href={`/admin/reports/${report.id}?download=true`}>
-                        <Button variant="default" size="sm">
-                          <Download className="w-4 h-4 mr-1" />
-                          Download
-                        </Button>
-                      </Link>
-                    )}
                     <Button variant="destructive" size="sm" onClick={() => setDeleteReport(report)}>
                       <Trash2 className="w-4 h-4" />
                     </Button>

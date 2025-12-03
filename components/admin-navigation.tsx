@@ -84,7 +84,7 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                   <MenuIcon className="h-6 w-6" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-80">
+              <SheetContent side="right" className="w-[85vw] max-w-[400px]">
                 <SheetHeader>
                   <SheetTitle className="text-left">Navigation</SheetTitle>
                 </SheetHeader>
@@ -119,6 +119,7 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                   </Link>
                 </div>
               </SheetContent>
+              {/* </CHANGE> */}
             </Sheet>
 
             <DropdownMenu>

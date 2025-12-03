@@ -183,7 +183,7 @@ export default function HomePageClient() {
                       <Menu className="h-6 w-6" />
                     </Button>
                   </SheetTrigger>
-                  <SheetContent side="right" className="w-[300px] sm:w-[400px]">
+                  <SheetContent side="right" className="w-[85vw] max-w-[400px] sm:w-[400px]">
                     <div className="flex flex-col h-full">
                       <div className="flex items-center mb-8 mt-6">
                         <MyDayLogsLogo size="sm" />

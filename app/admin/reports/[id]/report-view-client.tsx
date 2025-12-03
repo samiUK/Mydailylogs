@@ -237,118 +237,127 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
 
             <div className="mt-6">
               <h3 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">Task Completion Details</h3>
-              <table className="w-full border-collapse border-2 border-gray-400 text-sm">
-                <thead>
-                  <tr className="bg-gray-200">
-                    <th className="border border-gray-400 px-3 py-3 text-left font-bold text-gray-800 w-12">#</th>
-                    <th className="border border-gray-400 px-3 py-3 text-left font-bold text-gray-800">
-                      Task Description
-                    </th>
-                    <th className="border border-gray-400 px-3 py-3 text-center font-bold text-gray-800 w-20">
-                      Status
-                    </th>
-                    <th className="border border-gray-400 px-3 py-3 text-left font-bold text-gray-800 w-40">
-                      Response
-                    </th>
-                    <th className="border border-gray-400 px-3 py-3 text-left font-bold text-gray-800 w-32">
-                      Completed At
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {submission.checklist_templates?.checklist_items?.map((item: any, index: number) => {
-                    const response = responses.find((r) => r.item_id === item.id)
-                    const isCompleted = response?.is_completed
+              <div className="overflow-x-auto -mx-4 sm:mx-0">
+                <div className="inline-block min-w-full align-middle">
+                  <table className="w-full border-collapse border-2 border-gray-400 text-sm">
+                    <thead>
+                      <tr className="bg-gray-200">
+                        <th className="border border-gray-400 px-2 sm:px-3 py-2 sm:py-3 text-left font-bold text-gray-800 w-12">
+                          #
+                        </th>
+                        <th className="border border-gray-400 px-2 sm:px-3 py-2 sm:py-3 text-left font-bold text-gray-800">
+                          Task Description
+                        </th>
+                        <th className="border border-gray-400 px-2 sm:px-3 py-2 sm:py-3 text-center font-bold text-gray-800 w-20">
+                          Status
+                        </th>
+                        <th className="border border-gray-400 px-2 sm:px-3 py-2 sm:py-3 text-left font-bold text-gray-800 w-32 sm:w-40">
+                          Response
+                        </th>
+                        <th className="border border-gray-400 px-2 sm:px-3 py-2 sm:py-3 text-left font-bold text-gray-800 w-28 sm:w-32">
+                          Completed At
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {submission.checklist_templates?.checklist_items?.map((item: any, index: number) => {
+                        const response = responses.find((r) => r.item_id === item.id)
+                        const isCompleted = response?.is_completed
 
-                    return (
-                      <>
-                        <tr key={item.id} className="hover:bg-gray-50">
-                          <td className="border border-gray-400 px-3 py-3 text-center text-gray-800 font-semibold">
-                            {index + 1}
-                          </td>
-                          <td className="border border-gray-400 px-3 py-3 text-gray-900">{item.name}</td>
-                          <td className="border border-gray-400 px-3 py-3 text-center">
-                            {isCompleted ? (
-                              <span className="text-2xl text-green-600 font-bold">✓</span>
-                            ) : (
-                              <span className="text-2xl text-red-600 font-bold">✗</span>
+                        return (
+                          <>
+                            <tr key={item.id} className="hover:bg-gray-50">
+                              <td className="border border-gray-400 px-3 py-3 text-center text-gray-800 font-semibold">
+                                {index + 1}
+                              </td>
+                              <td className="border border-gray-400 px-3 py-3 text-gray-900">{item.name}</td>
+                              <td className="border border-gray-400 px-3 py-3 text-center">
+                                {isCompleted ? (
+                                  <span className="text-2xl text-green-600 font-bold">✓</span>
+                                ) : (
+                                  <span className="text-2xl text-red-600 font-bold">✗</span>
+                                )}
+                              </td>
+                              <td className="border border-gray-400 px-3 py-3 text-gray-800">
+                                {item.task_type === "boolean" && <span>{isCompleted ? "Yes" : "No"}</span>}
+                                {item.task_type === "text" && response?.notes && (
+                                  <span className="text-xs">{response.notes}</span>
+                                )}
+                                {item.task_type === "number" && response?.notes && <span>{response.notes}</span>}
+                                {item.task_type === "options" && response?.notes && <span>{response.notes}</span>}
+                                {item.task_type === "photo" && (
+                                  <span className="text-xs text-blue-600 font-medium">See photo below</span>
+                                )}
+                                {!response?.notes && item.task_type !== "boolean" && item.task_type !== "photo" && (
+                                  <span className="text-gray-400 italic">N/A</span>
+                                )}
+                              </td>
+                              <td className="border border-gray-400 px-3 py-3 text-gray-800 text-xs">
+                                {response?.completed_at ? (
+                                  <>
+                                    <div className="font-medium">
+                                      {formatDateUK(new Date(response.completed_at), "short")}
+                                    </div>
+                                    <div className="text-gray-600">
+                                      {new Date(response.completed_at).toLocaleTimeString("en-GB", {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </div>
+                                  </>
+                                ) : (
+                                  <span className="text-gray-400">-</span>
+                                )}
+                              </td>
+                            </tr>
+                            {item.task_type === "photo" && response?.response_value && (
+                              <tr key={`${item.id}-photo`}>
+                                <td className="border border-gray-400 px-3 py-2 bg-gray-50" colSpan={5}>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-xs font-semibold text-gray-700 uppercase">
+                                      Photo Evidence:
+                                    </span>
+                                    {(() => {
+                                      try {
+                                        const photos = JSON.parse(response.response_value)
+                                        if (Array.isArray(photos) && photos.length > 0) {
+                                          const photo = photos[0]
+                                          return (
+                                            <div className="border border-gray-300 rounded p-2 bg-white">
+                                              <img
+                                                src={photo.url || photo.dataUrl || "/placeholder.svg"}
+                                                alt={`${item.name} - Photo evidence`}
+                                                className="h-32 w-auto object-contain rounded"
+                                                onError={(e) => {
+                                                  console.error("[v0] Failed to load photo:", photo)
+                                                  e.currentTarget.src = "/placeholder.svg"
+                                                }}
+                                              />
+                                            </div>
+                                          )
+                                        }
+                                        return <span className="text-xs text-red-500">No photo available</span>
+                                      } catch (err) {
+                                        console.error("[v0] Error parsing photo data:", err, response.response_value)
+                                        return <span className="text-xs text-red-500">Invalid photo data</span>
+                                      }
+                                    })()}
+                                  </div>
+                                </td>
+                              </tr>
                             )}
-                          </td>
-                          <td className="border border-gray-400 px-3 py-3 text-gray-800">
-                            {item.task_type === "boolean" && <span>{isCompleted ? "Yes" : "No"}</span>}
-                            {item.task_type === "text" && response?.notes && (
-                              <span className="text-xs">{response.notes}</span>
-                            )}
-                            {item.task_type === "number" && response?.notes && <span>{response.notes}</span>}
-                            {item.task_type === "options" && response?.notes && <span>{response.notes}</span>}
-                            {item.task_type === "photo" && (
-                              <span className="text-xs text-blue-600 font-medium">See photo below</span>
-                            )}
-                            {!response?.notes && item.task_type !== "boolean" && item.task_type !== "photo" && (
-                              <span className="text-gray-400 italic">N/A</span>
-                            )}
-                          </td>
-                          <td className="border border-gray-400 px-3 py-3 text-gray-800 text-xs">
-                            {response?.completed_at ? (
-                              <>
-                                <div className="font-medium">
-                                  {formatDateUK(new Date(response.completed_at), "short")}
-                                </div>
-                                <div className="text-gray-600">
-                                  {new Date(response.completed_at).toLocaleTimeString("en-GB", {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
-                                </div>
-                              </>
-                            ) : (
-                              <span className="text-gray-400">-</span>
-                            )}
-                          </td>
-                        </tr>
-                        {item.task_type === "photo" && response?.response_value && (
-                          <tr key={`${item.id}-photo`}>
-                            <td className="border border-gray-400 px-3 py-2 bg-gray-50" colSpan={5}>
-                              <div className="flex items-center gap-3">
-                                <span className="text-xs font-semibold text-gray-700 uppercase">Photo Evidence:</span>
-                                {(() => {
-                                  try {
-                                    const photos = JSON.parse(response.response_value)
-                                    if (Array.isArray(photos) && photos.length > 0) {
-                                      const photo = photos[0]
-                                      return (
-                                        <div className="border border-gray-300 rounded p-2 bg-white">
-                                          <img
-                                            src={photo.url || photo.dataUrl || "/placeholder.svg"}
-                                            alt={`${item.name} - Photo evidence`}
-                                            className="h-32 w-auto object-contain rounded"
-                                            onError={(e) => {
-                                              console.error("[v0] Failed to load photo:", photo)
-                                              e.currentTarget.src = "/placeholder.svg"
-                                            }}
-                                          />
-                                        </div>
-                                      )
-                                    }
-                                    return <span className="text-xs text-red-500">No photo available</span>
-                                  } catch (err) {
-                                    console.error("[v0] Error parsing photo data:", err, response.response_value)
-                                    return <span className="text-xs text-red-500">Invalid photo data</span>
-                                  }
-                                })()}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </>
-                    )
-                  })}
-                </tbody>
-              </table>
+                          </>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              {/* </CHANGE> */}
             </div>
 
             <div className="mt-8 pt-6 border-t-2 border-gray-300">
-              <div className="grid grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                 <div>
                   <p className="text-sm font-bold text-gray-700 mb-4">SUBMITTED BY:</p>
                   <div className="border-b-2 border-gray-400 pb-1 mb-2 h-16 flex items-end">
@@ -365,6 +374,7 @@ export function ReportViewClient({ submission, responses, autoDownload = false }
                   <p className="text-xs text-gray-500 mt-1">Date: ____________________</p>
                 </div>
               </div>
+              {/* </CHANGE> */}
             </div>
 
             <div className="mt-8 pt-4 border-t border-gray-300">

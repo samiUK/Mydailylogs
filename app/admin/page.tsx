@@ -758,16 +758,16 @@ export default function AdminDashboard() {
             <CardDescription className="text-sm sm:text-base">Report templates awaiting completion</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-2 sm:gap-4 p-2 sm:p-3 bg-gray-50 rounded-lg">
-              <div className="text-center">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 p-3 bg-gray-50 rounded-lg">
+              <div className="text-center px-1">
                 <div className="text-xl sm:text-2xl font-bold text-blue-600">{reportStats.total}</div>
                 <div className="text-xs text-muted-foreground">Total Reports</div>
               </div>
-              <div className="text-center">
+              <div className="text-center px-1">
                 <div className="text-xl sm:text-2xl font-bold text-green-600">{reportStats.completed}</div>
                 <div className="text-xs text-muted-foreground">Completed</div>
               </div>
-              <div className="text-center">
+              <div className="text-center px-1">
                 <div className="text-xl sm:text-2xl font-bold text-orange-600">{reportStats.pending}</div>
                 <div className="text-xs text-muted-foreground">Pending</div>
               </div>

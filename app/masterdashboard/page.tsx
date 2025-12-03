@@ -48,6 +48,7 @@ import {
   Layout,
   CheckSquare,
   Eye,
+  Building,
 } from "lucide-react"
 import { useEffect, useState, useMemo } from "react" // Added useMemo
 import { ReportDirectoryContent } from "./report-directory-content"
@@ -99,6 +100,7 @@ interface Subscription {
   is_trial?: boolean // Added for trial status
   trial_ends_at?: string | null // Added for trial end date
   current_period_start?: string // Added for subscription start date
+  is_masteradmin_trial?: boolean // Added for complimentary trial status
 }
 
 interface Payment {
@@ -208,6 +210,10 @@ export default function MasterDashboardPage() {
   const [newSignupsThisMonth, setNewSignupsThisMonth] = useState(0)
   const [conversionRate, setConversionRate] = useState(0)
   const [databaseSize, setDatabaseSize] = useState("0 MB")
+
+  const [paidCustomers, setPaidCustomers] = useState(0)
+  const [complimentaryCustomers, setComplimentaryCustomers] = useState(0)
+  // </CHANGE>
 
   const [isRefreshingServerStats, setIsRefreshingServerStats] = useState(false)
   const [lastRefreshed, setLastRefreshed] = useState<string | null>(null)
@@ -844,24 +850,30 @@ export default function MasterDashboardPage() {
           setNewSignupsThisMonth(signupsThisMonth.length)
 
           const totalOrgs = allOrganizations.length // Use the processed organizations list
-          const paidOrgs = allSubscriptions.filter(
+
+          const paidSubscriptions = allSubscriptions.filter(
             (sub) =>
               sub.status === "active" &&
-              (sub.plan_name.toLowerCase() === "growth" || sub.plan_name.toLowerCase() === "scale"),
-          ).length
+              (sub.plan_name.toLowerCase() === "growth" || sub.plan_name.toLowerCase() === "scale") &&
+              !sub.is_masteradmin_trial, // Exclude masteradmin complimentary trials
+          )
+
+          const complimentarySubscriptions = allSubscriptions.filter(
+            (sub) =>
+              sub.status === "active" &&
+              (sub.plan_name.toLowerCase() === "growth" || sub.plan_name.toLowerCase() === "scale") &&
+              sub.is_masteradmin_trial === true, // Only masteradmin complimentary trials
+          )
+
+          const paidOrgs = paidSubscriptions.length
+          const complimentaryOrgs = complimentarySubscriptions.length
+
+          setPaidCustomers(paidOrgs)
+          setComplimentaryCustomers(complimentaryOrgs)
+          // </CHANGE>
+
           const conversion = totalOrgs > 0 ? ((paidOrgs / totalOrgs) * 100).toFixed(1) : "0.0"
           setConversionRate(Number(conversion))
-
-          // Calculate active trials
-          const activeTrialsCount = allSubscriptions.filter(
-            (sub) =>
-              sub.is_trial && sub.status === "active" && sub.trial_ends_at && new Date(sub.trial_ends_at) > new Date(),
-          ).length
-          // Assuming 'activeTrials' state is intended for this count
-          // You might need to add 'activeTrials' to your useState declarations at the top if it's not already there.
-          // Example: const [activeTrials, setActiveTrials] = useState(0);
-          // setActiveTrials(activeTrialsCount);
-          // For now, let's assume you want to use this in calculations without explicit state if not defined.
 
           // Fetch database size and related stats via API route
           try {
@@ -2265,30 +2277,27 @@ export default function MasterDashboardPage() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Total Organizations</CardTitle>
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  <Building className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{organizations.length}</div>
-                  <p className="text-xs text-muted-foreground">All organizations</p>
+                  <div className="text-2xl font-bold">{organizationStats.total}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {organizationStats.active} active | {organizationStats.withSubscriptions} with subscriptions
+                  </p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Paid Subscriptions</CardTitle>
-                  <CreditCard className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium">Paid Customers</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
-                    {
-                      allSubscriptions.filter(
-                        (sub) =>
-                          sub.status === "active" &&
-                          (sub.plan_name.toLowerCase() === "growth" || sub.plan_name.toLowerCase() === "scale"),
-                      ).length
-                    }
-                  </div>
-                  <p className="text-xs text-muted-foreground">Growth & Scale plans</p>
+                  <div className="text-2xl font-bold text-green-600">{paidCustomers}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {complimentaryCustomers} complimentary trial{complimentaryCustomers !== 1 ? "s" : ""}
+                  </p>
+                  {/* </CHANGE> */}
                 </CardContent>
               </Card>
 
@@ -3172,15 +3181,45 @@ export default function MasterDashboardPage() {
                           return (
                             <TableRow key={sub.id}>
                               <TableCell className="font-medium">
-                                {org ? org.organization_name : "Unknown Organization"}
+                                {org ? (
+                                  <div className="flex items-center gap-2">
+                                    {org.logo_url ? (
+                                      <img
+                                        src={org.logo_url || "/placeholder.svg"}
+                                        alt={org.organization_name}
+                                        className="w-6 h-6 rounded"
+                                      />
+                                    ) : (
+                                      <Building className="w-6 h-6 text-gray-400" />
+                                    )}
+                                    <div>
+                                      <div className="font-medium">{org.organization_name}</div>
+                                      {sub.is_masteradmin_trial && (
+                                        <Badge variant="outline" className="text-xs mt-1">
+                                          Complimentary
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">No organization</span>
+                                )}
                               </TableCell>
                               <TableCell>
-                                <Badge variant={currentPlan === "starter" ? "secondary" : "default"}>
-                                  {currentPlan === "starter" && "Free Starter"}
-                                  {currentPlan === "growth" && "Growth"}
-                                  {currentPlan === "scale" && "Scale"}
+                                <Badge
+                                  variant={
+                                    currentPlan === "scale"
+                                      ? "default"
+                                      : currentPlan === "growth"
+                                        ? "secondary"
+                                        : "outline"
+                                  }
+                                  className="capitalize"
+                                >
+                                  {currentPlan}
                                 </Badge>
                               </TableCell>
+
                               <TableCell>
                                 <Badge variant={isActive ? "default" : "secondary"}>
                                   {isActive ? "Active" : "Inactive"}

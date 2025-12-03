@@ -90,7 +90,7 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
 
           let width = img.width
           let height = img.height
-          const maxWidth = 400
+          const maxWidth = 300 // Reduced from 400px
 
           if (width > maxWidth) {
             height = (height / width) * maxWidth
@@ -101,10 +101,8 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
           canvas.height = height
           ctx.drawImage(img, 0, 0, width, height)
 
-          console.log("[v0] Original dimensions:", img.width, "x", img.height, "→ Resized to:", width, "x", height)
-
-          const targetSizeKB = 100
-          const quality = 0.7
+          const targetSizeKB = 50 // Reduced from 100KB
+          const quality = 0.6 // Reduced from 0.7
 
           const attemptCompression = (q: number) => {
             canvas.toBlob(
@@ -115,10 +113,8 @@ export default function ChecklistPage({ params }: ChecklistPageProps) {
                 }
 
                 const sizeKB = blob.size / 1024
-                console.log("[v0] Compression attempt - Quality:", q, "Size:", sizeKB.toFixed(1), "KB")
 
                 if (sizeKB <= targetSizeKB || q <= 0.1) {
-                  console.log("[v0] Final compressed size:", sizeKB.toFixed(1), "KB")
                   const fileName = file.name.replace(/\.[^/.]+$/, ".jpg")
                   resolve(new File([blob], fileName, { type: "image/jpeg" }))
                 } else {

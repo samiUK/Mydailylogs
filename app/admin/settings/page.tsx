@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { CalendarIcon, Plus, Trash2, Users, FileText, CalendarDaysIcon } from "lucide-react"
+import { CalendarIcon, Plus, Trash2, Users, FileText, CalendarDaysIcon, Loader2, AlertCircle } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { getSubscriptionLimits } from "@/lib/subscription-limits"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Calendar } from "@/components/ui/calendar"
 import {
   Dialog,
@@ -107,6 +107,14 @@ export default function OrganizationSettingsPage() {
   const [staffTeamPageEnabled, setStaffTeamPageEnabled] = useState(true)
   const [staffReportsPageEnabled, setStaffReportsPageEnabled] = useState(true)
   const [staffHolidaysPageEnabled, setStaffHolidaysPageEnabled] = useState(true)
+
+  const [storageStats, setStorageStats] = useState<{
+    totalSizeMB: number
+    totalFiles: number
+    limitGB: number
+    percentUsed: number
+  } | null>(null)
+  const [loadingStorage, setLoadingStorage] = useState(false)
 
   useEffect(() => {
     async function loadSettings() {
@@ -214,6 +222,7 @@ export default function OrganizationSettingsPage() {
     loadSettings()
     // Fetch holidays when loading settings
     fetchHolidays()
+    loadStorageStats()
   }, [])
 
   const fetchHolidays = async () => {
@@ -240,6 +249,19 @@ export default function OrganizationSettingsPage() {
       setHolidays(holidaysData || [])
     } catch (error) {
       console.error("[v0] Error fetching holidays:", error)
+    }
+  }
+
+  const loadStorageStats = async () => {
+    setLoadingStorage(true)
+    try {
+      const response = await fetch("/api/admin/storage-stats")
+      const data = await response.json()
+      setStorageStats(data)
+    } catch (error) {
+      console.error("Failed to load storage stats:", error)
+    } finally {
+      setLoadingStorage(false)
     }
   }
 
@@ -1173,6 +1195,91 @@ export default function OrganizationSettingsPage() {
           <Button onClick={handleSave} disabled={isSaving || !canEditOrganizationName} className="w-full">
             {isSaving ? "Saving..." : "Save All Settings"}
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Storage Management</CardTitle>
+          <CardDescription>Monitor and manage your photo storage usage</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {loadingStorage ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            </div>
+          ) : storageStats ? (
+            <>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Storage Used</span>
+                  <span className="font-medium">
+                    {storageStats.totalSizeMB.toFixed(2)} MB / {storageStats.limitGB} GB
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div
+                    className={`h-3 rounded-full transition-all ${
+                      storageStats.percentUsed > 80
+                        ? "bg-red-500"
+                        : storageStats.percentUsed > 60
+                          ? "bg-yellow-500"
+                          : "bg-green-500"
+                    }`}
+                    style={{ width: `${Math.min(storageStats.percentUsed, 100)}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-500">
+                  {storageStats.totalFiles} photos stored • {storageStats.percentUsed.toFixed(1)}% used
+                </p>
+              </div>
+
+              {storageStats.percentUsed > 80 && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Storage Warning</AlertTitle>
+                  <AlertDescription>
+                    You're using {storageStats.percentUsed.toFixed(1)}% of your storage. Consider reviewing and deleting
+                    old reports or upgrading your plan.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="pt-4 border-t">
+                <h4 className="text-sm font-medium mb-3">Storage Tips</h4>
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3 text-sm">
+                    <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-green-600 text-xs">✓</span>
+                    </div>
+                    <div>
+                      <p className="font-medium">Photos are auto-compressed</p>
+                      <p className="text-xs text-gray-500">All photos are compressed to ~50KB on upload</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 text-sm">
+                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-blue-600 text-xs">📊</span>
+                    </div>
+                    <div>
+                      <p className="font-medium">Review and delete old reports</p>
+                      <p className="text-xs text-gray-500">Go to Reports & Analytics to manage old submissions</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-2 bg-transparent"
+                    onClick={() => router.push("/admin/dashboard-analytics")}
+                  >
+                    Manage Reports
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-gray-500">Failed to load storage stats</p>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -15,7 +15,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Eye, Download, Trash2, FileText, Search, CheckSquare, ArrowUp, ArrowDown } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Eye, Download, Trash2, FileText, Search, CheckSquare, ArrowUpDown, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -35,17 +36,39 @@ interface Report {
   }>
 }
 
-export function DashboardAnalyticsClient({ reports }: { reports: Report[] }) {
+interface DashboardAnalyticsClientProps {
+  reports: Report[]
+  totalStorage: number
+  photoCount: number
+  storageLimit?: number
+}
+
+export function DashboardAnalyticsClient({
+  reports,
+  totalStorage,
+  photoCount,
+  storageLimit = 1073741824, // 1GB in bytes
+}: DashboardAnalyticsClientProps) {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [deleteReport, setDeleteReport] = useState<Report | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set())
+  const [sortColumn, setSortColumn] = useState<"assigned" | "submitted" | "submittedBy">("submitted")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
-  const itemsPerPage = 20 // Updated from 10 to 20 items per page
+  const itemsPerPage = 20
 
-  // Filter reports based on search
+  const storageUsagePercent = (totalStorage / storageLimit) * 100
+  const storageWarningLevel =
+    storageUsagePercent >= 95
+      ? "critical"
+      : storageUsagePercent >= 85
+        ? "high"
+        : storageUsagePercent >= 70
+          ? "warning"
+          : "normal"
+
   const filteredReports = reports.filter(
     (report) =>
       searchTerm === "" ||
@@ -54,27 +77,32 @@ export function DashboardAnalyticsClient({ reports }: { reports: Report[] }) {
   )
 
   const sortedReports = [...filteredReports].sort((a, b) => {
-    // Get the latest submission time for each report
-    const aLatestSubmission =
-      a.submissions.length > 0 ? new Date(a.submissions[0].submitted_at).getTime() : new Date(a.assigned_at).getTime()
+    if (sortColumn === "assigned") {
+      const aTime = new Date(a.assigned_at).getTime()
+      const bTime = new Date(b.assigned_at).getTime()
+      return sortOrder === "desc" ? bTime - aTime : aTime - bTime
+    } else if (sortColumn === "submitted") {
+      const aLatestSubmission =
+        a.submissions.length > 0 ? new Date(a.submissions[0].submitted_at).getTime() : new Date(a.assigned_at).getTime()
 
-    const bLatestSubmission =
-      b.submissions.length > 0 ? new Date(b.submissions[0].submitted_at).getTime() : new Date(b.assigned_at).getTime()
+      const bLatestSubmission =
+        b.submissions.length > 0 ? new Date(b.submissions[0].submitted_at).getTime() : new Date(b.assigned_at).getTime()
 
-    // Sort based on selected order
-    return sortOrder === "desc"
-      ? bLatestSubmission - aLatestSubmission // Newest first
-      : aLatestSubmission - bLatestSubmission // Oldest first
+      return sortOrder === "desc" ? bLatestSubmission - aLatestSubmission : aLatestSubmission - bLatestSubmission
+    } else {
+      const aName = a.user_name.toLowerCase()
+      const bName = b.user_name.toLowerCase()
+      return sortOrder === "desc" ? bName.localeCompare(aName) : aName.localeCompare(bName)
+    }
   })
 
-  // Paginate sorted reports
   const totalPages = Math.ceil(sortedReports.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const paginatedReports = sortedReports.slice(startIndex, startIndex + itemsPerPage)
 
   const toggleSort = () => {
     setSortOrder(sortOrder === "desc" ? "asc" : "desc")
-    setCurrentPage(1) // Reset to first page when sorting
+    setCurrentPage(1)
   }
 
   const handleDelete = async (downloadFirst: boolean) => {
@@ -83,13 +111,10 @@ export function DashboardAnalyticsClient({ reports }: { reports: Report[] }) {
     setDeleting(true)
     try {
       if (downloadFirst) {
-        // Download the report first
         window.open(`/admin/reports/${deleteReport.id}?download=true`, "_blank")
-        // Wait a bit for download to start
         await new Promise((resolve) => setTimeout(resolve, 1000))
       }
 
-      // Delete the report
       const response = await fetch(`/api/admin/delete-report?id=${deleteReport.id}&type=assignment`, {
         method: "DELETE",
       })
@@ -106,6 +131,50 @@ export function DashboardAnalyticsClient({ reports }: { reports: Report[] }) {
     }
   }
 
+  const handleBulkDelete = async (exportFirst: boolean) => {
+    if (selectedReports.size === 0) return
+
+    setDeleting(true)
+    try {
+      const response = await fetch("/api/admin/bulk-export-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reportIds: Array.from(selectedReports),
+          exportBeforeDelete: exportFirst,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!data.success) {
+        throw new Error(data.error || "Failed to delete reports")
+      }
+
+      if (exportFirst && data.exportedData) {
+        const blob = new Blob([JSON.stringify(data.exportedData, null, 2)], {
+          type: "application/json",
+        })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `reports-export-${new Date().toISOString().split("T")[0]}.json`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      }
+
+      router.refresh()
+      setSelectedReports(new Set())
+    } catch (error) {
+      console.error("[v0] Bulk delete error:", error)
+      alert("Failed to delete reports. Please try again.")
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const toggleReportSelection = (reportId: string) => {
     const newSelected = new Set(selectedReports)
     if (newSelected.has(reportId)) {
@@ -117,7 +186,7 @@ export function DashboardAnalyticsClient({ reports }: { reports: Report[] }) {
   }
 
   const toggleSelectAll = () => {
-    if (selectedReports.size === paginatedReports.length) {
+    if (selectedReports.size === paginatedReports.length && paginatedReports.length > 0) {
       setSelectedReports(new Set())
     } else {
       setSelectedReports(new Set(paginatedReports.map((r) => r.id)))
@@ -142,9 +211,65 @@ export function DashboardAnalyticsClient({ reports }: { reports: Report[] }) {
     })
   }
 
+  const handleColumnSort = (column: "assigned" | "submitted" | "submittedBy") => {
+    if (sortColumn === column) {
+      setSortOrder(sortOrder === "desc" ? "asc" : "desc")
+    } else {
+      setSortColumn(column)
+      setSortOrder(column === "submittedBy" ? "asc" : "desc")
+    }
+    setCurrentPage(1)
+  }
+
   return (
     <>
-      {/* Search and Bulk Actions */}
+      {storageWarningLevel !== "normal" && (
+        <Alert
+          variant={storageWarningLevel === "critical" ? "destructive" : "default"}
+          className={
+            storageWarningLevel === "critical"
+              ? "border-red-500 bg-red-50 dark:bg-red-950"
+              : storageWarningLevel === "high"
+                ? "border-orange-500 bg-orange-50 dark:bg-orange-950"
+                : "border-yellow-500 bg-yellow-50 dark:bg-yellow-950"
+          }
+        >
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>
+            {storageWarningLevel === "critical"
+              ? "Critical Storage Alert"
+              : storageWarningLevel === "high"
+                ? "High Storage Usage"
+                : "Storage Warning"}
+          </AlertTitle>
+          <AlertDescription>
+            <p className="mb-3">
+              You're using {storageUsagePercent.toFixed(1)}% of your 1GB storage limit ({photoCount} photos).
+              {storageWarningLevel === "critical" && " Action required immediately!"}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant={storageWarningLevel === "critical" ? "default" : "outline"}
+                onClick={() => {
+                  const reportsSection = document.querySelector("[data-reports-list]")
+                  reportsSection?.scrollIntoView({ behavior: "smooth" })
+                }}
+              >
+                Delete Old Reports
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => window.open("https://mydaylogs.co.uk/pricing", "_blank")}
+              >
+                Upgrade Plan
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -153,28 +278,33 @@ export function DashboardAnalyticsClient({ reports }: { reports: Report[] }) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4 items-center">
+          <div className="flex gap-4 items-center flex-wrap">
             <Input
               placeholder="Search by template name or assignee..."
-              className="flex-1"
+              className="flex-1 min-w-[200px]"
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value)
-                setCurrentPage(1) // Reset to first page on search
+                setCurrentPage(1)
               }}
             />
             {selectedReports.size > 0 && (
-              <Button onClick={handleBulkDownload} variant="default">
-                <Download className="w-4 h-4 mr-2" />
-                Download Selected ({selectedReports.size})
-              </Button>
+              <>
+                <Button onClick={handleBulkDownload} variant="default">
+                  <Download className="w-4 h-4 mr-2" />
+                  Download Selected ({selectedReports.size})
+                </Button>
+                <Button onClick={() => handleBulkDelete(false)} variant="destructive">
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Selected
+                </Button>
+              </>
             )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Reports List with Pagination */}
-      <Card>
+      <Card data-reports-list>
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
@@ -183,70 +313,127 @@ export function DashboardAnalyticsClient({ reports }: { reports: Report[] }) {
                 Latest assignments and report submissions (Page {currentPage} of {totalPages})
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={toggleSort}>
-                {sortOrder === "desc" ? <ArrowDown className="w-4 h-4 mr-2" /> : <ArrowUp className="w-4 h-4 mr-2" />}
-                {sortOrder === "desc" ? "Newest First" : "Oldest First"}
+            {paginatedReports.length > 0 && (
+              <Button variant="outline" size="sm" onClick={toggleSelectAll}>
+                <CheckSquare className="w-4 h-4 mr-2" />
+                {selectedReports.size === paginatedReports.length ? "Deselect All" : "Select All"}
               </Button>
-              {paginatedReports.length > 0 && (
-                <Button variant="outline" size="sm" onClick={toggleSelectAll}>
-                  <CheckSquare className="w-4 h-4 mr-2" />
-                  {selectedReports.size === paginatedReports.length ? "Deselect All" : "Select All"}
-                </Button>
-              )}
-            </div>
+            )}
           </div>
         </CardHeader>
         <CardContent>
           {paginatedReports.length > 0 ? (
             <div className="space-y-4">
-              {paginatedReports.map((report) => (
-                <div key={report.id} className="flex items-start gap-4 p-4 border rounded-lg">
-                  <input
-                    type="checkbox"
-                    checked={selectedReports.has(report.id)}
-                    onChange={() => toggleReportSelection(report.id)}
-                    className="mt-1"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-medium">{report.template_name}</h4>
-                      <Badge variant={report.status === "completed" ? "default" : "secondary"}>
-                        {report.status || "pending"}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-2">{report.user_name}</p>
-
-                    <div className="space-y-1">
-                      <div className="text-sm text-muted-foreground">
-                        <span className="font-medium">Assigned:</span> {formatDateTime(report.assigned_at)}
-                      </div>
-                      {report.submissions.length > 0 && (
-                        <div className="text-sm text-green-600 dark:text-green-400">
-                          <span className="font-medium">Submitted:</span>{" "}
-                          {formatDateTime(report.submissions[0].submitted_at)}
-                          {report.submissions.length > 1 && (
-                            <span className="ml-1 text-muted-foreground">(+{report.submissions.length - 1} more)</span>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="p-3 text-left w-12">
+                        <input
+                          type="checkbox"
+                          checked={selectedReports.size === paginatedReports.length && paginatedReports.length > 0}
+                          onChange={toggleSelectAll}
+                          className="cursor-pointer"
+                        />
+                      </th>
+                      <th className="p-3 text-left font-medium">Template</th>
+                      <th className="p-3 text-left font-medium">
+                        <button
+                          onClick={() => handleColumnSort("submittedBy")}
+                          className="flex items-center gap-1 hover:text-primary transition-colors"
+                        >
+                          Submitted By
+                          <ArrowUpDown
+                            className={`w-4 h-4 ${sortColumn === "submittedBy" ? "text-primary" : "text-muted-foreground"}`}
+                          />
+                        </button>
+                      </th>
+                      <th className="p-3 text-left font-medium">Status</th>
+                      <th className="p-3 text-left font-medium">
+                        <button
+                          onClick={() => handleColumnSort("assigned")}
+                          className="flex items-center gap-1 hover:text-primary transition-colors"
+                        >
+                          Assigned At
+                          <ArrowUpDown
+                            className={`w-4 h-4 ${sortColumn === "assigned" ? "text-primary" : "text-muted-foreground"}`}
+                          />
+                        </button>
+                      </th>
+                      <th className="p-3 text-left font-medium">
+                        <button
+                          onClick={() => handleColumnSort("submitted")}
+                          className="flex items-center gap-1 hover:text-primary transition-colors"
+                        >
+                          Submitted At
+                          <ArrowUpDown
+                            className={`w-4 h-4 ${sortColumn === "submitted" ? "text-primary" : "text-muted-foreground"}`}
+                          />
+                        </button>
+                      </th>
+                      <th className="p-3 text-right font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedReports.map((report) => (
+                      <tr key={report.id} className="border-b hover:bg-muted/30 transition-colors">
+                        <td className="p-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedReports.has(report.id)}
+                            onChange={() => toggleReportSelection(report.id)}
+                            className="cursor-pointer"
+                          />
+                        </td>
+                        <td className="p-3">
+                          <div className="font-medium">{report.template_name}</div>
+                        </td>
+                        <td className="p-3">
+                          <div className="text-sm">{report.user_name}</div>
+                        </td>
+                        <td className="p-3">
+                          <Badge variant={report.status === "completed" ? "default" : "secondary"}>
+                            {report.status || "pending"}
+                          </Badge>
+                        </td>
+                        <td className="p-3">
+                          <div className="text-sm">{formatDateTime(report.assigned_at)}</div>
+                        </td>
+                        <td className="p-3">
+                          {report.submissions.length > 0 ? (
+                            <div>
+                              <div className="text-sm text-green-600 dark:text-green-400 font-medium">
+                                {formatDateTime(report.submissions[0].submitted_at)}
+                              </div>
+                              {report.submissions.length > 1 && (
+                                <div className="text-xs text-muted-foreground">
+                                  +{report.submissions.length - 1} more
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="text-sm text-muted-foreground italic">Not submitted</div>
                           )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Link href={`/admin/reports/${report.id}`}>
-                      <Button variant="outline" size="sm">
-                        <Eye className="w-4 h-4 mr-1" />
-                        View
-                      </Button>
-                    </Link>
-                    <Button variant="destructive" size="sm" onClick={() => setDeleteReport(report)}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center justify-end gap-2">
+                            <Link href={`/admin/reports/${report.id}`}>
+                              <Button variant="outline" size="sm">
+                                <Eye className="w-4 h-4 mr-1" />
+                                View
+                              </Button>
+                            </Link>
+                            <Button variant="destructive" size="sm" onClick={() => setDeleteReport(report)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-              {/* Pagination Controls */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-2 pt-4">
                   <Button
@@ -287,14 +474,13 @@ export function DashboardAnalyticsClient({ reports }: { reports: Report[] }) {
         </CardContent>
       </Card>
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deleteReport} onOpenChange={(open) => !open && setDeleteReport(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Report?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete "{deleteReport?.template_name}" for {deleteReport?.user_name}. This action
-              cannot be undone.
+              This will permanently delete "{deleteReport?.template_name}" for {deleteReport?.user_name} and all
+              associated photos from storage. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { createClient as createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
 import { getSubscriptionLimits } from "@/lib/subscription-limits"
 
@@ -11,8 +12,10 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = await createClient()
+    const adminSupabase = createAdminClient()
     let deletedReports = 0
     let deletedLogs = 0
+    let deletedPhotos = 0
 
     // Get all organizations
     const { data: organizations } = await supabase.from("organizations").select("organization_id")
@@ -42,23 +45,62 @@ export async function GET(request: NextRequest) {
       const logCutoffDate = new Date()
       logCutoffDate.setDate(logCutoffDate.getDate() - logRetentionDays)
 
-      // Delete old submitted reports
-      const { data: oldReports, error: reportsError } = await supabase
+      const { data: oldReportsToDelete, error: fetchError } = await supabase
         .from("submitted_reports")
-        .delete()
+        .select("id, report_data")
         .eq("organization_id", org.organization_id)
         .lt("submitted_at", reportCutoffDate.toISOString())
-        .select("id")
 
-      if (oldReports) {
-        deletedReports += oldReports.length
-        console.log(
-          `[v0] Deleted ${oldReports.length} reports older than ${reportRetentionDays} days for org ${org.organization_id}`,
-        )
+      if (oldReportsToDelete && oldReportsToDelete.length > 0) {
+        // Extract and delete photos from Supabase Storage
+        for (const report of oldReportsToDelete) {
+          if (report.report_data?.responses) {
+            for (const response of report.report_data.responses) {
+              if (response.type === "photo" && response.value) {
+                try {
+                  const photoData = JSON.parse(response.value)
+                  if (Array.isArray(photoData)) {
+                    for (const photo of photoData) {
+                      if (photo.url) {
+                        const urlParts = photo.url.split("/report-photos/")
+                        if (urlParts.length > 1) {
+                          const filePath = urlParts[1]
+                          const { error: storageError } = await adminSupabase.storage
+                            .from("report-photos")
+                            .remove([filePath])
+                          if (!storageError) {
+                            deletedPhotos++
+                          }
+                        }
+                      }
+                    }
+                  }
+                } catch (err) {
+                  console.error("[v0] Error deleting photo:", err)
+                }
+              }
+            }
+          }
+        }
+
+        // Now delete the report records from database
+        const reportIds = oldReportsToDelete.map((r) => r.id)
+        const { data: deletedRecords } = await supabase
+          .from("submitted_reports")
+          .delete()
+          .in("id", reportIds)
+          .select("id")
+
+        if (deletedRecords) {
+          deletedReports += deletedRecords.length
+          console.log(
+            `[v0] Deleted ${deletedRecords.length} reports and ${deletedPhotos} photos older than ${reportRetentionDays} days for org ${org.organization_id}`,
+          )
+        }
       }
 
-      if (reportsError) {
-        console.error(`[v0] Error deleting reports for org ${org.organization_id}:`, reportsError)
+      if (fetchError) {
+        console.error(`[v0] Error fetching reports for org ${org.organization_id}:`, fetchError)
       }
 
       // Delete old audit logs
@@ -97,6 +139,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       message: "Cleanup completed successfully",
       deletedReports,
+      deletedPhotos,
       deletedLogs,
       organizationsProcessed: organizations.length,
     })

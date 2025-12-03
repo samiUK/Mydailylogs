@@ -26,9 +26,40 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
     }
 
-    // Delete from appropriate table
+    const { data: subscription } = await supabase
+      .from("subscriptions")
+      .select("plan_name")
+      .eq("organization_id", profile.organization_id)
+      .single()
+
+    const isScalePlan = subscription?.plan_name === "scale"
+
+    if (isScalePlan && reportType === "assignment") {
+      const { error } = await supabase
+        .from("submitted_reports")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: user.id,
+          status: "deleted",
+        })
+        .eq("assignment_id", reportId)
+        .eq("organization_id", profile.organization_id)
+
+      if (error) throw error
+
+      // Also mark assignment as inactive
+      const { error: assignmentError } = await supabase
+        .from("template_assignments")
+        .update({ is_active: false, status: "deleted" })
+        .eq("id", reportId)
+        .eq("organization_id", profile.organization_id)
+
+      if (assignmentError) throw assignmentError
+
+      return NextResponse.json({ success: true, recoverable: true })
+    }
+
     if (reportType === "assignment") {
-      // Set assignment as inactive and deleted
       const { error } = await supabase
         .from("template_assignments")
         .update({ is_active: false, status: "deleted" })
@@ -37,7 +68,6 @@ export async function DELETE(request: Request) {
 
       if (error) throw error
     } else if (reportType === "daily") {
-      // Delete daily checklist
       const { error } = await supabase
         .from("daily_checklists")
         .delete()
@@ -47,17 +77,17 @@ export async function DELETE(request: Request) {
       if (error) throw error
     }
 
-    // Delete associated responses
+    // Delete associated responses for non-Scale plans
     const { error: responsesError } = await supabase.from("checklist_responses").delete().eq("assignment_id", reportId)
 
     if (responsesError) console.error("Error deleting responses:", responsesError)
 
-    // Delete from submitted_reports if exists
+    // Delete from submitted_reports for non-Scale plans
     const { error: submittedError } = await supabase.from("submitted_reports").delete().eq("assignment_id", reportId)
 
     if (submittedError) console.error("Error deleting submitted report:", submittedError)
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, recoverable: false })
   } catch (error) {
     console.error("Error deleting report:", error)
     return NextResponse.json({ error: "Failed to delete report" }, { status: 500 })

@@ -675,6 +675,16 @@ export default function HomePageClient() {
                       <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
                       <span className="font-semibold">90-day report storage</span>
                     </li>
+                    <li className="flex items-start">
+                      <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <span className="font-semibold">🛡️ Accidental Deletion Recovery</span>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Reports deleted by mistake stay recoverable for 90 days. Our support team can restore them on
+                          request - perfect for compliance and audit protection.
+                        </p>
+                      </div>
+                    </li>
                   </ul>
                   <Button
                     onClick={() => handleUpgradeFromHomepage("scale")}

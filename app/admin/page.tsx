@@ -62,6 +62,11 @@ export default function AdminDashboard() {
   const [templateAssignments, setTemplateAssignments] = useState<any[]>([])
   const [showVerificationSuccess, setShowVerificationSuccess] = useState(false)
 
+  // Added state for subscription limits and usage
+  const [subscriptionLimits, setSubscriptionLimits] = useState<any>(null)
+  const [currentUsage, setCurrentUsage] = useState<any>(null)
+  const [monthlySubmissions, setMonthlySubmissions] = useState<any>(null)
+
   const router = useRouter()
   const organizationId = profile?.organization_id
 
@@ -425,6 +430,35 @@ export default function AdminDashboard() {
     }
   }, [])
 
+  useEffect(() => {
+    const loadLimitsAndUsage = async () => {
+      if (!organizationId) return
+
+      try {
+        // Fetch subscription limits
+        const limitsModule = await import("@/lib/subscription-limits")
+        const limits = await limitsModule.getSubscriptionLimits(organizationId)
+        const usage = await limitsModule.getCurrentUsage(organizationId)
+
+        setSubscriptionLimits(limits)
+        setCurrentUsage(usage)
+
+        // Fetch monthly submissions for free users
+        if (limits.planName === "Starter") {
+          const response = await fetch("/api/admin/monthly-submissions")
+          if (response.ok) {
+            const data = await response.json()
+            setMonthlySubmissions(data)
+          }
+        }
+      } catch (error) {
+        console.error("Error loading limits and usage:", error)
+      }
+    }
+
+    loadLimitsAndUsage()
+  }, [organizationId])
+
   const fetchActivityLog = async () => {
     if (!organizationId) return
 
@@ -751,7 +785,7 @@ export default function AdminDashboard() {
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-base sm:text-lg">Report Overview</CardTitle>
@@ -776,29 +810,145 @@ export default function AdminDashboard() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Report Templates</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{activeTemplates?.length || 0}</div>
-            <p className="text-xs text-muted-foreground">Report templates</p>
-            <p className="text-xs text-blue-600 font-medium mt-1">
-              Remaining quota: {Math.max(0, 3 - (activeTemplates?.length || 0))}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
           <CardHeader>
-            <CardTitle className="text-sm sm:text-base">Team Members</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Team overview</CardDescription>
+            <CardTitle className="text-sm font-medium">Plan Quota</CardTitle>
+            <CardDescription className="text-xs">
+              {subscriptionLimits?.planName || "Loading..."} Plan Usage
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{teamMembers?.length || 0}</div>
-            <p className="text-xs text-muted-foreground">Total members</p>
-            <p className="text-xs text-blue-600 font-medium mt-1">
-              Members logged in: {Math.floor((teamMembers?.length || 0) * 0.7)}
-            </p>
+            {!subscriptionLimits || !currentUsage ? (
+              <div className="flex items-center justify-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Templates Quota */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Templates</span>
+                    <span className="font-medium">
+                      {currentUsage.templateCount} / {subscriptionLimits.maxTemplates}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 ${
+                        currentUsage.templateCount >= subscriptionLimits.maxTemplates
+                          ? "bg-red-500"
+                          : currentUsage.templateCount >= subscriptionLimits.maxTemplates * 0.8
+                            ? "bg-amber-500"
+                            : "bg-green-500"
+                      }`}
+                      style={{
+                        width: `${Math.min((currentUsage.templateCount / subscriptionLimits.maxTemplates) * 100, 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Team Members Quota */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Team Members</span>
+                    <span className="font-medium">
+                      {currentUsage.teamMemberCount} / {subscriptionLimits.maxTeamMembers}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 ${
+                        currentUsage.teamMemberCount >= subscriptionLimits.maxTeamMembers
+                          ? "bg-red-500"
+                          : currentUsage.teamMemberCount >= subscriptionLimits.maxTeamMembers * 0.8
+                            ? "bg-amber-500"
+                            : "bg-blue-500"
+                      }`}
+                      style={{
+                        width: `${Math.min((currentUsage.teamMemberCount / subscriptionLimits.maxTeamMembers) * 100, 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Managers Quota - Only show for paid plans */}
+                {subscriptionLimits.planName !== "Starter" && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Managers</span>
+                      <span className="font-medium">
+                        {currentUsage.adminManagerCount} / {subscriptionLimits.maxAdminAccounts}
+                      </span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          currentUsage.adminManagerCount >= subscriptionLimits.maxAdminAccounts
+                            ? "bg-red-500"
+                            : currentUsage.adminManagerCount >= subscriptionLimits.maxAdminAccounts * 0.8
+                              ? "bg-amber-500"
+                              : "bg-purple-500"
+                        }`}
+                        style={{
+                          width: `${Math.min((currentUsage.adminManagerCount / subscriptionLimits.maxAdminAccounts) * 100, 100)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Monthly Submissions - Only for free users */}
+                {subscriptionLimits.planName === "Starter" && monthlySubmissions && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Monthly Submissions</span>
+                      <span className="font-medium">
+                        {monthlySubmissions.count} / {subscriptionLimits.maxReportSubmissions}
+                      </span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          monthlySubmissions.count >= subscriptionLimits.maxReportSubmissions
+                            ? "bg-red-500"
+                            : monthlySubmissions.count >= subscriptionLimits.maxReportSubmissions * 0.8
+                              ? "bg-amber-500"
+                              : "bg-indigo-500"
+                        }`}
+                        style={{
+                          width: `${Math.min((monthlySubmissions.count / subscriptionLimits.maxReportSubmissions) * 100, 100)}%`,
+                        }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Resets: {new Date(monthlySubmissions.nextReset).toLocaleDateString()}
+                    </p>
+                  </div>
+                )}
+
+                {/* Paid plans show unlimited submissions message */}
+                {subscriptionLimits.planName !== "Starter" && (
+                  <div className="pt-2 border-t">
+                    <p className="text-xs text-green-600 font-medium">✓ Unlimited Report Submissions</p>
+                  </div>
+                )}
+
+                {/* Upgrade CTA for free users near limit */}
+                {subscriptionLimits.planName === "Starter" &&
+                  (currentUsage.templateCount >= subscriptionLimits.maxTemplates * 0.8 ||
+                    currentUsage.teamMemberCount >= subscriptionLimits.maxTeamMembers * 0.8 ||
+                    (monthlySubmissions &&
+                      monthlySubmissions.count >= subscriptionLimits.maxReportSubmissions * 0.8)) && (
+                    <div className="pt-2 border-t">
+                      <Link href="/admin/billing">
+                        <Button size="sm" className="w-full text-xs h-8">
+                          Upgrade Plan
+                        </Button>
+                      </Link>
+                    </div>
+                  )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

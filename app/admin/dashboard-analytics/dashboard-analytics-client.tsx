@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Eye, Download, Trash2, FileText, Search, CheckSquare, ArrowUpDown } from "lucide-react"
+import { Eye, Download, Trash2, FileText, Search, CheckSquare, ArrowUpDown, AlertTriangle, X } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -41,6 +41,14 @@ interface DashboardAnalyticsClientProps {
   teamMembers: any[]
   organizationId: string
   hasPaidPlan: boolean
+  oldestReportNearDeletion?: {
+    id: string
+    template_name: string
+    user_name: string
+    daysUntilDeletion: number
+    deletionDate: Date
+  } | null
+  reportsNearDeletionCount: number
 }
 
 export function DashboardAnalyticsClient({
@@ -48,6 +56,8 @@ export function DashboardAnalyticsClient({
   teamMembers,
   organizationId,
   hasPaidPlan,
+  oldestReportNearDeletion,
+  reportsNearDeletionCount,
 }: DashboardAnalyticsClientProps) {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
@@ -57,6 +67,7 @@ export function DashboardAnalyticsClient({
   const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set())
   const [sortColumn, setSortColumn] = useState<"assigned" | "submitted" | "submittedBy">("submitted")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
+  const [warningDismissed, setWarningDismissed] = useState(false)
   const itemsPerPage = 20
 
   const filteredReports = reports.filter(
@@ -72,12 +83,10 @@ export function DashboardAnalyticsClient({
       const bTime = new Date(b.assigned_at).getTime()
       return sortOrder === "desc" ? bTime - aTime : aTime - bTime
     } else if (sortColumn === "submitted") {
-      // Use submitted_at if available, otherwise use assigned_at
       const aTime = a.submitted_at ? new Date(a.submitted_at).getTime() : new Date(a.assigned_at).getTime()
       const bTime = b.submitted_at ? new Date(b.submitted_at).getTime() : new Date(b.assigned_at).getTime()
       return sortOrder === "desc" ? bTime - aTime : aTime - bTime
     } else {
-      // submittedBy column
       const aName = a.user_name.toLowerCase()
       const bName = b.user_name.toLowerCase()
       return sortOrder === "desc" ? bName.localeCompare(aName) : aName.localeCompare(bName)
@@ -211,6 +220,61 @@ export function DashboardAnalyticsClient({
 
   return (
     <>
+      {oldestReportNearDeletion && !warningDismissed && (
+        <Card className="border-orange-500 bg-orange-50 dark:bg-orange-950/20">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-4">
+              <AlertTriangle className="w-6 h-6 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-1" />
+              <div className="flex-1">
+                <h3 className="font-semibold text-orange-900 dark:text-orange-100 text-lg mb-2">
+                  Reports Scheduled for Automatic Deletion
+                </h3>
+                <p className="text-orange-800 dark:text-orange-200 mb-3">
+                  <strong>{reportsNearDeletionCount}</strong> {reportsNearDeletionCount === 1 ? "report" : "reports"}{" "}
+                  will be automatically deleted soon. The oldest report "
+                  <strong>{oldestReportNearDeletion.template_name}</strong>" by {oldestReportNearDeletion.user_name}{" "}
+                  will be deleted in{" "}
+                  <strong className="text-orange-600 dark:text-orange-400">
+                    {oldestReportNearDeletion.daysUntilDeletion}{" "}
+                    {oldestReportNearDeletion.daysUntilDeletion === 1 ? "day" : "days"}
+                  </strong>
+                  .
+                </p>
+                <p className="text-sm text-orange-700 dark:text-orange-300 mb-4">
+                  Please download any reports you need to keep before they are permanently removed from storage. We are
+                  not responsible for storing reports after the retention period.
+                </p>
+                <div className="flex gap-3 flex-wrap">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => {
+                      const reportsTable = document.querySelector("[data-reports-list]")
+                      reportsTable?.scrollIntoView({ behavior: "smooth", block: "start" })
+                    }}
+                    className="bg-orange-600 hover:bg-orange-700 text-white"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    View & Download Reports
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setWarningDismissed(true)}
+                    className="border-orange-600 text-orange-600 hover:bg-orange-100 dark:hover:bg-orange-950"
+                  >
+                    I Understand
+                  </Button>
+                </div>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setWarningDismissed(true)} className="flex-shrink-0">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -289,7 +353,7 @@ export function DashboardAnalyticsClient({
                           />
                         </button>
                       </th>
-                      {hasPaidPlan && <th className="p-3 text-left font-medium">Submission Type</th>}
+                      <th className="p-3 text-left font-medium">Type</th>
                       <th className="p-3 text-left font-medium">
                         <button
                           onClick={() => handleColumnSort("assigned")}
@@ -332,19 +396,17 @@ export function DashboardAnalyticsClient({
                         <td className="p-3">
                           <div className="text-sm">{report.user_name}</div>
                         </td>
-                        {hasPaidPlan && (
-                          <td className="p-3">
-                            <span
-                              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                report.type === "external"
-                                  ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
-                                  : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                              }`}
-                            >
-                              {report.type === "external" ? "External" : "Internal"}
-                            </span>
-                          </td>
-                        )}
+                        <td className="p-3">
+                          <span
+                            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                              report.type === "external"
+                                ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                                : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                            }`}
+                          >
+                            {report.type === "external" ? "External" : "Internal"}
+                          </span>
+                        </td>
                         <td className="p-3">
                           <div className="text-sm">{formatDateTime(report.assigned_at)}</div>
                         </td>

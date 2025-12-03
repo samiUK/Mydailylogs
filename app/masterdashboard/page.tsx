@@ -36,7 +36,6 @@ import {
   ArrowUp,
   AlertCircle,
   Info,
-  Activity,
   Mail,
   MessageSquare,
   User,
@@ -49,6 +48,9 @@ import {
   CheckSquare,
   Eye,
   Building,
+  Minus,
+  Plus,
+  Settings,
 } from "lucide-react"
 import { useEffect, useState, useMemo } from "react" // Added useMemo
 import { ReportDirectoryContent } from "./report-directory-content"
@@ -71,6 +73,11 @@ interface Organization {
   reportCount?: number // Added reportCount field
   subscription_tier?: string // Added subscription_tier field
   last_report_email_sent?: string // Added last_report_email_sent field
+  quotaData?: {
+    limits: any
+    usage: any
+    monthlySubmissions: any
+  }
 }
 
 interface UserProfile {
@@ -228,6 +235,17 @@ export default function MasterDashboardPage() {
   const [activityLogsLoading, setActivityLogsLoading] = useState(false)
 
   const [subscriptionSearchTerm, setSubscriptionSearchTerm] = useState("")
+
+  const [quotaModification, setQuotaModification] = useState<{
+    organizationId: string
+    organizationName: string
+    fieldName: string
+    currentValue: number
+    isCustom: boolean
+  } | null>(null)
+  const [quotaReason, setQuotaReason] = useState("")
+  const [masterPassword, setMasterPassword] = useState("")
+  // </CHANGE>
 
   const getCookie = (name: string) => {
     const value = `; ${document.cookie}`
@@ -770,7 +788,33 @@ export default function MasterDashboardPage() {
             org.last_report_email_sent = lastSentReport?.created_at // Assuming reports have a created_at field
           })
 
-          setOrganizations(allOrganizations)
+          const orgsWithQuota = await Promise.all(
+            allOrganizations.map(async (org: Organization) => {
+              try {
+                const quotaResponse = await fetch("/api/master/organization-quota", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ organizationId: org.organization_id }),
+                })
+
+                if (quotaResponse.ok) {
+                  const quotaData = await quotaResponse.json()
+                  return {
+                    ...org,
+                    quotaData,
+                  }
+                }
+              } catch (error) {
+                console.error("Error fetching quota for org:", org.organization_id, error)
+              }
+
+              return {
+                ...org,
+              }
+            }),
+          )
+
+          setOrganizations(orgsWithQuota)
           setAllUsers(
             profilesData?.map((profile) => {
               // Ensure allUsers also gets email_confirmed_at and last_sign_in_at
@@ -787,7 +831,7 @@ export default function MasterDashboardPage() {
           )
 
           console.log("[v0] Enhanced data loaded:", {
-            organizations: allOrganizations.length,
+            organizations: orgsWithQuota.length,
             users: (
               profilesData?.map((profile) => {
                 const confirmedAt = tempAuthUserMap.get(profile.id)?.email_confirmed_at || null
@@ -849,7 +893,7 @@ export default function MasterDashboardPage() {
           })
           setNewSignupsThisMonth(signupsThisMonth.length)
 
-          const totalOrgs = allOrganizations.length // Use the processed organizations list
+          const totalOrgs = orgsWithQuota.length // Use the processed organizations list
 
           const paidSubscriptions = allSubscriptions.filter(
             (sub) =>
@@ -1938,6 +1982,91 @@ export default function MasterDashboardPage() {
     }
   }
 
+  const handleQuotaModification = async (increase: boolean) => {
+    if (!quotaModification) return
+
+    const adjustment = increase ? 1 : -1
+    const newValue = quotaModification.currentValue + adjustment
+
+    if (newValue < 0) {
+      alert("Cannot set negative quota values")
+      return
+    }
+
+    try {
+      const response = await fetch("/api/master/modify-quota", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: quotaModification.organizationId,
+          fieldName: quotaModification.fieldName,
+          newValue,
+          reason: quotaReason || `${increase ? "Increased" : "Decreased"} via master admin`,
+          masterAdminPassword: masterPassword,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        alert(data.error || "Failed to modify quota")
+        return
+      }
+
+      alert(data.message)
+      setQuotaModification(null)
+      setQuotaReason("")
+      setMasterPassword("")
+
+      // Refresh organization data
+      await fetchData()
+    } catch (error) {
+      console.error("Error modifying quota:", error)
+      alert("Failed to modify quota")
+    }
+  }
+
+  const handleResetQuota = async () => {
+    if (!quotaModification) return
+
+    if (!confirm(`Reset ${quotaModification.fieldName} to plan default for ${quotaModification.organizationName}?`)) {
+      return
+    }
+
+    try {
+      const response = await fetch("/api/master/modify-quota", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: quotaModification.organizationId,
+          fieldName: quotaModification.fieldName,
+          newValue: null, // null means reset to default
+          reason: quotaReason || "Reset to plan default via master admin",
+          masterAdminPassword: masterPassword,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        alert(data.error || "Failed to reset quota")
+        return
+      }
+
+      alert(data.message)
+      setQuotaModification(null)
+      setQuotaReason("")
+      setMasterPassword("")
+
+      // Refresh organization data
+      await fetchData()
+    } catch (error) {
+      console.error("Error resetting quota:", error)
+      alert("Failed to reset quota")
+    }
+  }
+  // </CHANGE>
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -2808,6 +2937,240 @@ export default function MasterDashboardPage() {
                           return null
                         })()}
                         {/* </CHANGE> */}
+                        <div className="mt-6 pt-4 border-t border-gray-100">
+                          <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
+                            <span>Total Members: {org.profiles?.length || 0}</span>
+                            <span>
+                              Admins/Managers:{" "}
+                              {org.profiles?.filter((p) => p.role === "admin" || p.role === "manager").length || 0} |
+                              Staff: {org.profiles?.filter((p) => p.role === "staff").length || 0}
+                            </span>
+                          </div>
+
+                          {/* Quota Display */}
+                          {org.quotaData && (
+                            <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+                              <h4 className="text-sm font-semibold text-gray-900 mb-3">
+                                Plan Quota ({org.quotaData.limits.planName})
+                              </h4>
+
+                              {/* Templates Quota */}
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between text-xs">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-muted-foreground">Templates</span>
+                                    {org.quotaData.limits.hasCustomTemplateLimit && (
+                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
+                                        Custom
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">
+                                      {org.quotaData.usage.templateCount} / {org.quotaData.limits.maxTemplates}
+                                    </span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0"
+                                      onClick={() =>
+                                        setQuotaModification({
+                                          organizationId: org.organization_id,
+                                          organizationName: org.organization_name,
+                                          fieldName: "template_limit",
+                                          currentValue: org.quotaData.limits.maxTemplates,
+                                          isCustom: org.quotaData.limits.hasCustomTemplateLimit,
+                                        })
+                                      }
+                                    >
+                                      <Settings className="w-3 h-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full transition-all duration-300 ${
+                                      org.quotaData.usage.templateCount >= org.quotaData.limits.maxTemplates
+                                        ? "bg-red-500"
+                                        : org.quotaData.usage.templateCount >= org.quotaData.limits.maxTemplates * 0.8
+                                          ? "bg-amber-500"
+                                          : "bg-green-500"
+                                    }`}
+                                    style={{
+                                      width: `${Math.min((org.quotaData.usage.templateCount / org.quotaData.limits.maxTemplates) * 100, 100)}%`,
+                                    }}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Team Members Quota */}
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between text-xs">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-muted-foreground">Team Members</span>
+                                    {org.quotaData.limits.hasCustomTeamLimit && (
+                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
+                                        Custom
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">
+                                      {org.quotaData.usage.teamMemberCount} / {org.quotaData.limits.maxTeamMembers}
+                                    </span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0"
+                                      onClick={() =>
+                                        setQuotaModification({
+                                          organizationId: org.organization_id,
+                                          organizationName: org.organization_name,
+                                          fieldName: "team_limit",
+                                          currentValue: org.quotaData.limits.maxTeamMembers,
+                                          isCustom: org.quotaData.limits.hasCustomTeamLimit,
+                                        })
+                                      }
+                                    >
+                                      <Settings className="w-3 h-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full transition-all duration-300 ${
+                                      org.quotaData.usage.teamMemberCount >= org.quotaData.limits.maxTeamMembers
+                                        ? "bg-red-500"
+                                        : org.quotaData.usage.teamMemberCount >=
+                                            org.quotaData.limits.maxTeamMembers * 0.8
+                                          ? "bg-amber-500"
+                                          : "bg-blue-500"
+                                    }`}
+                                    style={{
+                                      width: `${Math.min((org.quotaData.usage.teamMemberCount / org.quotaData.limits.maxTeamMembers) * 100, 100)}%`,
+                                    }}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Managers Quota - Only show for paid plans */}
+                              {org.quotaData.limits.planName !== "Starter" && (
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center justify-between text-xs">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-muted-foreground">Managers</span>
+                                      {org.quotaData.limits.hasCustomManagerLimit && (
+                                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
+                                          Custom
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium">
+                                        {org.quotaData.usage.adminManagerCount} /{" "}
+                                        {org.quotaData.limits.maxAdminAccounts}
+                                      </span>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0"
+                                        onClick={() =>
+                                          setQuotaModification({
+                                            organizationId: org.organization_id,
+                                            organizationName: org.organization_name,
+                                            fieldName: "manager_limit",
+                                            currentValue: org.quotaData.limits.maxAdminAccounts,
+                                            isCustom: org.quotaData.limits.hasCustomManagerLimit,
+                                          })
+                                        }
+                                      >
+                                        <Settings className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full transition-all duration-300 ${
+                                        org.quotaData.usage.adminManagerCount >= org.quotaData.limits.maxAdminAccounts
+                                          ? "bg-red-500"
+                                          : org.quotaData.usage.adminManagerCount >=
+                                              org.quotaData.limits.maxAdminAccounts * 0.8
+                                            ? "bg-amber-500"
+                                            : "bg-purple-500"
+                                      }`}
+                                      style={{
+                                        width: `${Math.min((org.quotaData.usage.adminManagerCount / org.quotaData.limits.maxAdminAccounts) * 100, 100)}%`,
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Monthly Submissions - Only for free users */}
+                              {org.quotaData.limits.planName === "Starter" && org.quotaData.monthlySubmissions && (
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center justify-between text-xs">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-muted-foreground">Monthly Submissions</span>
+                                      {org.quotaData.limits.hasCustomMonthlySubmissions && (
+                                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
+                                          Custom
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium">
+                                        {org.quotaData.monthlySubmissions.count} /{" "}
+                                        {org.quotaData.monthlySubmissions.limit}
+                                      </span>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0"
+                                        onClick={() =>
+                                          setQuotaModification({
+                                            organizationId: org.organization_id,
+                                            organizationName: org.organization_name,
+                                            fieldName: "monthly_submissions",
+                                            currentValue: org.quotaData.monthlySubmissions.limit,
+                                            isCustom: org.quotaData.limits.hasCustomMonthlySubmissions,
+                                          })
+                                        }
+                                      >
+                                        <Settings className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full transition-all duration-300 ${
+                                        org.quotaData.monthlySubmissions.count >= org.quotaData.monthlySubmissions.limit
+                                          ? "bg-red-500"
+                                          : org.quotaData.monthlySubmissions.count >=
+                                              org.quotaData.monthlySubmissions.limit * 0.8
+                                            ? "bg-amber-500"
+                                            : "bg-indigo-500"
+                                      }`}
+                                      style={{
+                                        width: `${Math.min((org.quotaData.monthlySubmissions.count / org.quotaData.monthlySubmissions.limit) * 100, 100)}%`,
+                                      }}
+                                    />
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    Resets: {new Date(org.quotaData.monthlySubmissions.nextReset).toLocaleDateString()}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Paid plans show unlimited submissions message */}
+                              {org.quotaData.limits.planName !== "Starter" && (
+                                <div className="pt-2 border-t border-gray-200">
+                                  <p className="text-xs text-green-600 font-medium">Unlimited Report Submissions</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
 
                         {/* Organization Members Hierarchy */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -3020,9 +3383,11 @@ export default function MasterDashboardPage() {
                               <div>
                                 <p className="text-sm font-medium text-gray-700">Report Management</p>
                                 <p className="text-xs text-gray-500 mt-1">
-                                  Reports: {org.reportCount || 0} (last 90 days) • Retention:{" "}
+                                  Reports: {org.reportCount || 0} (last{" "}
+                                  {org.subscription_tier === "starter" ? "30" : "90"} days) • Retention:{" "}
                                   {org.subscription_tier === "starter" ? "30" : "90"} days
                                 </p>
+                                {/* </CHANGE> */}
                                 {org.last_report_email_sent && (
                                   <p className="text-xs text-blue-600 mt-1">
                                     Last emailed: {new Date(org.last_report_email_sent).toLocaleDateString()}{" "}
@@ -3039,7 +3404,7 @@ export default function MasterDashboardPage() {
                                 onClick={async () => {
                                   if (
                                     !confirm(
-                                      `Send report summary email to all admins/managers of ${org.organization_name}?\n\nThis will email ${org.profiles?.filter((p) => p.role === "admin" || p.role === "manager").length} recipients with ${org.reportCount || 0} reports from the last 90 days.`,
+                                      `Send report summary email to all admins/managers of ${org.organization_name}?\n\nThis will email ${org.profiles?.filter((p) => p.role === "admin" || p.role === "manager").length} recipients with ${org.reportCount || 0} reports from the last ${org.subscription_tier === "starter" ? "30" : "90"} days.`,
                                     )
                                   ) {
                                     return
@@ -3050,7 +3415,7 @@ export default function MasterDashboardPage() {
                                     const response = await fetch("/api/master/email-org-reports", {
                                       method: "POST",
                                       headers: { "Content-Type": "application/json" },
-                                      body: JSON.stringify({ organizationId: org.organization_id }),
+                                      body: JSON.JSON.stringify({ organizationId: org.organization_id }),
                                     })
 
                                     const data = await response.json()
@@ -3658,239 +4023,77 @@ export default function MasterDashboardPage() {
               </CardContent>
             </Card>
           </TabsContent>
-
-          {currentUserRole === "masteradmin" && (
-            <TabsContent value="login-as" className="space-y-6">
-              {/* Superuser Management Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Shield className="h-5 w-5" />
-                    Superuser Management
-                  </CardTitle>
-                  <CardDescription>
-                    Add and manage support admin accounts. Only master admins can perform these actions.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Add New Superuser Form */}
-                  <div className="border rounded-lg p-4 space-y-4">
-                    <h3 className="font-semibold text-sm">Add New Support Admin</h3>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div>
-                        <label className="text-sm font-medium">Email Address</label>
-                        <Input
-                          type="email"
-                          placeholder="support@mydaylogs.co.uk"
-                          value={newSuperuserEmail}
-                          onChange={(e) => setNewSuperuserEmail(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Password</label>
-                        <Input
-                          type="password"
-                          placeholder="Secure password"
-                          value={newSuperuserPassword}
-                          onChange={(e) => setNewSuperuserPassword(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <Button onClick={addSuperuser} disabled={!newSuperuserEmail || !newSuperuserPassword}>
-                      Add Support Admin
-                    </Button>
-                  </div>
-
-                  {/* Existing Superusers List */}
-                  <div className="space-y-3">
-                    <h3 className="font-semibold text-sm">Existing Support Admins</h3>
-                    {superusers.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No support admins found.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {superusers.map((superuser) => (
-                          <div key={superuser.id} className="flex items-center justify-between p-3 border rounded-lg">
-                            <div className="flex-1">
-                              <p className="font-medium text-sm">{superuser.email}</p>
-                              <p className="text-xs text-muted-foreground">
-                                Added: {new Date(superuser.created_at).toLocaleDateString()}
-                                {superuser.role === "masteradmin" && (
-                                  <Badge variant="default" className="ml-2">
-                                    Master Admin
-                                  </Badge>
-                                )}
-                              </p>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setEditingSuperuser(superuser)
-                                  setNewSuperuserPassword("")
-                                }}
-                              >
-                                Reset Password
-                              </Button>
-                              {superuser.email !== "arsami.uk@gmail.com" && (
-                                <Button size="sm" variant="destructive" onClick={() => removeSuperuser(superuser.id)}>
-                                  Remove
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Edit Superuser Modal */}
-                  {editingSuperuser && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                      <Card className="w-full max-w-md">
-                        <CardHeader>
-                          <CardTitle>Reset Password</CardTitle>
-                          <CardDescription>Enter a new password for {editingSuperuser.email}</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div>
-                            <label className="text-sm font-medium">New Password</label>
-                            <Input
-                              type="password"
-                              placeholder="New secure password"
-                              value={newSuperuserPassword}
-                              onChange={(e) => setNewSuperuserPassword(e.target.value)}
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            <Button onClick={updateSuperuser} disabled={!newSuperuserPassword}>
-                              Update Password
-                            </Button>
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                setEditingSuperuser(null)
-                                setNewSuperuserPassword("")
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Activity Logs Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="h-5 w-5" />
-                    Impersonation Activity Logs
-                  </CardTitle>
-                  <CardDescription>
-                    Monitor all actions performed by master admin and support admins while impersonating users for
-                    security and audit purposes.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={fetchActivityLogs} disabled={activityLogsLoading}>
-                        {activityLogsLoading ? "Loading..." : "Refresh Logs"}
-                      </Button>
-                    </div>
-
-                    {activityLogsLoading ? (
-                      <div className="text-center py-8 text-muted-foreground">Loading activity logs...</div>
-                    ) : activityLogs.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        No activity logs found. Logs will appear here when admins perform actions while impersonating
-                        users.
-                      </div>
-                    ) : (
-                      <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                        {activityLogs.map((log) => (
-                          <div
-                            key={log.id}
-                            className={`border rounded-lg p-3 ${
-                              log.risk_level === "high"
-                                ? "border-red-300 bg-red-50"
-                                : log.risk_level === "medium"
-                                  ? "border-yellow-300 bg-yellow-50"
-                                  : "border-gray-200"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1 space-y-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <Badge variant={log.admin_type === "masteradmin" ? "default" : "secondary"}>
-                                    {log.admin_type === "masteradmin" ? "Master Admin" : "Support"}
-                                  </Badge>
-                                  <Badge
-                                    variant={
-                                      log.risk_level === "high"
-                                        ? "destructive"
-                                        : log.risk_level === "medium"
-                                          ? "default"
-                                          : "outline"
-                                    }
-                                  >
-                                    {log.risk_level.toUpperCase()}
-                                  </Badge>
-                                  <span className="text-xs text-muted-foreground">
-                                    {new Date(log.created_at).toLocaleString()}
-                                  </span>
-                                </div>
-                                <p className="text-sm font-medium">
-                                  <span className="text-blue-600">{log.admin_email}</span> impersonated{" "}
-                                  <span className="text-purple-600">{log.impersonated_user_email}</span>
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  Action: <span className="font-medium">{log.action_type.replace(/_/g, " ")}</span>
-                                </p>
-                                {log.action_details && (
-                                  <details className="text-xs">
-                                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                                      View details
-                                    </summary>
-                                    <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto">
-                                      {JSON.stringify(log.action_details, null, 2)}
-                                    </pre>
-                                  </details>
-                                )}
-                                {log.ip_address && (
-                                  <p className="text-xs text-muted-foreground">IP: {log.ip_address}</p>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          )}
-
-          <TabsContent value="reports" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Report Directory</CardTitle>
-                <CardDescription>
-                  Manage deleted reports - view, restore, or permanently delete reports within 30 days
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ReportDirectoryContent />
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
       </div>
+
+      {quotaModification && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+            <h3 className="text-lg font-semibold mb-4">Modify Quota for {quotaModification.organizationName}</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700">
+                  {quotaModification.fieldName.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                </label>
+                <div className="flex items-center gap-3 mt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleQuotaModification(false)}
+                    disabled={quotaModification.currentValue <= 0}
+                  >
+                    <Minus className="w-4 h-4" />
+                  </Button>
+                  <span className="text-2xl font-bold min-w-[60px] text-center">{quotaModification.currentValue}</span>
+                  <Button variant="outline" size="sm" onClick={() => handleQuotaModification(true)}>
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+                {quotaModification.isCustom && (
+                  <Badge variant="secondary" className="mt-2">
+                    Custom Limit
+                  </Badge>
+                )}
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700">Reason (optional)</label>
+                <Input
+                  type="text"
+                  placeholder="e.g., Special request from customer"
+                  value={quotaReason}
+                  onChange={(e) => setQuotaReason(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700">Master Admin Password *</label>
+                <Input
+                  type="password"
+                  placeholder="Enter password"
+                  value={masterPassword}
+                  onChange={(e) => setMasterPassword(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                {quotaModification.isCustom && (
+                  <Button variant="outline" onClick={handleResetQuota} disabled={!masterPassword}>
+                    Reset to Default
+                  </Button>
+                )}
+                <Button variant="outline" onClick={() => setQuotaModification(null)} className="ml-auto">
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* </CHANGE> */}
 
       {editingOrg && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

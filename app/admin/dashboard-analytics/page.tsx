@@ -11,30 +11,6 @@ export const revalidate = 0
 
 console.log("[v0] Admin Dashboard Analytics page - File loaded and parsing")
 
-async function clearSubmissionNotifications(userId: string, organizationId: string) {
-  try {
-    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-
-    console.log("[v0] Auto-clearing submission notifications for reports page visit")
-
-    // Mark all submission-related notifications as read
-    const { error } = await supabase
-      .from("notifications")
-      .update({ is_read: true })
-      .eq("user_id", userId)
-      .in("type", ["submission", "report_submitted", "daily_log_submitted"])
-      .eq("is_read", false)
-
-    if (error) {
-      console.error("[v0] Error auto-clearing submission notifications:", error)
-    } else {
-      console.log("[v0] Successfully auto-cleared submission notifications")
-    }
-  } catch (error) {
-    console.error("[v0] Error in clearSubmissionNotifications:", error)
-  }
-}
-
 export default async function AdminDashboardAnalyticsPage() {
   console.log("[v0] Admin Dashboard Analytics page - Component function called")
 
@@ -74,10 +50,6 @@ export default async function AdminDashboardAnalyticsPage() {
 
     const profile = profileResult.data
     console.log("[v0] Admin Dashboard Analytics page - Organization ID:", profile.organization_id)
-
-    if (typeof window !== "undefined") {
-      setTimeout(() => clearSubmissionNotifications(user.id, profile.organization_id), 100)
-    }
 
     const batchResult = await batchQuery([
       async () => {
@@ -155,7 +127,12 @@ export default async function AdminDashboardAnalyticsPage() {
     const teamMembers = batchResult.data?.[3] || []
     const organization = batchResult.data?.[4] || null
 
-    const hasPaidPlan = organization?.subscription_plan === "growth" || organization?.subscription_plan === "scale"
+    const hasPaidPlan =
+      organization?.subscription_plan === "growth" ||
+      organization?.subscription_plan === "scale" ||
+      organization?.subscriptions?.some(
+        (sub: any) => sub.status === "active" && (sub.plan === "growth" || sub.plan === "scale"),
+      )
 
     const submissionMap = new Map()
     submittedReports.forEach((report: any) => {
@@ -202,6 +179,33 @@ export default async function AdminDashboardAnalyticsPage() {
         submissions: [{ id: e.id, submitted_at: e.submitted_at, report_data: null }],
       })),
     ]
+
+    const subscriptionPlan =
+      organization?.subscriptions?.find((sub: any) => sub.status === "active")?.plan ||
+      organization?.subscription_plan ||
+      "starter"
+    const retentionDays = subscriptionPlan === "starter" ? 30 : 90
+
+    const now = new Date()
+    const reportsNearDeletion = allReports
+      .filter((r) => r.submitted_at) // Only check submitted reports
+      .map((r) => {
+        const submittedDate = new Date(r.submitted_at!)
+        const deletionDate = new Date(submittedDate)
+        deletionDate.setDate(deletionDate.getDate() + retentionDays)
+
+        const daysUntilDeletion = Math.ceil((deletionDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+
+        return {
+          ...r,
+          daysUntilDeletion,
+          deletionDate,
+        }
+      })
+      .filter((r) => r.daysUntilDeletion > 0 && r.daysUntilDeletion <= 10) // Within 10 days of deletion
+      .sort((a, b) => a.daysUntilDeletion - b.daysUntilDeletion) // Oldest first
+
+    const oldestReportNearDeletion = reportsNearDeletion.length > 0 ? reportsNearDeletion[0] : null
 
     const totalReports = allReports.length
     const completedReports = allReports.filter((r) => r.status === "completed").length
@@ -275,8 +279,9 @@ export default async function AdminDashboardAnalyticsPage() {
           reports={allReports}
           teamMembers={teamMembers}
           organizationId={profile.organization_id}
-          // Pass hasPaidPlan flag to show Submission Type column only for paid users
           hasPaidPlan={hasPaidPlan}
+          oldestReportNearDeletion={oldestReportNearDeletion}
+          reportsNearDeletionCount={reportsNearDeletion.length}
         />
       </div>
     )

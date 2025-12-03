@@ -156,7 +156,7 @@ export default function BillingPage() {
       name: "Scale",
       priceMonthly: 16,
       priceYearly: 180,
-      maxTemplates: 50,
+      maxTemplates: 20,
       maxTeamMembers: 100,
       maxAdmins: 5,
       maxReportSubmissions: null,
@@ -337,7 +337,7 @@ export default function BillingPage() {
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                  <span className="text-sm">50 task templates</span>
+                  <span className="text-sm">20 task templates</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />

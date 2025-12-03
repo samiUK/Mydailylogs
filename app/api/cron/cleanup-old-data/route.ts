@@ -28,14 +28,14 @@ export async function GET(request: NextRequest) {
       const limits = await getSubscriptionLimits(org.organization_id)
 
       // Determine retention period based on subscription
-      let reportRetentionDays = 90 // Starter: 90 days
+      let reportRetentionDays = 30 // Starter: 30 days
       let logRetentionDays = 30 // Starter: 30 days
 
       if (limits.planName === "growth") {
-        reportRetentionDays = 180 // Growth: 6 months
+        reportRetentionDays = 90 // Growth: 90 days
         logRetentionDays = 90 // Growth: 90 days
       } else if (limits.planName === "scale") {
-        reportRetentionDays = 365 // Scale: 1 year
+        reportRetentionDays = 90 // Scale: 90 days
         logRetentionDays = 90 // Scale: 90 days
       }
 

@@ -100,6 +100,19 @@ export async function POST(req: NextRequest) {
           console.error("Error recording payment:", paymentError)
         }
 
+        if (subscriptionType !== "starter") {
+          const { error: resetError } = await supabaseAdmin
+            .from("organizations")
+            .update({ last_submission_reset_at: new Date().toISOString() })
+            .eq("id", organizationId)
+
+          if (resetError) {
+            console.error("Error resetting submission quota:", resetError)
+          } else {
+            console.log("Reset submission quota for organization:", organizationId)
+          }
+        }
+
         if (session.customer_email && session.amount_total) {
           try {
             const template = emailTemplates.paymentConfirmation({
@@ -140,6 +153,25 @@ export async function POST(req: NextRequest) {
         if (error) {
           console.error("Error updating subscription:", error)
           throw error
+        }
+
+        const { data: subData } = await supabaseAdmin
+          .from("subscriptions")
+          .select("organization_id, plan_name")
+          .eq("id", subscription.id)
+          .single()
+
+        if (subData && subData.plan_name !== "starter") {
+          const { error: resetError } = await supabaseAdmin
+            .from("organizations")
+            .update({ last_submission_reset_at: new Date().toISOString() })
+            .eq("id", subData.organization_id)
+
+          if (resetError) {
+            console.error("Error resetting submission quota:", resetError)
+          } else {
+            console.log("Reset submission quota for organization:", subData.organization_id)
+          }
         }
 
         // Check if trial is ending in 3 days and send reminder

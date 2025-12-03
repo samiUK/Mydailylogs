@@ -19,12 +19,22 @@ export async function getSubscriptionLimits(organizationId: string): Promise<Sub
   try {
     console.log("[v0] Fetching subscription for organization:", organizationId)
 
-    const { data: subscription, error } = await supabase
-      .from("subscriptions")
-      .select("plan_name, status")
-      .eq("organization_id", organizationId)
-      .in("status", ["active", "trialing"])
-      .single()
+    const [subscriptionResult, organizationResult] = await Promise.all([
+      supabase
+        .from("subscriptions")
+        .select("plan_name, status")
+        .eq("organization_id", organizationId)
+        .in("status", ["active", "trialing"])
+        .single(),
+      supabase
+        .from("organizations")
+        .select("custom_template_limit, custom_team_limit, custom_manager_limit, custom_monthly_submissions")
+        .eq("id", organizationId)
+        .single(),
+    ])
+
+    const { data: subscription, error } = subscriptionResult
+    const { data: organization } = organizationResult
 
     console.log("[v0] Subscription query result:", { subscription, error })
 
@@ -120,13 +130,30 @@ export async function getSubscriptionLimits(organizationId: string): Promise<Sub
       const planKey = subscription.plan_name.toLowerCase()
       const limits = planLimits[planKey] || planLimits.starter
 
+      const finalLimits = {
+        ...limits,
+        maxTemplates: organization?.custom_template_limit ?? limits.maxTemplates,
+        maxTeamMembers: organization?.custom_team_limit ?? limits.maxTeamMembers,
+        maxAdminAccounts: organization?.custom_manager_limit ?? limits.maxAdminAccounts,
+        maxReportSubmissions:
+          organization?.custom_monthly_submissions !== undefined && organization?.custom_monthly_submissions !== null
+            ? organization.custom_monthly_submissions
+            : limits.maxReportSubmissions,
+      }
+
       console.log("[v0] Subscription limits for plan:", {
         planName: subscription.plan_name,
         planKey,
-        limits,
+        limits: finalLimits,
+        customOverrides: {
+          templates: organization?.custom_template_limit,
+          team: organization?.custom_team_limit,
+          managers: organization?.custom_manager_limit,
+          submissions: organization?.custom_monthly_submissions,
+        },
       })
 
-      return limits
+      return finalLimits
     }
   } catch (error) {
     console.error("[v0] Error fetching subscription limits:", error)

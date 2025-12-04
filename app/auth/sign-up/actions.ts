@@ -100,10 +100,11 @@ export async function createUserWithProfile(formData: {
     console.log("[v0] Creating Starter subscription")
     const { error: subError } = await supabaseAdmin.from("subscriptions").insert({
       organization_id: organizationId,
-      plan_type: "Starter",
+      plan_name: "starter", // Using correct field name and lowercase value
       status: "active",
-      max_users: 5,
-      max_templates: 3,
+      is_trial: false,
+      is_masteradmin_trial: false,
+      has_used_trial: false,
       current_period_start: new Date().toISOString(),
       current_period_end: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
       created_at: new Date().toISOString(),

@@ -13,6 +13,94 @@ export interface SubscriptionLimits {
   planName: string
 }
 
+export const SUBSCRIPTION_LIMITS: Record<string, SubscriptionLimits> = {
+  starter: {
+    maxTemplates: 3,
+    maxTeamMembers: 5,
+    maxAdminAccounts: 1,
+    hasCustomBranding: false,
+    hasTaskAutomation: false,
+    maxReportSubmissions: 50,
+    hasContractorLinkShare: false,
+    hasPhotoUpload: false,
+    reportRetentionDays: 30,
+    planName: "Starter",
+  },
+  "growth-monthly": {
+    maxTemplates: 10,
+    maxTeamMembers: 25,
+    maxAdminAccounts: 3,
+    hasCustomBranding: true,
+    hasTaskAutomation: true,
+    maxReportSubmissions: null,
+    hasContractorLinkShare: true,
+    hasPhotoUpload: true,
+    reportRetentionDays: 90,
+    planName: "Growth",
+  },
+  "growth-yearly": {
+    maxTemplates: 10,
+    maxTeamMembers: 25,
+    maxAdminAccounts: 3,
+    hasCustomBranding: true,
+    hasTaskAutomation: true,
+    maxReportSubmissions: null,
+    hasContractorLinkShare: true,
+    hasPhotoUpload: true,
+    reportRetentionDays: 90,
+    planName: "Growth",
+  },
+  "scale-monthly": {
+    maxTemplates: 20,
+    maxTeamMembers: 75,
+    maxAdminAccounts: 7,
+    hasCustomBranding: true,
+    hasTaskAutomation: true,
+    maxReportSubmissions: null,
+    hasContractorLinkShare: true,
+    hasPhotoUpload: true,
+    reportRetentionDays: 90,
+    planName: "Scale",
+  },
+  "scale-yearly": {
+    maxTemplates: 20,
+    maxTeamMembers: 75,
+    maxAdminAccounts: 7,
+    hasCustomBranding: true,
+    hasTaskAutomation: true,
+    maxReportSubmissions: null,
+    hasContractorLinkShare: true,
+    hasPhotoUpload: true,
+    reportRetentionDays: 90,
+    planName: "Scale",
+  },
+  // Legacy fallbacks
+  growth: {
+    maxTemplates: 10,
+    maxTeamMembers: 25,
+    maxAdminAccounts: 3,
+    hasCustomBranding: true,
+    hasTaskAutomation: true,
+    maxReportSubmissions: null,
+    hasContractorLinkShare: true,
+    hasPhotoUpload: true,
+    reportRetentionDays: 90,
+    planName: "Growth",
+  },
+  scale: {
+    maxTemplates: 20,
+    maxTeamMembers: 75,
+    maxAdminAccounts: 7,
+    hasCustomBranding: true,
+    hasTaskAutomation: true,
+    maxReportSubmissions: null,
+    hasContractorLinkShare: true,
+    hasPhotoUpload: true,
+    reportRetentionDays: 90,
+    planName: "Scale",
+  },
+}
+
 export async function getSubscriptionLimits(organizationId: string): Promise<SubscriptionLimits> {
   const supabase = createClient()
 
@@ -25,12 +113,12 @@ export async function getSubscriptionLimits(organizationId: string): Promise<Sub
         .select("plan_name, status")
         .eq("organization_id", organizationId)
         .in("status", ["active", "trialing"])
-        .single(),
+        .maybeSingle(),
       supabase
         .from("organizations")
         .select("custom_template_limit, custom_team_limit, custom_manager_limit, custom_monthly_submissions")
-        .eq("id", organizationId)
-        .single(),
+        .eq("organization_id", organizationId)
+        .maybeSingle(),
     ])
 
     const { data: subscription, error } = subscriptionResult
@@ -39,96 +127,8 @@ export async function getSubscriptionLimits(organizationId: string): Promise<Sub
     console.log("[v0] Subscription query result:", { subscription, error })
 
     if (subscription?.plan_name) {
-      const planLimits: Record<string, SubscriptionLimits> = {
-        starter: {
-          maxTemplates: 3,
-          maxTeamMembers: 5,
-          maxAdminAccounts: 1,
-          hasCustomBranding: false,
-          hasTaskAutomation: false,
-          maxReportSubmissions: 50,
-          hasContractorLinkShare: false,
-          hasPhotoUpload: false,
-          reportRetentionDays: 30,
-          planName: "Starter",
-        },
-        "growth-monthly": {
-          maxTemplates: 10,
-          maxTeamMembers: 25,
-          maxAdminAccounts: 3,
-          hasCustomBranding: true,
-          hasTaskAutomation: true,
-          maxReportSubmissions: null,
-          hasContractorLinkShare: true,
-          hasPhotoUpload: true,
-          reportRetentionDays: 90,
-          planName: "Growth",
-        },
-        "growth-yearly": {
-          maxTemplates: 10,
-          maxTeamMembers: 25,
-          maxAdminAccounts: 3,
-          hasCustomBranding: true,
-          hasTaskAutomation: true,
-          maxReportSubmissions: null,
-          hasContractorLinkShare: true,
-          hasPhotoUpload: true,
-          reportRetentionDays: 90,
-          planName: "Growth",
-        },
-        "scale-monthly": {
-          maxTemplates: 20,
-          maxTeamMembers: 75,
-          maxAdminAccounts: 7,
-          hasCustomBranding: true,
-          hasTaskAutomation: true,
-          maxReportSubmissions: null,
-          hasContractorLinkShare: true,
-          hasPhotoUpload: true,
-          reportRetentionDays: 90,
-          planName: "Scale",
-        },
-        "scale-yearly": {
-          maxTemplates: 20,
-          maxTeamMembers: 75,
-          maxAdminAccounts: 7,
-          hasCustomBranding: true,
-          hasTaskAutomation: true,
-          maxReportSubmissions: null,
-          hasContractorLinkShare: true,
-          hasPhotoUpload: true,
-          reportRetentionDays: 90,
-          planName: "Scale",
-        },
-        // Legacy fallbacks
-        growth: {
-          maxTemplates: 10,
-          maxTeamMembers: 25,
-          maxAdminAccounts: 3,
-          hasCustomBranding: true,
-          hasTaskAutomation: true,
-          maxReportSubmissions: null,
-          hasContractorLinkShare: true,
-          hasPhotoUpload: true,
-          reportRetentionDays: 90,
-          planName: "Growth",
-        },
-        scale: {
-          maxTemplates: 20,
-          maxTeamMembers: 75,
-          maxAdminAccounts: 7,
-          hasCustomBranding: true,
-          hasTaskAutomation: true,
-          maxReportSubmissions: null,
-          hasContractorLinkShare: true,
-          hasPhotoUpload: true,
-          reportRetentionDays: 90,
-          planName: "Scale",
-        },
-      }
-
       const planKey = subscription.plan_name.toLowerCase()
-      const limits = planLimits[planKey] || planLimits.starter
+      const limits = SUBSCRIPTION_LIMITS[planKey] || SUBSCRIPTION_LIMITS.starter
 
       const finalLimits = {
         ...limits,
@@ -161,19 +161,7 @@ export async function getSubscriptionLimits(organizationId: string): Promise<Sub
 
   console.log("[v0] No active subscription found, returning starter limits")
 
-  // Default to starter plan limits
-  return {
-    maxTemplates: 3,
-    maxTeamMembers: 5,
-    maxAdminAccounts: 1,
-    hasCustomBranding: false,
-    hasTaskAutomation: false,
-    maxReportSubmissions: 50,
-    hasContractorLinkShare: false,
-    hasPhotoUpload: false,
-    reportRetentionDays: 30,
-    planName: "Starter",
-  }
+  return SUBSCRIPTION_LIMITS.starter
 }
 
 export async function getCurrentUsage(organizationId: string) {

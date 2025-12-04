@@ -50,8 +50,9 @@ import {
   Building,
   Minus,
   Plus,
-  Settings,
   BarChart3,
+  ChevronUp,
+  RotateCcw,
 } from "lucide-react"
 import { useEffect, useState, useMemo } from "react" // Added useMemo
 import { ReportDirectoryContent } from "./report-directory-content"
@@ -78,7 +79,9 @@ interface Organization {
     limits: any
     usage: any
     monthlySubmissions: any
+    maxReportSubmissions?: number // Added for starter plan specific quota
   }
+  showQuota?: boolean // Added to control quota visibility
 }
 
 interface UserProfile {
@@ -222,6 +225,9 @@ export default function MasterDashboardPage() {
   const [paidCustomers, setPaidCustomers] = useState(0)
   const [complimentaryCustomers, setComplimentaryCustomers] = useState(0)
   // </CHANGE>
+  // State for managing quotas per organization
+  const [quotaStates, setQuotaStates] = useState<{ [key: string]: any }>({})
+  // </CHANGE> Removed stray // </CHANGE> comment
 
   const [isRefreshingServerStats, setIsRefreshingServerStats] = useState(false)
   const [lastRefreshed, setLastRefreshed] = useState<string | null>(null)
@@ -731,6 +737,7 @@ export default function MasterDashboardPage() {
                 ...org,
                 profiles: [],
                 templateCount: templatesData?.filter((t) => t.organization_id === org.organization_id)?.length || 0,
+                showQuota: false, // Initialize showQuota to false
               })
             })
           }
@@ -769,6 +776,7 @@ export default function MasterDashboardPage() {
                     profiles: [enrichedProfile],
                     templateCount:
                       templatesData?.filter((t) => t.organization_id === enrichedProfile.organization_id)?.length || 0,
+                    showQuota: false, // Initialize showQuota to false
                   })
                 }
               }
@@ -791,34 +799,33 @@ export default function MasterDashboardPage() {
             org.last_report_email_sent = lastSentReport?.created_at // Assuming reports have a created_at field
           })
 
-          // const orgsWithQuota = await Promise.all(
-          //   allOrganizations.map(async (org: Organization) => {
-          //     try {
-          //       const quotaResponse = await fetch("/api/master/organization-quota", {
-          //         method: "POST",
-          //         headers: { "Content-Type": "application/json" },
-          //         body: JSON.stringify({ organizationId: org.organization_id }),
-          //       })
+          // Fetch quota data for each organization
+          const organizationsWithQuota = await Promise.all(
+            allOrganizations.map(async (org: Organization) => {
+              try {
+                const quotaResponse = await fetch("/api/master/organization-quota", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ organizationId: org.organization_id }),
+                })
 
-          //       if (quotaResponse.ok) {
-          //         const quotaData = await quotaResponse.json()
-          //         return {
-          //           ...org,
-          //           quotaData,
-          //         }
-          //       }
-          //     } catch (error) {
-          //       console.error("Error fetching quota for org:", org.organization_id, error)
-          //     }
-
-          //     return {
-          //       ...org,
-          //     }
-          //   }),
-          // )
-          // setOrganizations(orgsWithQuota)
+                if (quotaResponse.ok) {
+                  const quotaData = await quotaResponse.json()
+                  return {
+                    ...org,
+                    quotaData,
+                  }
+                }
+              } catch (error) {
+                console.error("Error fetching quota for org:", org.organization_id, error)
+              }
+              // Return org with existing data if quota fetch fails or is not applicable
+              return org
+            }),
+          )
+          setOrganizations(organizationsWithQuota)
           // </CHANGE>
-          setOrganizations(allOrganizations) // Now organizations are set without quota data initially
+          // setOrganizations(allOrganizations) // Now organizations are set without quota data initially
           setAllUsers(
             profilesData?.map((profile) => {
               // Ensure allUsers also gets email_confirmed_at and last_sign_in_at
@@ -835,7 +842,7 @@ export default function MasterDashboardPage() {
           )
 
           console.log("[v0] Enhanced data loaded:", {
-            organizations: allOrganizations.length, // Use length of set organizations
+            organizations: organizationsWithQuota.length, // Use length of set organizations
             users: (
               profilesData?.map((profile) => {
                 const confirmedAt = tempAuthUserMap.get(profile.id)?.email_confirmed_at || null
@@ -897,7 +904,7 @@ export default function MasterDashboardPage() {
           })
           setNewSignupsThisMonth(signupsThisMonth.length)
 
-          const totalOrgs = allOrganizations.length // Use the processed organizations list
+          const totalOrgs = organizationsWithQuota.length // Use the processed organizations list
 
           const paidSubscriptions = allSubscriptions.filter(
             (sub) =>
@@ -1591,6 +1598,7 @@ export default function MasterDashboardPage() {
 
   const [userPage, setUserPage] = useState(1)
   const [orgPage, setOrgPage] = useState(1)
+  // </CHANGE>
   const [subPage, setSubPage] = useState(1)
   const [paymentPage, setPaymentPage] = useState(1)
   const [feedbackPage, setFeedbackPage] = useState(1)
@@ -2096,6 +2104,46 @@ export default function MasterDashboardPage() {
       setLoadingQuotaForOrg(null)
     }
   }
+
+  const handleEmailReports = async (orgId: string) => {
+    const org = organizations.find((o) => o.organization_id === orgId)
+    if (!org) return
+
+    if (
+      !confirm(
+        `Send report summary email to all admins/managers of ${org.organization_name}?\n\nThis will email ${
+          org.profiles?.filter((p) => p.role === "admin" || p.role === "manager").length
+        } recipients with ${org.reportCount || 0} reports from the last ${
+          org.subscription_tier === "starter" ? "30" : "90"
+        } days.`,
+      )
+    ) {
+      return
+    }
+
+    setIsProcessing(true)
+    try {
+      const response = await fetch("/api/master/email-org-reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.JSON.stringify({ organizationId: org.organization_id }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        alert(`✓ Success!\n\n${data.message}\nReports: ${data.reportCount}\nEmails sent: ${data.emailsSent}`)
+        fetchData() // Use fetchData
+      } else {
+        alert(`Error: ${data.error}`)
+      }
+    } catch (error) {
+      console.error("[v0] Error sending reports:", error)
+      alert("Failed to send report emails. Please try again.")
+    } finally {
+      setIsProcessing(false)
+    }
+  }
   // </CHANGE>
   // </CHANGE>
 
@@ -2233,7 +2281,7 @@ export default function MasterDashboardPage() {
               size="sm"
               onClick={syncData}
               disabled={isProcessing}
-              className="flex items-center gap-2 bg-transparent"
+              className="bg-transparent"
               title="Comprehensive sync: Organizations, Users, Roles, Templates, Checklists, and Data Consistency"
             >
               <RefreshCw className={`w-4 h-4 ${isProcessing ? "animate-spin" : ""}`} />
@@ -2793,7 +2841,7 @@ export default function MasterDashboardPage() {
                               <img
                                 src={org.logo_url || "/placeholder.svg"}
                                 alt={org.organization_name}
-                                className="w-16 h-16 rounded-xl object-cover border-2 border-gray-100"
+                                className="w-16 h-16 rounded-xl object-cover object-center border-2 border-gray-100"
                               />
                             ) : (
                               <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center border-2 border-gray-100">
@@ -2861,7 +2909,7 @@ export default function MasterDashboardPage() {
                                       }
                                     >
                                       <CreditCard className="w-3 h-3 mr-1" />
-                                      {planName === "starter" && "Free Starter"}
+                                      {planName === "starter" && "Starter"}
                                       {planName === "growth" && "Growth Plan"}
                                       {planName === "scale" && "Scale Plan"}
                                     </Badge>
@@ -2890,7 +2938,7 @@ export default function MasterDashboardPage() {
                               return (
                                 <Badge variant="secondary">
                                   <CreditCard className="w-3 h-3 mr-1" />
-                                  Free Starter
+                                  Starter
                                 </Badge>
                               )
                             })()}
@@ -2945,7 +2993,7 @@ export default function MasterDashboardPage() {
                                   <div>
                                     <p className="text-gray-500">Plan</p>
                                     <p className="font-medium text-gray-900">
-                                      {subscription.plan_name === "starter" && "Free Starter"}
+                                      {subscription.plan_name === "starter" && "Starter"}
                                       {subscription.plan_name === "growth" && "Growth"}
                                       {subscription.plan_name === "scale" && "Scale"}
                                     </p>
@@ -2971,6 +3019,15 @@ export default function MasterDashboardPage() {
                                       </p>
                                     </div>
                                   )}
+                                  {/* </CHANGE> */}
+                                  <div>
+                                    <p className="text-gray-500">Retention Period</p>
+                                    <p className="font-medium text-gray-900">
+                                      {subscription.plan_name === "starter" && "30 days"}
+                                      {subscription.plan_name === "growth" && "90 days"}
+                                      {subscription.plan_name === "scale" && "90 days"}
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
                             )
@@ -2988,32 +3045,64 @@ export default function MasterDashboardPage() {
                             </span>
                           </div>
 
-                          {!org.quotaData ? (
-                            <div className="flex items-center justify-center p-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => loadQuotaForOrganization(org.organization_id)}
-                                disabled={loadingQuotaForOrg === org.organization_id}
-                              >
-                                {loadingQuotaForOrg === org.organization_id ? (
-                                  <>
-                                    <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin mr-2" />
-                                    Loading...
-                                  </>
-                                ) : (
-                                  <>
-                                    <BarChart3 className="w-4 h-4 mr-2" />
-                                    View Quota Limits
-                                  </>
-                                )}
-                              </Button>
-                            </div>
-                          ) : (
-                            // </CHANGE>
-                            <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
-                              <h4 className="text-sm font-semibold text-gray-900 mb-3">
-                                Plan Quota ({org.quotaData.limits.planName})
+                          {/* Restructured quota management to expandable button at bottom left */}
+                          <div className="flex items-center justify-between gap-4">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (org.showQuota) {
+                                  setOrganizations((prevOrgs) =>
+                                    prevOrgs.map((o) =>
+                                      o.organization_id === org.organization_id ? { ...o, showQuota: false } : o,
+                                    ),
+                                  )
+                                } else {
+                                  loadQuotaForOrganization(org.organization_id)
+                                  setOrganizations((prevOrgs) =>
+                                    prevOrgs.map((o) =>
+                                      o.organization_id === org.organization_id ? { ...o, showQuota: true } : o,
+                                    ),
+                                  )
+                                }
+                              }}
+                              disabled={loadingQuotaForOrg === org.organization_id}
+                            >
+                              {loadingQuotaForOrg === org.organization_id ? (
+                                <>
+                                  <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin mr-2" />
+                                  Loading...
+                                </>
+                              ) : org.showQuota ? (
+                                <>
+                                  <ChevronUp className="w-4 h-4 mr-2" />
+                                  Hide Quota
+                                </>
+                              ) : (
+                                <>
+                                  <BarChart3 className="w-4 h-4 mr-2" />
+                                  Manage Quota
+                                </>
+                              )}
+                            </Button>
+
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEmailReports(org.organization_id)}
+                              className="text-blue-600 hover:text-blue-700"
+                            >
+                              <Mail className="w-4 h-4 mr-2" />
+                              Email Reports ({org.reportCount || 0})
+                            </Button>
+                          </div>
+
+                          {/* Expandable Quota Section */}
+                          {org.quotaData && org.showQuota && org.quotaData.usage && org.quotaData.limits && (
+                            <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3 animate-in slide-in-from-top-2 duration-200">
+                              <h4 className="text-xs font-semibold text-gray-700 flex items-center gap-2">
+                                <BarChart3 className="w-3.5 h-3.5" />
+                                {org.quotaData?.limits?.planName || "Starter"} Plan Usage
                               </h4>
 
                               {/* Templates Quota */}
@@ -3027,8 +3116,26 @@ export default function MasterDashboardPage() {
                                       </Badge>
                                     )}
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium">
+
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0"
+                                      onClick={() =>
+                                        setQuotaModification({
+                                          organizationId: org.organization_id,
+                                          organizationName: org.organization_name,
+                                          fieldName: "template_limit",
+                                          currentValue: Math.max(1, org.quotaData.limits.maxTemplates - 1),
+                                          isCustom: org.quotaData?.limits?.hasCustomTemplateLimit || false,
+                                        })
+                                      }
+                                    >
+                                      <Minus className="w-3 h-3" />
+                                    </Button>
+
+                                    <span className="font-medium min-w-[60px] text-center">
                                       {org.quotaData.usage.templateCount} / {org.quotaData.limits.maxTemplates}
                                     </span>
                                     <Button
@@ -3040,12 +3147,12 @@ export default function MasterDashboardPage() {
                                           organizationId: org.organization_id,
                                           organizationName: org.organization_name,
                                           fieldName: "template_limit",
-                                          currentValue: org.quotaData.limits.maxTemplates,
-                                          isCustom: org.quotaData.limits.hasCustomTemplateLimit,
+                                          currentValue: org.quotaData.limits.maxTemplates + 1,
+                                          isCustom: true,
                                         })
                                       }
                                     >
-                                      <Settings className="w-3 h-3" />
+                                      <Plus className="w-3 h-3" />
                                     </Button>
                                   </div>
                                 </div>
@@ -3077,7 +3184,23 @@ export default function MasterDashboardPage() {
                                     )}
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <span className="font-medium">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0"
+                                      onClick={() =>
+                                        setQuotaModification({
+                                          organizationId: org.organization_id,
+                                          organizationName: org.organization_name,
+                                          fieldName: "team_limit",
+                                          currentValue: Math.max(1, org.quotaData.limits.maxTeamMembers - 1),
+                                          isCustom: true,
+                                        })
+                                      }
+                                    >
+                                      <Minus className="w-3 h-3" />
+                                    </Button>
+                                    <span className="font-medium min-w-[60px] text-center">
                                       {org.quotaData.usage.teamMemberCount} / {org.quotaData.limits.maxTeamMembers}
                                     </span>
                                     <Button
@@ -3089,12 +3212,12 @@ export default function MasterDashboardPage() {
                                           organizationId: org.organization_id,
                                           organizationName: org.organization_name,
                                           fieldName: "team_limit",
-                                          currentValue: org.quotaData.limits.maxTeamMembers,
-                                          isCustom: org.quotaData.limits.hasCustomTeamLimit,
+                                          currentValue: org.quotaData.limits.maxTeamMembers + 1,
+                                          isCustom: true,
                                         })
                                       }
                                     >
-                                      <Settings className="w-3 h-3" />
+                                      <Plus className="w-3 h-3" />
                                     </Button>
                                   </div>
                                 </div>
@@ -3115,8 +3238,8 @@ export default function MasterDashboardPage() {
                                 </div>
                               </div>
 
-                              {/* Managers Quota - Only show for paid plans */}
-                              {org.quotaData.limits.planName !== "Starter" && (
+                              {/* Managers Quota - Only for Growth/Scale plans */}
+                              {org.quotaData?.limits?.planName !== "Starter" && (
                                 <div className="space-y-1.5">
                                   <div className="flex items-center justify-between text-xs">
                                     <div className="flex items-center gap-2">
@@ -3128,7 +3251,23 @@ export default function MasterDashboardPage() {
                                       )}
                                     </div>
                                     <div className="flex items-center gap-2">
-                                      <span className="font-medium">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0"
+                                        onClick={() =>
+                                          setQuotaModification({
+                                            organizationId: org.organization_id,
+                                            organizationName: org.organization_name,
+                                            fieldName: "manager_limit",
+                                            currentValue: Math.max(1, org.quotaData.limits.maxAdminAccounts - 1),
+                                            isCustom: true,
+                                          })
+                                        }
+                                      >
+                                        <Minus className="w-3 h-3" />
+                                      </Button>
+                                      <span className="font-medium min-w-[60px] text-center">
                                         {org.quotaData.usage.adminManagerCount} /{" "}
                                         {org.quotaData.limits.maxAdminAccounts}
                                       </span>
@@ -3141,12 +3280,12 @@ export default function MasterDashboardPage() {
                                             organizationId: org.organization_id,
                                             organizationName: org.organization_name,
                                             fieldName: "manager_limit",
-                                            currentValue: org.quotaData.limits.maxAdminAccounts,
-                                            isCustom: org.quotaData.limits.hasCustomManagerLimit,
+                                            currentValue: org.quotaData.limits.maxAdminAccounts + 1,
+                                            isCustom: true,
                                           })
                                         }
                                       >
-                                        <Settings className="w-3 h-3" />
+                                        <Plus className="w-3 h-3" />
                                       </Button>
                                     </div>
                                   </div>
@@ -3168,12 +3307,12 @@ export default function MasterDashboardPage() {
                                 </div>
                               )}
 
-                              {/* Monthly Submissions - Only for free users */}
-                              {org.quotaData.limits.planName === "Starter" && org.quotaData.monthlySubmissions && (
+                              {/* Monthly Report Submissions - Only for Starter plan */}
+                              {org.quotaData?.limits?.planName === "Starter" && (
                                 <div className="space-y-1.5">
                                   <div className="flex items-center justify-between text-xs">
                                     <div className="flex items-center gap-2">
-                                      <span className="text-muted-foreground">Monthly Submissions</span>
+                                      <span className="text-muted-foreground">Monthly Report Submissions</span>
                                       {org.quotaData.limits.hasCustomMonthlySubmissions && (
                                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
                                           Custom
@@ -3181,9 +3320,28 @@ export default function MasterDashboardPage() {
                                       )}
                                     </div>
                                     <div className="flex items-center gap-2">
-                                      <span className="font-medium">
-                                        {org.quotaData.monthlySubmissions.count} /{" "}
-                                        {org.quotaData.monthlySubmissions.limit}
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0"
+                                        onClick={() =>
+                                          setQuotaModification({
+                                            organizationId: org.organization_id,
+                                            organizationName: org.organization_name,
+                                            fieldName: "monthly_submissions",
+                                            currentValue: Math.max(
+                                              10,
+                                              (org.quotaData.limits.maxReportSubmissions || 50) - 10,
+                                            ),
+                                            isCustom: true,
+                                          })
+                                        }
+                                      >
+                                        <Minus className="w-3 h-3" />
+                                      </Button>
+                                      <span className="font-medium min-w-[60px] text-center">
+                                        {org.quotaData.usage.monthlyReportCount || 0} /{" "}
+                                        {org.quotaData.limits.maxReportSubmissions || 50}
                                       </span>
                                       <Button
                                         variant="ghost"
@@ -3194,41 +3352,56 @@ export default function MasterDashboardPage() {
                                             organizationId: org.organization_id,
                                             organizationName: org.organization_name,
                                             fieldName: "monthly_submissions",
-                                            currentValue: org.quotaData.monthlySubmissions.limit,
-                                            isCustom: org.quotaData.limits.hasCustomMonthlySubmissions,
+                                            currentValue: (org.quotaData.limits.maxReportSubmissions || 50) + 10,
+                                            isCustom: true,
                                           })
                                         }
                                       >
-                                        <Settings className="w-3 h-3" />
+                                        <Plus className="w-3 h-3" />
                                       </Button>
                                     </div>
                                   </div>
                                   <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                                     <div
                                       className={`h-full transition-all duration-300 ${
-                                        org.quotaData.monthlySubmissions.count >= org.quotaData.monthlySubmissions.limit
+                                        (org.quotaData.usage.monthlyReportCount || 0) >=
+                                        (org.quotaData.limits.maxReportSubmissions || 50)
                                           ? "bg-red-500"
-                                          : org.quotaData.monthlySubmissions.count >=
-                                              org.quotaData.monthlySubmissions.limit * 0.8
+                                          : (org.quotaData.usage.monthlyReportCount || 0) >=
+                                              (org.quotaData.limits.maxReportSubmissions || 50) * 0.8
                                             ? "bg-amber-500"
-                                            : "bg-indigo-500"
+                                            : "bg-emerald-500"
                                       }`}
                                       style={{
-                                        width: `${Math.min((org.quotaData.monthlySubmissions.count / org.quotaData.monthlySubmissions.limit) * 100, 100)}%`,
+                                        width: `${Math.min(((org.quotaData.usage.monthlyReportCount || 0) / (org.quotaData.limits.maxReportSubmissions || 50)) * 100, 100)}%`,
                                       }}
                                     />
                                   </div>
-                                  <p className="text-[10px] text-muted-foreground">
-                                    Resets: {new Date(org.quotaData.monthlySubmissions.nextReset).toLocaleDateString()}
-                                  </p>
                                 </div>
                               )}
 
-                              {/* Paid plans show unlimited submissions message */}
-                              {org.quotaData.limits.planName !== "Starter" && (
-                                <div className="pt-2 border-t border-gray-200">
-                                  <p className="text-xs text-green-600 font-medium">Unlimited Report Submissions</p>
-                                </div>
+                              {/* Reset to Plan Defaults Button */}
+                              {(org.quotaData?.limits?.hasCustomTemplateLimit ||
+                                org.quotaData?.limits?.hasCustomTeamLimit ||
+                                org.quotaData?.limits?.hasCustomManagerLimit ||
+                                org.quotaData?.limits?.hasCustomMonthlySubmissions) && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full mt-2 bg-transparent"
+                                  onClick={() =>
+                                    setQuotaModification({
+                                      organizationId: org.organization_id,
+                                      organizationName: org.organization_name,
+                                      fieldName: "reset",
+                                      currentValue: 0,
+                                      isCustom: false,
+                                    })
+                                  }
+                                >
+                                  <RotateCcw className="w-3 h-3 mr-2" />
+                                  Reset to Plan Defaults
+                                </Button>
                               )}
                             </div>
                           )}
@@ -3439,72 +3612,6 @@ export default function MasterDashboardPage() {
                               Staff: {org.profiles?.filter((p) => p.role === "staff").length || 0}
                             </span>
                           </div>
-
-                          <div className="mt-4 pt-4 border-t border-gray-100">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-sm font-medium text-gray-700">Report Management</p>
-                                <p className="text-xs text-gray-500 mt-1">
-                                  Reports: {org.reportCount || 0} (last{" "}
-                                  {org.subscription_tier === "starter" ? "30" : "90"} days) • Retention:{" "}
-                                  {org.subscription_tier === "starter" ? "30" : "90"} days
-                                </p>
-                                {/* </CHANGE> */}
-                                {org.last_report_email_sent && (
-                                  <p className="text-xs text-blue-600 mt-1">
-                                    Last emailed: {new Date(org.last_report_email_sent).toLocaleDateString()}{" "}
-                                    {new Date(org.last_report_email_sent).toLocaleTimeString([], {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })}
-                                  </p>
-                                )}
-                              </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={async () => {
-                                  if (
-                                    !confirm(
-                                      `Send report summary email to all admins/managers of ${org.organization_name}?\n\nThis will email ${org.profiles?.filter((p) => p.role === "admin" || p.role === "manager").length} recipients with ${org.reportCount || 0} reports from the last ${org.subscription_tier === "starter" ? "30" : "90"} days.`,
-                                    )
-                                  ) {
-                                    return
-                                  }
-
-                                  setIsProcessing(true)
-                                  try {
-                                    const response = await fetch("/api/master/email-org-reports", {
-                                      method: "POST",
-                                      headers: { "Content-Type": "application/json" },
-                                      body: JSON.JSON.stringify({ organizationId: org.organization_id }),
-                                    })
-
-                                    const data = await response.json()
-
-                                    if (response.ok) {
-                                      alert(
-                                        `✓ Success!\n\n${data.message}\nReports: ${data.reportCount}\nEmails sent: ${data.emailsSent}`,
-                                      )
-                                      fetchData() // Use fetchData
-                                    } else {
-                                      alert(`Error: ${data.error}`)
-                                    }
-                                  } catch (error) {
-                                    console.error("[v0] Error sending reports:", error)
-                                    alert("Failed to send report emails. Please try again.")
-                                  } finally {
-                                    setIsProcessing(false)
-                                  }
-                                }}
-                                disabled={isProcessing || (org.reportCount || 0) === 0}
-                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                              >
-                                <Mail className="w-4 h-4 mr-1" />
-                                Email Reports ({org.reportCount || 0})
-                              </Button>
-                            </div>
-                          </div>
                         </div>
                       </div>
                     ))
@@ -3649,7 +3756,7 @@ export default function MasterDashboardPage() {
                                         : ""
                                   }
                                 >
-                                  {currentPlan === "starter" && "Free Starter"}
+                                  {currentPlan === "starter" && "Starter"}
                                   {currentPlan === "growth" && "Growth Plan"}
                                   {currentPlan === "scale" && "Scale Plan"}
                                 </Badge>
@@ -4267,7 +4374,6 @@ export default function MasterDashboardPage() {
           </div>
         </div>
       )}
-      {/* </CHANGE> */}
     </div>
   )
 }

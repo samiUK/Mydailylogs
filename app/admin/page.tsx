@@ -926,13 +926,6 @@ export default function AdminDashboard() {
                   </div>
                 )}
 
-                {/* Paid plans show unlimited submissions message */}
-                {subscriptionLimits.planName !== "Starter" && (
-                  <div className="pt-2 border-t">
-                    <p className="text-xs text-green-600 font-medium">✓ Unlimited Report Submissions</p>
-                  </div>
-                )}
-
                 {/* Upgrade CTA for free users near limit */}
                 {subscriptionLimits.planName === "Starter" &&
                   (currentUsage.templateCount >= subscriptionLimits.maxTemplates * 0.8 ||

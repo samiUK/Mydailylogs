@@ -24,7 +24,7 @@ export async function GET() {
     const { data: org } = await supabase
       .from("organizations")
       .select("created_at")
-      .eq("id", profile.organization_id)
+      .eq("organization_id", profile.organization_id)
       .single()
 
     if (!org) {

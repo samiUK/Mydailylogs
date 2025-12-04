@@ -53,6 +53,7 @@ import {
   BarChart3,
   ChevronUp,
   RotateCcw,
+  Database,
 } from "lucide-react"
 import { useEffect, useState, useMemo } from "react" // Added useMemo
 import { ReportDirectoryContent } from "./report-directory-content"
@@ -232,6 +233,9 @@ export default function MasterDashboardPage() {
 
   const [isRefreshingServerStats, setIsRefreshingServerStats] = useState(false)
   const [lastRefreshed, setLastRefreshed] = useState<string | null>(null)
+
+  const [metricsLoadedFromCache, setMetricsLoadedFromCache] = useState(false)
+  const [loadingDbStats, setLoadingDbStats] = useState(false) // Added state for loading DB stats
 
   const [usageMetrics, setUsageMetrics] = useState<any>(null)
   const [isRefreshingUsageMetrics, setIsRefreshingUsageMetrics] = useState(false)
@@ -1995,29 +1999,40 @@ export default function MasterDashboardPage() {
 
   const refreshUsageMetrics = async () => {
     setIsRefreshingUsageMetrics(true)
-    setLastRefreshed(null)
+    setLastRefreshed(null) // Clear last refreshed time while refreshing
     try {
-      console.log("[v0] Fetching usage metrics...")
-      const response = await fetch("/api/master/usage-metrics")
+      const response = await fetch("/api/master/usage-metrics", {
+        cache: "no-store",
+      })
       const data = await response.json()
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to fetch usage metrics")
       }
 
-      console.log("[v0] Usage metrics:", data)
       setUsageMetrics(data)
       const now = new Date()
-      setLastRefreshed(`${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}`)
+      const timeStr = `${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}`
+      setLastRefreshed(timeStr)
+
+      // Cache the metrics data
+      try {
+        localStorage.setItem("mydaylogs_usage_metrics", JSON.stringify(data))
+        localStorage.setItem("mydaylogs_usage_metrics_timestamp", now.toISOString())
+      } catch (err) {
+        console.error("[v0] Failed to cache metrics:", err)
+      }
+
+      showNotification("success", "Usage metrics refreshed successfully")
     } catch (err: any) {
       console.error("[v0] Error fetching usage metrics:", err.message)
       showNotification("error", `Failed to fetch usage metrics: ${err.message}`)
-      setUsageMetrics(null)
     } finally {
       setIsRefreshingUsageMetrics(false)
     }
   }
   // </CHANGE>
+
   // Added refreshServerStats function
   const refreshServerStats = async () => {
     setIsRefreshingServerStats(true)
@@ -2229,7 +2244,7 @@ export default function MasterDashboardPage() {
       const response = await fetch("/api/master/email-org-reports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.JSON.stringify({ organizationId: org.organization_id }),
+        body: JSON.stringify({ organizationId: org.organization_id }),
       })
 
       const data = await response.json()
@@ -2253,12 +2268,20 @@ export default function MasterDashboardPage() {
   // Replace the old data fetching useEffect with the new one that checks isMasterAdmin
   useEffect(() => {
     async function fetchDashboardData() {
+      // Only fetch if we haven't already loaded or if we're not currently loading
+      if (organizations.length > 0 || isLoading) {
+        return
+      }
+
       try {
         setIsLoading(true)
         setError(null)
         console.log("[v0] Fetching master dashboard data...")
 
-        const response = await fetch("/api/master/dashboard-data")
+        const response = await fetch("/api/master/dashboard-data", {
+          // Add cache control for 30 seconds
+          next: { revalidate: 30 },
+        })
 
         if (!response.ok) {
           throw new Error("Failed to fetch dashboard data")
@@ -2323,29 +2346,125 @@ export default function MasterDashboardPage() {
         const oneWeekAgo = new Date(today)
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
 
+        // We still need superusers here for initial role check before this useEffect fires
+        const { data: superusersData, error: superusersError } = await adminClient.from("superusers").select("*")
+
+        if (superusersError) console.error("[v0] Superusers fetch error:", superusersError)
+        else if (superusersData) setSuperusers(superusersData)
+        // </CHANGE>
+
+        // Update organization stats based on loaded data
+        const orgsWithSubs = new Set(data.subscriptions?.map((sub: any) => sub.organization_id) || []).size
+        setOrganizationStats({
+          total: data.organizations?.length || 0,
+          active: data.organizations?.length || 0,
+          withSubscriptions: orgsWithSubs,
+          totalUsers: data.profiles?.length || 0,
+          totalAdmins: data.profiles?.filter((user: UserProfile) => user.role === "admin").length || 0,
+          totalStaff: data.profiles?.filter((user: UserProfile) => user.role === "staff").length || 0,
+        })
+
+        // Calculate new signups this month
+        const now = new Date()
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+        const signupsThisMonth =
+          data.profiles?.filter((user: UserProfile) => {
+            const createdAt = new Date(user.created_at)
+            return createdAt >= startOfMonth
+          }) || []
+        setNewSignupsThisMonth(signupsThisMonth.length)
+
+        // Calculate paid customers and conversion rate
+        const paidSubscriptions = (data.subscriptions || []).filter(
+          (sub: any) =>
+            sub.status === "active" &&
+            (sub.plan_name.toLowerCase() === "growth" || sub.plan_name.toLowerCase() === "scale") &&
+            !sub.is_masteradmin_trial,
+        )
+        const complimentarySubscriptions = (data.subscriptions || []).filter(
+          (sub: any) =>
+            sub.status === "active" &&
+            (sub.plan_name.toLowerCase() === "growth" || sub.plan_name.toLowerCase() === "scale") &&
+            sub.is_masteradmin_trial === true,
+        )
+        setPaidCustomers(paidSubscriptions.length)
+        setComplimentaryCustomers(complimentarySubscriptions.length)
+        const conversion =
+          (data.organizations?.length || 0) > 0
+            ? ((paidSubscriptions.length / (data.organizations?.length || 1)) * 100).toFixed(1)
+            : "0.0"
+        setConversionRate(Number(conversion))
+      } catch (err: any) {
+        console.error("[v0] Error fetching dashboard data:", err)
+        setError(err.message)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (isMasterAdmin) {
+      console.log("[v0] Master admin authenticated, fetching data...")
+      fetchDashboardData()
+    }
+  }, [isMasterAdmin])
+
+  //
+  useEffect(() => {
+    // Fetch database stats only if master admin is authenticated and the 'overview' tab is active,
+    // and if the stats haven't been loaded yet (indicated by databaseSize being initial value) or if they are currently loading.
+    if (
+      isMasterAdmin &&
+      activeTab === "overview" &&
+      (databaseSize === "0 MB" || databaseSize === "N/A") &&
+      !loadingDbStats
+    ) {
+      setLoadingDbStats(true) // Set loading state
+      fetchDatabaseStats()
+    }
+
+    async function fetchDatabaseStats() {
+      try {
+        console.log("[v0] Fetching database stats...")
+        const statsResponse = await fetch("/api/admin/database-stats", {
+          next: { revalidate: 60 }, // Cache for 60 seconds
+        })
+        const statsData = await statsResponse.json()
+
+        if (!statsResponse.ok) {
+          throw new Error(statsData.error || "Failed to fetch database stats")
+        }
+
+        setDatabaseSize(statsData.databaseSize || "0 MB")
+        setDatabaseStats((prevStats) => ({
+          ...prevStats,
+          totalSize: statsData.totalSizeBytes || 0,
+          storageSize: statsData.storageSizeBytes || 0,
+          photoCount: statsData.photoCount || 0,
+          totalBandwidth: statsData.totalBandwidthBytes || 0,
+          sentEmails: statsData.sentEmailsCount || 0,
+        }))
+
+        // Also fetch additional stats that are organization-specific
+        const adminClient = createClient()
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const oneWeekAgo = new Date(today)
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+
         const [
-          { data: superusersData, error: superusersError },
-          { data: holidaysData, error: holidaysError },
-          { data: staffUnavailabilityData, error: staffUnavailabilityError },
-          { data: auditLogsData, error: auditLogsError },
-          { data: backupsData, error: backupsError },
+          { data: holidaysData },
+          { data: staffUnavailabilityData },
+          { data: auditLogsData },
+          { data: backupsData },
         ] = await Promise.all([
-          adminClient.from("superusers").select("*"),
           adminClient.from("holidays").select("id, date"),
           adminClient.from("staff_unavailability").select("id, start_date, end_date"),
           adminClient.from("report_audit_logs").select("id, created_at"),
           adminClient.from("report_backups").select("id, created_at"),
         ])
 
-        if (superusersError) console.error("[v0] Superusers fetch error:", superusersError)
-        else if (superusersData) setSuperusers(superusersData)
-
         setDatabaseStats((prevStats) => ({
           ...prevStats,
-          notifications: {
-            total: 0, // This would need to be fetched separately if needed
-            unread: 0, // This would need to be fetched separately if needed
-          },
           holidays: {
             total: holidaysData?.length || 0,
             upcoming:
@@ -2381,88 +2500,43 @@ export default function MasterDashboardPage() {
               }).length || 0,
           },
         }))
-
-        // Update organization stats based on loaded data
-        const orgsWithSubs = new Set(allSubscriptions.map((sub) => sub.organization_id)).size
-        setOrganizationStats({
-          total: data.organizations?.length || 0,
-          active: data.organizations?.length || 0,
-          withSubscriptions: orgsWithSubs,
-          totalUsers: data.profiles?.length || 0,
-          totalAdmins: data.profiles?.filter((user: UserProfile) => user.role === "admin").length || 0,
-          totalStaff: data.profiles?.filter((user: UserProfile) => user.role === "staff").length || 0,
-        })
-
-        // Calculate new signups this month
-        const now = new Date()
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-        const signupsThisMonth =
-          data.profiles?.filter((user: UserProfile) => {
-            const createdAt = new Date(user.created_at)
-            return createdAt >= startOfMonth
-          }) || []
-        setNewSignupsThisMonth(signupsThisMonth.length)
-
-        // Calculate paid customers and conversion rate
-        const paidSubscriptions = allSubscriptions.filter(
-          (sub) =>
-            sub.status === "active" &&
-            (sub.plan_name.toLowerCase() === "growth" || sub.plan_name.toLowerCase() === "scale") &&
-            !sub.is_masteradmin_trial,
-        )
-        const complimentarySubscriptions = allSubscriptions.filter(
-          (sub) =>
-            sub.status === "active" &&
-            (sub.plan_name.toLowerCase() === "growth" || sub.plan_name.toLowerCase() === "scale") &&
-            sub.is_masteradmin_trial === true,
-        )
-        setPaidCustomers(paidSubscriptions.length)
-        setComplimentaryCustomers(complimentarySubscriptions.length)
-        const conversion =
-          (data.organizations?.length || 0) > 0
-            ? ((paidSubscriptions.length / (data.organizations?.length || 1)) * 100).toFixed(1)
-            : "0.0"
-        setConversionRate(Number(conversion))
-
-        // Fetch database size and related stats via API route
-        try {
-          const statsResponse = await fetch("/api/admin/database-stats")
-          const statsData = await statsResponse.json()
-          if (!statsResponse.ok) throw new Error(statsData.error || "Failed to fetch database stats")
-          setDatabaseSize(statsData.databaseSize || "0 MB")
-          setDatabaseStats((prevStats) => ({
-            ...prevStats,
-            totalSize: statsData.totalSizeBytes || 0,
-            storageSize: statsData.storageSizeBytes || 0,
-            photoCount: statsData.photoCount || 0,
-            totalBandwidth: statsData.totalBandwidthBytes || 0,
-            sentEmails: statsData.sentEmailsCount || 0,
-          }))
-        } catch (err: any) {
-          console.error("[v0] Error fetching database stats via API:", err.message)
-          setDatabaseSize("N/A")
-          setDatabaseStats((prevStats) => ({
-            ...prevStats,
-            totalSize: 0,
-            storageSize: 0,
-            photoCount: 0,
-            totalBandwidth: 0,
-            sentEmails: 0,
-          }))
-        }
       } catch (err: any) {
-        console.error("[v0] Error fetching dashboard data:", err)
-        setError(err.message)
+        console.error("[v0] Error fetching database stats:", err)
+        setDatabaseSize("N/A")
       } finally {
-        setIsLoading(false)
+        setLoadingDbStats(false) // Reset loading state
       }
     }
+  }, [isMasterAdmin, activeTab, databaseSize, loadingDbStats]) // Added loadingDbStats to dependency array
 
-    if (isMasterAdmin) {
-      console.log("[v0] Master admin authenticated, fetching data...")
-      fetchDashboardData()
+  useEffect(() => {
+    try {
+      const cachedMetrics = localStorage.getItem("mydaylogs_usage_metrics")
+      const cachedTimestamp = localStorage.getItem("mydaylogs_usage_metrics_timestamp")
+
+      if (cachedMetrics && cachedTimestamp) {
+        setUsageMetrics(JSON.parse(cachedMetrics))
+        const cacheDate = new Date(cachedTimestamp)
+        setLastRefreshed(`${cacheDate.getHours()}:${cacheDate.getMinutes().toString().padStart(2, "0")}`)
+        setMetricsLoadedFromCache(true)
+      }
+    } catch (err) {
+      console.error("[v0] Failed to load cached metrics:", err)
     }
-  }, [isMasterAdmin]) // Dependency array includes isMasterAdmin to re-fetch when role changes
+  }, [])
+
+  // const refreshUsageMetrics = async () => { ... already defined above ... }
+
+  // useEffect(() => { ... already handled by manual refresh button ... }, [activeTab])
+
+  // Fetch usage metrics if activeTab is 'overview' (where Server Management is)
+  // and metrics haven't been loaded yet, and we're not already refreshing.
+  useEffect(() => {
+    if (activeTab === "overview" && !usageMetrics && !isRefreshingUsageMetrics && !metricsLoadedFromCache) {
+      refreshUsageMetrics()
+    }
+  }, [activeTab, usageMetrics, isRefreshingUsageMetrics, metricsLoadedFromCache])
+  // </CHANGE>
 
   if (isLoading) {
     return (
@@ -2661,16 +2735,31 @@ export default function MasterDashboardPage() {
                 </div>
               </CardHeader>
               <CardContent>
+                {/* Display better placeholder if metrics are not loaded yet */}
                 {!usageMetrics ? (
                   <div className="text-center py-8 text-gray-500">
-                    <RefreshCw className="h-8 w-8 mx-auto mb-2 animate-spin" />
-                    <p className="text-sm">Loading usage metrics...</p>
+                    <Database className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                    <p className="text-sm mb-2">No usage metrics available</p>
+                    <p className="text-xs text-gray-400">Click Refresh to load metrics</p>
                   </div>
                 ) : (
+                  // </CHANGE>
                   <>
                     <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                       <h3 className="text-sm font-semibold mb-3 text-gray-700">Database Records Breakdown</h3>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
+                        <div>
+                          <span className="text-gray-600">Auth Users:</span>
+                          <span className="ml-2 font-medium">{usageMetrics.counts.authUsers}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Active This Month:</span>
+                          <span className="ml-2 font-medium">{usageMetrics.counts.activeUsersThisMonth}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Total Rows:</span>
+                          <span className="ml-2 font-medium">{usageMetrics.counts.totalRows.toLocaleString()}</span>
+                        </div>
                         <div>
                           <span className="text-gray-600">Profiles:</span>
                           <span className="ml-2 font-medium">{usageMetrics.counts.profiles}</span>
@@ -2714,188 +2803,419 @@ export default function MasterDashboardPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                      {/* Supabase Database Usage */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">Supabase Database</span>
-                          <span className="text-xs text-gray-500">
-                            {usageMetrics.supabase.database.limitMB}MB limit
-                          </span>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-xs">
-                            <span className="text-gray-600">
-                              Storage: {usageMetrics.supabase.database.usedMB.toFixed(2)} MB
-                            </span>
-                            <span
-                              className={`font-medium ${
-                                usageMetrics.supabase.database.status === "critical"
-                                  ? "text-red-600"
-                                  : usageMetrics.supabase.database.status === "warning"
-                                    ? "text-orange-600"
-                                    : "text-green-600"
-                              }`}
-                            >
-                              {usageMetrics.supabase.database.percentUsed.toFixed(1)}%
-                            </span>
+                    <div className="space-y-6">
+                      {/* Supabase Section */}
+                      <div>
+                        <h3 className="text-sm font-semibold mb-3 text-gray-700">Supabase Metrics</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                          {/* Database Storage */}
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium">Database Storage</span>
+                              <span className="text-xs text-gray-500">
+                                {usageMetrics.supabase.database.limitMB}MB limit
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-gray-600">
+                                  {usageMetrics.supabase.database.usedMB.toFixed(2)} MB
+                                </span>
+                                <span
+                                  className={`font-medium ${
+                                    usageMetrics.supabase.database.status === "critical"
+                                      ? "text-red-600"
+                                      : usageMetrics.supabase.database.status === "warning"
+                                        ? "text-orange-600"
+                                        : "text-green-600"
+                                  }`}
+                                >
+                                  {usageMetrics.supabase.database.percentUsed.toFixed(1)}%
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                  className={`h-2 rounded-full ${
+                                    usageMetrics.supabase.database.status === "critical"
+                                      ? "bg-red-500"
+                                      : usageMetrics.supabase.database.status === "warning"
+                                        ? "bg-orange-500"
+                                        : "bg-green-500"
+                                  }`}
+                                  style={{ width: `${Math.min(usageMetrics.supabase.database.percentUsed, 100)}%` }}
+                                />
+                              </div>
+                            </div>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full ${
-                                usageMetrics.supabase.database.status === "critical"
-                                  ? "bg-red-500"
-                                  : usageMetrics.supabase.database.status === "warning"
-                                    ? "bg-orange-500"
-                                    : "bg-green-500"
-                              }`}
-                              style={{ width: `${Math.min(usageMetrics.supabase.database.percentUsed, 100)}%` }}
-                            />
+
+                          {/* Database Rows */}
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium">Total Rows</span>
+                              <span className="text-xs text-gray-500">
+                                {usageMetrics.supabase.database.rowsLimit.toLocaleString()} soft limit
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-gray-600">
+                                  {usageMetrics.supabase.database.totalRows.toLocaleString()} rows
+                                </span>
+                                <span
+                                  className={`font-medium ${
+                                    usageMetrics.supabase.database.rowsStatus === "critical"
+                                      ? "text-red-600"
+                                      : usageMetrics.supabase.database.rowsStatus === "warning"
+                                        ? "text-orange-600"
+                                        : "text-green-600"
+                                  }`}
+                                >
+                                  {usageMetrics.supabase.database.rowsPercentUsed.toFixed(1)}%
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                  className={`h-2 rounded-full ${
+                                    usageMetrics.supabase.database.rowsStatus === "critical"
+                                      ? "bg-red-500"
+                                      : usageMetrics.supabase.database.rowsStatus === "warning"
+                                        ? "bg-orange-500"
+                                        : "bg-green-500"
+                                  }`}
+                                  style={{
+                                    width: `${Math.min(usageMetrics.supabase.database.rowsPercentUsed, 100)}%`,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Storage */}
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium">File Storage</span>
+                              <span className="text-xs text-gray-500">
+                                {(usageMetrics.supabase.storage.limitMB / 1024).toFixed(0)}GB limit
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-gray-600">
+                                  {usageMetrics.supabase.storage.usedMB.toFixed(2)} MB (
+                                  {usageMetrics.supabase.storage.photoCount} photos)
+                                </span>
+                                <span
+                                  className={`font-medium ${
+                                    usageMetrics.supabase.storage.status === "critical"
+                                      ? "text-red-600"
+                                      : usageMetrics.supabase.storage.status === "warning"
+                                        ? "text-orange-600"
+                                        : "text-green-600"
+                                  }`}
+                                >
+                                  {usageMetrics.supabase.storage.percentUsed.toFixed(1)}%
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                  className={`h-2 rounded-full ${
+                                    usageMetrics.supabase.storage.status === "critical"
+                                      ? "bg-red-500"
+                                      : usageMetrics.supabase.storage.status === "warning"
+                                        ? "bg-orange-500"
+                                        : "bg-green-500"
+                                  }`}
+                                  style={{ width: `${Math.min(usageMetrics.supabase.storage.percentUsed, 100)}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Auth MAU */}
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium">Monthly Active Users</span>
+                              <span className="text-xs text-gray-500">
+                                {usageMetrics.supabase.auth.mauLimit.toLocaleString()} limit
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-gray-600">
+                                  {usageMetrics.supabase.auth.monthlyActiveUsers} of{" "}
+                                  {usageMetrics.supabase.auth.totalUsers} users
+                                </span>
+                                <span
+                                  className={`font-medium ${
+                                    usageMetrics.supabase.auth.status === "critical"
+                                      ? "text-red-600"
+                                      : usageMetrics.supabase.auth.status === "warning"
+                                        ? "text-orange-600"
+                                        : "text-green-600"
+                                  }`}
+                                >
+                                  {usageMetrics.supabase.auth.mauPercentUsed.toFixed(1)}%
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                  className={`h-2 rounded-full ${
+                                    usageMetrics.supabase.auth.status === "critical"
+                                      ? "bg-red-500"
+                                      : usageMetrics.supabase.auth.status === "warning"
+                                        ? "bg-orange-500"
+                                        : "bg-green-500"
+                                  }`}
+                                  style={{ width: `${Math.min(usageMetrics.supabase.auth.mauPercentUsed, 100)}%` }}
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                      {/* Supabase Storage Usage */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">Supabase Storage</span>
-                          <span className="text-xs text-gray-500">
-                            {(usageMetrics.supabase.storage.limitMB / 1024).toFixed(0)}GB limit
-                          </span>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-xs">
-                            <span className="text-gray-600">
-                              {usageMetrics.supabase.storage.usedMB.toFixed(2)} MB (
-                              {usageMetrics.supabase.storage.photoCount} photos)
-                            </span>
-                            <span
-                              className={`font-medium ${
-                                usageMetrics.supabase.storage.status === "critical"
-                                  ? "text-red-600"
-                                  : usageMetrics.supabase.storage.status === "warning"
-                                    ? "text-orange-600"
-                                    : "text-green-600"
-                              }`}
-                            >
-                              {usageMetrics.supabase.storage.percentUsed.toFixed(1)}%
-                            </span>
+                      {/* Resend Section */}
+                      <div>
+                        <h3 className="text-sm font-semibold mb-3 text-gray-700">Resend Email Metrics</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Email Sends */}
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium">Email Sends</span>
+                              <span className="text-xs text-gray-500">
+                                {usageMetrics.resend.emails.limit.toLocaleString()}/month limit
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-gray-600">~{usageMetrics.resend.emails.sentThisMonth}</span>
+                                <span
+                                  className={`font-medium ${
+                                    usageMetrics.resend.emails.status === "critical"
+                                      ? "text-red-600"
+                                      : usageMetrics.resend.emails.status === "warning"
+                                        ? "text-orange-600"
+                                        : "text-green-600"
+                                  }`}
+                                >
+                                  {usageMetrics.resend.emails.percentUsed.toFixed(1)}%
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                  className={`h-2 rounded-full ${
+                                    usageMetrics.resend.emails.status === "critical"
+                                      ? "bg-red-500"
+                                      : usageMetrics.resend.emails.status === "warning"
+                                        ? "bg-orange-500"
+                                        : "bg-green-500"
+                                  }`}
+                                  style={{ width: `${Math.min(usageMetrics.resend.emails.percentUsed, 100)}%` }}
+                                />
+                              </div>
+                            </div>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full ${
-                                usageMetrics.supabase.storage.status === "critical"
-                                  ? "bg-red-500"
-                                  : usageMetrics.supabase.storage.status === "warning"
-                                    ? "bg-orange-500"
-                                    : "bg-green-500"
-                              }`}
-                              style={{ width: `${Math.min(usageMetrics.supabase.storage.percentUsed, 100)}%` }}
-                            />
+
+                          {/* API Requests */}
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium">API Requests</span>
+                              <span className="text-xs text-gray-500">
+                                {usageMetrics.resend.api.limit.toLocaleString()}/month limit
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-gray-600">
+                                  ~{usageMetrics.resend.api.estimatedRequests.toFixed(0)}
+                                </span>
+                                <span
+                                  className={`font-medium ${
+                                    usageMetrics.resend.api.status === "critical"
+                                      ? "text-red-600"
+                                      : usageMetrics.resend.api.status === "warning"
+                                        ? "text-orange-600"
+                                        : "text-green-600"
+                                  }`}
+                                >
+                                  {usageMetrics.resend.api.percentUsed.toFixed(1)}%
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                  className={`h-2 rounded-full ${
+                                    usageMetrics.resend.api.status === "critical"
+                                      ? "bg-red-500"
+                                      : usageMetrics.resend.api.status === "warning"
+                                        ? "bg-orange-500"
+                                        : "bg-green-500"
+                                  }`}
+                                  style={{ width: `${Math.min(usageMetrics.resend.api.percentUsed, 100)}%` }}
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                      {/* Resend Email Usage */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">Resend Emails</span>
-                          <span className="text-xs text-gray-500">{usageMetrics.resend.emails.limit}/month limit</span>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-xs">
-                            <span className="text-gray-600">
-                              Sent this month: ~{usageMetrics.resend.emails.sentThisMonth}
-                            </span>
-                            <span
-                              className={`font-medium ${
-                                usageMetrics.resend.emails.status === "critical"
-                                  ? "text-red-600"
-                                  : usageMetrics.resend.emails.status === "warning"
-                                    ? "text-orange-600"
-                                    : "text-green-600"
-                              }`}
-                            >
-                              {usageMetrics.resend.emails.percentUsed.toFixed(1)}%
-                            </span>
+                      {/* Vercel Section */}
+                      <div>
+                        <h3 className="text-sm font-semibold mb-3 text-gray-700">Vercel Platform Metrics</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {/* Bandwidth */}
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium">Bandwidth</span>
+                              <span className="text-xs text-gray-500">
+                                {usageMetrics.vercel.bandwidth.limitGB}GB/month limit
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-gray-600">
+                                  ~{usageMetrics.vercel.bandwidth.usedGB.toFixed(2)} GB
+                                </span>
+                                <span
+                                  className={`font-medium ${
+                                    usageMetrics.vercel.bandwidth.status === "critical"
+                                      ? "text-red-600"
+                                      : usageMetrics.vercel.bandwidth.status === "warning"
+                                        ? "text-orange-600"
+                                        : "text-green-600"
+                                  }`}
+                                >
+                                  {usageMetrics.vercel.bandwidth.percentUsed.toFixed(1)}%
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                  className={`h-2 rounded-full ${
+                                    usageMetrics.vercel.bandwidth.status === "critical"
+                                      ? "bg-red-500"
+                                      : usageMetrics.vercel.bandwidth.status === "warning"
+                                        ? "bg-orange-500"
+                                        : "bg-green-500"
+                                  }`}
+                                  style={{ width: `${Math.min(usageMetrics.vercel.bandwidth.percentUsed, 100)}%` }}
+                                />
+                              </div>
+                            </div>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full ${
-                                usageMetrics.resend.emails.status === "critical"
-                                  ? "bg-red-500"
-                                  : usageMetrics.resend.emails.status === "warning"
-                                    ? "bg-orange-500"
-                                    : "bg-green-500"
-                              }`}
-                              style={{ width: `${Math.min(usageMetrics.resend.emails.percentUsed, 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
 
-                      {/* Vercel Bandwidth */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">Vercel Bandwidth</span>
-                          <span className="text-xs text-gray-500">
-                            {usageMetrics.vercel.bandwidth.limitGB}GB/month limit
-                          </span>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-xs">
-                            <span className="text-gray-600">
-                              Estimated: {usageMetrics.vercel.bandwidth.usedGB.toFixed(2)} GB
-                            </span>
-                            <span
-                              className={`font-medium ${
-                                usageMetrics.vercel.bandwidth.status === "critical"
-                                  ? "text-red-600"
-                                  : usageMetrics.vercel.bandwidth.status === "warning"
-                                    ? "text-orange-600"
-                                    : "text-green-600"
-                              }`}
-                            >
-                              {usageMetrics.vercel.bandwidth.percentUsed.toFixed(1)}%
-                            </span>
+                          {/* Function Invocations */}
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium">Function Invocations</span>
+                              <span className="text-xs text-gray-500">
+                                {(usageMetrics.vercel.functions.limit / 1000000).toFixed(0)}M/month limit
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-gray-600">
+                                  ~{usageMetrics.vercel.functions.estimatedInvocations.toLocaleString()}
+                                </span>
+                                <span
+                                  className={`font-medium ${
+                                    usageMetrics.vercel.functions.status === "critical"
+                                      ? "text-red-600"
+                                      : usageMetrics.vercel.functions.status === "warning"
+                                        ? "text-orange-600"
+                                        : "text-green-600"
+                                  }`}
+                                >
+                                  {usageMetrics.vercel.functions.percentUsed.toFixed(1)}%
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                  className={`h-2 rounded-full ${
+                                    usageMetrics.vercel.functions.status === "critical"
+                                      ? "bg-red-500"
+                                      : usageMetrics.vercel.functions.status === "warning"
+                                        ? "bg-orange-500"
+                                        : "bg-green-500"
+                                  }`}
+                                  style={{ width: `${Math.min(usageMetrics.vercel.functions.percentUsed, 100)}%` }}
+                                />
+                              </div>
+                            </div>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full ${
-                                usageMetrics.vercel.bandwidth.status === "critical"
-                                  ? "bg-red-500"
-                                  : usageMetrics.vercel.bandwidth.status === "warning"
-                                    ? "bg-orange-500"
-                                    : "bg-green-500"
-                              }`}
-                              style={{ width: `${Math.min(usageMetrics.vercel.bandwidth.percentUsed, 100)}%` }}
-                            />
+
+                          {/* Image Optimizations */}
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium">Image Optimizations</span>
+                              <span className="text-xs text-gray-500">
+                                {usageMetrics.vercel.imageOptimizations.limit.toLocaleString()}/month limit
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-gray-600">
+                                  ~{usageMetrics.vercel.imageOptimizations.estimated}
+                                </span>
+                                <span
+                                  className={`font-medium ${
+                                    usageMetrics.vercel.imageOptimizations.status === "critical"
+                                      ? "text-red-600"
+                                      : usageMetrics.vercel.imageOptimizations.status === "warning"
+                                        ? "text-orange-600"
+                                        : "text-green-600"
+                                  }`}
+                                >
+                                  {usageMetrics.vercel.imageOptimizations.percentUsed.toFixed(1)}%
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                  className={`h-2 rounded-full ${
+                                    usageMetrics.vercel.imageOptimizations.status === "critical"
+                                      ? "bg-red-500"
+                                      : usageMetrics.vercel.imageOptimizations.status === "warning"
+                                        ? "bg-orange-500"
+                                        : "bg-green-500"
+                                  }`}
+                                  style={{
+                                    width: `${Math.min(usageMetrics.vercel.imageOptimizations.percentUsed, 100)}%`,
+                                  }}
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Status Summary */}
                     <div className="mt-6 p-4 bg-gray-50 rounded-lg">
                       <p className="text-sm font-medium mb-2">Status Summary:</p>
                       <p className="text-sm text-gray-600">
                         {usageMetrics.supabase.database.status === "critical" ||
+                        usageMetrics.supabase.database.rowsStatus === "critical" ||
                         usageMetrics.supabase.storage.status === "critical" ||
+                        usageMetrics.supabase.auth.status === "critical" ||
                         usageMetrics.resend.emails.status === "critical" ||
-                        usageMetrics.vercel.bandwidth.status === "critical"
-                          ? "⚠️ Critical: One or more services are at or exceeding limits. Immediate action required!"
+                        usageMetrics.resend.api.status === "critical" ||
+                        usageMetrics.vercel.bandwidth.status === "critical" ||
+                        usageMetrics.vercel.functions.status === "critical" ||
+                        usageMetrics.vercel.imageOptimizations.status === "critical"
+                          ? "⚠️ Critical: One or more services are at 90%+ capacity. Immediate action required."
                           : usageMetrics.supabase.database.status === "warning" ||
+                              usageMetrics.supabase.database.rowsStatus === "warning" ||
                               usageMetrics.supabase.storage.status === "warning" ||
+                              usageMetrics.supabase.auth.status === "warning" ||
                               usageMetrics.resend.emails.status === "warning" ||
-                              usageMetrics.vercel.bandwidth.status === "warning"
-                            ? "🟡 Warning: Approaching free tier limits. Monitor closely and consider upgrading."
-                            : "✅ All systems healthy. Usage within safe limits."}
+                              usageMetrics.resend.api.status === "warning" ||
+                              usageMetrics.vercel.bandwidth.status === "warning" ||
+                              usageMetrics.vercel.functions.status === "warning" ||
+                              usageMetrics.vercel.imageOptimizations.status === "warning"
+                            ? "⚡ Warning: One or more services are at 70%+ capacity. Monitor closely."
+                            : "✅ All services are operating within healthy limits."}
                       </p>
                       <p className="text-xs text-gray-500 mt-2">{usageMetrics.note}</p>
                     </div>
                   </>
                 )}
-                {/* </CHANGE> */}
               </CardContent>
             </Card>
 

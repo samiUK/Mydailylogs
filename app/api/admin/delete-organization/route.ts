@@ -73,50 +73,95 @@ export async function DELETE(request: NextRequest) {
 
     console.log(`[v0] Starting cascading delete for organization: ${organization_id}`)
 
-    const deleteOperations = [
-      // Delete checklist responses first (depends on checklist items and daily checklists)
-      { table: "checklist_responses", message: "checklist responses" },
-      // Delete external responses (depends on external submissions)
-      { table: "external_responses", message: "external responses" },
-      // Delete daily checklists (depends on templates and profiles)
-      { table: "daily_checklists", message: "daily checklists" },
-      // Delete external submissions
-      { table: "external_submissions", message: "external submissions" },
-      // Delete template assignments
-      { table: "template_assignments", message: "template assignments" },
-      // Delete template schedule exclusions
-      { table: "template_schedule_exclusions", message: "template schedule exclusions" },
-      // Delete checklist items (depends on templates)
-      { table: "checklist_items", message: "checklist items" },
-      // Delete checklist templates
-      { table: "checklist_templates", message: "checklist templates" },
-      // Delete submitted reports
-      { table: "submitted_reports", message: "submitted reports" },
-      // Delete report backups
-      { table: "report_backups", message: "report backups" },
-      // Delete report audit logs
-      { table: "report_audit_logs", message: "report audit logs" },
-      // Delete staff unavailability
-      { table: "staff_unavailability", message: "staff unavailability records" },
-      // Delete feedback
-      { table: "feedback", message: "feedback" },
-      // Delete holidays
-      { table: "holidays", message: "holidays" },
-      // Delete notifications (depends on profiles)
-      { table: "notifications", message: "notifications" },
-      // Delete report access sessions (depends on profiles)
-      { table: "report_access_sessions", message: "report access sessions" },
-      // Delete payments (depends on subscriptions)
-      { table: "payments", message: "payments" },
-      // Delete subscriptions
-      { table: "subscriptions", message: "subscriptions" },
-      // Delete profiles (users/admins)
-      { table: "profiles", message: "user profiles" },
-      // Finally delete the organization
-      { table: "organizations", message: "organization" },
-    ]
-
     const deletedCounts = {}
+
+    // Step 1: Get all daily checklists for this organization
+    const { data: dailyChecklists, error: checklistsError } = await adminSupabase
+      .from("daily_checklists")
+      .select("id")
+      .eq("organization_id", organization_id)
+
+    if (checklistsError) {
+      console.error("Error fetching daily checklists:", checklistsError)
+      return NextResponse.json({ error: "Failed to fetch daily checklists" }, { status: 500 })
+    }
+
+    const checklistIds = dailyChecklists?.map((c) => c.id) || []
+    console.log(`[v0] Found ${checklistIds.length} daily checklists to process`)
+
+    // Step 2: Delete checklist responses linked to these checklists
+    if (checklistIds.length > 0) {
+      const { data: deletedResponses, error: responsesError } = await adminSupabase
+        .from("checklist_responses")
+        .delete()
+        .in("checklist_id", checklistIds)
+        .select("id")
+
+      if (responsesError) {
+        console.error("Error deleting checklist responses:", responsesError)
+        return NextResponse.json({ error: "Failed to delete checklist responses" }, { status: 500 })
+      }
+
+      const count = deletedResponses?.length || 0
+      if (count > 0) {
+        deletedCounts["checklist_responses"] = count
+        console.log(`[v0] Deleted ${count} checklist responses`)
+      }
+    }
+
+    // Step 3: Get all external submissions for this organization
+    const { data: externalSubmissions, error: submissionsError } = await adminSupabase
+      .from("external_submissions")
+      .select("id")
+      .eq("organization_id", organization_id)
+
+    if (submissionsError) {
+      console.error("Error fetching external submissions:", submissionsError)
+      return NextResponse.json({ error: "Failed to fetch external submissions" }, { status: 500 })
+    }
+
+    const submissionIds = externalSubmissions?.map((s) => s.id) || []
+    console.log(`[v0] Found ${submissionIds.length} external submissions to process`)
+
+    // Step 4: Delete external responses linked to these submissions
+    if (submissionIds.length > 0) {
+      const { data: deletedExtResponses, error: extResponsesError } = await adminSupabase
+        .from("external_responses")
+        .delete()
+        .in("submission_id", submissionIds)
+        .select("id")
+
+      if (extResponsesError) {
+        console.error("Error deleting external responses:", extResponsesError)
+        return NextResponse.json({ error: "Failed to delete external responses" }, { status: 500 })
+      }
+
+      const count = deletedExtResponses?.length || 0
+      if (count > 0) {
+        deletedCounts["external_responses"] = count
+        console.log(`[v0] Deleted ${count} external responses`)
+      }
+    }
+
+    // Step 5: Now delete everything else in proper order
+    const deleteOperations = [
+      { table: "daily_checklists", message: "daily checklists" },
+      { table: "external_submissions", message: "external submissions" },
+      { table: "template_assignments", message: "template assignments" },
+      { table: "template_schedule_exclusions", message: "template schedule exclusions" },
+      { table: "checklist_items", message: "checklist items" },
+      { table: "checklist_templates", message: "checklist templates" },
+      { table: "contractor_emails_sent", message: "contractor emails sent" },
+      { table: "submitted_reports", message: "submitted reports" },
+      { table: "report_backups", message: "report backups" },
+      { table: "report_audit_logs", message: "report audit logs" },
+      { table: "staff_unavailability", message: "staff unavailability records" },
+      { table: "feedback", message: "feedback" },
+      { table: "holidays", message: "holidays" },
+      { table: "quota_modifications", message: "quota modifications" },
+      { table: "payments", message: "payments" },
+      { table: "subscriptions", message: "subscriptions" },
+    ]
 
     for (const operation of deleteOperations) {
       const { data, error } = await adminSupabase
@@ -127,12 +172,7 @@ export async function DELETE(request: NextRequest) {
 
       if (error) {
         console.error(`Error deleting ${operation.message}:`, error)
-        return NextResponse.json(
-          {
-            error: `Failed to delete ${operation.message}`,
-          },
-          { status: 500 },
-        )
+        return NextResponse.json({ error: `Failed to delete ${operation.message}` }, { status: 500 })
       }
 
       const count = data?.length || 0
@@ -140,6 +180,83 @@ export async function DELETE(request: NextRequest) {
         deletedCounts[operation.table] = count
         console.log(`[v0] Deleted ${count} ${operation.message}`)
       }
+    }
+
+    // Step 6: Delete profiles and related data
+    const { data: profiles, error: profilesError } = await adminSupabase
+      .from("profiles")
+      .select("id")
+      .eq("organization_id", organization_id)
+
+    if (profilesError) {
+      console.error("Error fetching profiles:", profilesError)
+      return NextResponse.json({ error: "Failed to fetch profiles" }, { status: 500 })
+    }
+
+    const profileIds = profiles?.map((p) => p.id) || []
+    console.log(`[v0] Found ${profileIds.length} profiles to delete`)
+
+    // Delete data linked to profiles
+    if (profileIds.length > 0) {
+      const profileDeletions = [
+        { table: "notifications", message: "notifications" },
+        { table: "report_access_sessions", message: "report access sessions" },
+      ]
+
+      for (const operation of profileDeletions) {
+        const { data, error } = await adminSupabase
+          .from(operation.table)
+          .delete()
+          .in("user_id", profileIds)
+          .select("id")
+
+        if (error) {
+          console.error(`Error deleting ${operation.message}:`, error)
+          // Continue even if this fails
+        }
+
+        const count = data?.length || 0
+        if (count > 0) {
+          deletedCounts[operation.table] = count
+          console.log(`[v0] Deleted ${count} ${operation.message}`)
+        }
+      }
+
+      // Delete profiles
+      const { data: deletedProfiles, error: deleteProfilesError } = await adminSupabase
+        .from("profiles")
+        .delete()
+        .eq("organization_id", organization_id)
+        .select("id")
+
+      if (deleteProfilesError) {
+        console.error("Error deleting profiles:", deleteProfilesError)
+        return NextResponse.json({ error: "Failed to delete profiles" }, { status: 500 })
+      }
+
+      const count = deletedProfiles?.length || 0
+      if (count > 0) {
+        deletedCounts["profiles"] = count
+        console.log(`[v0] Deleted ${count} profiles`)
+      }
+    }
+
+    // Step 7: Finally delete the organization
+    const { data: deletedOrg, error: orgError } = await adminSupabase
+      .from("organizations")
+      .delete()
+      .eq("organization_id", organization_id)
+      .select("organization_id")
+
+    if (orgError) {
+      console.error("Error deleting organization:", orgError)
+      return NextResponse.json({ error: "Failed to delete organization" }, { status: 500 })
+    }
+
+    const orgCount = deletedOrg?.length || 0
+    if (orgCount > 0) {
+      deletedCounts["organizations"] = orgCount
+      console.log(`[v0] Deleted organization`)
     }
 
     console.log(`[v0] Cascading delete completed for organization: ${organization_id}`)

@@ -44,9 +44,16 @@ export async function GET(request: Request) {
       adminClient.from("profiles").select("*"),
       adminClient.from("superusers").select("*"),
       adminClient.from("checklist_templates").select("id, name, organization_id, is_active").limit(100),
-      adminClient
-        .from("subscriptions")
-        .select(`*, organizations(organization_id, organization_name, logo_url, primary_color, slug)`),
+      adminClient.from("subscriptions").select(`
+          *,
+          organizations!left(
+            organization_id,
+            organization_name,
+            logo_url,
+            primary_color,
+            slug
+          )
+        `),
       adminClient.from("payments").select(`*, subscriptions(*, organizations(*))`),
       adminClient.from("feedback").select("*"),
       adminClient.from("submitted_reports").select("*"),
@@ -67,21 +74,75 @@ export async function GET(request: Request) {
     if (paymentsError) console.error("[v0] Payments error:", paymentsError)
     if (feedbackError) console.error("[v0] Feedback error:", feedbackError)
 
+    console.log(
+      "[v0] Sample organization:",
+      organizationsData?.[0]
+        ? {
+            id: organizationsData[0].organization_id,
+            name: organizationsData[0].organization_name,
+          }
+        : "No orgs",
+    )
+
+    console.log(
+      "[v0] Sample profiles:",
+      profilesData?.slice(0, 3).map((p) => ({
+        id: p.id,
+        email: p.email,
+        name: p.full_name,
+        role: p.role,
+        org_id: p.organization_id,
+      })),
+    )
+
+    const enrichedOrganizations = organizationsData?.map((org) => {
+      const orgProfiles = profilesData?.filter((p) => p.organization_id === org.organization_id) || []
+      console.log(`[v0] Org ${org.organization_name} (${org.organization_id}): ${orgProfiles.length} profiles`)
+      return {
+        ...org,
+        profiles: orgProfiles,
+      }
+    })
+
+    const enrichedSubscriptions = subscriptionsData?.map((sub) => {
+      const userProfile = profilesData?.find((p) => p.organization_id === sub.organization_id && p.role === "admin")
+      return {
+        ...sub,
+        user_email: userProfile?.email || null,
+        user_name: userProfile?.full_name || null,
+      }
+    })
+
     console.log("[v0] Dashboard data fetched:", {
       organizations: organizationsData?.length || 0,
       profiles: profilesData?.length || 0,
       superusers: superusersData?.length || 0,
       subscriptions: subscriptionsData?.length || 0,
+      subscriptionsWithOrgs: subscriptionsData?.filter((s: any) => s.organizations)?.length || 0,
+      subscriptionsWithoutOrgs: subscriptionsData?.filter((s: any) => !s.organizations)?.length || 0,
       payments: paymentsData?.length || 0,
       feedback: feedbackData?.length || 0,
     })
 
+    console.log(
+      "[v0] Enriched organizations sample:",
+      enrichedOrganizations?.[0]
+        ? {
+            org_id: enrichedOrganizations[0].organization_id,
+            org_name: enrichedOrganizations[0].organization_name,
+            profiles_count: enrichedOrganizations[0].profiles.length,
+            profile_emails: enrichedOrganizations[0].profiles.map((p: any) => p.email),
+            profile_roles: enrichedOrganizations[0].profiles.map((p: any) => p.role),
+          }
+        : "No organizations",
+    )
+
     return NextResponse.json({
-      organizations: organizationsData || [],
+      organizations: enrichedOrganizations || [],
       profiles: profilesData || [],
       superusers: superusersData || [],
       templates: templatesData || [],
-      subscriptions: subscriptionsData || [],
+      subscriptions: enrichedSubscriptions || [],
       payments: paymentsData || [],
       feedback: feedbackData || [],
       reports: reportsData || [],

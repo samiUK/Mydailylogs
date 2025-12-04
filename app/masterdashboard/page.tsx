@@ -67,7 +67,7 @@ interface Organization {
   logo_url: string | null
   primary_color: string | null
   created_at: string
-  profiles?: { count: number; role: string }[]
+  profiles?: { count: number; role: string }[] | any[] // Updated to handle array of profiles directly
   subscriptions?: { plan_name: string; status: string }[]
   updated_at?: string
   templateCount?: number
@@ -91,7 +91,7 @@ interface UserProfile {
   avatar_url: string | null
   role: string
   created_at: string
-  organizations?: { name: string; logo_url: string | null; slug: string }
+  organizations?: { name: string; logo_url: string | null; slug: string } | null // Allow null for organizations
   last_sign_in_at?: string | null
   organization_id?: string
   organization_name?: string
@@ -112,6 +112,7 @@ interface Subscription {
   trial_ends_at?: string | null // Added for trial end date
   current_period_start?: string // Added for subscription start date
   is_masteradmin_trial?: boolean // Added for complimentary trial status
+  profiles?: UserProfile[] // Added to potentially link profiles
 }
 
 interface Payment {
@@ -122,7 +123,7 @@ interface Payment {
   subscriptions?: {
     plan_name: string
     organizations?: { organization_id: string; organization_name: string; slug: string } // Added slug
-  }
+  } | null // Allow null for subscriptions
 }
 
 interface Feedback {
@@ -232,9 +233,11 @@ export default function MasterDashboardPage() {
   const [isRefreshingServerStats, setIsRefreshingServerStats] = useState(false)
   const [lastRefreshed, setLastRefreshed] = useState<string | null>(null)
 
+  const [usageMetrics, setUsageMetrics] = useState<any>(null)
+  const [isRefreshingUsageMetrics, setIsRefreshingUsageMetrics] = useState(false)
+  // </CHANGE>
   // New state and modal control for impersonation link
   const [showImpersonationModal, setShowImpersonationModal] = useState(false)
-  const [impersonationUrl, setImpersonationUrl] = useState("")
 
   const [impersonationLinks, setImpersonationLinks] = useState<Record<string, string>>({})
 
@@ -255,6 +258,10 @@ export default function MasterDashboardPage() {
   const [quotaReason, setQuotaReason] = useState("")
   const [masterPassword, setMasterPassword] = useState("")
   // </CHANGE>
+  const [isMasterAdmin, setIsMasterAdmin] = useState(false) // Added state for master admin check
+  const [totalOrgs, setTotalOrgs] = useState(0) // Added state
+  const [totalUsers, setTotalUsers] = useState(0) // Added state
+  const [totalTemplates, setTotalTemplates] = useState(0) // Added state
 
   const getCookie = (name: string) => {
     const value = `; ${document.cookie}`
@@ -511,6 +518,11 @@ export default function MasterDashboardPage() {
 
           const adminClient = createClient() // Assuming adminClient is the same as createClient for this scope
 
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+          const oneWeekAgo = new Date(today)
+          oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+
           const [
             { data: organizationsData, error: orgError },
             { data: profilesData, error: profileError },
@@ -535,7 +547,8 @@ export default function MasterDashboardPage() {
             adminClient.from("checklist_templates").select("id, name, organization_id, is_active").limit(100),
             adminClient
               .from("subscriptions")
-              .select(`*, organizations(organization_id, organization_name, logo_url, primary_color, slug)`),
+              .select(`*, organizations(organization_id, organization_name, logo_url, primary_color, slug)`) // Removed profiles from subscription select here as it might cause redundancy, let's rely on the main profile fetch for users.
+              .limit(100), // Limit subscriptions fetch
             adminClient.from("payments").select(`*, subscriptions(*, organizations(*))`),
             adminClient.from("feedback").select("*"),
             adminClient.from("submitted_reports").select("*"),
@@ -594,7 +607,7 @@ export default function MasterDashboardPage() {
             setError("Failed to load user profiles. Please try again later.")
           }
           if (templatesError) console.error("[v0] Templates fetch error:", templatesError)
-          if (subscriptionsError) console.error("[v0] Subscriptions fetch error:", subscriptionsError)
+          // if (subscriptionsError) console.error("[v0] Subscriptions fetch error:", subscriptionsError)
           if (paymentsError) console.error("[v0] Payments fetch error:", paymentsError)
           if (feedbackError) console.error("[v0] Feedback fetch error:", feedbackError)
           if (reportsError) console.error("[v0] Reports fetch error:", reportsError)
@@ -619,9 +632,23 @@ export default function MasterDashboardPage() {
             console.error("[v0] Subscriptions fetch error:", subscriptionsError)
             setAllSubscriptions([])
           } else {
+            console.log("[v0] Raw subscriptions data:", subscriptionsData)
+            console.log("[v0] Organizations data for matching:", organizationsData)
+
             // Ensure organization_id is present in subscriptions data
             const enrichedSubscriptions = (subscriptionsData || []).map((sub) => {
               const org = organizationsData?.find((org) => org.organization_id === sub.organization_id)
+
+              // Log if organization is not found for a subscription
+              if (!org && sub.organization_id) {
+                console.warn("[v0] Organization not found for subscription:", {
+                  subscriptionId: sub.id,
+                  organizationId: sub.organization_id,
+                  planName: sub.plan_name,
+                  status: sub.status,
+                })
+              }
+
               return {
                 ...sub,
                 organizations: org
@@ -631,10 +658,14 @@ export default function MasterDashboardPage() {
                       logo_url: org.logo_url,
                       slug: org.slug,
                     }
-                  : null,
+                  : sub.organizations || null, // Use existing organizations data from query if available
               }
             })
+
+            console.log("[v0] Enriched subscriptions:", enrichedSubscriptions)
+            console.log("[v0] Total subscriptions count:", enrichedSubscriptions.length)
             setAllSubscriptions(enrichedSubscriptions)
+            // </CHANGE>
           }
 
           if (paymentsError) {
@@ -658,11 +689,6 @@ export default function MasterDashboardPage() {
           } else {
             setTotalSubmittedReports(reportsData?.length || 0)
           }
-
-          const today = new Date()
-          today.setHours(0, 0, 0, 0)
-          const oneWeekAgo = new Date(today)
-          oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
 
           const activeAssignments = templateAssignmentsData?.filter((a: any) => a.is_active) || []
           const completedAssignments = activeAssignments.filter((a: any) => a.status === "completed")
@@ -963,7 +989,19 @@ export default function MasterDashboardPage() {
             }))
           }
 
-          setIsLoading(false)
+          try {
+            const metricsResponse = await fetch("/api/master/usage-metrics")
+            const metricsData = await metricsResponse.json()
+            if (metricsResponse.ok) {
+              setUsageMetrics(metricsData)
+              const now = new Date()
+              setLastRefreshed(`${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}`)
+            }
+          } catch (err: any) {
+            console.error("[v0] Error fetching usage metrics:", err.message)
+            showNotification("error", `Failed to fetch usage metrics: ${err.message}`)
+          }
+          // </CHANGE>
         } catch (error) {
           console.error("[v0] Error loading essential data:", error)
           setError("An error occurred while loading dashboard data. Please try refreshing the page.")
@@ -994,6 +1032,7 @@ export default function MasterDashboardPage() {
 
       if (masterAdminEmail === "arsami.uk@gmail.com") {
         setCurrentUserRole("masteradmin")
+        setIsMasterAdmin(true) // Set isMasterAdmin to true
         console.log("[v0] Hardcoded master admin role for arsami.uk@gmail.com")
         return
       }
@@ -1016,6 +1055,9 @@ export default function MasterDashboardPage() {
 
         if (data && data.length > 0 && data[0].role) {
           setCurrentUserRole(data[0].role)
+          if (data[0].role === "masteradmin") {
+            setIsMasterAdmin(true) // Set isMasterAdmin to true
+          }
           console.log("[v0] Current user role from database:", data[0].role)
         } else {
           setCurrentUserRole("support")
@@ -1037,19 +1079,21 @@ export default function MasterDashboardPage() {
     checkAuthAndLoadData().finally(() => setIsLoading(false))
   }
 
-  useEffect(() => {
-    fetchData()
+  // The useEffect hook for fetching data will be replaced by the new hook below.
+  // Keeping this here for now, but it will be removed/modified.
+  // useEffect(() => {
+  //   fetchData()
 
-    // Cleanup function to prevent memory leaks
-    return () => {
-      setOrganizations([])
-      setAllUsers([])
-      setAllSubscriptions([])
-      setAllPayments([])
-      setFeedback([])
-      setSuperusers([])
-    }
-  }, [])
+  //   // Cleanup function to prevent memory leaks
+  //   return () => {
+  //     setOrganizations([])
+  //     setAllUsers([])
+  //     setAllSubscriptions([])
+  //     setAllPayments([])
+  //     setFeedback([])
+  //     setSuperusers([])
+  //   }
+  // }, [])
 
   useEffect(() => {
     if (activeTab === "login-as" && currentUserRole === "masteradmin") {
@@ -1631,42 +1675,76 @@ export default function MasterDashboardPage() {
   }, [allUsers, userSearchTerm])
 
   const filteredOrganizations = useMemo(() => {
-    const filtered = organizations.filter(
-      (org) =>
-        org.organization_name.toLowerCase().includes(organizationSearchTerm.toLowerCase()) ||
-        org.organization_id.toLowerCase().includes(organizationSearchTerm.toLowerCase()),
-    )
+    const filtered = organizations.filter((org) => {
+      const nameMatch = org.organization_name.toLowerCase().includes(organizationSearchTerm.toLowerCase())
+      const idMatch = org.organization_id.toLowerCase().includes(organizationSearchTerm.toLowerCase())
+
+      // Search in profiles emails (admins/superusers in this organization)
+      const emailMatch =
+        org.profiles?.some((profile: any) =>
+          profile.email?.toLowerCase().includes(organizationSearchTerm.toLowerCase()),
+        ) || false
+
+      return nameMatch || idMatch || emailMatch
+    })
     const startIndex = (orgPage - 1) * ITEMS_PER_PAGE
     return filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE)
   }, [organizations, organizationSearchTerm, orgPage])
 
   const totalOrgPages = useMemo(() => {
-    const filtered = organizations.filter(
-      (org) =>
-        org.organization_name.toLowerCase().includes(organizationSearchTerm.toLowerCase()) ||
-        org.organization_id.toLowerCase().includes(organizationSearchTerm.toLowerCase()),
-    )
+    const filtered = organizations.filter((org) => {
+      const nameMatch = org.organization_name.toLowerCase().includes(organizationSearchTerm.toLowerCase())
+      const idMatch = org.organization_id.toLowerCase().includes(organizationSearchTerm.toLowerCase())
+      const emailMatch =
+        org.profiles?.some((profile: any) =>
+          profile.email?.toLowerCase().includes(organizationSearchTerm.toLowerCase()),
+        ) || false
+      return nameMatch || idMatch || emailMatch
+    })
     return Math.ceil(filtered.length / ITEMS_PER_PAGE)
   }, [organizations, organizationSearchTerm])
 
   const filteredSubscriptions = useMemo(() => {
-    const filtered = allSubscriptions.filter(
-      (sub) =>
-        sub.plan_name.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) ||
-        sub.status.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) ||
-        sub.organizations?.organization_name.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()),
-    )
+    console.log("[v0] Filtering subscriptions - Total before filter:", allSubscriptions.length)
+    console.log("[v0] Search term:", subscriptionSearchTerm)
+
+    const filtered = allSubscriptions.filter((sub) => {
+      const planMatch = sub.plan_name?.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) || false
+      const statusMatch = sub.status?.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) || false
+      const orgMatch =
+        sub.organizations?.organization_name?.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) || false
+
+      // Search in profiles emails (users in this organization)
+      const emailMatch =
+        sub.profiles?.some((profile: any) =>
+          profile.email?.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()),
+        ) || false
+
+      return planMatch || statusMatch || orgMatch || emailMatch
+    })
+
+    console.log("[v0] Filtered subscriptions count:", filtered.length)
+
     const startIndex = (subPage - 1) * ITEMS_PER_PAGE
-    return filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+    const paginatedResults = filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+
+    console.log("[v0] Paginated results for page", subPage, ":", paginatedResults.length)
+
+    return paginatedResults
   }, [allSubscriptions, subscriptionSearchTerm, subPage])
 
   const totalSubPages = useMemo(() => {
-    const filtered = allSubscriptions.filter(
-      (sub) =>
-        sub.plan_name.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) ||
-        sub.status.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) ||
-        sub.organizations?.organization_name.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()),
-    )
+    const filtered = allSubscriptions.filter((sub) => {
+      const planMatch = sub.plan_name?.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) || false
+      const statusMatch = sub.status?.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) || false
+      const orgMatch =
+        sub.organizations?.organization_name?.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()) || false
+      const emailMatch =
+        sub.profiles?.some((profile: any) =>
+          profile.email?.toLowerCase().includes(subscriptionSearchTerm.toLowerCase()),
+        ) || false
+      return planMatch || statusMatch || orgMatch || emailMatch
+    })
     return Math.ceil(filtered.length / ITEMS_PER_PAGE)
   }, [allSubscriptions, subscriptionSearchTerm])
 
@@ -1915,6 +1993,31 @@ export default function MasterDashboardPage() {
     }
   }
 
+  const refreshUsageMetrics = async () => {
+    setIsRefreshingUsageMetrics(true)
+    setLastRefreshed(null)
+    try {
+      console.log("[v0] Fetching usage metrics...")
+      const response = await fetch("/api/master/usage-metrics")
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to fetch usage metrics")
+      }
+
+      console.log("[v0] Usage metrics:", data)
+      setUsageMetrics(data)
+      const now = new Date()
+      setLastRefreshed(`${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}`)
+    } catch (err: any) {
+      console.error("[v0] Error fetching usage metrics:", err.message)
+      showNotification("error", `Failed to fetch usage metrics: ${err.message}`)
+      setUsageMetrics(null)
+    } finally {
+      setIsRefreshingUsageMetrics(false)
+    }
+  }
+  // </CHANGE>
   // Added refreshServerStats function
   const refreshServerStats = async () => {
     setIsRefreshingServerStats(true)
@@ -2147,6 +2250,220 @@ export default function MasterDashboardPage() {
   // </CHANGE>
   // </CHANGE>
 
+  // Replace the old data fetching useEffect with the new one that checks isMasterAdmin
+  useEffect(() => {
+    async function fetchDashboardData() {
+      try {
+        setIsLoading(true)
+        setError(null)
+        console.log("[v0] Fetching master dashboard data...")
+
+        const response = await fetch("/api/master/dashboard-data")
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch dashboard data")
+        }
+
+        const data = await response.json()
+        console.log("[v0] Dashboard data received:", {
+          organizations: data.organizations?.length,
+          profiles: data.profiles?.length,
+          subscriptions: data.subscriptions?.length,
+          payments: data.payments?.length,
+        })
+
+        if (data.organizations) {
+          setOrganizations(data.organizations)
+          setTotalOrgs(data.organizations.length)
+        }
+
+        if (data.profiles) {
+          setAllUsers(data.profiles) // Set all users
+          setTotalUsers(data.profiles.length)
+        }
+
+        if (data.templates) {
+          setTotalTemplates(data.templates.length)
+        }
+
+        if (data.feedback) {
+          setFeedback(data.feedback)
+          setUnreadFeedbackCount(data.feedback.filter((f: Feedback) => f.status === "new").length)
+        }
+
+        // Process subscriptions data
+        const organizationsData = data.organizations
+        const subscriptionsData = data.subscriptions
+
+        console.log("[v0] Processing subscriptions:", {
+          total: subscriptionsData?.length || 0,
+          withOrgs: subscriptionsData?.filter((s: any) => s.organizations).length || 0,
+          withoutOrgs: subscriptionsData?.filter((s: any) => !s.organizations).length || 0,
+        })
+
+        if (subscriptionsData) {
+          // The API now properly joins organizations using LEFT JOIN
+          // Just use the data as-is without client-side enrichment
+          setAllSubscriptions(subscriptionsData)
+          console.log("[v0] Set subscriptions:", subscriptionsData.length)
+        } else {
+          setAllSubscriptions([])
+        }
+        // </CHANGE>
+        if (data.payments) {
+          console.log("[v0] Setting payments:", data.payments.length)
+          setAllPayments(data.payments)
+        }
+
+        // This section handles loading other necessary data that is not part of the bulk API response
+        // and relies on direct Supabase calls.
+        const adminClient = createClient()
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const oneWeekAgo = new Date(today)
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+
+        const [
+          { data: superusersData, error: superusersError },
+          { data: holidaysData, error: holidaysError },
+          { data: staffUnavailabilityData, error: staffUnavailabilityError },
+          { data: auditLogsData, error: auditLogsError },
+          { data: backupsData, error: backupsError },
+        ] = await Promise.all([
+          adminClient.from("superusers").select("*"),
+          adminClient.from("holidays").select("id, date"),
+          adminClient.from("staff_unavailability").select("id, start_date, end_date"),
+          adminClient.from("report_audit_logs").select("id, created_at"),
+          adminClient.from("report_backups").select("id, created_at"),
+        ])
+
+        if (superusersError) console.error("[v0] Superusers fetch error:", superusersError)
+        else if (superusersData) setSuperusers(superusersData)
+
+        setDatabaseStats((prevStats) => ({
+          ...prevStats,
+          notifications: {
+            total: 0, // This would need to be fetched separately if needed
+            unread: 0, // This would need to be fetched separately if needed
+          },
+          holidays: {
+            total: holidaysData?.length || 0,
+            upcoming:
+              holidaysData?.filter((h) => {
+                const holidayDate = new Date(h.date)
+                return holidayDate >= today
+              }).length || 0,
+          },
+          staffUnavailability: {
+            total: staffUnavailabilityData?.length || 0,
+            current:
+              staffUnavailabilityData?.filter((s) => {
+                const startDate = new Date(s.start_date)
+                const endDate = new Date(s.end_date)
+                return startDate <= today && endDate >= today
+              }).length || 0,
+          },
+          auditLogs: {
+            total: auditLogsData?.length || 0,
+            today:
+              auditLogsData?.filter((a) => {
+                const logDate = new Date(a.created_at)
+                logDate.setHours(0, 0, 0, 0)
+                return logDate.getTime() === today.getTime()
+              }).length || 0,
+          },
+          backups: {
+            total: backupsData?.length || 0,
+            thisWeek:
+              backupsData?.filter((b) => {
+                const backupDate = new Date(b.created_at)
+                return backupDate >= oneWeekAgo
+              }).length || 0,
+          },
+        }))
+
+        // Update organization stats based on loaded data
+        const orgsWithSubs = new Set(allSubscriptions.map((sub) => sub.organization_id)).size
+        setOrganizationStats({
+          total: data.organizations?.length || 0,
+          active: data.organizations?.length || 0,
+          withSubscriptions: orgsWithSubs,
+          totalUsers: data.profiles?.length || 0,
+          totalAdmins: data.profiles?.filter((user: UserProfile) => user.role === "admin").length || 0,
+          totalStaff: data.profiles?.filter((user: UserProfile) => user.role === "staff").length || 0,
+        })
+
+        // Calculate new signups this month
+        const now = new Date()
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+        const signupsThisMonth =
+          data.profiles?.filter((user: UserProfile) => {
+            const createdAt = new Date(user.created_at)
+            return createdAt >= startOfMonth
+          }) || []
+        setNewSignupsThisMonth(signupsThisMonth.length)
+
+        // Calculate paid customers and conversion rate
+        const paidSubscriptions = allSubscriptions.filter(
+          (sub) =>
+            sub.status === "active" &&
+            (sub.plan_name.toLowerCase() === "growth" || sub.plan_name.toLowerCase() === "scale") &&
+            !sub.is_masteradmin_trial,
+        )
+        const complimentarySubscriptions = allSubscriptions.filter(
+          (sub) =>
+            sub.status === "active" &&
+            (sub.plan_name.toLowerCase() === "growth" || sub.plan_name.toLowerCase() === "scale") &&
+            sub.is_masteradmin_trial === true,
+        )
+        setPaidCustomers(paidSubscriptions.length)
+        setComplimentaryCustomers(complimentarySubscriptions.length)
+        const conversion =
+          (data.organizations?.length || 0) > 0
+            ? ((paidSubscriptions.length / (data.organizations?.length || 1)) * 100).toFixed(1)
+            : "0.0"
+        setConversionRate(Number(conversion))
+
+        // Fetch database size and related stats via API route
+        try {
+          const statsResponse = await fetch("/api/admin/database-stats")
+          const statsData = await statsResponse.json()
+          if (!statsResponse.ok) throw new Error(statsData.error || "Failed to fetch database stats")
+          setDatabaseSize(statsData.databaseSize || "0 MB")
+          setDatabaseStats((prevStats) => ({
+            ...prevStats,
+            totalSize: statsData.totalSizeBytes || 0,
+            storageSize: statsData.storageSizeBytes || 0,
+            photoCount: statsData.photoCount || 0,
+            totalBandwidth: statsData.totalBandwidthBytes || 0,
+            sentEmails: statsData.sentEmailsCount || 0,
+          }))
+        } catch (err: any) {
+          console.error("[v0] Error fetching database stats via API:", err.message)
+          setDatabaseSize("N/A")
+          setDatabaseStats((prevStats) => ({
+            ...prevStats,
+            totalSize: 0,
+            storageSize: 0,
+            photoCount: 0,
+            totalBandwidth: 0,
+            sentEmails: 0,
+          }))
+        }
+      } catch (err: any) {
+        console.error("[v0] Error fetching dashboard data:", err)
+        setError(err.message)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (isMasterAdmin) {
+      console.log("[v0] Master admin authenticated, fetching data...")
+      fetchDashboardData()
+    }
+  }, [isMasterAdmin]) // Dependency array includes isMasterAdmin to re-fetch when role changes
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -2337,136 +2654,202 @@ export default function MasterDashboardPage() {
                       {lastRefreshed && ` • Last updated: ${lastRefreshed}`}
                     </CardDescription>
                   </div>
-                  <Button onClick={refreshServerStats} disabled={isRefreshingServerStats} variant="outline" size="sm">
-                    <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshingServerStats ? "animate-spin" : ""}`} />
+                  <Button onClick={refreshUsageMetrics} disabled={isRefreshingUsageMetrics} variant="outline" size="sm">
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshingUsageMetrics ? "animate-spin" : ""}`} />
                     Refresh
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {/* Supabase Usage */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Supabase Database</span>
-                      <span className="text-xs text-gray-500">500MB limit</span>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-600">
-                          Storage: {(databaseStats.totalSize / 1024 / 1024 || 0).toFixed(2)} MB
-                        </span>
-                        <span
-                          className={`font-medium ${(databaseStats.totalSize / 1024 / 1024) > 400 ? "text-red-600" : databaseStats.totalSize / 1024 / 1024 > 250 ? "text-orange-600" : "text-green-600"}`}
-                        >
-                          {((databaseStats.totalSize / 1024 / 1024 / 500) * 100).toFixed(1)}%
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full ${(databaseStats.totalSize / 1024 / 1024) > 400 ? "bg-red-500" : databaseStats.totalSize / 1024 / 1024 > 250 ? "bg-orange-500" : "bg-green-500"}`}
-                          style={{ width: `${Math.min((databaseStats.totalSize / 1024 / 1024 / 500) * 100, 100)}%` }}
-                        />
-                      </div>
-                    </div>
+                {!usageMetrics ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <RefreshCw className="h-8 w-8 mx-auto mb-2 animate-spin" />
+                    <p className="text-sm">Loading usage metrics...</p>
                   </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {/* Supabase Database Usage */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Supabase Database</span>
+                          <span className="text-xs text-gray-500">
+                            {usageMetrics.supabase.database.limitMB}MB limit
+                          </span>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-gray-600">
+                              Storage: {usageMetrics.supabase.database.usedMB.toFixed(2)} MB
+                            </span>
+                            <span
+                              className={`font-medium ${
+                                usageMetrics.supabase.database.status === "critical"
+                                  ? "text-red-600"
+                                  : usageMetrics.supabase.database.status === "warning"
+                                    ? "text-orange-600"
+                                    : "text-green-600"
+                              }`}
+                            >
+                              {usageMetrics.supabase.database.percentUsed.toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full ${
+                                usageMetrics.supabase.database.status === "critical"
+                                  ? "bg-red-500"
+                                  : usageMetrics.supabase.database.status === "warning"
+                                    ? "bg-orange-500"
+                                    : "bg-green-500"
+                              }`}
+                              style={{ width: `${Math.min(usageMetrics.supabase.database.percentUsed, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
 
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Supabase Storage</span>
-                      <span className="text-xs text-gray-500">1GB limit</span>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-600">
-                          {(databaseStats.storageSize / 1024 / 1024 || 0).toFixed(2)} MB ({databaseStats.photoCount}{" "}
-                          photos)
-                        </span>
-                        <span
-                          className={`font-medium ${(databaseStats.storageSize / 1024 / 1024) > 800 ? "text-red-600" : databaseStats.storageSize / 1024 / 1024 > 500 ? "text-orange-600" : "text-green-600"}`}
-                        >
-                          {((databaseStats.storageSize / 1024 / 1024 / 1024) * 100).toFixed(1)}%
-                        </span>
+                      {/* Supabase Storage Usage */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Supabase Storage</span>
+                          <span className="text-xs text-gray-500">
+                            {(usageMetrics.supabase.storage.limitMB / 1024).toFixed(0)}GB limit
+                          </span>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-gray-600">
+                              {usageMetrics.supabase.storage.usedMB.toFixed(2)} MB (
+                              {usageMetrics.supabase.storage.photoCount} photos)
+                            </span>
+                            <span
+                              className={`font-medium ${
+                                usageMetrics.supabase.storage.status === "critical"
+                                  ? "text-red-600"
+                                  : usageMetrics.supabase.storage.status === "warning"
+                                    ? "text-orange-600"
+                                    : "text-green-600"
+                              }`}
+                            >
+                              {usageMetrics.supabase.storage.percentUsed.toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full ${
+                                usageMetrics.supabase.storage.status === "critical"
+                                  ? "bg-red-500"
+                                  : usageMetrics.supabase.storage.status === "warning"
+                                    ? "bg-orange-500"
+                                    : "bg-green-500"
+                              }`}
+                              style={{ width: `${Math.min(usageMetrics.supabase.storage.percentUsed, 100)}%` }}
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full ${(databaseStats.storageSize / 1024 / 1024) > 800 ? "bg-red-500" : databaseStats.storageSize / 1024 / 1024 > 500 ? "bg-orange-500" : "bg-green-500"}`}
-                          style={{ width: `${Math.min((databaseStats.storageSize / 1024 / 1024 / 1024) * 100, 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Resend Email Usage */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Resend Emails</span>
-                      <span className="text-xs text-gray-500">3,000/month limit</span>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-600">Sent this month: ~{Math.round(allUsers.length * 2.5)}</span>
-                        <span
-                          className={`font-medium ${(allUsers.length * 2.5) > 2500 ? "text-red-600" : allUsers.length * 2.5 > 1500 ? "text-orange-600" : "text-green-600"}`}
-                        >
-                          {(((allUsers.length * 2.5) / 3000) * 100).toFixed(1)}%
-                        </span>
+                      {/* Resend Email Usage */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Resend Emails</span>
+                          <span className="text-xs text-gray-500">{usageMetrics.resend.emails.limit}/month limit</span>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-gray-600">
+                              Sent this month: ~{usageMetrics.resend.emails.sentThisMonth}
+                            </span>
+                            <span
+                              className={`font-medium ${
+                                usageMetrics.resend.emails.status === "critical"
+                                  ? "text-red-600"
+                                  : usageMetrics.resend.emails.status === "warning"
+                                    ? "text-orange-600"
+                                    : "text-green-600"
+                              }`}
+                            >
+                              {usageMetrics.resend.emails.percentUsed.toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full ${
+                                usageMetrics.resend.emails.status === "critical"
+                                  ? "bg-red-500"
+                                  : usageMetrics.resend.emails.status === "warning"
+                                    ? "bg-orange-500"
+                                    : "bg-green-500"
+                              }`}
+                              style={{ width: `${Math.min(usageMetrics.resend.emails.percentUsed, 100)}%` }}
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full ${(allUsers.length * 2.5) > 2500 ? "bg-red-500" : allUsers.length * 2.5 > 1500 ? "bg-orange-500" : "bg-green-500"}`}
-                          style={{ width: `${Math.min(((allUsers.length * 2.5) / 3000) * 100, 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Vercel Bandwidth */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Vercel Bandwidth</span>
-                      <span className="text-xs text-gray-500">100GB/month limit</span>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-600">
-                          Estimated: {((totalSubmittedReports * 0.3) / 1024).toFixed(2)} GB
-                        </span>
-                        <span
-                          className={`font-medium ${(totalSubmittedReports * 0.3) / 1024 > 80 ? "text-red-600" : (totalSubmittedReports * 0.3) / 1024 > 50 ? "text-orange-600" : "text-green-600"}`}
-                        >
-                          {(((totalSubmittedReports * 0.3) / 1024 / 100) * 100).toFixed(1)}%
-                        </span>
+                      {/* Vercel Bandwidth */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Vercel Bandwidth</span>
+                          <span className="text-xs text-gray-500">
+                            {usageMetrics.vercel.bandwidth.limitGB}GB/month limit
+                          </span>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-gray-600">
+                              Estimated: {usageMetrics.vercel.bandwidth.usedGB.toFixed(2)} GB
+                            </span>
+                            <span
+                              className={`font-medium ${
+                                usageMetrics.vercel.bandwidth.status === "critical"
+                                  ? "text-red-600"
+                                  : usageMetrics.vercel.bandwidth.status === "warning"
+                                    ? "text-orange-600"
+                                    : "text-green-600"
+                              }`}
+                            >
+                              {usageMetrics.vercel.bandwidth.percentUsed.toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full ${
+                                usageMetrics.vercel.bandwidth.status === "critical"
+                                  ? "bg-red-500"
+                                  : usageMetrics.vercel.bandwidth.status === "warning"
+                                    ? "bg-orange-500"
+                                    : "bg-green-500"
+                              }`}
+                              style={{ width: `${Math.min(usageMetrics.vercel.bandwidth.percentUsed, 100)}%` }}
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full ${(totalSubmittedReports * 0.3) / 1024 > 80 ? "bg-red-500" : (totalSubmittedReports * 0.3) / 1024 > 50 ? "bg-orange-500" : "bg-green-500"}`}
-                          style={{
-                            width: `${Math.min(((totalSubmittedReports * 0.3) / 1024 / 100) * 100, 100)}%`,
-                          }}
-                        />
-                      </div>
                     </div>
-                  </div>
-                </div>
 
-                {/* Status Summary */}
-                <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm font-medium mb-2">Status Summary:</p>
-                  <p className="text-sm text-gray-600">
-                    {databaseStats.totalSize / 1024 / 1024 > 400 ||
-                    databaseStats.storageSize / 1024 / 1024 > 800 ||
-                    allUsers.length * 2.5 > 2500 ||
-                    (totalSubmittedReports * 0.3) / 1024 > 80
-                      ? "⚠️ Warning: Approaching free tier limits. Consider upgrading soon."
-                      : databaseStats.totalSize / 1024 / 1024 > 250 ||
-                          databaseStats.storageSize / 1024 / 1024 > 500 ||
-                          allUsers.length * 2.5 > 1500 ||
-                          (totalSubmittedReports * 0.3) / 1024 > 50
-                        ? "🟡 Moderate usage. Monitor regularly."
-                        : "✅ All systems within safe limits. Database activity prevents auto-pause."}
-                  </p>
-                </div>
+                    {/* Status Summary */}
+                    <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm font-medium mb-2">Status Summary:</p>
+                      <p className="text-sm text-gray-600">
+                        {usageMetrics.supabase.database.status === "critical" ||
+                        usageMetrics.supabase.storage.status === "critical" ||
+                        usageMetrics.resend.emails.status === "critical" ||
+                        usageMetrics.vercel.bandwidth.status === "critical"
+                          ? "⚠️ Critical: One or more services are at or exceeding limits. Immediate action required!"
+                          : usageMetrics.supabase.database.status === "warning" ||
+                              usageMetrics.supabase.storage.status === "warning" ||
+                              usageMetrics.resend.emails.status === "warning" ||
+                              usageMetrics.vercel.bandwidth.status === "warning"
+                            ? "🟡 Warning: Approaching free tier limits. Monitor closely and consider upgrading."
+                            : "✅ All systems healthy. Usage within safe limits."}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-2">{usageMetrics.note}</p>
+                    </div>
+                  </>
+                )}
+                {/* </CHANGE> */}
               </CardContent>
             </Card>
 
@@ -2817,7 +3200,7 @@ export default function MasterDashboardPage() {
                 <CardDescription>Manage all organizations</CardDescription>
                 <div className="mt-4">
                   <Input
-                    placeholder="Search by organization name or ID..."
+                    placeholder="Search by organization name, ID, or email..."
                     value={organizationSearchTerm}
                     onChange={(e) => setOrganizationSearchTerm(e.target.value)}
                     className="max-w-md"
@@ -2969,72 +3352,6 @@ export default function MasterDashboardPage() {
                           </div>
                         </div>
 
-                        {(() => {
-                          const subscription = allSubscriptions.find(
-                            (sub) => sub.organization_id === org.organization_id,
-                          )
-                          if (subscription) {
-                            const isTrial = subscription.is_trial || false
-                            const trialEndsAt = subscription.trial_ends_at ? new Date(subscription.trial_ends_at) : null
-                            let daysRemaining = 0
-                            if (isTrial && trialEndsAt) {
-                              const now = new Date()
-                              const diffTime = trialEndsAt.getTime() - now.getTime()
-                              daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-                            }
-
-                            return (
-                              <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <CreditCard className="w-4 h-4 text-gray-600" />
-                                  <h4 className="font-semibold text-gray-900">Subscription Details</h4>
-                                </div>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                                  <div>
-                                    <p className="text-gray-500">Plan</p>
-                                    <p className="font-medium text-gray-900">
-                                      {subscription.plan_name === "starter" && "Starter"}
-                                      {subscription.plan_name === "growth" && "Growth"}
-                                      {subscription.plan_name === "scale" && "Scale"}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-gray-500">Status</p>
-                                    <p className="font-medium text-gray-900">
-                                      {subscription.status === "active" ? "Active" : "Inactive"}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-gray-500">Billing Period</p>
-                                    <p className="font-medium text-gray-900">
-                                      {new Date(subscription.current_period_start).toLocaleDateString()} -{" "}
-                                      {new Date(subscription.current_period_end).toLocaleDateString()}
-                                    </p>
-                                  </div>
-                                  {isTrial && (
-                                    <div>
-                                      <p className="text-gray-500">Trial Status</p>
-                                      <p className="font-medium text-yellow-700">
-                                        {daysRemaining > 0 ? `${daysRemaining} days remaining` : "Expired"}
-                                      </p>
-                                    </div>
-                                  )}
-                                  {/* </CHANGE> */}
-                                  <div>
-                                    <p className="text-gray-500">Retention Period</p>
-                                    <p className="font-medium text-gray-900">
-                                      {subscription.plan_name === "starter" && "30 days"}
-                                      {subscription.plan_name === "growth" && "90 days"}
-                                      {subscription.plan_name === "scale" && "90 days"}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          }
-                          return null
-                        })()}
-                        {/* </CHANGE> */}
                         <div className="mt-6 pt-4 border-t border-gray-100">
                           <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
                             <span>Total Members: {org.profiles?.length || 0}</span>
@@ -3657,7 +3974,7 @@ export default function MasterDashboardPage() {
                 <CardDescription>Monitor and manage all subscriptions</CardDescription>
                 <div className="mt-4">
                   <Input
-                    placeholder="Search by plan, status, or organization..."
+                    placeholder="Search by plan, status, organization, or email..."
                     value={subscriptionSearchTerm}
                     onChange={(e) => setSubscriptionSearchTerm(e.target.value)}
                     className="max-w-md"

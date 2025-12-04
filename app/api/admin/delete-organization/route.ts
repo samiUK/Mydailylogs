@@ -19,7 +19,6 @@ export async function DELETE(request: NextRequest) {
 
     console.log("[v0] Checking authentication...")
 
-    // Check if user is authenticated and is a superuser
     const {
       data: { user },
       error: authError,
@@ -33,29 +32,32 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    console.log("[v0] User authenticated, checking superuser status...")
+    console.log("[v0] User authenticated, checking superuser or masteradmin status...")
 
-    // Check if user is a superuser
-    const { data: superuser, error: superuserError } = await supabase
-      .from("superusers")
-      .select("*")
-      .eq("email", user.email)
-      .eq("is_active", true)
-      .single()
+    // Check if user is a superuser or masteradmin
+    const [superuserResult, masteradminResult] = await Promise.all([
+      supabase.from("superusers").select("*").eq("email", user.email).eq("is_active", true).single(),
+      supabase.from("profiles").select("role").eq("user_id", user.id).eq("role", "masteradmin").single(),
+    ])
 
-    console.log("[v0] Superuser check - Data:", superuser ? "Found" : "Not found")
-    console.log("[v0] Superuser check - Error:", superuserError?.message || "No error")
+    const isSuperuser = !superuserResult.error && superuserResult.data
+    const isMasteradmin = !masteradminResult.error && masteradminResult.data
 
-    if (!superuser) {
-      console.log("[v0] User is not a superuser - returning 403")
-      return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
+    console.log("[v0] Permission check - Superuser:", isSuperuser ? "Yes" : "No")
+    console.log("[v0] Permission check - Masteradmin:", isMasteradmin ? "Yes" : "No")
+
+    if (!isSuperuser && !isMasteradmin) {
+      console.log("[v0] User is neither superuser nor masteradmin - returning 403")
+      return NextResponse.json(
+        { error: "Insufficient permissions. Only superusers and masteradmins can delete organizations." },
+        { status: 403 },
+      )
     }
 
-    console.log("[v0] Superuser authenticated, proceeding with delete...")
+    console.log("[v0] Permission granted, proceeding with delete...")
 
     console.log(`[v0] Starting cascading delete for organization: ${organization_id}`)
 
-    // Delete in order of dependencies (child records first, then parent records)
     const deleteOperations = [
       // Delete checklist responses first (depends on checklist items and daily checklists)
       { table: "checklist_responses", message: "checklist responses" },

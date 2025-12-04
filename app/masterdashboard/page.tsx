@@ -2668,6 +2668,52 @@ export default function MasterDashboardPage() {
                   </div>
                 ) : (
                   <>
+                    <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                      <h3 className="text-sm font-semibold mb-3 text-gray-700">Database Records Breakdown</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
+                        <div>
+                          <span className="text-gray-600">Profiles:</span>
+                          <span className="ml-2 font-medium">{usageMetrics.counts.profiles}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Organizations:</span>
+                          <span className="ml-2 font-medium">{usageMetrics.counts.organizations}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Templates:</span>
+                          <span className="ml-2 font-medium">{usageMetrics.counts.templates}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Daily Checklists:</span>
+                          <span className="ml-2 font-medium">{usageMetrics.counts.dailyChecklists}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Responses:</span>
+                          <span className="ml-2 font-medium">{usageMetrics.counts.responses}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Reports:</span>
+                          <span className="ml-2 font-medium">{usageMetrics.counts.reports}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Reports (This Month):</span>
+                          <span className="ml-2 font-medium">{usageMetrics.counts.reportsThisMonth}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Notifications:</span>
+                          <span className="ml-2 font-medium">{usageMetrics.counts.notifications}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Subscriptions:</span>
+                          <span className="ml-2 font-medium">{usageMetrics.counts.subscriptions}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Payments:</span>
+                          <span className="ml-2 font-medium">{usageMetrics.counts.payments}</span>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                       {/* Supabase Database Usage */}
                       <div className="space-y-2">

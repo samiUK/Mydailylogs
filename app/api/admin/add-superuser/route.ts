@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
+import bcrypt from "bcryptjs"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -10,7 +11,7 @@ export async function POST(request: NextRequest) {
 
     const cookieStore = await cookies()
     const masterAdminEmail = cookieStore.get("masterAdminEmail")?.value
-    
+
     if (!masterAdminEmail) {
       return NextResponse.json({ error: "Unauthorized: Master admin access required" }, { status: 403 })
     }
@@ -35,6 +36,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
     }
 
+    const passwordHash = await bcrypt.hash(password, 10)
+
     const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
@@ -55,6 +58,8 @@ export async function POST(request: NextRequest) {
       .insert({
         id: authUser.user.id,
         email: email,
+        password_hash: passwordHash,
+        role: "support", // Default role for new superusers
         created_at: new Date().toISOString(),
         is_active: true,
       })

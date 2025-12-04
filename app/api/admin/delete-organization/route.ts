@@ -1,5 +1,6 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
+import { cookies } from "next/headers"
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -14,47 +15,61 @@ export async function DELETE(request: NextRequest) {
 
     console.log("[v0] Deleting organization:", organization_id)
 
-    const supabase = await createClient()
+    const cookieStore = await cookies()
+    const masterAdminAuth = cookieStore.get("master-admin-session")?.value
+    const masterAdminEmail = cookieStore.get("masterAdminEmail")?.value
+
+    console.log("[v0] Masteradmin cookie check - Auth:", masterAdminAuth === "authenticated" ? "Yes" : "No")
+    console.log("[v0] Masteradmin cookie check - Email:", masterAdminEmail || "None")
+
+    // If authenticated as masteradmin via cookie, allow deletion
+    if (masterAdminAuth === "authenticated" && masterAdminEmail === "arsami.uk@gmail.com") {
+      console.log("[v0] Masteradmin authenticated via cookie - proceeding with delete")
+    } else {
+      // Otherwise check if regular auth user is superuser or masteradmin
+      const supabase = await createClient()
+
+      console.log("[v0] Checking authentication...")
+
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser()
+
+      console.log("[v0] Auth check - User:", user?.email || "No user")
+      console.log("[v0] Auth check - Error:", authError?.message || "No error")
+
+      if (authError || !user) {
+        console.log("[v0] Authentication failed - returning 401")
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+
+      console.log("[v0] User authenticated, checking superuser or masteradmin status...")
+
+      // Check if user is a superuser or masteradmin
+      const [superuserResult, masteradminResult] = await Promise.all([
+        supabase.from("superusers").select("*").eq("email", user.email).eq("is_active", true).single(),
+        supabase.from("profiles").select("role").eq("user_id", user.id).eq("role", "masteradmin").single(),
+      ])
+
+      const isSuperuser = !superuserResult.error && superuserResult.data
+      const isMasteradmin = !masteradminResult.error && masteradminResult.data
+
+      console.log("[v0] Permission check - Superuser:", isSuperuser ? "Yes" : "No")
+      console.log("[v0] Permission check - Masteradmin:", isMasteradmin ? "Yes" : "No")
+
+      if (!isSuperuser && !isMasteradmin) {
+        console.log("[v0] User is neither superuser nor masteradmin - returning 403")
+        return NextResponse.json(
+          { error: "Insufficient permissions. Only superusers and masteradmins can delete organizations." },
+          { status: 403 },
+        )
+      }
+
+      console.log("[v0] Permission granted, proceeding with delete...")
+    }
+
     const adminSupabase = createAdminClient()
-
-    console.log("[v0] Checking authentication...")
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    console.log("[v0] Auth check - User:", user?.email || "No user")
-    console.log("[v0] Auth check - Error:", authError?.message || "No error")
-
-    if (authError || !user) {
-      console.log("[v0] Authentication failed - returning 401")
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    console.log("[v0] User authenticated, checking superuser or masteradmin status...")
-
-    // Check if user is a superuser or masteradmin
-    const [superuserResult, masteradminResult] = await Promise.all([
-      supabase.from("superusers").select("*").eq("email", user.email).eq("is_active", true).single(),
-      supabase.from("profiles").select("role").eq("user_id", user.id).eq("role", "masteradmin").single(),
-    ])
-
-    const isSuperuser = !superuserResult.error && superuserResult.data
-    const isMasteradmin = !masteradminResult.error && masteradminResult.data
-
-    console.log("[v0] Permission check - Superuser:", isSuperuser ? "Yes" : "No")
-    console.log("[v0] Permission check - Masteradmin:", isMasteradmin ? "Yes" : "No")
-
-    if (!isSuperuser && !isMasteradmin) {
-      console.log("[v0] User is neither superuser nor masteradmin - returning 403")
-      return NextResponse.json(
-        { error: "Insufficient permissions. Only superusers and masteradmins can delete organizations." },
-        { status: 403 },
-      )
-    }
-
-    console.log("[v0] Permission granted, proceeding with delete...")
 
     console.log(`[v0] Starting cascading delete for organization: ${organization_id}`)
 

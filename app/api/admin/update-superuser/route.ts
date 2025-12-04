@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import bcrypt from "bcryptjs"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -13,6 +14,8 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Superuser ID and new password are required" }, { status: 400 })
     }
 
+    const passwordHash = await bcrypt.hash(newPassword, 10)
+
     const { error: authError } = await supabase.auth.admin.updateUserById(superuserId, {
       password: newPassword,
     })
@@ -25,6 +28,7 @@ export async function PUT(request: NextRequest) {
     const { error: dbError } = await supabase
       .from("superusers")
       .update({
+        password_hash: passwordHash,
         updated_at: new Date().toISOString(),
       })
       .eq("id", superuserId)

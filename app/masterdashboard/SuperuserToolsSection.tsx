@@ -10,6 +10,7 @@ interface Superuser {
   id: string
   email: string
   created_at: string
+  full_name?: string
 }
 
 interface AuditLog {
@@ -114,13 +115,16 @@ export function SuperuserToolsSection({
           <div>
             <h3 className="text-sm font-semibold mb-3">Existing Superusers ({superusers.length})</h3>
             {superusers.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4 border rounded-lg bg-white">No superusers found</p>
+              <p className="text-sm text-gray-500 text-center py-4 border rounded-lg bg-white">
+                No superusers found. Create one above.
+              </p>
             ) : (
               <div className="space-y-2">
                 {superusers.map((superuser) => (
                   <div key={superuser.id} className="flex items-center justify-between p-3 border rounded-lg bg-white">
                     <div>
                       <p className="font-medium">{superuser.email}</p>
+                      {superuser.full_name && <p className="text-xs text-gray-600">{superuser.full_name}</p>}
                       <p className="text-xs text-gray-500">
                         Created: {new Date(superuser.created_at).toLocaleDateString()}
                       </p>

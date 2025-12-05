@@ -104,13 +104,49 @@ export async function GET(request: NextRequest) {
 
     if (feedbackError) throw feedbackError
 
-    const { data: superusers, error: superuserError } = await supabase
-      .from("profiles")
-      .select("id, email, created_at")
-      .eq("role", "superuser")
-      .order("created_at", { ascending: false })
+    const [{ data: superusersTable }, { data: superuserProfiles }] = await Promise.all([
+      supabase
+        .from("superusers")
+        .select("id, email, created_at")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("profiles")
+        .select("id, email, full_name, created_at")
+        .eq("role", "superuser")
+        .order("created_at", { ascending: false }),
+    ])
 
-    if (superuserError) throw superuserError
+    // Combine both sources, with profiles taking precedence for full_name
+    const superusersMap = new Map()
+
+    // Add from superusers table
+    superusersTable?.forEach((su) => {
+      superusersMap.set(su.email, {
+        id: su.id,
+        email: su.email,
+        created_at: su.created_at,
+        full_name: null,
+      })
+    })
+
+    // Add/update from profiles (includes full_name)
+    superuserProfiles?.forEach((profile) => {
+      superusersMap.set(profile.email, {
+        id: profile.id,
+        email: profile.email,
+        full_name: profile.full_name,
+        created_at: profile.created_at,
+      })
+    })
+
+    const superusers = Array.from(superusersMap.values())
+
+    console.log(
+      "[v0] Superusers found:",
+      superusers.length,
+      superusers.map((s) => s.email),
+    )
 
     const subToEmailMap = new Map<string, string>()
     subscriptions?.forEach((sub: any) => {
@@ -179,9 +215,9 @@ export async function GET(request: NextRequest) {
       subscriptions: flatSubscriptions,
       payments: flatPayments,
       feedback: feedback || [],
-      superusers: superusers || [],
-      stats, // Add calculated stats
-      checklistsData: {}, // Add placeholder for checklist data
+      superusers: superusers || [], // Return superusers with full_name included
+      stats,
+      checklistsData: {},
       counts: {
         organizations: flatOrganizations.length,
         profiles: profiles?.length || 0,
@@ -203,8 +239,8 @@ export async function GET(request: NextRequest) {
         payments: [],
         feedback: [],
         superusers: [],
-        stats: {}, // Include empty stats in error response
-        checklistsData: {}, // Include empty checklistsData in error response
+        stats: {},
+        checklistsData: {},
       },
       { status: 500 },
     )

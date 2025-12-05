@@ -123,8 +123,9 @@ export interface ConfirmDialogState {
 export interface Superuser {
   id: string
   email: string
+  full_name?: string // Added full_name field from profiles table
   role: string
-  is_active: boolean
+  is_active?: boolean // Made optional since profiles table doesn't have this
   created_at: string
   last_login?: string
 }

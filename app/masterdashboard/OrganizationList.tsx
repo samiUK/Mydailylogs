@@ -17,6 +17,7 @@ import {
   Plus,
   Minus,
   RotateCw,
+  Mail,
 } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
@@ -28,6 +29,7 @@ interface OrganizationListProps {
   onArchive: (org: Organization) => void
   onDelete: (org: Organization) => void
   onRefresh: () => void
+  onEmailReports?: (orgId: string) => void // Added for email reports
 }
 
 interface QuotaData {
@@ -57,23 +59,13 @@ export function OrganizationList({
   onArchive,
   onDelete,
   onRefresh,
+  onEmailReports, // Added for email reports
 }: OrganizationListProps) {
   const [expandedOrgs, setExpandedOrgs] = useState<Set<string>>(new Set())
+  const [quotaPanelOpen, setQuotaPanelOpen] = useState<Set<string>>(new Set())
+  const [quotaModifications, setQuotaModifications] = useState<Record<string, any>>({})
   const [quotaData, setQuotaData] = useState<Record<string, QuotaData>>({})
   const [loadingQuota, setLoadingQuota] = useState<Set<string>>(new Set())
-  const [quotaPanelOpen, setQuotaPanelOpen] = useState<Record<string, boolean>>({})
-  const [quotaModifications, setQuotaModifications] = useState<
-    Record<
-      string,
-      {
-        templates: number
-        teamMembers: number
-        managers: number
-        monthlySubmissions: number
-      }
-    >
-  >({})
-  const [masterPassword, setMasterPassword] = useState("")
   const [savingQuota, setSavingQuota] = useState<Set<string>>(new Set())
   const { toast } = useToast()
 
@@ -140,90 +132,72 @@ export function OrganizationList({
   }
 
   const toggleQuotaPanel = (orgId: string) => {
-    setQuotaPanelOpen((prev) => ({ ...prev, [orgId]: !prev[orgId] }))
+    const newPanels = new Set(quotaPanelOpen)
+    if (newPanels.has(orgId)) {
+      newPanels.delete(orgId)
+    } else {
+      newPanels.add(orgId)
+    }
+    setQuotaPanelOpen(newPanels)
+    // Initialize with current values if not already present
     if (!quotaModifications[orgId] && quotaData[orgId]) {
-      // Initialize with current values
       setQuotaModifications((prev) => ({
         ...prev,
         [orgId]: {
           templates: quotaData[orgId].templatesLimit,
           teamMembers: quotaData[orgId].teamMembersLimit,
           managers: quotaData[orgId].managersLimit,
-          monthlySubmissions: quotaData[orgId].monthlySubmissionsLimit || 50,
+          monthlySubmissions: quotaData[orgId].monthlySubmissionsLimit ?? 50, // Use nullish coalescing
         },
       }))
     }
   }
 
-  const modifyQuotaValue = (
-    orgId: string,
-    field: "templates" | "teamMembers" | "managers" | "monthlySubmissions",
-    delta: number,
-  ) => {
+  const modifyQuotaValue = (orgId: string, field: string, delta: number) => {
     setQuotaModifications((prev) => {
-      const current = prev[orgId] || {
-        templates: quotaData[orgId]?.templatesLimit || 0,
-        teamMembers: quotaData[orgId]?.teamMembersLimit || 0,
-        managers: quotaData[orgId]?.managersLimit || 0,
-        monthlySubmissions: quotaData[orgId]?.monthlySubmissionsLimit || 50,
-      }
+      const current = prev[orgId] || {}
+      const fieldValue = current[field] || 0
       return {
         ...prev,
         [orgId]: {
           ...current,
-          [field]: Math.max(0, current[field] + delta),
+          [field]: Math.max(0, fieldValue + delta),
         },
       }
     })
   }
 
-  const handleResetToDefaults = (orgId: string) => {
-    const quota = quotaData[orgId]
-    if (!quota) return
-
-    // Plan defaults based on plan name
-    const defaults = {
-      starter: { templates: 3, teamMembers: 5, managers: 1, monthlySubmissions: 50 },
-      growth: { templates: 10, teamMembers: 25, managers: 3, monthlySubmissions: null },
-      scale: { templates: 20, teamMembers: 75, managers: 7, monthlySubmissions: null },
+  const getDefaultLimits = (planName: string) => {
+    const plan = planName.toLowerCase()
+    if (plan === "starter") {
+      return { templates: 3, teamMembers: 5, managers: 1, monthlySubmissions: 50 }
+    } else if (plan === "growth") {
+      return { templates: 10, teamMembers: 25, managers: 3, monthlySubmissions: null }
+    } else if (plan === "scale") {
+      return { templates: 20, teamMembers: 75, managers: 7, monthlySubmissions: null }
     }
+    return { templates: 3, teamMembers: 5, managers: 1, monthlySubmissions: 50 } // Default to starter
+  }
 
-    const planKey = (quota.plan_name || "starter").toLowerCase()
-    const planDefaults = defaults[planKey as keyof typeof defaults] || defaults.starter
-
+  const handleResetToDefaults = (orgId: string, planName: string) => {
+    const defaults = getDefaultLimits(planName)
     setQuotaModifications((prev) => ({
       ...prev,
-      [orgId]: {
-        templates: planDefaults.templates,
-        teamMembers: planDefaults.teamMembers,
-        managers: planDefaults.managers,
-        monthlySubmissions: planDefaults.monthlySubmissions || 50,
-      },
+      [orgId]: defaults,
     }))
-
     toast({
-      title: "Reset to Defaults",
-      description: `Quota values reset to ${quota.plan_name || "Starter"} plan defaults. Click Save to apply.`,
+      title: "Reset to defaults",
+      description: `Quota limits reset to ${planName} plan defaults. Click Save to apply.`,
     })
   }
 
-  const saveQuotaModifications = async (orgId: string) => {
-    if (!masterPassword) {
-      toast({
-        title: "Password Required",
-        description: "Please enter master admin password to modify quotas",
-        variant: "destructive",
-      })
-      return
-    }
-
+  const handleModifyQuota = async (orgId: string) => {
     setSavingQuota((prev) => new Set(prev).add(orgId))
 
     try {
       const modifications = quotaModifications[orgId]
       const quota = quotaData[orgId]
-
-      const updates = []
+      const updates: Promise<Response>[] = []
 
       if (modifications.templates !== quota.templatesLimit) {
         updates.push(
@@ -235,7 +209,6 @@ export function OrganizationList({
               fieldName: "template_limit",
               newValue: modifications.templates,
               reason: "Master admin quota adjustment",
-              masterAdminPassword: masterPassword,
             }),
           }),
         )
@@ -251,7 +224,6 @@ export function OrganizationList({
               fieldName: "team_limit",
               newValue: modifications.teamMembers,
               reason: "Master admin quota adjustment",
-              masterAdminPassword: masterPassword,
             }),
           }),
         )
@@ -267,13 +239,16 @@ export function OrganizationList({
               fieldName: "manager_limit",
               newValue: modifications.managers,
               reason: "Master admin quota adjustment",
-              masterAdminPassword: masterPassword,
             }),
           }),
         )
       }
 
-      if (quota.monthlySubmissionsLimit && modifications.monthlySubmissions !== quota.monthlySubmissionsLimit) {
+      // Handle monthly submissions carefully, only if it's not null for the plan
+      if (
+        quota.monthlySubmissionsLimit !== null &&
+        modifications.monthlySubmissions !== quota.monthlySubmissionsLimit
+      ) {
         updates.push(
           fetch("/api/master/modify-quota", {
             method: "POST",
@@ -283,7 +258,6 @@ export function OrganizationList({
               fieldName: "monthly_submissions",
               newValue: modifications.monthlySubmissions,
               reason: "Master admin quota adjustment",
-              masterAdminPassword: masterPassword,
             }),
           }),
         )
@@ -294,24 +268,36 @@ export function OrganizationList({
         const allSucceeded = results.every((res) => res.ok)
 
         if (allSucceeded) {
-          await fetchQuotaData(orgId)
+          await fetchQuotaData(orgId) // Re-fetch to get updated limits
           onRefresh()
           toast({
             title: "Success",
             description: "Quota modifications saved successfully",
           })
           setQuotaPanelOpen((prev) => {
-            const newSet = new Set(prev)
-            newSet.delete(orgId)
-            return newSet
+            const newPanels = new Set(prev)
+            newPanels.delete(orgId)
+            return newPanels
           })
+          // Removed password clearing after saving
         } else {
           toast({
             title: "Error",
-            description: "Some quota modifications failed. Please check password and try again.",
+            description: "Some quota modifications failed. Please try again.",
             variant: "destructive",
           })
         }
+      } else {
+        toast({
+          title: "No changes",
+          description: "No quota modifications to save",
+        })
+        // Close panel even if no changes
+        setQuotaPanelOpen((prev) => {
+          const newPanels = new Set(prev)
+          newPanels.delete(orgId)
+          return newPanels
+        })
       }
     } catch (error) {
       toast({
@@ -329,6 +315,7 @@ export function OrganizationList({
   }
 
   const getProgressColor = (used: number, limit: number) => {
+    if (limit === 0) return "bg-gray-300" // Handle division by zero
     const percentage = (used / limit) * 100
     if (percentage >= 90) return "bg-red-500"
     if (percentage >= 75) return "bg-yellow-500"
@@ -392,9 +379,9 @@ export function OrganizationList({
           const isExpanded = expandedOrgs.has(org.organization_id)
           const quota = quotaData[org.organization_id]
           const isLoading = loadingQuota.has(org.organization_id)
-          const isPanelOpen = quotaPanelOpen[org.organization_id]
-          const isSaving = savingQuota.has(org.organization_id)
+          const isPanelOpen = quotaPanelOpen.has(org.organization_id)
           const mods = quotaModifications[org.organization_id]
+          const isSaving = savingQuota.has(org.organization_id)
 
           return (
             <Card key={org.organization_id} className="border-2 hover:border-gray-300 transition-colors">
@@ -403,11 +390,6 @@ export function OrganizationList({
                   <div className="flex-1">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
                       <CardTitle className="text-base sm:text-lg">{org.organization_name}</CardTitle>
-                      {org.staff_reports_page_enabled && (
-                        <Badge variant="secondary" className="text-xs">
-                          Staff Reports
-                        </Badge>
-                      )}
                       <Badge variant="outline" className="capitalize text-xs">
                         {org.plan_name || "Starter"}
                       </Badge>
@@ -661,18 +643,35 @@ export function OrganizationList({
                         </div>
                       </div>
 
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toggleQuotaPanel(org.organization_id)}
+                        className="w-full mt-2"
+                        disabled={isSaving}
+                      >
+                        {isPanelOpen ? "Hide" : "Modify"} Quota Limits
+                      </Button>
+
                       {/* Quota Modification Panel */}
                       {isPanelOpen && (
-                        <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-semibold text-yellow-800">Modify Quotas (Master Admin)</h4>
-                            <Button variant="ghost" size="sm" onClick={() => toggleQuotaPanel(org.organization_id)}>
-                              Close
+                        <div className="mt-4 p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg space-y-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-semibold text-sm">Modify Quota Limits</h4>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleResetToDefaults(org.organization_id, org.plan_name || "Starter")}
+                              className="text-xs"
+                              disabled={isSaving}
+                            >
+                              <RotateCw className="h-3 w-3 mr-1" />
+                              Reset to Plan Defaults
                             </Button>
                           </div>
 
-                          {/* Templates Modification */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {/* Templates Modification */}
                             <div>
                               <Label className="text-xs">Templates</Label>
                               <div className="flex items-center gap-2 mt-1">
@@ -680,14 +679,14 @@ export function OrganizationList({
                                   size="sm"
                                   variant="outline"
                                   onClick={() => modifyQuotaValue(org.organization_id, "templates", -1)}
-                                  disabled={!mods || mods.templates <= 1}
+                                  disabled={!mods || mods.templates <= 1 || isSaving}
                                   className="h-8 w-8 p-0"
                                 >
                                   <Minus className="h-3 w-3" />
                                 </Button>
                                 <Input
                                   type="number"
-                                  value={mods?.templates || quota.templatesLimit}
+                                  value={mods?.templates ?? quota.templatesLimit} // Use nullish coalescing for default
                                   onChange={(e) => {
                                     const val = Number.parseInt(e.target.value) || 0
                                     setQuotaModifications((prev) => ({
@@ -704,6 +703,7 @@ export function OrganizationList({
                                   size="sm"
                                   variant="outline"
                                   onClick={() => modifyQuotaValue(org.organization_id, "templates", 1)}
+                                  disabled={isSaving}
                                   className="h-8 w-8 p-0"
                                 >
                                   <Plus className="h-3 w-3" />
@@ -719,14 +719,14 @@ export function OrganizationList({
                                   size="sm"
                                   variant="outline"
                                   onClick={() => modifyQuotaValue(org.organization_id, "teamMembers", -1)}
-                                  disabled={!mods || mods.teamMembers <= 1}
+                                  disabled={!mods || mods.teamMembers <= 1 || isSaving}
                                   className="h-8 w-8 p-0"
                                 >
                                   <Minus className="h-3 w-3" />
                                 </Button>
                                 <Input
                                   type="number"
-                                  value={mods?.teamMembers || quota.teamMembersLimit}
+                                  value={mods?.teamMembers ?? quota.teamMembersLimit} // Use nullish coalescing for default
                                   onChange={(e) => {
                                     const val = Number.parseInt(e.target.value) || 0
                                     setQuotaModifications((prev) => ({
@@ -743,6 +743,7 @@ export function OrganizationList({
                                   size="sm"
                                   variant="outline"
                                   onClick={() => modifyQuotaValue(org.organization_id, "teamMembers", 1)}
+                                  disabled={isSaving}
                                   className="h-8 w-8 p-0"
                                 >
                                   <Plus className="h-3 w-3" />
@@ -750,8 +751,8 @@ export function OrganizationList({
                               </div>
                             </div>
 
-                            {/* Managers Modification */}
-                            {mods && quota.plan_name && (quota.plan_name || "starter").toLowerCase() !== "starter" && (
+                            {/* Managers Modification (Growth/Scale only) */}
+                            {(org.plan_name || "starter").toLowerCase() !== "starter" && (
                               <div>
                                 <Label className="text-xs">Managers</Label>
                                 <div className="flex items-center gap-2 mt-1">
@@ -759,14 +760,14 @@ export function OrganizationList({
                                     size="sm"
                                     variant="outline"
                                     onClick={() => modifyQuotaValue(org.organization_id, "managers", -1)}
-                                    disabled={!mods || mods.managers <= 1}
+                                    disabled={!mods || mods.managers <= 1 || isSaving}
                                     className="h-8 w-8 p-0"
                                   >
                                     <Minus className="h-3 w-3" />
                                   </Button>
                                   <Input
                                     type="number"
-                                    value={mods?.managers || quota.managersLimit}
+                                    value={mods?.managers ?? quota.managersLimit} // Use nullish coalescing for default
                                     onChange={(e) => {
                                       const val = Number.parseInt(e.target.value) || 0
                                       setQuotaModifications((prev) => ({
@@ -783,6 +784,7 @@ export function OrganizationList({
                                     size="sm"
                                     variant="outline"
                                     onClick={() => modifyQuotaValue(org.organization_id, "managers", 1)}
+                                    disabled={isSaving}
                                     className="h-8 w-8 p-0"
                                   >
                                     <Plus className="h-3 w-3" />
@@ -791,131 +793,101 @@ export function OrganizationList({
                               </div>
                             )}
 
-                            {/* Monthly Submissions Modification */}
-                            {mods && quota.plan_name && (quota.plan_name || "starter").toLowerCase() === "starter" && (
-                              <div>
-                                <Label className="text-xs">Monthly Submissions</Label>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => modifyQuotaValue(org.organization_id, "monthlySubmissions", -5)}
-                                    disabled={!mods || mods.monthlySubmissions <= 5}
-                                    className="h-8 w-8 p-0"
-                                  >
-                                    <Minus className="h-3 w-3" />
-                                  </Button>
-                                  <Input
-                                    type="number"
-                                    value={mods?.monthlySubmissions || quota.monthlySubmissionsLimit || 50}
-                                    onChange={(e) => {
-                                      const val = Number.parseInt(e.target.value) || 0
-                                      setQuotaModifications((prev) => ({
-                                        ...prev,
-                                        [org.organization_id]: {
-                                          ...prev[org.organization_id],
-                                          monthlySubmissions: Math.max(0, val),
-                                        },
-                                      }))
-                                    }}
-                                    className="h-8 text-center text-sm"
-                                  />
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => modifyQuotaValue(org.organization_id, "monthlySubmissions", 5)}
-                                    className="h-8 w-8 p-0"
-                                  >
-                                    <Plus className="h-3 w-3" />
-                                  </Button>
+                            {/* Monthly Submissions (Starter only) */}
+                            {(org.plan_name || "starter").toLowerCase() === "starter" &&
+                              quota.monthlySubmissionsLimit !== null && (
+                                <div>
+                                  <Label className="text-xs">Monthly Reports</Label>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => modifyQuotaValue(org.organization_id, "monthlySubmissions", -10)}
+                                      disabled={!mods || mods.monthlySubmissions <= 10 || isSaving}
+                                      className="h-8 w-8 p-0"
+                                    >
+                                      <Minus className="h-3 w-3" />
+                                    </Button>
+                                    <Input
+                                      type="number"
+                                      value={mods?.monthlySubmissions ?? quota.monthlySubmissionsLimit ?? 50} // Use nullish coalescing for default
+                                      onChange={(e) => {
+                                        const val = Number.parseInt(e.target.value) || 0
+                                        setQuotaModifications((prev) => ({
+                                          ...prev,
+                                          [org.organization_id]: {
+                                            ...prev[org.organization_id],
+                                            monthlySubmissions: Math.max(0, val),
+                                          },
+                                        }))
+                                      }}
+                                      className="h-8 text-center text-sm"
+                                    />
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => modifyQuotaValue(org.organization_id, "monthlySubmissions", 10)}
+                                      disabled={isSaving}
+                                      className="h-8 w-8 p-0"
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                    </Button>
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              )}
+                          </div>
 
-                            {/* Password Input */}
-                            <div className="col-span-2 border-t pt-4 space-y-2">
-                              <Label htmlFor={`password-${org.organization_id}`} className="text-sm">
-                                Master Admin Password
-                              </Label>
-                              <Input
-                                id={`password-${org.organization_id}`}
-                                type="password"
-                                placeholder="Required to save changes"
-                                value={masterPassword}
-                                onChange={(e) => setMasterPassword(e.target.value)}
-                                className="text-sm"
-                              />
-                            </div>
-
-                            {/* Save Button */}
-                            <div className="col-span-2 flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleResetToDefaults(org.organization_id)}
-                                disabled={isSaving}
-                                className="flex items-center gap-2"
-                              >
-                                <RotateCw className="w-4 h-4" />
-                                Reset to Plan Defaults
-                              </Button>
-                              <Button
-                                onClick={() => saveQuotaModifications(org.organization_id)}
-                                disabled={!masterPassword || isSaving}
-                                className="flex-1"
-                              >
-                                {isSaving ? "Saving..." : "Save Quota Changes"}
-                              </Button>
-                              <Button
-                                variant="outline"
-                                onClick={() => {
-                                  setQuotaPanelOpen((prev) => ({ ...prev, [org.organization_id]: false }))
-                                  setMasterPassword("")
-                                }}
-                                disabled={isSaving}
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-
-                            <p className="col-span-2 text-xs text-gray-600 text-center">
-                              Changes will override subscription limits across the entire system
-                            </p>
+                          {/* Action Buttons */}
+                          <div className="flex gap-2">
+                            <Button
+                              onClick={() => handleModifyQuota(org.organization_id)}
+                              className="flex-1 bg-yellow-600 hover:bg-yellow-700"
+                              size="sm"
+                              disabled={isSaving}
+                            >
+                              {isSaving ? "Saving..." : "Save Changes"}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setQuotaPanelOpen((prev) => {
+                                  const newPanels = new Set(prev)
+                                  newPanels.delete(org.organization_id)
+                                  return newPanels
+                                })
+                                // Removed password clearing on cancel
+                              }}
+                              size="sm"
+                              disabled={isSaving}
+                            >
+                              Cancel
+                            </Button>
                           </div>
                         </div>
                       )}
 
-                      {/* Email Reports Button */}
-                      <div className="flex items-center gap-2 pt-4 border-t">
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => handleEmailReports(org.organization_id)}
-                          className="bg-blue-600 hover:bg-blue-700"
-                        >
-                          <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                            />
-                          </svg>
-                          Email Reports to Admins
-                        </Button>
-                        <Button
-                          variant={org.is_archived ? "outline" : "destructive"}
-                          size="sm"
-                          onClick={() => onArchive(org)}
-                        >
-                          <Archive className="w-4 h-4 mr-2" />
-                          {org.is_archived ? "Unarchive" : "Archive"}
-                        </Button>
-                        <Button variant="destructive" size="sm" onClick={() => onDelete(org)}>
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </Button>
-                      </div>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => handleEmailReports(org.organization_id)}
+                        className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        <Mail className="w-4 h-4 mr-2" />
+                        Email Reports to Admins
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => onArchive(org)} className="w-full sm:w-auto">
+                        <Archive className="w-4 h-4 mr-2" />
+                        {org.is_archived ? "Unarchive" : "Archive"}
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => onDelete(org)}
+                        className="w-full sm:w-auto"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </Button>
                     </>
                   ) : (
                     <div className="text-center py-4 text-gray-500">Failed to load quota data</div>

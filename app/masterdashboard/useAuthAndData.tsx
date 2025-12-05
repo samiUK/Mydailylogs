@@ -9,6 +9,7 @@ export function useAuthAndData() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const [data, setData] = useState<DashboardData>({
     organizations: [],
     profiles: [],
@@ -62,6 +63,7 @@ export function useAuthAndData() {
         }
 
         setIsAuthenticated(true)
+        setUserRole(authData.superuserRole || authData.role || "masteradmin")
 
         console.log("[v0] Auth check passed, fetching dashboard data...")
         const dataRes = await fetch("/api/master/dashboard-data")
@@ -112,14 +114,14 @@ export function useAuthAndData() {
   return {
     isLoading,
     isAuthenticated,
+    userRole,
     data,
     setData,
     notification,
     showNotification,
-    loading: isLoading, // Alias for backward compatibility
-    error: null, // Error field
+    loading: isLoading,
+    error: null,
     refreshData: async () => {
-      // RefreshData function
       setIsLoading(true)
       try {
         const dataRes = await fetch("/api/master/dashboard-data")

@@ -27,6 +27,10 @@ import {
   CheckSquare,
   FileCheck,
   Activity,
+  Zap,
+  Clock,
+  Mail,
+  MailOpen,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 
@@ -50,7 +54,7 @@ export default function MasterDashboardPage() {
   const [metricsLastRefreshed, setMetricsLastRefreshed] = useState<string | null>(null)
 
   console.log("[v0] About to call useAuthAndData hook")
-  const { isLoading: loading, data, notification, showNotification, refreshData } = useAuthAndData()
+  const { isLoading: loading, data, notification, showNotification, refreshData, userRole } = useAuthAndData()
   console.log("[v0] useAuthAndData hook returned:", { loading, hasData: !!data, notification })
 
   useEffect(() => {
@@ -96,6 +100,14 @@ export default function MasterDashboardPage() {
           bandwidth: {
             egress: apiData.vercel.bandwidth.usedGB * 1024 * 1024 * 1024, // Convert GB to bytes
           },
+          vercel: {
+            functionExecutionHours: apiData.vercel.functionExecutionHours,
+            buildMinutes: apiData.vercel.buildMinutes,
+          },
+          resend: {
+            sentToday: apiData.resend.sentToday,
+            sentThisMonth: apiData.resend.sentThisMonth,
+          },
         }
 
         setUsageMetrics(metricsData)
@@ -122,11 +134,61 @@ export default function MasterDashboardPage() {
   }
 
   const handleArchiveOrg = async (org: Organization) => {
-    showNotification("Archive functionality coming soon", "info")
+    if (!confirm(`Are you sure you want to ${org.is_archived ? "unarchive" : "archive"} ${org.organization_name}?`)) {
+      return
+    }
+
+    try {
+      const response = await fetch("/api/master/archive-organization", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId: org.organization_id, archive: !org.is_archived }),
+      })
+
+      if (response.ok) {
+        showNotification(`Organization ${org.is_archived ? "unarchived" : "archived"} successfully`, "success")
+        refreshData()
+      } else {
+        const data = await response.json()
+        showNotification(data.error || "Failed to archive organization", "error")
+      }
+    } catch (error) {
+      showNotification("Error archiving organization", "error")
+    }
   }
 
   const handleDeleteOrg = async (org: Organization) => {
-    showNotification("Delete functionality coming soon", "info")
+    if (
+      !confirm(
+        `⚠️ WARNING: Are you sure you want to DELETE ${org.organization_name}? This action is IRREVERSIBLE and will delete all data including users, templates, and reports!`,
+      )
+    ) {
+      return
+    }
+
+    const confirmText = prompt('Type "DELETE" to confirm permanent deletion:')
+    if (confirmText !== "DELETE") {
+      showNotification("Deletion cancelled", "info")
+      return
+    }
+
+    try {
+      const response = await fetch("/api/master/delete-organization", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId: org.organization_id }),
+      })
+
+      if (response.ok) {
+        showNotification("Organization deleted successfully", "success")
+        refreshData()
+      } else {
+        const data = await response.json()
+        showNotification(data.error || "Failed to delete organization", "error")
+      }
+    } catch (error) {
+      showNotification("Error deleting organization", "error")
+    }
   }
 
   const handleManageSubscription = (sub: Subscription) => {
@@ -206,22 +268,32 @@ export default function MasterDashboardPage() {
     }
   }
 
-  const renderOverview = () => {
-    if (!data?.stats) {
-      return (
-        <div className="text-center py-8">
-          <p className="text-gray-500">Loading dashboard data...</p>
-        </div>
-      )
+  const handleEmailReports = async (organizationId: string) => {
+    if (!confirm("Send all organization reports to all admins via email?")) {
+      return
     }
 
-    const stats = {
-      totalOrganizations: data.stats.totalOrgs || 0,
-      totalUsers: data.stats.totalUsers || 0,
-      newSignupsThisMonth: data.stats.newSignupsThisMonth || 0,
-      conversionRate: data.stats.conversionRate || 0,
-      totalTemplates: data.stats.totalTemplates || 0,
-      totalChecklists: data.stats.totalChecklists || 0,
+    try {
+      const response = await fetch("/api/master/email-reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId }),
+      })
+
+      if (response.ok) {
+        showNotification("Reports sent successfully to all admins", "success")
+      } else {
+        const data = await response.json()
+        showNotification(data.error || "Failed to send reports", "error")
+      }
+    } catch (error) {
+      showNotification("Error sending reports", "error")
+    }
+  }
+
+  const renderOverview = () => {
+    if (!data?.stats) {
+      return <div>Loading...</div>
     }
 
     const formatBytes = (bytes: number) => {
@@ -245,14 +317,14 @@ export default function MasterDashboardPage() {
 
     return (
       <div className="space-y-6">
-        {/* Server Management - Single source of truth */}
+        {/* Server Management - Enhanced with Resend and more Vercel stats */}
         <Card>
           <CardHeader>
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
                 <CardTitle className="text-lg">Server Management</CardTitle>
                 <CardDescription>
-                  Monitor free tier usage limits
+                  Monitor free tier usage limits across all services
                   {metricsLastRefreshed && ` • Last updated: ${metricsLastRefreshed}`}
                 </CardDescription>
               </div>
@@ -298,12 +370,12 @@ export default function MasterDashboardPage() {
                   </div>
                 </div>
 
-                {/* Supabase & Vercel Metrics */}
+                {/* Service Usage Metrics - Enhanced with 7 metrics */}
                 <div className="space-y-6">
                   <div>
                     <h3 className="text-sm font-semibold mb-3 text-gray-700">Service Usage Metrics</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {/* Database */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {/* Supabase Database */}
                       <div className="border rounded-lg p-4 bg-white">
                         <div className="flex items-start justify-between mb-2">
                           <Database className="h-5 w-5 text-blue-600" />
@@ -328,7 +400,7 @@ export default function MasterDashboardPage() {
                         </p>
                       </div>
 
-                      {/* Storage */}
+                      {/* File Storage */}
                       <div className="border rounded-lg p-4 bg-white">
                         <div className="flex items-start justify-between mb-2">
                           <HardDrive className="h-5 w-5 text-green-600" />
@@ -351,13 +423,13 @@ export default function MasterDashboardPage() {
                         </p>
                       </div>
 
-                      {/* Bandwidth (Egress) */}
+                      {/* Vercel Bandwidth */}
                       <div className="border rounded-lg p-4 bg-white">
                         <div className="flex items-start justify-between mb-2">
                           <Activity className="h-5 w-5 text-purple-600" />
-                          <span className="text-xs font-medium text-gray-500">5GB/mo limit</span>
+                          <span className="text-xs font-medium text-gray-500">100GB/mo</span>
                         </div>
-                        <h4 className="font-medium text-sm mb-1">Bandwidth (Egress)</h4>
+                        <h4 className="font-medium text-sm mb-1">Vercel Bandwidth</h4>
                         <div className="text-2xl font-bold mb-1">
                           {formatBytes(usageMetrics.bandwidth?.egress || 0)}
                         </div>
@@ -365,14 +437,14 @@ export default function MasterDashboardPage() {
                           <div
                             className="bg-purple-600 h-2 rounded-full transition-all"
                             style={{
-                              width: `${getPercentage(usageMetrics.bandwidth?.egress || 0, 5 * 1024 * 1024 * 1024)}%`,
+                              width: `${getPercentage(usageMetrics.bandwidth?.egress || 0, 100 * 1024 * 1024 * 1024)}%`,
                             }}
                           />
                         </div>
                         <p
-                          className={`text-xs font-medium ${getStatusColor(getPercentage(usageMetrics.bandwidth?.egress || 0, 5 * 1024 * 1024 * 1024))}`}
+                          className={`text-xs font-medium ${getStatusColor(getPercentage(usageMetrics.bandwidth?.egress || 0, 100 * 1024 * 1024 * 1024))}`}
                         >
-                          {getPercentage(usageMetrics.bandwidth?.egress || 0, 5 * 1024 * 1024 * 1024)}% used
+                          {getPercentage(usageMetrics.bandwidth?.egress || 0, 100 * 1024 * 1024 * 1024)}% used
                         </p>
                       </div>
 
@@ -380,7 +452,7 @@ export default function MasterDashboardPage() {
                       <div className="border rounded-lg p-4 bg-white">
                         <div className="flex items-start justify-between mb-2">
                           <UsersIcon className="h-5 w-5 text-orange-600" />
-                          <span className="text-xs font-medium text-gray-500">50K/mo limit</span>
+                          <span className="text-xs font-medium text-gray-500">50K/mo</span>
                         </div>
                         <h4 className="font-medium text-sm mb-1">Monthly Active Users</h4>
                         <div className="text-2xl font-bold mb-1">{usageMetrics.counts?.activeUsersThisMonth || 0}</div>
@@ -396,6 +468,100 @@ export default function MasterDashboardPage() {
                           className={`text-xs font-medium ${getStatusColor(getPercentage(usageMetrics.counts?.activeUsersThisMonth || 0, 50000))}`}
                         >
                           {getPercentage(usageMetrics.counts?.activeUsersThisMonth || 0, 50000)}% used
+                        </p>
+                      </div>
+
+                      {/* Vercel Serverless Functions */}
+                      <div className="border rounded-lg p-4 bg-white">
+                        <div className="flex items-start justify-between mb-2">
+                          <Zap className="h-5 w-5 text-yellow-600" />
+                          <span className="text-xs font-medium text-gray-500">100 GB-hrs/mo</span>
+                        </div>
+                        <h4 className="font-medium text-sm mb-1">Function Execution</h4>
+                        <div className="text-2xl font-bold mb-1">
+                          {usageMetrics.vercel?.functionExecutionHours || 0} GB-hrs
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
+                          <div
+                            className="bg-yellow-600 h-2 rounded-full transition-all"
+                            style={{
+                              width: `${getPercentage(usageMetrics.vercel?.functionExecutionHours || 0, 100)}%`,
+                            }}
+                          />
+                        </div>
+                        <p
+                          className={`text-xs font-medium ${getStatusColor(getPercentage(usageMetrics.vercel?.functionExecutionHours || 0, 100))}`}
+                        >
+                          {getPercentage(usageMetrics.vercel?.functionExecutionHours || 0, 100)}% used
+                        </p>
+                      </div>
+
+                      {/* Vercel Build Minutes */}
+                      <div className="border rounded-lg p-4 bg-white">
+                        <div className="flex items-start justify-between mb-2">
+                          <Clock className="h-5 w-5 text-indigo-600" />
+                          <span className="text-xs font-medium text-gray-500">6,000 mins/mo</span>
+                        </div>
+                        <h4 className="font-medium text-sm mb-1">Build Minutes</h4>
+                        <div className="text-2xl font-bold mb-1">{usageMetrics.vercel?.buildMinutes || 0} mins</div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
+                          <div
+                            className="bg-indigo-600 h-2 rounded-full transition-all"
+                            style={{
+                              width: `${getPercentage(usageMetrics.vercel?.buildMinutes || 0, 6000)}%`,
+                            }}
+                          />
+                        </div>
+                        <p
+                          className={`text-xs font-medium ${getStatusColor(getPercentage(usageMetrics.vercel?.buildMinutes || 0, 6000))}`}
+                        >
+                          {getPercentage(usageMetrics.vercel?.buildMinutes || 0, 6000)}% used
+                        </p>
+                      </div>
+
+                      {/* Resend Email Sends */}
+                      <div className="border rounded-lg p-4 bg-white">
+                        <div className="flex items-start justify-between mb-2">
+                          <Mail className="h-5 w-5 text-pink-600" />
+                          <span className="text-xs font-medium text-gray-500">100/day</span>
+                        </div>
+                        <h4 className="font-medium text-sm mb-1">Email Sends (Today)</h4>
+                        <div className="text-2xl font-bold mb-1">{usageMetrics.resend?.sentToday || 0}</div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
+                          <div
+                            className="bg-pink-600 h-2 rounded-full transition-all"
+                            style={{
+                              width: `${getPercentage(usageMetrics.resend?.sentToday || 0, 100)}%`,
+                            }}
+                          />
+                        </div>
+                        <p
+                          className={`text-xs font-medium ${getStatusColor(getPercentage(usageMetrics.resend?.sentToday || 0, 100))}`}
+                        >
+                          {getPercentage(usageMetrics.resend?.sentToday || 0, 100)}% used
+                        </p>
+                      </div>
+
+                      {/* Resend Monthly Emails */}
+                      <div className="border rounded-lg p-4 bg-white">
+                        <div className="flex items-start justify-between mb-2">
+                          <MailOpen className="h-5 w-5 text-rose-600" />
+                          <span className="text-xs font-medium text-gray-500">3,000/mo</span>
+                        </div>
+                        <h4 className="font-medium text-sm mb-1">Monthly Email Sends</h4>
+                        <div className="text-2xl font-bold mb-1">{usageMetrics.resend?.sentThisMonth || 0}</div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
+                          <div
+                            className="bg-rose-600 h-2 rounded-full transition-all"
+                            style={{
+                              width: `${getPercentage(usageMetrics.resend?.sentThisMonth || 0, 3000)}%`,
+                            }}
+                          />
+                        </div>
+                        <p
+                          className={`text-xs font-medium ${getStatusColor(getPercentage(usageMetrics.resend?.sentThisMonth || 0, 3000))}`}
+                        >
+                          {getPercentage(usageMetrics.resend?.sentThisMonth || 0, 3000)}% used
                         </p>
                       </div>
                     </div>
@@ -414,7 +580,7 @@ export default function MasterDashboardPage() {
               <UserPlus className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.newSignupsThisMonth}</div>
+              <div className="text-2xl font-bold">{data.stats.newSignupsThisMonth}</div>
               <p className="text-xs text-muted-foreground">This month</p>
             </CardContent>
           </Card>
@@ -425,7 +591,7 @@ export default function MasterDashboardPage() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.conversionRate}%</div>
+              <div className="text-2xl font-bold">{data.stats.conversionRate}%</div>
               <p className="text-xs text-muted-foreground">To paid plans</p>
             </CardContent>
           </Card>
@@ -436,7 +602,7 @@ export default function MasterDashboardPage() {
               <CheckSquare className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalTemplates}</div>
+              <div className="text-2xl font-bold">{data.stats.totalTemplates}</div>
               <p className="text-xs text-muted-foreground">In system</p>
             </CardContent>
           </Card>
@@ -447,7 +613,7 @@ export default function MasterDashboardPage() {
               <FileCheck className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalChecklists}</div>
+              <div className="text-2xl font-bold">{data.stats.totalChecklists}</div>
               <p className="text-xs text-muted-foreground">Total assigned</p>
             </CardContent>
           </Card>
@@ -458,7 +624,7 @@ export default function MasterDashboardPage() {
               <Building2 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalOrganizations}</div>
+              <div className="text-2xl font-bold">{data.stats.totalOrgs}</div>
               <p className="text-xs text-muted-foreground">Active</p>
             </CardContent>
           </Card>
@@ -469,7 +635,7 @@ export default function MasterDashboardPage() {
               <UsersIcon className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalUsers}</div>
+              <div className="text-2xl font-bold">{data.stats.totalUsers}</div>
               <p className="text-xs text-muted-foreground">All roles</p>
             </CardContent>
           </Card>
@@ -503,6 +669,7 @@ export default function MasterDashboardPage() {
         onArchive={handleArchiveOrg}
         onDelete={handleDeleteOrg}
         onRefresh={refreshData}
+        onEmailReports={handleEmailReports}
       />
     )
   }
@@ -540,7 +707,7 @@ export default function MasterDashboardPage() {
               <RefreshCw className="w-4 h-4 mr-2" />
               Comprehensive Sync
             </Button>
-            <Badge className="bg-red-600">Master Admin</Badge>
+            <Badge className="bg-red-600">{userRole === "superuser" ? "Superuser" : "Master Admin"}</Badge>
             <Button onClick={handleSignOut} variant="ghost" size="sm">
               Sign Out
             </Button>

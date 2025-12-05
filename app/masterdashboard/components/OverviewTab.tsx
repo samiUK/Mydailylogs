@@ -19,6 +19,7 @@ import {
   FileCheck,
 } from "lucide-react"
 import { useState, useEffect } from "react"
+import { SubscriptionActivitySummary } from "./SubscriptionActivitySummary" // Assuming SubscriptionActivitySummary is imported from this file
 
 interface OverviewTabProps {
   stats: {
@@ -460,6 +461,17 @@ export function OverviewTab({ stats, databaseStats }: OverviewTabProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Recent Subscription Activity */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Subscription Activity</CardTitle>
+          <CardDescription>Last 10 subscription changes</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SubscriptionActivitySummary limit={10} />
+        </CardContent>
+      </Card>
 
       {/* Checklists & Templates */}
       <Card>

@@ -3,6 +3,8 @@ import { stripe } from "@/lib/stripe"
 import { createClient } from "@supabase/supabase-js"
 import type Stripe from "stripe"
 import { sendEmail, emailTemplates } from "@/lib/email/smtp"
+import { handleSubscriptionDowngrade } from "@/lib/subscription-limits"
+import { logSubscriptionActivity } from "@/lib/subscription-activity-logger"
 
 const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -11,7 +13,7 @@ export async function POST(req: NextRequest) {
   const signature = req.headers.get("stripe-signature")
 
   if (!signature) {
-    console.error("Missing Stripe signature")
+    console.error("[v0] Missing Stripe signature")
     return NextResponse.json({ error: "No signature" }, { status: 400 })
   }
 
@@ -20,22 +22,31 @@ export async function POST(req: NextRequest) {
   try {
     event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET!)
   } catch (err: any) {
-    console.error("Webhook signature verification failed:", err.message)
+    console.error("[v0] Webhook signature verification failed:", err.message)
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
   }
 
-  console.log("Stripe webhook received:", event.type, event.id)
+  console.log("[v0] Stripe webhook received:", event.type, event.id)
 
   try {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session
 
+        console.log("[v0] Checkout session completed:", {
+          sessionId: session.id,
+          subscriptionId: session.subscription,
+          customerId: session.customer,
+          metadata: session.metadata,
+          customer_email: session.customer_email,
+          amount_total: session.amount_total,
+        })
+
         const organizationId = session.metadata?.organization_id
         const subscriptionType = session.metadata?.subscription_type // Use subscription_type
 
         if (!organizationId || !subscriptionType) {
-          console.error("Missing required metadata in session:", session.metadata)
+          console.error("[v0] Missing required metadata in session:", session.metadata)
           throw new Error("Invalid session metadata")
         }
 
@@ -43,13 +54,31 @@ export async function POST(req: NextRequest) {
         const customerId = session.customer as string
 
         if (!subscriptionId || !customerId) {
-          console.error("No subscription ID or customer ID in session")
+          console.error("[v0] No subscription ID or customer ID in session")
           throw new Error("Missing subscription or customer ID")
         }
 
         const subscription = await stripe.subscriptions.retrieve(subscriptionId)
 
+        console.log("[v0] Retrieved subscription from Stripe:", {
+          id: subscription.id,
+          status: subscription.status,
+          trial_end: subscription.trial_end,
+          current_period_start: subscription.current_period_start,
+          current_period_end: subscription.current_period_end,
+        })
+
         const isTrial = subscription.trial_end ? true : false
+
+        console.log("[v0] Inserting subscription into database:", {
+          id: subscriptionId,
+          stripe_subscription_id: subscriptionId, // Explicit Stripe subscription ID
+          stripe_customer_id: customerId, // Stripe customer ID for tracking
+          organization_id: organizationId,
+          plan_name: subscriptionType,
+          status: subscription.status,
+          is_trial: isTrial,
+        })
 
         const { error: subError } = await supabaseAdmin.from("subscriptions").upsert(
           {
@@ -72,9 +101,11 @@ export async function POST(req: NextRequest) {
         )
 
         if (subError) {
-          console.error("Error upserting subscription:", subError)
+          console.error("[v0] Error upserting subscription:", subError)
           throw subError
         }
+
+        console.log("[v0] Successfully created/updated subscription in database for organization:", organizationId)
 
         if (isTrial) {
           const { error: profileError } = await supabaseAdmin
@@ -83,7 +114,7 @@ export async function POST(req: NextRequest) {
             .eq("organization_id", organizationId)
 
           if (profileError) {
-            console.error("Error marking user trial usage:", profileError)
+            console.error("[v0] Error marking user trial usage:", profileError)
           }
         }
 
@@ -97,7 +128,7 @@ export async function POST(req: NextRequest) {
         })
 
         if (paymentError) {
-          console.error("Error recording payment:", paymentError)
+          console.error("[v0] Error recording payment:", paymentError)
         }
 
         if (subscriptionType !== "starter") {
@@ -107,9 +138,9 @@ export async function POST(req: NextRequest) {
             .eq("id", organizationId)
 
           if (resetError) {
-            console.error("Error resetting submission quota:", resetError)
+            console.error("[v0] Error resetting submission quota:", resetError)
           } else {
-            console.log("Reset submission quota for organization:", organizationId)
+            console.log("[v0] Reset submission quota for organization:", organizationId)
           }
         }
 
@@ -126,19 +157,111 @@ export async function POST(req: NextRequest) {
             })
 
             await sendEmail(session.customer_email, template.subject, template.html)
-            console.log("Payment confirmation email sent to:", session.customer_email)
+            console.log("[v0] Payment confirmation email sent to:", session.customer_email)
           } catch (emailError) {
-            console.error("Failed to send payment confirmation email:", emailError)
+            console.error("[v0] Failed to send payment confirmation email:", emailError)
           }
         }
 
-        console.log("Subscription created successfully:", subscriptionId)
+        console.log("[v0] Subscription created successfully:", subscriptionId)
+        break
+      }
+
+      case "customer.subscription.created": {
+        const subscription = event.data.object as Stripe.Subscription
+
+        console.log("[v0] Subscription created event received:", {
+          subscriptionId: subscription.id,
+          status: subscription.status,
+          customerId: subscription.customer,
+          metadata: subscription.metadata,
+          trial_end: subscription.trial_end,
+        })
+
+        // Check if subscription already exists (from checkout.session.completed)
+        const { data: existingSub } = await supabaseAdmin
+          .from("subscriptions")
+          .select("id")
+          .eq("id", subscription.id)
+          .single()
+
+        if (existingSub) {
+          console.log("[v0] Subscription already exists, skipping duplicate creation")
+          break
+        }
+
+        // If no metadata (not from our checkout), skip it
+        if (!subscription.metadata?.organization_id || !subscription.metadata?.subscription_type) {
+          console.log("[v0] Subscription created without our metadata, skipping")
+          break
+        }
+
+        const isTrial = subscription.trial_end ? true : false
+        const organizationId = subscription.metadata.organization_id
+        const subscriptionType = subscription.metadata.subscription_type
+
+        console.log("[v0] Creating subscription from customer.subscription.created:", {
+          id: subscription.id,
+          organization_id: organizationId,
+          plan_name: subscriptionType,
+          status: subscription.status,
+          is_trial: isTrial,
+        })
+
+        const { error: subError } = await supabaseAdmin.from("subscriptions").insert({
+          id: subscription.id,
+          stripe_subscription_id: subscription.id,
+          stripe_customer_id: subscription.customer as string,
+          organization_id: organizationId,
+          plan_name: subscriptionType,
+          status: subscription.status,
+          is_trial: isTrial,
+          has_used_trial: isTrial ? true : undefined,
+          trial_ends_at: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
+          current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+          current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+        })
+
+        if (subError) {
+          console.error("[v0] Error inserting subscription:", subError)
+          throw subError
+        }
+
+        await logSubscriptionActivity({
+          organizationId,
+          subscriptionId: subscription.id,
+          stripeSubscriptionId: subscription.id,
+          eventType: isTrial ? "trial_started" : "created",
+          toPlan: subscriptionType,
+          toStatus: subscription.status,
+          amount: (subscription.items.data[0]?.price?.unit_amount || 0) / 100,
+          currency: subscription.currency,
+          triggeredBy: "stripe_webhook",
+          details: {
+            trial_end: subscription.trial_end,
+            billing_cycle: subscription.items.data[0]?.price?.recurring?.interval,
+          },
+        })
+
+        console.log("[v0] Successfully created subscription from customer.subscription.created event")
         break
       }
 
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription
-        console.log("Subscription updated:", subscription.id)
+        console.log("[v0] Subscription updated:", subscription.id)
+
+        const { data: existingSubscription } = await supabaseAdmin
+          .from("subscriptions")
+          .select("plan_name, organization_id, status")
+          .eq("stripe_subscription_id", subscription.id)
+          .single()
+
+        const newPlanName = subscription.metadata.plan_name || "growth-monthly"
+        const isUpgrade =
+          existingSubscription && existingSubscription.plan_name.includes("growth") && newPlanName.includes("scale")
+        const isDowngrade =
+          existingSubscription && existingSubscription.plan_name.includes("scale") && newPlanName.includes("growth")
 
         const { error } = await supabaseAdmin
           .from("subscriptions")
@@ -146,31 +269,114 @@ export async function POST(req: NextRequest) {
             status: subscription.status,
             current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
             current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+            plan_name: newPlanName,
             updated_at: new Date().toISOString(),
           })
-          .eq("id", subscription.id)
+          .eq("stripe_subscription_id", subscription.id)
 
         if (error) {
-          console.error("Error updating subscription:", error)
+          console.error("[v0] Error updating subscription:", error)
           throw error
         }
 
-        const { data: subData } = await supabaseAdmin
-          .from("subscriptions")
-          .select("organization_id, plan_name")
-          .eq("id", subscription.id)
-          .single()
+        if (existingSubscription) {
+          let eventType: any = "status_changed"
+          if (isUpgrade) eventType = "upgraded"
+          else if (isDowngrade) eventType = "downgraded"
+          else if (existingSubscription.status !== subscription.status) eventType = "status_changed"
 
-        if (subData && subData.plan_name !== "starter") {
-          const { error: resetError } = await supabaseAdmin
-            .from("organizations")
-            .update({ last_submission_reset_at: new Date().toISOString() })
-            .eq("id", subData.organization_id)
+          await logSubscriptionActivity({
+            organizationId: existingSubscription.organization_id,
+            subscriptionId: subscription.id,
+            stripeSubscriptionId: subscription.id,
+            eventType,
+            fromPlan: existingSubscription.plan_name,
+            toPlan: newPlanName,
+            fromStatus: existingSubscription.status,
+            toStatus: subscription.status,
+            amount: (subscription.items.data[0]?.price?.unit_amount || 0) / 100,
+            currency: subscription.currency,
+            triggeredBy: "stripe_webhook",
+            details: {
+              is_upgrade: isUpgrade,
+              is_downgrade: isDowngrade,
+              billing_cycle: subscription.items.data[0]?.price?.recurring?.interval,
+            },
+          })
+        }
 
-          if (resetError) {
-            console.error("Error resetting submission quota:", resetError)
-          } else {
-            console.log("Reset submission quota for organization:", subData.organization_id)
+        if ((isUpgrade || isDowngrade) && existingSubscription) {
+          try {
+            const customer = (await stripe.customers.retrieve(subscription.customer as string)) as Stripe.Customer
+            const amount = `${subscription.currency.toUpperCase() === "GBP" ? "£" : "$"}${((subscription.items.data[0]?.price?.unit_amount || 0) / 100).toFixed(2)}`
+
+            if (customer.email) {
+              if (isUpgrade) {
+                // Send upgrade email
+                const template = emailTemplates.subscriptionUpgraded({
+                  customerName: customer.name || "Customer",
+                  previousPlan: existingSubscription.plan_name.includes("growth") ? "Growth" : "Scale",
+                  newPlan: "Scale",
+                  amount: amount,
+                  nextBillingDate: new Date(subscription.current_period_end * 1000).toISOString(),
+                  newFeatures: [
+                    "Increased to 20 templates (from 10)",
+                    "Up to 75 team members (from 25)",
+                    "Up to 7 admin/manager accounts (from 3)",
+                    "Advanced team collaboration",
+                    "Priority support",
+                    "Custom branding options",
+                  ],
+                  quickActions: [
+                    "Create more templates for your growing team",
+                    "Invite additional team members",
+                    "Add more managers to distribute admin work",
+                    "Customize your branding in settings",
+                  ],
+                  dashboardUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin`,
+                })
+
+                await sendEmail(customer.email, template.subject, template.html)
+                console.log("[v0] Upgrade email sent to:", customer.email)
+              } else if (isDowngrade) {
+                // Send downgrade email and handle data cleanup
+                await handleSubscriptionDowngrade(existingSubscription.organization_id)
+
+                const template = emailTemplates.subscriptionDowngraded({
+                  customerName: customer.name || "Customer",
+                  previousPlan: "Scale",
+                  newPlan: "Growth",
+                  amount: amount,
+                  effectiveDate: new Date(subscription.current_period_start * 1000).toISOString(),
+                  removedFeatures: [
+                    "Extra templates beyond 10",
+                    "Team members beyond 25",
+                    "Admin/manager accounts beyond 3",
+                  ],
+                  dataRemoved: [
+                    "Extra templates archived (kept first 10)",
+                    "Extra team members removed (kept first 25)",
+                    "Extra manager accounts removed (kept first 3)",
+                  ],
+                  retainedFeatures: [
+                    "Unlimited reports and submissions",
+                    "10 active templates",
+                    "25 team members",
+                    "3 admin/manager accounts",
+                    "Contractor link sharing",
+                    "Photo uploads",
+                    "Custom branding",
+                  ],
+                  showUpgradeOption: true,
+                  upgradeUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/profile/billing`,
+                })
+
+                await sendEmail(customer.email, template.subject, template.html)
+                console.log("[v0] Downgrade email sent to:", customer.email)
+              }
+            }
+          } catch (emailError) {
+            console.error("[v0] Failed to send plan change email:", emailError)
           }
         }
 
@@ -206,10 +412,10 @@ export async function POST(req: NextRequest) {
                 })
 
                 await sendEmail(customer.email, template.subject, template.html)
-                console.log("Trial ending reminder sent to:", customer.email)
+                console.log("[v0] Trial ending reminder sent to:", customer.email)
               }
             } catch (emailError) {
-              console.error("Failed to send trial ending reminder:", emailError)
+              console.error("[v0] Failed to send trial ending reminder:", emailError)
             }
           }
         }
@@ -219,31 +425,47 @@ export async function POST(req: NextRequest) {
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription
-        console.log("Subscription cancelled:", subscription.id)
+        console.log("[v0] Subscription cancelled/deleted:", subscription.id)
 
         const { data: subData } = await supabaseAdmin
           .from("subscriptions")
-          .select("organization_id")
-          .eq("id", subscription.id)
+          .select("organization_id, plan_name")
+          .eq("stripe_subscription_id", subscription.id)
+          .or(`id.eq.${subscription.id}`)
           .single()
 
         const { error } = await supabaseAdmin
           .from("subscriptions")
           .update({
+            plan_name: "starter",
             status: "canceled",
+            cancel_at_period_end: false,
             updated_at: new Date().toISOString(),
           })
-          .eq("id", subscription.id)
+          .eq("stripe_subscription_id", subscription.id)
+          .or(`id.eq.${subscription.id}`)
 
         if (error) {
-          console.error("Error cancelling subscription:", error)
+          console.error("[v0] Error cancelling subscription:", error)
           throw error
         }
 
         if (subData?.organization_id) {
-          console.log("Processing downgrade cleanup for organization:", subData.organization_id)
+          await logSubscriptionActivity({
+            organizationId: subData.organization_id,
+            subscriptionId: subscription.id,
+            stripeSubscriptionId: subscription.id,
+            eventType: "cancelled",
+            fromPlan: subData.plan_name,
+            toPlan: "starter",
+            fromStatus: subscription.status,
+            toStatus: "canceled",
+            triggeredBy: "stripe_webhook",
+            details: {
+              reason: "Subscription period ended or cancelled by customer",
+            },
+          })
 
-          // Keep only last 3 templates, archive the rest
           const { data: templates } = await supabaseAdmin
             .from("checklist_templates")
             .select("id, created_at")
@@ -260,13 +482,12 @@ export async function POST(req: NextRequest) {
               .in("id", templatesToArchive)
 
             if (archiveError) {
-              console.error("Error archiving templates:", archiveError)
+              console.error("[v0] Error archiving templates:", archiveError)
             } else {
-              console.log("Archived", templatesToArchive.length, "templates")
+              console.log("[v0] Archived", templatesToArchive.length, "templates")
             }
           }
 
-          // Keep only last 50 reports, delete the rest
           const { data: reports } = await supabaseAdmin
             .from("submitted_reports")
             .select("id, submitted_at")
@@ -286,13 +507,57 @@ export async function POST(req: NextRequest) {
               .in("id", reportsToDelete)
 
             if (deleteError) {
-              console.error("Error deleting reports:", deleteError)
+              console.error("[v0] Error deleting reports:", deleteError)
             } else {
-              console.log("Soft-deleted", reportsToDelete.length, "reports")
+              console.log("[v0] Soft-deleted", reportsToDelete.length, "reports")
             }
           }
 
-          console.log("Downgrade cleanup completed for organization:", subData.organization_id)
+          const { data: teamMembers } = await supabaseAdmin
+            .from("profiles")
+            .select("id, created_at, role")
+            .eq("organization_id", subData.organization_id)
+            .eq("role", "staff")
+            .order("created_at", { ascending: true })
+
+          if (teamMembers && teamMembers.length > 5) {
+            const membersToDelete = teamMembers.slice(5).map((m) => m.id)
+
+            const { error: deleteMembersError } = await supabaseAdmin
+              .from("profiles")
+              .delete()
+              .in("id", membersToDelete)
+
+            if (deleteMembersError) {
+              console.error("[v0] Error deleting team members:", deleteMembersError)
+            } else {
+              console.log("[v0] Deleted", membersToDelete.length, "team members")
+            }
+          }
+
+          const { data: managers } = await supabaseAdmin
+            .from("profiles")
+            .select("id, created_at, role")
+            .eq("organization_id", subData.organization_id)
+            .eq("role", "manager")
+            .order("created_at", { ascending: true })
+
+          if (managers && managers.length > 0) {
+            const managersToDelete = managers.map((m) => m.id)
+
+            const { error: deleteManagersError } = await supabaseAdmin
+              .from("profiles")
+              .delete()
+              .in("id", managersToDelete)
+
+            if (deleteManagersError) {
+              console.error("[v0] Error deleting managers:", deleteManagersError)
+            } else {
+              console.log("[v0] Deleted", managersToDelete.length, "manager accounts")
+            }
+          }
+
+          console.log("[v0] Downgrade cleanup completed for organization:", subData.organization_id)
         }
 
         break
@@ -300,7 +565,7 @@ export async function POST(req: NextRequest) {
 
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice
-        console.log("Payment succeeded for invoice:", invoice.id)
+        console.log("[v0] Payment succeeded for invoice:", invoice.id)
 
         if (invoice.subscription) {
           const { error } = await supabaseAdmin.from("payments").insert({
@@ -315,7 +580,7 @@ export async function POST(req: NextRequest) {
           })
 
           if (error) {
-            console.error("Error recording payment:", error)
+            console.error("[v0] Error recording payment:", error)
           }
 
           if (invoice.customer_email && invoice.billing_reason === "subscription_cycle") {
@@ -334,9 +599,9 @@ export async function POST(req: NextRequest) {
               })
 
               await sendEmail(invoice.customer_email, template.subject, template.html)
-              console.log("Monthly invoice email sent to:", invoice.customer_email)
+              console.log("[v0] Monthly invoice email sent to:", invoice.customer_email)
             } catch (emailError) {
-              console.error("Failed to send monthly invoice email:", emailError)
+              console.error("[v0] Failed to send monthly invoice email:", emailError)
             }
           }
         }
@@ -346,7 +611,7 @@ export async function POST(req: NextRequest) {
 
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice
-        console.log("Payment failed for invoice:", invoice.id)
+        console.log("[v0] Payment failed for invoice:", invoice.id)
 
         if (invoice.subscription) {
           const { error: paymentError } = await supabaseAdmin.from("payments").insert({
@@ -359,7 +624,7 @@ export async function POST(req: NextRequest) {
           })
 
           if (paymentError) {
-            console.error("Error recording failed payment:", paymentError)
+            console.error("[v0] Error recording failed payment:", paymentError)
           }
 
           const gracePeriodEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -376,7 +641,7 @@ export async function POST(req: NextRequest) {
             .eq("id", invoice.subscription as string)
 
           if (subError) {
-            console.error("Error updating subscription status:", subError)
+            console.error("[v0] Error updating subscription status:", subError)
           }
 
           if (invoice.customer_email) {
@@ -398,25 +663,25 @@ export async function POST(req: NextRequest) {
               })
 
               await sendEmail(invoice.customer_email, template.subject, template.html)
-              console.log("Payment failure email sent to:", invoice.customer_email)
+              console.log("[v0] Payment failure email sent to:", invoice.customer_email)
             } catch (emailError) {
-              console.error("Failed to send payment failure email:", emailError)
+              console.error("[v0] Failed to send payment failure email:", emailError)
             }
           }
 
-          console.log("Set 7-day grace period for subscription due to payment failure:", invoice.subscription)
+          console.log("[v0] Set 7-day grace period for subscription due to payment failure:", invoice.subscription)
         }
 
         break
       }
 
       default:
-        console.log("Unhandled event type:", event.type)
+        console.log("[v0] Unhandled event type:", event.type)
     }
 
     return NextResponse.json({ received: true })
   } catch (error: any) {
-    console.error("Error processing webhook:", error)
+    console.error("[v0] Error processing webhook:", error)
     return NextResponse.json({ error: "Webhook processing failed", details: error.message }, { status: 500 })
   }
 }

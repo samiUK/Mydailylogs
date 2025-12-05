@@ -539,4 +539,213 @@ export const emailTemplates = {
       ${getEmailFooter()}
     `,
   }),
+
+  subscriptionUpgraded: (data: any): EmailTemplate => ({
+    subject: `Welcome to ${data.newPlan} - Unlock Your New Features!`,
+    html: `
+      ${getEmailHeader()}
+      <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
+        <h2 style="color: #10b981; margin-bottom: 20px;">🎉 You've Upgraded to ${data.newPlan}!</h2>
+        
+        <p>Hi ${data.customerName},</p>
+        
+        <p>Congratulations! Your MyDayLogs subscription has been successfully upgraded to the <strong>${data.newPlan}</strong> plan.</p>
+        
+        <div style="background-color: #ecfdf5; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981;">
+          <h3 style="margin: 0 0 15px 0; color: #10b981;">✨ Your New Features Are Now Active!</h3>
+          <ul style="margin: 10px 0; padding-left: 20px;">
+            ${data.newFeatures.map((feature: string) => `<li style="margin-bottom: 8px;">${feature}</li>`).join("")}
+          </ul>
+        </div>
+        
+        <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin: 0 0 15px 0; color: #374151;">Plan Details</h3>
+          <p><strong>New Plan:</strong> ${data.newPlan}</p>
+          <p><strong>Previous Plan:</strong> ${data.previousPlan}</p>
+          <p><strong>Billing Amount:</strong> ${data.amount}</p>
+          <p><strong>Next Billing Date:</strong> ${new Date(data.nextBillingDate).toLocaleDateString("en-GB")}</p>
+          ${data.proratedAmount ? `<p><strong>Prorated Charge Today:</strong> ${data.proratedAmount}</p>` : ""}
+        </div>
+        
+        <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin: 0 0 15px 0; color: #78350f;">💡 Get Started with Your New Features</h3>
+          <p>Here are some quick actions to make the most of your upgrade:</p>
+          <ul style="margin: 10px 0; padding-left: 20px;">
+            ${data.quickActions.map((action: string) => `<li style="margin-bottom: 8px;">${action}</li>`).join("")}
+          </ul>
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.dashboardUrl}" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Go to Dashboard</a>
+        </div>
+        
+        ${getAutomatedEmailNotice()}
+        
+        <p>Thank you for choosing MyDayLogs! If you have any questions about your new features, our support team is here to help at info@mydaylogs.co.uk.</p>
+        
+        <p>Best regards,<br>
+        <strong>The MyDayLogs Team</strong></p>
+      </div>
+      ${getEmailFooter()}
+    `,
+  }),
+
+  subscriptionDowngraded: (data: any): EmailTemplate => ({
+    subject: `Your Subscription Has Been Changed to ${data.newPlan}`,
+    html: `
+      ${getEmailHeader()}
+      <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
+        <h2 style="color: #f59e0b; margin-bottom: 20px;">Subscription Plan Changed</h2>
+        
+        <p>Hi ${data.customerName},</p>
+        
+        <p>Your MyDayLogs subscription has been changed from <strong>${data.previousPlan}</strong> to <strong>${data.newPlan}</strong>.</p>
+        
+        <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+          <h3 style="margin: 0 0 15px 0; color: #78350f;">📋 What Changed</h3>
+          <p><strong>Previous Plan:</strong> ${data.previousPlan}</p>
+          <p><strong>New Plan:</strong> ${data.newPlan}</p>
+          <p><strong>New Billing Amount:</strong> ${data.amount}</p>
+          <p><strong>Effective Date:</strong> ${new Date(data.effectiveDate).toLocaleDateString("en-GB")}</p>
+        </div>
+        
+        ${
+          data.removedFeatures && data.removedFeatures.length > 0
+            ? `
+        <div style="background-color: #fee2e2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ef4444;">
+          <h3 style="margin: 0 0 15px 0; color: #7f1d1d;">⚠️ Features No Longer Available</h3>
+          <ul style="margin: 10px 0; padding-left: 20px;">
+            ${data.removedFeatures.map((feature: string) => `<li style="margin-bottom: 8px;">${feature}</li>`).join("")}
+          </ul>
+        </div>
+        `
+            : ""
+        }
+        
+        ${
+          data.dataRemoved
+            ? `
+        <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+          <h3 style="margin: 0 0 15px 0; color: #78350f;">🗂️ Data Cleanup Performed</h3>
+          <p>To comply with your new plan limits, the following changes were made:</p>
+          <ul style="margin: 10px 0; padding-left: 20px;">
+            ${data.dataRemoved.map((item: string) => `<li style="margin-bottom: 8px;">${item}</li>`).join("")}
+          </ul>
+        </div>
+        `
+            : ""
+        }
+        
+        <div style="background-color: #ecfdf5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin: 0 0 15px 0; color: #10b981;">✅ ${data.newPlan} Features You Still Have</h3>
+          <ul style="margin: 10px 0; padding-left: 20px;">
+            ${data.retainedFeatures.map((feature: string) => `<li style="margin-bottom: 8px;">${feature}</li>`).join("")}
+          </ul>
+        </div>
+        
+        ${
+          data.showUpgradeOption
+            ? `
+        <div style="text-align: center; margin: 30px 0; padding: 20px; background-color: #f9fafb; border-radius: 8px;">
+          <p style="margin-bottom: 15px;"><strong>Need more features? Upgrade anytime!</strong></p>
+          <a href="${data.upgradeUrl}" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">View Upgrade Options</a>
+        </div>
+        `
+            : ""
+        }
+        
+        ${getAutomatedEmailNotice()}
+        
+        <p>If you have any questions about your plan change, please contact our support team at info@mydaylogs.co.uk.</p>
+        
+        <p>Best regards,<br>
+        <strong>The MyDayLogs Team</strong></p>
+      </div>
+      ${getEmailFooter()}
+    `,
+  }),
+
+  subscriptionCancelled: (data: any): EmailTemplate => ({
+    subject: `Subscription Cancellation Confirmed`,
+    html: `
+      ${getEmailHeader()}
+      <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
+        <h2 style="color: #ef4444; margin-bottom: 20px;">Subscription Cancellation Confirmed</h2>
+        
+        <p>Hi ${data.customerName},</p>
+        
+        <p>We've received your request to cancel your MyDayLogs <strong>${data.planName}</strong> subscription.</p>
+        
+        ${
+          data.isTrialing
+            ? `
+        <div style="background-color: #ecfdf5; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981;">
+          <h3 style="margin: 0 0 15px 0; color: #10b981;">✅ Your Trial Continues Until ${new Date(data.accessUntilDate).toLocaleDateString("en-GB")}</h3>
+          <p>Since you're on a free trial, you won't be charged anything. You'll continue to have full access to all ${data.planName} features until your trial ends on <strong>${new Date(data.accessUntilDate).toLocaleDateString("en-GB")}</strong>.</p>
+          <p style="margin-top: 10px;"><strong>After your trial ends:</strong></p>
+          <ul style="margin: 5px 0; padding-left: 20px;">
+            <li>Your account will automatically switch to the free Starter plan</li>
+            <li>You'll retain access with Starter plan limits (3 templates, 5 team members, 50 reports)</li>
+            <li>No payment will ever be collected</li>
+          </ul>
+        </div>
+        `
+            : `
+        <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+          <h3 style="margin: 0 0 15px 0; color: #78350f;">📅 Your Subscription Remains Active Until ${new Date(data.accessUntilDate).toLocaleDateString("en-GB")}</h3>
+          <p>You'll continue to have full access to all ${data.planName} features until your current billing period ends on <strong>${new Date(data.accessUntilDate).toLocaleDateString("en-GB")}</strong>.</p>
+          <p style="margin-top: 10px;"><strong>What happens on ${new Date(data.accessUntilDate).toLocaleDateString("en-GB")}:</strong></p>
+          <ul style="margin: 5px 0; padding-left: 20px;">
+            <li>Your subscription will end (no further charges)</li>
+            <li>Your account will switch to the free Starter plan</li>
+            <li>Excess data will be removed to comply with Starter limits</li>
+          </ul>
+        </div>
+        `
+        }
+        
+        <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin: 0 0 15px 0; color: #374151;">Cancellation Details</h3>
+          <p><strong>Plan:</strong> ${data.planName}</p>
+          <p><strong>Cancellation Date:</strong> ${new Date().toLocaleDateString("en-GB")}</p>
+          <p><strong>Access Until:</strong> ${new Date(data.accessUntilDate).toLocaleDateString("en-GB")}</p>
+          ${data.isTrialing ? "<p><strong>Charges:</strong> None (trial period)</p>" : `<p><strong>Final Billing Date:</strong> ${new Date(data.accessUntilDate).toLocaleDateString("en-GB")}</p>`}
+        </div>
+        
+        ${
+          !data.isTrialing && data.downgradeWarning
+            ? `
+        <div style="background-color: #fee2e2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ef4444;">
+          <h3 style="margin: 0 0 15px 0; color: #7f1d1d;">⚠️ Automatic Data Cleanup on ${new Date(data.accessUntilDate).toLocaleDateString("en-GB")}</h3>
+          <p>When your subscription ends, we'll automatically adjust your account to fit Starter plan limits:</p>
+          <ul style="margin: 10px 0; padding-left: 20px;">
+            <li>Templates will be reduced to the first 3 created</li>
+            <li>Team members will be reduced to the first 5 added</li>
+            <li>Reports will be limited to the 50 most recent</li>
+            <li>All manager accounts will be removed (1 admin only)</li>
+          </ul>
+          <p style="margin-top: 15px; font-weight: bold;">💡 Tip: Back up your data or remove extra items before ${new Date(data.accessUntilDate).toLocaleDateString("en-GB")} to control what stays.</p>
+        </div>
+        `
+            : ""
+        }
+        
+        <div style="background-color: #ecfdf5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin: 0 0 15px 0; color: #10b981;">Changed Your Mind?</h3>
+          <p>You can reactivate your subscription anytime before ${new Date(data.accessUntilDate).toLocaleDateString("en-GB")} to keep all your data and features.</p>
+          <div style="text-align: center; margin-top: 15px;">
+            <a href="${data.billingUrl}" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Reactivate Subscription</a>
+          </div>
+        </div>
+        
+        ${getAutomatedEmailNotice()}
+        
+        <p>We're sorry to see you go! If there's anything we could have done better, please let us know at info@mydaylogs.co.uk. Your feedback helps us improve.</p>
+        
+        <p>Best regards,<br>
+        <strong>The MyDayLogs Team</strong></p>
+      </div>
+      ${getEmailFooter()}
+    `,
+  }),
 }

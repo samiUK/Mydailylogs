@@ -23,6 +23,7 @@ import Link from "next/link"
 import { FeedbackBanner } from "@/components/feedback-banner"
 import { useRouter } from "next/navigation"
 import { formatUKDate, formatRelativeTime } from "@/lib/date-formatter"
+import { SubscriptionCancellationWarning } from "@/components/subscription-cancellation-warning"
 
 export const dynamic = "force-dynamic"
 
@@ -69,6 +70,11 @@ export default function AdminDashboard() {
 
   const [templateAssignments, setTemplateAssignments] = useState<any[]>([])
   const [showVerificationSuccess, setShowVerificationSuccess] = useState(false)
+
+  const [subscriptionEndWarning, setSubscriptionEndWarning] = useState<{
+    daysRemaining: number
+    periodEndDate: string
+  } | null>(null)
 
   const router = useRouter()
   const organizationId = profile?.organization_id
@@ -462,6 +468,43 @@ export default function AdminDashboard() {
     loadLimitsAndUsage()
   }, [organizationId])
 
+  // Modified useEffect to include subscription cancellation check
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!organizationId || !user) return
+
+      try {
+        const supabase = createClient()
+
+        // Fetch basic organization and subscription data
+        const { data: orgData, error: orgError } = await supabase
+          .from("organizations")
+          .select("subscription(*)")
+          .eq("id", organizationId)
+          .single()
+
+        if (orgError) throw orgError
+
+        if (orgData.subscription?.cancel_at_period_end && orgData.subscription?.current_period_end) {
+          const periodEnd = new Date(orgData.subscription.current_period_end)
+          const now = new Date()
+          const daysRemaining = Math.ceil((periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+
+          if (daysRemaining <= 3 && daysRemaining > 0) {
+            setSubscriptionEndWarning({
+              daysRemaining,
+              periodEndDate: orgData.subscription.current_period_end,
+            })
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching organization or subscription data:", error)
+      }
+    }
+
+    fetchData()
+  }, [organizationId, user])
+
   const fetchActivityLog = async () => {
     if (!organizationId) return
 
@@ -787,6 +830,13 @@ export default function AdminDashboard() {
             Your email has been verified. You now have full access to all features.
           </AlertDescription>
         </Alert>
+      )}
+
+      {subscriptionEndWarning && (
+        <SubscriptionCancellationWarning
+          daysRemaining={subscriptionEndWarning.daysRemaining}
+          periodEndDate={subscriptionEndWarning.periodEndDate}
+        />
       )}
 
       <div className="flex items-center justify-between">

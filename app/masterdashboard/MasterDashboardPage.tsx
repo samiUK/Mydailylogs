@@ -15,7 +15,8 @@ import { FeedbackList } from "./FeedbackList"
 import { FeedbackResponseModal } from "./FeedbackResponseModal"
 import { ReportDirectorySection } from "./ReportDirectorySection"
 import { SuperuserToolsSection } from "./SuperuserToolsSection"
-import type { ConfirmDialogState, Feedback, Organization, Subscription, Payment } from "./types"
+import { SubscriptionActivityTab } from "./SubscriptionActivityTab"
+import type { ConfirmDialogState, Feedback, Organization, Subscription } from "./types"
 import {
   UsersIcon,
   RefreshCw,
@@ -195,17 +196,33 @@ export default function MasterDashboardPage() {
     showNotification("Subscription management coming soon", "info")
   }
 
-  const handleRefund = (payment: Payment) => {
-    setConfirmDialog({
-      show: true,
-      title: "Issue Refund",
-      message: `Issue refund of $${(payment.amount / 100).toFixed(2)} for ${payment.organization_name}?`,
-      onConfirm: async () => {
-        showNotification("Refund issued successfully", "success")
-        refreshData()
-      },
-      type: "warning",
-    })
+  const handleRefund = async (refundData: { id: string; amount?: number; reason: string }) => {
+    try {
+      const response = await fetch("/api/master/refund-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentId: refundData.id,
+          amount: refundData.amount,
+          reason: refundData.reason,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to process refund")
+      }
+
+      showNotification(
+        `${result.refundType === "full" ? "Full" : "Partial"} refund of $${result.refundAmount.toFixed(2)} processed successfully`,
+        "success",
+      )
+      refreshData()
+    } catch (error: any) {
+      showNotification(error.message || "Failed to process refund", "error")
+      throw error
+    }
   }
 
   const handleRespondToFeedback = async (feedbackId: string, response: string) => {
@@ -743,6 +760,9 @@ export default function MasterDashboardPage() {
               <TabsTrigger value="superusers" className="whitespace-nowrap">
                 Superusers
               </TabsTrigger>
+              <TabsTrigger value="subscription-activity" className="whitespace-nowrap">
+                Subscription Activity
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -796,6 +816,10 @@ export default function MasterDashboardPage() {
                 onRemoveSuperuser={handleRemoveSuperuser}
                 onUpdateSuperuser={handleUpdateSuperuser}
               />
+            </TabsContent>
+
+            <TabsContent value="subscription-activity">
+              <SubscriptionActivityTab />
             </TabsContent>
           </div>
         </Tabs>

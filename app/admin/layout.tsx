@@ -70,8 +70,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const { data: subscription } = await supabase
     .from("subscriptions")
-    .select("status, plan_name, grace_period_ends_at")
+    .select("status, plan_name, grace_period_ends_at, stripe_subscription_id, cancel_at_period_end, current_period_end")
     .eq("organization_id", profile.organizations?.organization_id)
+    .in("status", ["active", "trialing"])
     .single()
 
   const hasPaymentFailed = subscription?.status === "past_due" && subscription?.grace_period_ends_at

@@ -202,11 +202,18 @@ export default function BillingPage() {
   const handleCancel = async () => {
     if (!subscription) return
 
+    const isTrialing = subscription.status === "trialing"
+    const periodEndDate = new Date(subscription.current_period_end).toLocaleDateString()
+
     const confirmed = window.confirm(
       `⚠️ Cancel Subscription - Important Information\n\n` +
-        `If you cancel your ${subscription.plan_name} subscription:\n\n` +
-        `• Your subscription will remain active until ${new Date(subscription.current_period_end).toLocaleDateString()}\n` +
-        `• After that, you'll be automatically downgraded to the free Starter plan\n` +
+        `${
+          isTrialing
+            ? `You're currently in your 30-day trial period. Even if you cancel now, you'll keep full access until ${periodEndDate} - no charges will be made.\n\n`
+            : `Your subscription will remain fully active until ${periodEndDate}, then you'll be downgraded.\n\n`
+        }` +
+        `After ${periodEndDate}:\n` +
+        `• You'll be automatically downgraded to the free Starter plan\n` +
         `• Only your last 3 templates will be kept (others will be archived)\n` +
         `• Only your last 50 reports will be retained (older ones will be deleted)\n` +
         `• You'll lose access to: Custom branding, advanced features, photo uploads\n\n` +
@@ -239,8 +246,7 @@ export default function BillingPage() {
       }
 
       alert(
-        "✓ Subscription cancelled successfully. You'll have access until " +
-          new Date(subscription.current_period_end).toLocaleDateString(),
+        `✓ Subscription cancelled successfully. ${isTrialing ? "Your 30-day trial continues with" : "You'll have"} full access until ${periodEndDate}`,
       )
     } catch (error: any) {
       console.error("[v0] Error cancelling subscription:", error)

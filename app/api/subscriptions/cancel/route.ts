@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { stripe } from "@/lib/stripe"
+import { sendEmail, emailTemplates } from "@/lib/email/smtp"
 
 export async function POST(req: Request) {
   try {
@@ -24,23 +25,21 @@ export async function POST(req: Request) {
       .from("subscriptions")
       .select("*")
       .eq("organization_id", profile.organization_id)
-      .eq("status", "active")
+      .in("status", ["active", "trialing"])
       .single()
 
     if (!subscription) {
       return NextResponse.json({ error: "No active subscription found" }, { status: 404 })
     }
 
-    console.log("[v0] Cancelling subscription:", subscription.id)
-
     const stripeSubId = subscription.stripe_subscription_id || subscription.id
 
-    // Cancel the Stripe subscription
+    console.log("[v0] Marking subscription for cancellation at period end:", subscription.id)
+
+    // Mark for cancellation at period end (works for both trialing and active)
     await stripe.subscriptions.update(stripeSubId, {
       cancel_at_period_end: true,
     })
-
-    console.log("[v0] Subscription marked for cancellation at period end in Stripe")
 
     await supabase
       .from("subscriptions")
@@ -50,9 +49,37 @@ export async function POST(req: Request) {
       })
       .eq("id", subscription.id)
 
+    const periodEndDate = subscription.current_period_end
+      ? new Date(subscription.current_period_end).toLocaleDateString()
+      : "the end of your billing period"
+
+    try {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("full_name, email")
+        .eq("id", user.id)
+        .single()
+
+      if (profileData?.email) {
+        const template = emailTemplates.subscriptionCancelled({
+          customerName: profileData.full_name || "Customer",
+          planName: subscription.plan_name.includes("growth") ? "Growth" : "Scale",
+          accessUntilDate: subscription.current_period_end,
+          isTrialing: subscription.status === "trialing",
+          downgradeWarning: subscription.status !== "trialing",
+          billingUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/profile/billing`,
+        })
+
+        await sendEmail(profileData.email, template)
+        console.log("[v0] Cancellation confirmation email sent to:", profileData.email)
+      }
+    } catch (emailError) {
+      console.error("[v0] Failed to send cancellation email:", emailError)
+    }
+
     return NextResponse.json({
       success: true,
-      message: "Subscription will be cancelled at the end of the current billing period",
+      message: `Subscription will be cancelled on ${periodEndDate}. You'll continue to have full access until then, then be downgraded to Starter plan.`,
     })
   } catch (error: any) {
     console.error("[v0] Error cancelling subscription:", error)

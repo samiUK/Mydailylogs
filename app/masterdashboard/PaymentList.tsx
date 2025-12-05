@@ -1,11 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import type { Payment } from "./types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { DollarSign } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { DollarSign, TrendingUp, Calendar, RefreshCw } from "lucide-react"
+import { RefundDialog } from "@/components/refund-dialog"
 
 interface PaymentListProps {
   payments: Payment[]
@@ -18,7 +20,52 @@ interface PaymentListProps {
 export function PaymentList({ payments, searchTerm, onSearchChange, onRefund, onRefresh }: PaymentListProps) {
   const [refunding, setRefunding] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
+  const [refundDialog, setRefundDialog] = useState<{ open: boolean; payment: Payment | null }>({
+    open: false,
+    payment: null,
+  })
   const itemsPerPage = 20
+
+  const revenueMetrics = useMemo(() => {
+    const succeeded = payments.filter((p) => p.status === "succeeded")
+    const refunded = payments.filter((p) => p.status === "refunded")
+
+    const totalRevenue = succeeded.reduce((sum, p) => sum + p.amount, 0) / 100
+    const totalRefunded = refunded.reduce((sum, p) => sum + p.amount, 0) / 100
+    const netRevenue = totalRevenue - totalRefunded
+
+    const now = new Date()
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const thisMonthPayments = succeeded.filter((p) => new Date(p.created_at) >= firstDayOfMonth)
+    const monthlyRevenue = thisMonthPayments.reduce((sum, p) => sum + p.amount, 0) / 100
+
+    const subscriptionPayments = succeeded.filter((p) => p.transaction_id?.startsWith("pi_"))
+    const mrr =
+      subscriptionPayments
+        .filter((p) => new Date(p.created_at) >= firstDayOfMonth)
+        .reduce((sum, p) => sum + p.amount, 0) / 100
+
+    const currencyBreakdown = succeeded.reduce(
+      (acc, p) => {
+        const currency = p.currency?.toUpperCase() || "USD"
+        const amount = p.amount / 100
+        acc[currency] = (acc[currency] || 0) + amount
+        return acc
+      },
+      {} as Record<string, number>,
+    )
+
+    return {
+      totalRevenue,
+      netRevenue,
+      totalRefunded,
+      monthlyRevenue,
+      mrr,
+      currencyBreakdown,
+      totalPayments: succeeded.length,
+      refundedPayments: refunded.length,
+    }
+  }, [payments])
 
   const filteredPayments = payments.filter(
     (payment) =>
@@ -53,22 +100,103 @@ export function PaymentList({ payments, searchTerm, onSearchChange, onRefund, on
   }
 
   const handleRefund = (payment: Payment) => {
-    setRefunding(payment.id)
-    onRefund(payment)
+    setRefundDialog({ open: true, payment })
+  }
+
+  const handleConfirmRefund = async (paymentId: string, amount: number | undefined, reason: string) => {
+    setRefunding(paymentId)
+    try {
+      await onRefund({ id: paymentId, amount, reason } as any)
+      setRefundDialog({ open: false, payment: null })
+    } finally {
+      setRefunding(null)
+    }
   }
 
   return (
     <div className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg">
-      <div className="flex items-center gap-2 mb-4">
-        <DollarSign className="w-6 h-6" />
-        <h2 className="text-xl font-semibold">Payments ({payments.length})</h2>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <DollarSign className="w-6 h-6" />
+          <h2 className="text-xl font-semibold">Payments ({payments.length})</h2>
+        </div>
+        <Button onClick={onRefresh} variant="outline" size="sm">
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Refresh
+        </Button>
       </div>
-      <p className="text-gray-600 mb-6">Track all payment transactions</p>
+      <p className="text-gray-600 mb-6">Track all payment transactions and revenue metrics</p>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">£{revenueMetrics.totalRevenue.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground mt-1">{revenueMetrics.totalPayments} successful payments</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Net Revenue</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">£{revenueMetrics.netRevenue.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              After £{revenueMetrics.totalRefunded.toFixed(2)} refunds
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">This Month</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-600">£{revenueMetrics.monthlyRevenue.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Current billing period</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">MRR</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">£{revenueMetrics.mrr.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Monthly recurring revenue</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {Object.keys(revenueMetrics.currencyBreakdown).length > 1 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">Revenue by Currency</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-4">
+              {Object.entries(revenueMetrics.currencyBreakdown).map(([currency, amount]) => (
+                <div key={currency} className="flex items-center gap-2">
+                  <Badge variant="outline">{currency}</Badge>
+                  <span className="font-semibold">{amount.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="mb-6">
         <Input
           type="text"
-          placeholder="Search by amount, status, or organization..."
+          placeholder="Search by amount, status, or transaction ID..."
           value={searchTerm}
           onChange={(e) => handleSearchChange(e.target.value)}
           className="flex-1"
@@ -178,6 +306,13 @@ export function PaymentList({ payments, searchTerm, onSearchChange, onRefund, on
           </div>
         </div>
       )}
+
+      <RefundDialog
+        payment={refundDialog.payment}
+        open={refundDialog.open}
+        onOpenChange={(open) => setRefundDialog({ open, payment: open ? refundDialog.payment : null })}
+        onConfirm={handleConfirmRefund}
+      />
     </div>
   )
 }

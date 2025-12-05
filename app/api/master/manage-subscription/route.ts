@@ -91,30 +91,43 @@ export async function POST(request: NextRequest) {
     } else if (action === "cancel") {
       const { subscriptionId } = body
 
+      const { data: subscription } = await supabase
+        .from("subscriptions")
+        .select("status, current_period_end")
+        .or(`stripe_subscription_id.eq.${subscriptionId},id.eq.${subscriptionId}`)
+        .single()
+
+      if (!subscription) {
+        return NextResponse.json({ error: "Subscription not found" }, { status: 404 })
+      }
+
       try {
+        console.log("[v0] Marking subscription for cancellation at period end:", subscriptionId)
+
         await stripe.subscriptions.update(subscriptionId, {
           cancel_at_period_end: true,
         })
-        console.log("[v0] Stripe subscription marked for cancellation:", subscriptionId)
+
+        await supabase
+          .from("subscriptions")
+          .update({
+            cancel_at_period_end: true,
+            updated_at: new Date().toISOString(),
+          })
+          .or(`stripe_subscription_id.eq.${subscriptionId},id.eq.${subscriptionId}`)
+
+        const periodEndDate = subscription.current_period_end
+          ? new Date(subscription.current_period_end).toLocaleDateString()
+          : "end of period"
+
+        return NextResponse.json({
+          success: true,
+          message: `Subscription will be cancelled on ${periodEndDate}. Full access continues until then.`,
+        })
       } catch (stripeError: any) {
         console.error("[v0] Stripe cancellation failed:", stripeError)
-        // Continue with database update even if Stripe fails (webhook will sync later)
+        return NextResponse.json({ error: stripeError.message }, { status: 500 })
       }
-
-      const { error } = await supabase
-        .from("subscriptions")
-        .update({
-          cancel_at_period_end: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", subscriptionId)
-
-      if (error) throw error
-
-      return NextResponse.json({
-        success: true,
-        message: `Subscription will be cancelled at end of period`,
-      })
     } else if (action === "downgrade") {
       const { subscriptionId } = body
 
@@ -133,7 +146,8 @@ export async function POST(request: NextRequest) {
           cancel_at_period_end: false,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", subscriptionId)
+        .eq("stripe_subscription_id", subscriptionId)
+        .or(`id.eq.${subscriptionId}`)
 
       if (error) throw error
 

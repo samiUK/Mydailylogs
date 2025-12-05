@@ -378,30 +378,122 @@ export async function handleSubscriptionDowngrade(organizationId: string): Promi
     // Get current subscription limits
     const limits = await getSubscriptionLimits(organizationId)
 
-    // If on free tier (Starter), disable all templates except the last 3
     if (limits.planName === "Starter") {
-      // Get all active templates ordered by creation date (newest first)
+      console.log("[v0] Downgrading to Starter plan - applying strict limits")
+
+      // Archive extra templates (keep first 3)
+      const { data: templates } = await supabase
+        .from("checklist_templates")
+        .select("id, created_at, name")
+        .eq("organization_id", organizationId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: true })
+
+      if (templates && templates.length > limits.maxTemplates) {
+        const templatesToArchive = templates.slice(limits.maxTemplates).map((t) => t.id)
+
+        await supabase.from("checklist_templates").update({ is_active: false }).in("id", templatesToArchive)
+
+        console.log(`[v0] Archived ${templatesToArchive.length} templates`)
+      }
+
+      // Delete extra team members (keep first 5)
+      const { data: teamMembers } = await supabase
+        .from("profiles")
+        .select("id, created_at, email, role")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: true })
+
+      if (teamMembers && teamMembers.length > limits.maxTeamMembers) {
+        const membersToDelete = teamMembers.slice(limits.maxTeamMembers)
+        const memberIds = membersToDelete.map((m) => m.id)
+
+        // Delete all managers/admins except the first admin
+        const managersToDelete = membersToDelete.filter((m) => m.role === "manager" || m.role === "admin")
+
+        if (managersToDelete.length > 0) {
+          await supabase
+            .from("profiles")
+            .delete()
+            .in(
+              "id",
+              managersToDelete.map((m) => m.id),
+            )
+          console.log(`[v0] Deleted ${managersToDelete.length} manager accounts`)
+        }
+
+        // Delete staff members beyond limit
+        const staffToDelete = membersToDelete.filter((m) => m.role === "staff")
+        if (staffToDelete.length > 0) {
+          await supabase
+            .from("profiles")
+            .delete()
+            .in(
+              "id",
+              staffToDelete.map((m) => m.id),
+            )
+          console.log(`[v0] Deleted ${staffToDelete.length} team members`)
+        }
+      }
+
+      // Delete extra reports (keep only 50 most recent)
+      const { data: reports } = await supabase
+        .from("submitted_reports")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .order("submitted_at", { ascending: false })
+
+      if (reports && reports.length > 50) {
+        const reportsToDelete = reports.slice(50).map((r) => r.id)
+        await supabase.from("submitted_reports").delete().in("id", reportsToDelete)
+        console.log(`[v0] Deleted ${reportsToDelete.length} old reports`)
+      }
+    } else if (limits.planName === "Growth") {
+      console.log("[v0] Downgrading to Growth plan - applying Growth limits")
+
+      // Archive extra templates (keep first 10)
       const { data: templates } = await supabase
         .from("checklist_templates")
         .select("id, created_at")
         .eq("organization_id", organizationId)
         .eq("is_active", true)
-        .order("created_at", { ascending: false })
+        .order("created_at", { ascending: true })
 
       if (templates && templates.length > limits.maxTemplates) {
-        // Keep the 3 most recent, disable the rest
-        const templatesToDisable = templates.slice(limits.maxTemplates).map((t) => t.id)
+        const templatesToArchive = templates.slice(limits.maxTemplates).map((t) => t.id)
 
-        const { error } = await supabase
-          .from("checklist_templates")
-          .update({ is_active: false })
-          .in("id", templatesToDisable)
+        await supabase.from("checklist_templates").update({ is_active: false }).in("id", templatesToArchive)
 
-        if (error) {
-          console.error("[v0] Error disabling templates:", error)
-        } else {
-          console.log(`[v0] Disabled ${templatesToDisable.length} templates due to downgrade`)
-        }
+        console.log(`[v0] Archived ${templatesToArchive.length} templates (Growth limit: ${limits.maxTemplates})`)
+      }
+
+      // Delete extra team members (keep first 25)
+      const { data: teamMembers } = await supabase
+        .from("profiles")
+        .select("id, created_at, role")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: true })
+
+      if (teamMembers && teamMembers.length > limits.maxTeamMembers) {
+        const membersToDelete = teamMembers.slice(limits.maxTeamMembers).map((m) => m.id)
+
+        await supabase.from("profiles").delete().in("id", membersToDelete)
+        console.log(`[v0] Deleted ${membersToDelete.length} team members (Growth limit: ${limits.maxTeamMembers})`)
+      }
+
+      // Delete extra admin/manager accounts (keep first 3)
+      const { data: admins } = await supabase
+        .from("profiles")
+        .select("id, created_at")
+        .eq("organization_id", organizationId)
+        .in("role", ["admin", "manager"])
+        .order("created_at", { ascending: true })
+
+      if (admins && admins.length > limits.maxAdminAccounts) {
+        const adminsToDelete = admins.slice(limits.maxAdminAccounts).map((a) => a.id)
+
+        await supabase.from("profiles").delete().in("id", adminsToDelete)
+        console.log(`[v0] Deleted ${adminsToDelete.length} manager accounts (Growth limit: ${limits.maxAdminAccounts})`)
       }
     }
   } catch (error) {

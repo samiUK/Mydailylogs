@@ -1,27 +1,27 @@
 import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
+import { getMasterAuthPayload } from "@/lib/master-auth-jwt"
 
 export async function POST(request: NextRequest) {
   try {
+    const payload = await getMasterAuthPayload()
+
+    if (!payload || (payload.role !== "masteradmin" && payload.role !== "superuser")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const supabase = await createClient()
     const {
       organizationId,
       fieldName,
       newValue,
       reason,
-      masterAdminPassword,
     }: {
       organizationId: string
       fieldName: "template_limit" | "team_limit" | "manager_limit" | "monthly_submissions"
       newValue: number | null
       reason: string
-      masterAdminPassword: string
     } = await request.json()
-
-    // Verify master admin password
-    if (masterAdminPassword !== process.env.MASTER_ADMIN_PASSWORD) {
-      return NextResponse.json({ error: "Invalid master admin password" }, { status: 403 })
-    }
 
     // Get current custom value
     const { data: org, error: orgError } = await supabase
@@ -57,15 +57,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to update quota" }, { status: 500 })
     }
 
-    // Get master admin email from session
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
     // Log the modification
     await supabase.from("quota_modifications").insert({
       organization_id: organizationId,
-      modified_by: user?.email || "unknown",
+      modified_by: payload.email,
       field_name: fieldName,
       old_value: oldValue,
       new_value: newValue,

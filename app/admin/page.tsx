@@ -59,13 +59,16 @@ export default function AdminDashboard() {
   const [activityFilter, setActivityFilter] = useState<"all" | "overdue" | "due-soon" | "critical">("all")
   const [overdueCount, setOverdueCount] = useState(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [templateAssignments, setTemplateAssignments] = useState<any[]>([])
-  const [showVerificationSuccess, setShowVerificationSuccess] = useState(false)
-
   // Added state for subscription limits and usage
   const [subscriptionLimits, setSubscriptionLimits] = useState<any>(null)
   const [currentUsage, setCurrentUsage] = useState<any>(null)
   const [monthlySubmissions, setMonthlySubmissions] = useState<any>(null)
+  const [activityPage, setActivityPage] = useState(1)
+  const [activityTotal, setActivityTotal] = useState(0)
+  const ACTIVITIES_PER_PAGE = 10
+
+  const [templateAssignments, setTemplateAssignments] = useState<any[]>([])
+  const [showVerificationSuccess, setShowVerificationSuccess] = useState(false)
 
   const router = useRouter()
   const organizationId = profile?.organization_id
@@ -466,7 +469,7 @@ export default function AdminDashboard() {
       setActivityLoading(true)
       const supabase = createClient()
       const now = new Date()
-      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
 
       // Fetch template assignments with due date tracking
       const { data: assignments, error: assignmentsError } = await supabase
@@ -478,9 +481,9 @@ export default function AdminDashboard() {
           assigned_by_profile:profiles!template_assignments_assigned_by_fkey(first_name, last_name, full_name)
         `)
         .eq("organization_id", organizationId)
-        .gte("created_at", twentyFourHoursAgo.toISOString()) // Filter last 24 hours
+        .gte("created_at", thirtyDaysAgo.toISOString()) // Filter last 30 days
         .order("created_at", { ascending: false })
-        .limit(100)
+        .limit(200)
 
       console.log("[v0] Template assignments fetched:", assignments)
 
@@ -492,9 +495,9 @@ export default function AdminDashboard() {
           submitter:profiles!submitted_reports_submitted_by_fkey(first_name, last_name, full_name)
         `)
         .eq("organization_id", organizationId)
-        .gte("submitted_at", twentyFourHoursAgo.toISOString()) // Filter last 24 hours
+        .gte("submitted_at", thirtyDaysAgo.toISOString()) // Filter last 30 days
         .order("submitted_at", { ascending: false })
-        .limit(50)
+        .limit(100)
 
       console.log("[v0] Submitted reports fetched:", submissions)
 
@@ -507,18 +510,45 @@ export default function AdminDashboard() {
           assigned_user:profiles!daily_checklists_assigned_to_fkey(first_name, last_name, full_name)
         `)
         .eq("organization_id", organizationId)
-        .gte("updated_at", twentyFourHoursAgo.toISOString()) // Filter last 24 hours
+        .gte("updated_at", thirtyDaysAgo.toISOString()) // Filter last 30 days
         .order("updated_at", { ascending: false })
-        .limit(100)
+        .limit(200)
 
       console.log("[v0] Daily checklists fetched:", checklists)
+
+      const { data: deletedTaskNotifications, error: notificationsError } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .eq("type", "task_auto_deleted")
+        .gte("created_at", thirtyDaysAgo.toISOString())
+        .order("created_at", { ascending: false })
+        .limit(100)
+
+      console.log("[v0] Auto-deleted task notifications fetched:", deletedTaskNotifications)
 
       if (assignmentsError) throw assignmentsError
       if (submissionsError) throw submissionsError
       if (checklistsError) throw checklistsError
+      if (notificationsError) throw notificationsError
 
       const activities: any[] = []
       let overdueCounter = 0
+
+      deletedTaskNotifications?.forEach((notification: any) => {
+        activities.push({
+          id: `deleted-task-${notification.id}`,
+          type: "task_deleted",
+          action: "Task Auto-Deleted",
+          description: notification.message,
+          timestamp: notification.created_at,
+          status: "deleted",
+          icon: "alert",
+          isOverdue: true, // Red styling
+          isDueSoon: false,
+          priority: 0, // Highest priority
+        })
+      })
 
       // Add assignment activities with overdue detection
       assignments?.forEach((assignment: any) => {
@@ -638,6 +668,7 @@ export default function AdminDashboard() {
       })
 
       setOverdueCount(overdueCounter)
+      setActivityTotal(activities.length)
       setActivityLog(activities)
     } catch (error) {
       console.error("Error fetching activity log:", error)
@@ -648,6 +679,8 @@ export default function AdminDashboard() {
 
   const refreshActivityLog = async () => {
     setIsRefreshing(true)
+    // Reset page to 1 when refreshing
+    setActivityPage(1)
     await fetchActivityLog()
     setIsRefreshing(false)
   }
@@ -735,6 +768,12 @@ export default function AdminDashboard() {
       </div>
     )
   }
+
+  const paginatedActivities = activityLog.slice(
+    (activityPage - 1) * ACTIVITIES_PER_PAGE,
+    activityPage * ACTIVITIES_PER_PAGE,
+  )
+  const totalPages = Math.ceil(activityLog.length / ACTIVITIES_PER_PAGE)
 
   return (
     <div className="space-y-8">
@@ -990,7 +1029,7 @@ export default function AdminDashboard() {
                 <RotateCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
               </Button>
             </CardTitle>
-            <CardDescription>Real-time monitoring of all team activities and deadlines</CardDescription>
+            <CardDescription>Real-time monitoring of all team activities and deadlines (last 30 days)</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
@@ -999,114 +1038,115 @@ export default function AdminDashboard() {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
               ) : activityLog.length === 0 ? (
-                <div className="text-sm text-muted-foreground py-8 text-center">No activity in the last 24 hours</div>
+                <div className="text-sm text-muted-foreground py-8 text-center">No activity in the last 30 days</div>
               ) : (
-                activityLog.map((activity, index) => (
-                  <div
-                    key={activity.id}
-                    className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
-                      activity.isOverdue
-                        ? "bg-red-50 border-red-200 hover:bg-red-100"
-                        : activity.isDueSoon
-                          ? "bg-amber-50 border-amber-200 hover:bg-amber-100"
-                          : "bg-card hover:bg-accent/50"
-                    }`}
-                  >
+                <>
+                  {paginatedActivities.map((activity, index) => (
                     <div
-                      className={`mt-0.5 rounded-full p-1.5 ${
+                      key={activity.id}
+                      className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
                         activity.isOverdue
-                          ? "bg-red-500 text-white animate-pulse"
+                          ? "bg-red-50 border-red-200 hover:bg-red-100"
                           : activity.isDueSoon
-                            ? "bg-amber-500 text-white"
-                            : activity.type === "assignment"
-                              ? "bg-blue-100 text-blue-600"
-                              : activity.type === "submission"
-                                ? "bg-green-100 text-green-600"
-                                : activity.type === "completion"
-                                  ? "bg-purple-100 text-purple-600"
-                                  : "bg-orange-100 text-orange-600"
+                            ? "bg-amber-50 border-amber-200 hover:bg-amber-100"
+                            : "bg-card hover:bg-accent/50"
                       }`}
                     >
-                      {activity.icon === "alert" && <AlertCircle className="h-4 w-4" />}
-                      {activity.icon === "assignment" && <ClipboardList className="h-4 w-4" />}
-                      {activity.icon === "submission" && <CheckCircle2 className="h-4 w-4" />}
-                      {activity.icon === "check" && <CheckCheck className="h-4 w-4" />}
-                      {activity.icon === "clock" && <Clock className="h-4 w-4" />}
-                      {activity.icon === "activity" && <Activity className="h-4 w-4" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span
-                          className={`text-xs font-semibold ${
-                            activity.isOverdue
-                              ? "text-red-700"
-                              : activity.isDueSoon
-                                ? "text-amber-700"
-                                : "text-foreground"
-                          }`}
-                        >
-                          {activity.action}
-                        </span>
-                        {activity.status && (
-                          <Badge
-                            variant="secondary"
-                            className={`text-xs ${
-                              activity.status === "completed"
-                                ? "bg-green-100 text-green-700"
-                                : activity.status === "pending"
-                                  ? "bg-orange-100 text-orange-700"
-                                  : activity.status === "in_progress"
-                                    ? "bg-blue-100 text-blue-700"
-                                    : "bg-gray-100 text-gray-700"
+                      <div
+                        className={`mt-0.5 rounded-full p-1.5 ${
+                          activity.isOverdue
+                            ? "bg-red-500 text-white animate-pulse"
+                            : activity.isDueSoon
+                              ? "bg-amber-500 text-white"
+                              : activity.type === "assignment"
+                                ? "bg-blue-100 text-blue-600"
+                                : activity.type === "submission"
+                                  ? "bg-green-100 text-green-600"
+                                  : activity.type === "completion"
+                                    ? "bg-purple-100 text-purple-600"
+                                    : activity.type === "task_deleted" // Handle new task_deleted type
+                                      ? "bg-red-500 text-white"
+                                      : "bg-orange-100 text-orange-600"
+                        }`}
+                      >
+                        {activity.icon === "alert" && <AlertCircle className="h-4 w-4" />}
+                        {activity.icon === "assignment" && <ClipboardList className="h-4 w-4" />}
+                        {activity.icon === "submission" && <CheckCircle2 className="h-4 w-4" />}
+                        {activity.icon === "check" && <CheckCheck className="h-4 w-4" />}
+                        {activity.icon === "clock" && <Clock className="h-4 w-4" />}
+                        {activity.icon === "activity" && <Activity className="h-4 w-4" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={`text-xs font-semibold ${
+                              activity.isOverdue
+                                ? "text-red-700"
+                                : activity.isDueSoon
+                                  ? "text-amber-700"
+                                  : "text-foreground"
                             }`}
                           >
-                            {activity.status.replace("_", " ")}
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{activity.description}</p>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <p className="text-xs text-muted-foreground">
-                          {formatRelativeTime(new Date(activity.timestamp))}
-                        </p>
-                        {activity.dueDate && (
-                          <>
-                            <span className="text-xs text-muted-foreground">•</span>
-                            <p
-                              className={`text-xs font-medium ${
-                                activity.isOverdue
-                                  ? "text-red-600"
-                                  : activity.isDueSoon
-                                    ? "text-amber-600"
-                                    : "text-muted-foreground"
+                            {activity.action}
+                          </span>
+                          {activity.status && (
+                            <Badge
+                              variant="secondary"
+                              className={`text-xs ${
+                                activity.status === "completed"
+                                  ? "bg-green-100 text-green-700"
+                                  : activity.status === "deleted" // Handle new status
+                                    ? "bg-red-100 text-red-700"
+                                    : activity.status === "pending"
+                                      ? "bg-orange-100 text-orange-700"
+                                      : activity.status === "in_progress"
+                                        ? "bg-blue-100 text-blue-700"
+                                        : "bg-gray-100 text-gray-700"
                               }`}
                             >
-                              Due: {formatUKDate(activity.dueDate)}
-                              {activity.isOverdue && (
-                                <span className="ml-1 font-semibold">
-                                  (
-                                  {Math.floor(
-                                    (new Date().getTime() - activity.dueDate.getTime()) / (1000 * 60 * 60 * 24),
-                                  )}{" "}
-                                  days overdue)
-                                </span>
-                              )}
-                              {activity.isDueSoon && !activity.isOverdue && (
-                                <span className="ml-1 font-semibold">
-                                  (
-                                  {Math.ceil(
-                                    (activity.dueDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24),
-                                  )}{" "}
-                                  days left)
-                                </span>
-                              )}
+                              {activity.status.replace("_", " ")}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{activity.description}</p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <p className="text-xs text-muted-foreground">
+                            {formatRelativeTime(new Date(activity.timestamp))}
+                          </p>
+                          {activity.dueDate && (
+                            <p className="text-xs text-muted-foreground">
+                              • Due: {new Date(activity.dueDate).toLocaleDateString()}
                             </p>
-                          </>
-                        )}
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between pt-4 border-t">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setActivityPage((p) => Math.max(1, p - 1))}
+                        disabled={activityPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        Page {activityPage} of {totalPages} ({activityTotal} total activities)
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setActivityPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={activityPage === totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </CardContent>

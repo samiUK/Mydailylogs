@@ -56,8 +56,8 @@ export const SUBSCRIPTION_PRODUCTS: SubscriptionProduct[] = [
     id: "growth",
     name: "Growth",
     description: "Ideal for growing small-medium businesses",
-    priceMonthly: 900, // £9/month
-    priceYearly: 9600, // £96/year (£8/month)
+    priceMonthly: 800, // £8/month GBP, $10/month USD
+    priceYearly: 8400, // £84/year (£7/month) GBP, $108/year ($9/month) USD
     trialDays: 30,
     maxTemplates: 10,
     maxTeamMembers: 25,
@@ -78,8 +78,8 @@ export const SUBSCRIPTION_PRODUCTS: SubscriptionProduct[] = [
     id: "scale",
     name: "Scale",
     description: "For established SMEs ready to scale",
-    priceMonthly: 1600, // £16/month
-    priceYearly: 18000, // £180/year (£15/month)
+    priceMonthly: 1500, // £15/month GBP, $17-18/month USD
+    priceYearly: 16800, // £168/year (£14/month) GBP, $192/year ($16/month) USD
     trialDays: 30,
     maxTemplates: 20,
     maxTeamMembers: 75,
@@ -105,15 +105,47 @@ export function getProduct(productId: string): SubscriptionProduct | undefined {
 
 export function formatPrice(priceInPence: number, currency: "GBP" | "USD" = "GBP"): string {
   if (currency === "USD") {
-    // Convert pence to dollars with +$1 markup
+    // Growth: £8 → $10 monthly, £84 → $108 yearly
+    // Scale: £15 → $17-18 monthly, £168 → $192 yearly
     const basePrice = priceInPence / 100
-    const usdPrice = basePrice + 1
+    let usdPrice: number
+
+    // Monthly prices
+    if (priceInPence === 800) {
+      // Growth monthly
+      usdPrice = 10
+    } else if (priceInPence === 1500) {
+      // Scale monthly
+      usdPrice = 17 // You may need to confirm if this should be $17 or $18
+    }
+    // Yearly prices
+    else if (priceInPence === 8400) {
+      // Growth yearly
+      usdPrice = 108
+    } else if (priceInPence === 16800) {
+      // Scale yearly
+      usdPrice = 192
+    }
+    // Monthly equivalent for yearly (for display)
+    else if (priceInPence === 700) {
+      // Growth yearly monthly equivalent £7
+      usdPrice = 9
+    } else if (priceInPence === 1400) {
+      // Scale yearly monthly equivalent £14
+      usdPrice = 16
+    } else {
+      usdPrice = basePrice + 2 // fallback
+    }
+
     return `$${usdPrice.toFixed(2)}`
   }
   return `£${(priceInPence / 100).toFixed(2)}`
 }
 
 export function getUSDPrice(priceInPence: number): number {
-  // Base price in GBP converted to cents, then add $1 (100 cents)
-  return priceInPence + 100
+  if (priceInPence === 800) return 1000 // Growth monthly: $10
+  if (priceInPence === 8400) return 10800 // Growth yearly: $108
+  if (priceInPence === 1500) return 1700 // Scale monthly: $17
+  if (priceInPence === 16800) return 19200 // Scale yearly: $192
+  return priceInPence + 200 // fallback
 }

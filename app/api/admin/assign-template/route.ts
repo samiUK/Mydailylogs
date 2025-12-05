@@ -35,6 +35,19 @@ export async function POST(request: NextRequest) {
     const subscriptionLimits = await getSubscriptionLimits(profile.organization_id)
     const isPaidUser = subscriptionLimits.planName !== "Starter"
 
+    const { data: subscription } = await supabase
+      .from("subscriptions")
+      .select("plan_name, status, stripe_subscription_id")
+      .eq("organization_id", profile.organization_id)
+      .in("status", ["active", "trialing"]) // Both active and trialing count as paid
+      .not("stripe_subscription_id", "is", null) // Must have Stripe subscription
+      .maybeSingle()
+
+    const hasScaleEmails =
+      subscription?.plan_name?.toLowerCase().startsWith("scale") &&
+      (subscription?.status === "active" || subscription?.status === "trialing") &&
+      subscription?.stripe_subscription_id // Ensures it's a Stripe customer
+
     const { data: template } = await supabase
       .from("checklist_templates")
       .select("name, description, specific_date, deadline_date")
@@ -125,43 +138,40 @@ export async function POST(request: NextRequest) {
       }))
 
       await supabase.from("notifications").insert(notifications)
+      console.log(`[v0] In-app notifications created for ${assignedMembers.length} team members`)
 
-      if (isPaidUser) {
-        const adminFullName =
-          profile.full_name ||
-          (profile.first_name && profile.last_name ? `${profile.first_name} ${profile.last_name}` : null) ||
-          profile.email
+      if (hasScaleEmails) {
+        console.log(`[v0] Sending assignment emails to Scale customers (${assignedMembers.length} members)`)
 
         for (const member of assignedMembers) {
+          const memberName =
+            member.full_name ||
+            (member.first_name && member.last_name ? `${member.first_name} ${member.last_name}` : member.email)
+
+          const assignerName =
+            profile.full_name ||
+            (profile.first_name && profile.last_name ? `${profile.first_name} ${profile.last_name}` : profile.email)
+
           try {
-            const memberFullName =
-              member.full_name ||
-              (member.first_name && member.last_name ? `${member.first_name} ${member.last_name}` : null) ||
-              member.first_name ||
-              "Team Member"
-
-            const taskTemplate = emailTemplates.taskAssignment({
-              userName: memberFullName,
-              taskName: template.name,
-              taskDescription: template.description,
-              dueDate: assignmentDueDate ? formatUKDate(assignmentDueDate) : undefined,
-              assignedBy: adminFullName,
-            })
-
             await sendEmail({
               to: member.email,
-              subject: taskTemplate.subject,
-              html: taskTemplate.html,
+              subject: `New Task Assignment: ${template.name}`,
+              html: emailTemplates.taskAssignment({
+                memberName,
+                taskName: template.name,
+                taskDescription: template.description || "",
+                dueDate: assignmentDueDate ? formatUKDate(assignmentDueDate) : "No specific due date",
+                assignerName,
+                loginUrl: `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.mydaylogs.co.uk"}/auth/login`,
+              }),
             })
-
-            console.log("[v0] Task assignment email sent to:", member.email)
+            console.log(`[v0] Assignment email sent to ${member.email}`)
           } catch (emailError) {
             console.error(`[v0] Failed to send email to ${member.email}:`, emailError)
           }
         }
-        console.log(`[v0] Email notifications sent to ${assignedMembers.length} team members (paid plan)`)
       } else {
-        console.log(`[v0] Email notifications skipped (free plan - in-app notifications only)`)
+        console.log(`[v0] Assignment emails skipped - Scale plan with Stripe subscription required`)
       }
     }
 

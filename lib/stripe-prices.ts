@@ -4,22 +4,22 @@ import type { SubscriptionPlan, BillingPeriod } from "./subscription-types"
 export const STRIPE_PRICES = {
   growth: {
     monthly: {
-      GBP: "price_1SZXjcDMz3Bxx5pnyucBd9S3", // £8.00/month
-      USD: "price_1SZXjWDMz3Bxx5pn5A7WjoU8", // $9.00/month
+      GBP: "MISSING_CREATE_IN_STRIPE", // £8.00/month - CREATE THIS PRICE IN STRIPE
+      USD: "MISSING_CREATE_IN_STRIPE", // $9.00/month - CREATE THIS PRICE IN STRIPE (not $10)
     },
     yearly: {
-      GBP: "price_1SZXjZDMz3Bxx5pnDgM7e1Wz", // £96.00/year
-      USD: "price_1SZXjRDMz3Bxx5pnmCJmfXSu", // $108.00/year
+      GBP: "price_1SazBKDMz3Bxx5pnyJ1e70gp", // £84.00/year (£7/month)
+      USD: "MISSING_CREATE_IN_STRIPE", // $96.00/year ($8/month) - CREATE THIS PRICE IN STRIPE
     },
   },
   scale: {
     monthly: {
-      GBP: "price_1SZXjODMz3Bxx5pnpK8GB5gS", // £16.00/month
-      USD: "price_1SZXjGDMz3Bxx5pnFfskR582", // $17.00/month
+      GBP: "price_1SazCUDMz3Bxx5pneujlkdor", // £15.00/month
+      USD: "MISSING_CREATE_IN_STRIPE", // $17.00/month - CREATE THIS PRICE IN STRIPE
     },
     yearly: {
-      GBP: "price_1SZXjKDMz3Bxx5pnZRkM09Hg", // £180.00/year
-      USD: "price_1SZXhpDMz3Bxx5pnxMZyMkRj", // $192.00/year
+      GBP: "price_1SazDQDMz3Bxx5pnjiYZTb6t", // £168.00/year (£14/month)
+      USD: "MISSING_CREATE_IN_STRIPE", // $180.00/year ($15/month) - CREATE THIS PRICE IN STRIPE
     },
   },
 } as const

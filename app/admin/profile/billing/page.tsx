@@ -85,6 +85,13 @@ export default function BillingPage() {
 
   const formatPriceWithCurrency = (gbpPence: number) => {
     if (currency === "USD") {
+      if (gbpPence === 800) return "$10.00" // Growth monthly
+      if (gbpPence === 700) return "$9.00" // Growth yearly monthly equivalent
+      if (gbpPence === 8400) return "$108.00" // Growth yearly total
+      if (gbpPence === 1500) return "$17.00" // Scale monthly
+      if (gbpPence === 1400) return "$16.00" // Scale yearly monthly equivalent
+      if (gbpPence === 16800) return "$192.00" // Scale yearly total
+
       const usdPrice = gbpPence / 100 + 1
       return `$${usdPrice.toFixed(2)}`
     }
@@ -476,8 +483,10 @@ export default function BillingPage() {
           <div className="grid md:grid-cols-2 gap-6">
             {["growth", "scale"].map((plan) => {
               const isCurrent = currentPlanName === plan
-              const displayPrice = billingPeriod === "yearly" ? 1200 : 100
-              const monthlyEquivalent = billingPeriod === "yearly" ? Math.round(1200 / 12) : 100
+              const monthlyPrice = plan === "growth" ? 800 : 1500
+              const yearlyTotalPrice = plan === "growth" ? 8400 : 16800
+              const displayPrice = billingPeriod === "yearly" ? yearlyTotalPrice : monthlyPrice
+              const monthlyEquivalent = billingPeriod === "yearly" ? Math.round(yearlyTotalPrice / 12) : monthlyPrice
 
               return (
                 <div
@@ -517,10 +526,6 @@ export default function BillingPage() {
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">Email Notifications</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-primary" />
                       <span className="text-sm">Contractor Link Share</span>
                     </li>
                     <li className="flex items-center gap-2">
@@ -528,35 +533,17 @@ export default function BillingPage() {
                       <span className="text-sm">Photo Upload on Reports</span>
                     </li>
                     {plan === "scale" && (
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-primary" />
-                        <span className="text-sm font-semibold">Report Deletion Recovery (via support)</span>
-                      </li>
+                      <>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-primary" />
+                          <span className="text-sm font-semibold">📧 Email Task Assignment Alerts</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-primary" />
+                          <span className="text-sm font-semibold">🛡️ Accidental Deletion Recovery</span>
+                        </li>
+                      </>
                     )}
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">90-day report retention</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">Monthly email delivery</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">Unlimited Templates</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">Unlimited Team Members</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">1 Admin + 6 Managers Admin/Manager Accounts</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">Unlimited Report Submissions</span>
-                    </li>
                   </ul>
 
                   {!isCurrent && (

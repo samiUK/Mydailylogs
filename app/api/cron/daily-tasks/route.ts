@@ -167,25 +167,143 @@ export async function GET(request: NextRequest) {
       console.log(`[v0] Marked ${markedOverdue} incomplete daily tasks as overdue`)
     }
 
-    console.log("[v0] Deleting overdue tasks older than 24 hours...")
+    console.log("[v0] Starting smart cleanup of overdue tasks...")
     let deletedOverdueTasks = 0
 
-    const twoDaysAgo = new Date()
-    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
-    const twoDaysAgoDate = twoDaysAgo.toISOString().split("T")[0]
+    try {
+      // Get all overdue tasks with their template recurrence info
+      const { data: overdueTasks, error: fetchError } = await supabase
+        .from("daily_checklists")
+        .select(`
+          id,
+          date,
+          template_id,
+          organization_id,
+          assigned_to,
+          checklist_templates!inner(
+            name,
+            is_recurring,
+            recurrence_type
+          ),
+          profiles!daily_checklists_assigned_to_fkey(
+            first_name,
+            last_name,
+            full_name
+          )
+        `)
+        .eq("status", "overdue")
 
-    const { data: deletedTasks, error: deleteError } = await supabase
-      .from("daily_checklists")
-      .delete()
-      .eq("status", "overdue")
-      .lt("date", twoDaysAgoDate)
-      .select("id")
+      if (fetchError) {
+        console.error("[v0] Error fetching overdue tasks:", fetchError)
+      } else if (overdueTasks && overdueTasks.length > 0) {
+        const tasksToDelete: string[] = []
+        const deletedTasksInfo: any[] = []
 
-    if (deleteError) {
-      console.error("[v0] Error deleting old overdue tasks:", deleteError)
-    } else if (deletedTasks) {
-      deletedOverdueTasks = deletedTasks.length
-      console.log(`[v0] Deleted ${deletedOverdueTasks} overdue tasks that were 24+ hours old`)
+        for (const task of overdueTasks) {
+          const taskDate = new Date(task.date)
+          const daysSinceOverdue = Math.floor((new Date(today).getTime() - taskDate.getTime()) / (1000 * 60 * 60 * 24))
+
+          const template = task.checklist_templates
+
+          if (!template.is_recurring) {
+            // One-off tasks: delete immediately when overdue
+            tasksToDelete.push(task.id)
+            deletedTasksInfo.push({
+              taskId: task.id,
+              taskName: template.name,
+              organizationId: task.organization_id,
+              assignedTo: task.assigned_to,
+              assignedToName: task.profiles?.full_name || `${task.profiles?.first_name} ${task.profiles?.last_name}`,
+              dueDate: task.date,
+              taskType: "one-off",
+            })
+            console.log(`[v0] Marking one-off task ${task.id} for deletion (overdue by ${daysSinceOverdue} days)`)
+          } else {
+            // Recurring tasks: keep until 1 day past next occurrence
+            let deleteThreshold = 0
+            switch (template.recurrence_type) {
+              case "daily":
+                deleteThreshold = 2 // Daily + 1 day grace
+                break
+              case "weekdays":
+                deleteThreshold = 4 // Up to 3 days (Fri -> Mon) + 1 day grace
+                break
+              case "weekly":
+                deleteThreshold = 8 // 7 days + 1 day grace
+                break
+              case "monthly":
+                deleteThreshold = 32 // 31 days + 1 day grace
+                break
+              default:
+                deleteThreshold = 2 // Default to 2 days
+            }
+
+            if (daysSinceOverdue >= deleteThreshold) {
+              tasksToDelete.push(task.id)
+              deletedTasksInfo.push({
+                taskId: task.id,
+                taskName: template.name,
+                organizationId: task.organization_id,
+                assignedTo: task.assigned_to,
+                assignedToName: task.profiles?.full_name || `${task.profiles?.first_name} ${task.profiles?.last_name}`,
+                dueDate: task.date,
+                taskType: template.recurrence_type,
+              })
+              console.log(
+                `[v0] Marking ${template.recurrence_type} recurring task ${task.id} for deletion (overdue by ${daysSinceOverdue} days, threshold: ${deleteThreshold})`,
+              )
+            }
+          }
+        }
+
+        // Delete all marked tasks
+        if (tasksToDelete.length > 0) {
+          const { error: deleteError } = await supabase.from("daily_checklists").delete().in("id", tasksToDelete)
+
+          if (deleteError) {
+            console.error("[v0] Error deleting overdue tasks:", deleteError)
+          } else {
+            deletedOverdueTasks = tasksToDelete.length
+            console.log(`[v0] Deleted ${deletedOverdueTasks} overdue tasks using smart cleanup logic`)
+
+            console.log(`[v0] Creating notifications for ${deletedTasksInfo.length} deleted tasks...`)
+
+            for (const taskInfo of deletedTasksInfo) {
+              // Get admin users for this organization
+              const { data: admins } = await supabase
+                .from("profiles")
+                .select("id")
+                .eq("organization_id", taskInfo.organizationId)
+                .eq("role", "admin")
+
+              if (admins && admins.length > 0) {
+                const notifications = admins.map((admin) => ({
+                  user_id: admin.id,
+                  organization_id: taskInfo.organizationId,
+                  type: "task_auto_deleted",
+                  message: `Task "${taskInfo.taskName}" was auto-deleted (overdue, not completed by ${taskInfo.assignedToName})`,
+                  is_read: false,
+                  created_at: new Date().toISOString(),
+                }))
+
+                const { error: notifError } = await supabase.from("notifications").insert(notifications)
+
+                if (notifError) {
+                  console.error(`[v0] Error creating notifications for deleted task ${taskInfo.taskId}:`, notifError)
+                } else {
+                  console.log(`[v0] Created ${notifications.length} notifications for deleted task ${taskInfo.taskId}`)
+                }
+              }
+            }
+          }
+        } else {
+          console.log("[v0] No overdue tasks meet deletion criteria yet")
+        }
+      } else {
+        console.log("[v0] No overdue tasks found")
+      }
+    } catch (cleanupError) {
+      console.error("[v0] Error during smart task cleanup:", cleanupError)
     }
 
     // Daily automated task creation

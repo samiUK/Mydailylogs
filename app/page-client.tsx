@@ -106,6 +106,13 @@ export default function HomePageClient() {
 
   const formatPrice = (gbpPence: number) => {
     if (currency === "USD") {
+      if (gbpPence === 800) return "$10" // Growth monthly
+      if (gbpPence === 700) return "$9" // Growth yearly monthly equivalent
+      if (gbpPence === 8400) return "$108" // Growth yearly total
+      if (gbpPence === 1500) return "$17" // Scale monthly
+      if (gbpPence === 1400) return "$16" // Scale yearly monthly equivalent
+      if (gbpPence === 16800) return "$192" // Scale yearly total
+
       const usdPrice = gbpPence / 100 + 1
       return `$${usdPrice.toFixed(0)}`
     }
@@ -114,6 +121,13 @@ export default function HomePageClient() {
 
   const formatPriceDecimal = (gbpPence: number) => {
     if (currency === "USD") {
+      if (gbpPence === 800) return "$10.00" // Growth monthly
+      if (gbpPence === 700) return "$9.00" // Growth yearly monthly equivalent
+      if (gbpPence === 8400) return "$108.00" // Growth yearly total
+      if (gbpPence === 1500) return "$17.00" // Scale monthly
+      if (gbpPence === 1400) return "$16.00" // Scale yearly monthly equivalent
+      if (gbpPence === 16800) return "$192.00" // Scale yearly total
+
       const usdPrice = gbpPence / 100 + 1
       return `$${usdPrice.toFixed(2)}`
     }
@@ -320,8 +334,8 @@ export default function HomePageClient() {
                   </div>
                   <CardTitle>Smart Reminders</CardTitle>
                   <CardDescription>
-                    Set up recurring tasks with customizable schedules. Automatic email reminders ensure your team never
-                    misses critical compliance checks or routine inspections.
+                    Set up recurring tasks with customizable schedules. Scale plan customers receive email notifications
+                    when tasks are assigned, keeping your team informed and ready to work.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -547,10 +561,10 @@ export default function HomePageClient() {
                       <span className="text-5xl font-bold text-muted-foreground">...</span>
                     ) : (
                       <>
-                        <span className="text-5xl font-bold text-foreground">{formatPrice(900)}</span>
+                        <span className="text-5xl font-bold text-foreground">{formatPrice(800)}</span>
                         <span className="text-muted-foreground text-lg">/month</span>
                         <p className="text-sm text-muted-foreground mt-2">
-                          or {formatPrice(800)}/month billed yearly ({currency === "USD" ? "$108" : formatPrice(9600)}
+                          or {formatPrice(700)}/month billed yearly ({currency === "USD" ? "$96" : formatPrice(8400)}
                           /year)
                         </p>
                       </>
@@ -586,10 +600,6 @@ export default function HomePageClient() {
                     </li>
                     <li className="flex items-center">
                       <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                      <span className="font-semibold">📧 Email Notifications</span>
-                    </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
                       <span className="font-semibold">🔗 Contractor Link Share</span>
                     </li>
                     <li className="flex items-center">
@@ -620,10 +630,10 @@ export default function HomePageClient() {
                       <span className="text-5xl font-bold text-muted-foreground">...</span>
                     ) : (
                       <>
-                        <span className="text-5xl font-bold text-foreground">{formatPrice(1600)}</span>
+                        <span className="text-5xl font-bold text-foreground">{formatPrice(1500)}</span>
                         <span className="text-muted-foreground text-lg">/month</span>
                         <p className="text-sm text-muted-foreground mt-2">
-                          or {formatPrice(1500)}/month billed yearly ({currency === "USD" ? "$192" : formatPrice(18000)}
+                          or {formatPrice(1400)}/month billed yearly ({currency === "USD" ? "$180" : formatPrice(16800)}
                           /year)
                         </p>
                       </>
@@ -659,7 +669,7 @@ export default function HomePageClient() {
                     </li>
                     <li className="flex items-center">
                       <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
-                      <span className="font-semibold">📧 Email Notifications</span>
+                      <span className="font-semibold">📧 Email Task Assignment Notifications</span>
                     </li>
                     <li className="flex items-center">
                       <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />

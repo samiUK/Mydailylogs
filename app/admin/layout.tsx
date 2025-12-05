@@ -8,7 +8,8 @@ import { EmailVerificationBanner } from "@/components/email-verification-banner"
 import { PaymentFailedBanner } from "@/components/payment-failed-banner"
 import { ImpersonationBanner } from "@/components/impersonation-banner"
 import { cookies } from "next/headers"
-import { syncSubscriptionFromStripe, deduplicateSubscriptions } from "@/lib/stripe-subscription-sync"
+import { syncSubscriptionOnLogin } from "@/lib/subscription-sync-failsafe"
+import { SubscriptionRealtimeProvider } from "./subscription-realtime-provider"
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -54,13 +55,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const organizationId = profile.organizations?.organization_id
 
-  if (organizationId) {
-    await deduplicateSubscriptions(organizationId)
-  }
-
-  if (organizationId) {
-    await syncSubscriptionFromStripe(organizationId)
-    console.log("[v0] Synced subscription from Stripe on login")
+  if (organizationId && user.email) {
+    try {
+      await syncSubscriptionOnLogin(organizationId, user.email)
+      console.log("[v0] ✅ Subscription synced from Stripe on login")
+    } catch (error) {
+      console.error("[v0] ❌ Subscription sync failed on login:", error)
+      // Don't block login if sync fails
+    }
   }
 
   const handleSignOut = async () => {
@@ -104,19 +106,21 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <BrandingProvider initialBranding={brandingData}>
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-        {impersonationActive && parsedImpersonationData && (
-          <ImpersonationBanner
-            userEmail={parsedImpersonationData.userEmail}
-            userRole={parsedImpersonationData.userRole}
-          />
-        )}
-        <AdminNavigation user={profile} onSignOut={handleSignOut} />
-        <EmailVerificationBanner userEmail={user.email || ""} isVerified={isEmailVerified} />
-        {hasPaymentFailed && gracePeriodEndsAt && <PaymentFailedBanner gracePeriodEndsAt={gracePeriodEndsAt} />}
-        <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">{children}</main>
-        <DashboardFooter />
-      </div>
+      <SubscriptionRealtimeProvider organizationId={organizationId!} initialSubscription={subscription as any}>
+        <div className="min-h-screen bg-gray-50 flex flex-col">
+          {impersonationActive && parsedImpersonationData && (
+            <ImpersonationBanner
+              userEmail={parsedImpersonationData.userEmail}
+              userRole={parsedImpersonationData.userRole}
+            />
+          )}
+          <AdminNavigation user={profile} onSignOut={handleSignOut} />
+          <EmailVerificationBanner userEmail={user.email || ""} isVerified={isEmailVerified} />
+          {hasPaymentFailed && gracePeriodEndsAt && <PaymentFailedBanner gracePeriodEndsAt={gracePeriodEndsAt} />}
+          <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">{children}</main>
+          <DashboardFooter />
+        </div>
+      </SubscriptionRealtimeProvider>
     </BrandingProvider>
   )
 }

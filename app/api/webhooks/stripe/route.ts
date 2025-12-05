@@ -58,18 +58,31 @@ export async function POST(req: NextRequest) {
 
         const subscription = await stripe.subscriptions.retrieve(subscriptionId)
 
-        await supabaseAdmin.from("subscriptions").delete().eq("organization_id", organizationId)
+        const { data: deletedSubs } = await supabaseAdmin
+          .from("subscriptions")
+          .delete()
+          .eq("organization_id", organizationId)
+          .select()
 
-        console.log("[v0] Cleared existing subscriptions for organization")
+        console.log(
+          "[v0] Deleted",
+          deletedSubs?.length || 0,
+          "existing subscriptions for organization:",
+          organizationId,
+        )
 
         const isTrial = subscription.trial_end ? subscription.trial_end > Math.floor(Date.now() / 1000) : false
+
+        const planName = subscriptionType.split("-")[0]
+
+        console.log("[v0] Creating subscription with plan_name:", planName, "from type:", subscriptionType)
 
         const { error: subError } = await supabaseAdmin.from("subscriptions").insert({
           id: subscriptionId,
           stripe_subscription_id: subscriptionId,
           stripe_customer_id: customerId,
           organization_id: organizationId,
-          plan_name: subscriptionType,
+          plan_name: planName, // Use extracted plan name ("growth", "scale") not full type
           status: subscription.status,
           is_trial: isTrial,
           has_used_trial: true,
@@ -85,7 +98,14 @@ export async function POST(req: NextRequest) {
           throw subError
         }
 
-        console.log("[v0] Successfully created subscription in database:", subscriptionId)
+        console.log(
+          "[v0] Successfully created subscription with plan:",
+          planName,
+          "(type:",
+          subscriptionType,
+          ") for organization:",
+          organizationId,
+        )
 
         if (isTrial) {
           const { error: profileError } = await supabaseAdmin
@@ -176,14 +196,29 @@ export async function POST(req: NextRequest) {
         const subscriptionType = subscription.metadata.subscription_type
         const isTrial = subscription.trial_end ? subscription.trial_end > Math.floor(Date.now() / 1000) : false
 
-        await supabaseAdmin.from("subscriptions").delete().eq("organization_id", organizationId)
+        const { data: deletedSubs } = await supabaseAdmin
+          .from("subscriptions")
+          .delete()
+          .eq("organization_id", organizationId)
+          .select()
+
+        console.log(
+          "[v0] Deleted",
+          deletedSubs?.length || 0,
+          "existing subscriptions for organization:",
+          organizationId,
+        )
+
+        const planName = subscriptionType.split("-")[0]
+
+        console.log("[v0] Creating subscription with plan_name:", planName, "from type:", subscriptionType)
 
         const { error: subError } = await supabaseAdmin.from("subscriptions").insert({
           id: subscription.id,
           stripe_subscription_id: subscription.id,
           stripe_customer_id: subscription.customer as string,
           organization_id: organizationId,
-          plan_name: subscriptionType,
+          plan_name: planName,
           status: subscription.status,
           is_trial: isTrial,
           has_used_trial: true,

@@ -5,11 +5,11 @@ export const STRIPE_PRICES = {
   growth: {
     monthly: {
       GBP: "MISSING_CREATE_IN_STRIPE", // £8.00/month - CREATE THIS PRICE IN STRIPE
-      USD: "MISSING_CREATE_IN_STRIPE", // $9.00/month - CREATE THIS PRICE IN STRIPE (not $10)
+      USD: "MISSING_CREATE_IN_STRIPE", // $10.00/month - CREATE THIS PRICE IN STRIPE
     },
     yearly: {
-      GBP: "price_1SazBKDMz3Bxx5pnyJ1e70gp", // £84.00/year (£7/month)
-      USD: "MISSING_CREATE_IN_STRIPE", // $96.00/year ($8/month) - CREATE THIS PRICE IN STRIPE
+      GBP: "price_1SazBKDMz3Bxx5pnyJ1e70gp", // £96.00/year (£8/month)
+      USD: "MISSING_CREATE_IN_STRIPE", // $108.00/year ($9/month) - CREATE THIS PRICE IN STRIPE
     },
   },
   scale: {
@@ -18,8 +18,8 @@ export const STRIPE_PRICES = {
       USD: "MISSING_CREATE_IN_STRIPE", // $17.00/month - CREATE THIS PRICE IN STRIPE
     },
     yearly: {
-      GBP: "price_1SazDQDMz3Bxx5pnjiYZTb6t", // £168.00/year (£14/month)
-      USD: "MISSING_CREATE_IN_STRIPE", // $180.00/year ($15/month) - CREATE THIS PRICE IN STRIPE
+      GBP: "price_1SazDQDMz3Bxx5pnjiYZTb6t", // £180.00/year (£15/month)
+      USD: "MISSING_CREATE_IN_STRIPE", // $192.00/year ($16/month) - CREATE THIS PRICE IN STRIPE
     },
   },
 } as const

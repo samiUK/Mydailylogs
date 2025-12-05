@@ -80,6 +80,7 @@ export async function GET(request: NextRequest) {
         trial_ends_at,
         is_masteradmin_trial,
         is_trial,
+        cancel_at_period_end,
         organizations!inner(organization_name)
       `,
       )
@@ -87,6 +88,21 @@ export async function GET(request: NextRequest) {
       .limit(100)
 
     if (subError) throw subError
+
+    const arsamiSubscription = subscriptions?.find((s) => {
+      const email = orgAdminEmailMap.get(s.organization_id)
+      return email === "arsami.uk@gmail.com"
+    })
+
+    if (arsamiSubscription) {
+      console.log("[v0] arsami.uk@gmail.com subscription found:", {
+        id: arsamiSubscription.id,
+        plan_name: arsamiSubscription.plan_name,
+        status: arsamiSubscription.status,
+        stripe_subscription_id: arsamiSubscription.stripe_subscription_id,
+        organization_id: arsamiSubscription.organization_id,
+      })
+    }
 
     const { data: payments, error: paymentError } = await supabase
       .from("payments")

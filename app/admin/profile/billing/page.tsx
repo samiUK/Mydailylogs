@@ -19,6 +19,7 @@ interface Subscription {
   current_period_start: string
   current_period_end: string
   stripe_subscription_id?: string
+  cancel_at_period_end?: boolean
 }
 
 interface Payment {
@@ -394,25 +395,94 @@ export default function BillingPage() {
                   <h3 className="text-2xl font-bold">
                     {currentPlanName.charAt(0).toUpperCase() + currentPlanName.slice(1)}
                   </h3>
-                  <Badge variant="default">Active</Badge>
+                  <Badge
+                    variant={
+                      subscription?.status === "active"
+                        ? "default"
+                        : subscription?.status === "trialing"
+                          ? "secondary"
+                          : "destructive"
+                    }
+                  >
+                    {subscription?.status === "trialing"
+                      ? "Trial"
+                      : subscription?.status === "active"
+                        ? "Active"
+                        : subscription?.status || "Active"}
+                  </Badge>
+                  {subscription?.cancel_at_period_end && <Badge variant="destructive">Cancelling</Badge>}
                 </div>
-                <p className="text-lg font-semibold text-primary mb-2">{formatPriceWithCurrency(100)}/month</p>
+                {!isFreePlan && subscription && (
+                  <p className="text-lg font-semibold text-primary mb-2">
+                    {subscription.plan_name.includes("yearly")
+                      ? `${formatPriceWithCurrency(subscription.plan_name.includes("growth") ? 8400 : 16800)}/year`
+                      : `${formatPriceWithCurrency(subscription.plan_name.includes("growth") ? 800 : 1500)}/month`}
+                  </p>
+                )}
+                {isFreePlan && (
+                  <p className="text-lg font-semibold text-primary mb-2">{formatPriceWithCurrency(0)}/month</p>
+                )}
+
                 <div className="space-y-2 mb-4">
-                  <p className="text-sm text-muted-foreground">• Unlimited Templates</p>
-                  <p className="text-sm text-muted-foreground">• Unlimited Team Members</p>
-                  <p className="text-sm text-muted-foreground">• 1 Admin + 6 Managers Admin/Manager Accounts</p>
-                  <p className="text-sm text-muted-foreground">• Unlimited Report Submissions</p>
-                  <p className="text-sm text-muted-foreground">• 90-day report retention</p>
-                  <p className="text-sm text-muted-foreground">• Monthly report email delivery</p>
+                  {currentPlanName === "starter" && (
+                    <>
+                      <p className="text-sm text-muted-foreground">• 3 templates</p>
+                      <p className="text-sm text-muted-foreground">• 5 team members</p>
+                      <p className="text-sm text-muted-foreground">• 1 admin account</p>
+                      <p className="text-sm text-muted-foreground">• 50 report submissions per month</p>
+                      <p className="text-sm text-muted-foreground">• 30-day report retention</p>
+                    </>
+                  )}
+                  {currentPlanName === "growth" && (
+                    <>
+                      <p className="text-sm text-muted-foreground">• 10 templates</p>
+                      <p className="text-sm text-muted-foreground">• 25 team members</p>
+                      <p className="text-sm text-muted-foreground">• 2 admin accounts</p>
+                      <p className="text-sm text-muted-foreground">• Unlimited report submissions</p>
+                      <p className="text-sm text-muted-foreground">• 90-day report retention</p>
+                      <p className="text-sm text-muted-foreground">• Task automation (recurring tasks)</p>
+                    </>
+                  )}
+                  {currentPlanName === "scale" && (
+                    <>
+                      <p className="text-sm text-muted-foreground">• 20 templates</p>
+                      <p className="text-sm text-muted-foreground">• 100 team members</p>
+                      <p className="text-sm text-muted-foreground">• 5 admin accounts</p>
+                      <p className="text-sm text-muted-foreground">• Unlimited report submissions</p>
+                      <p className="text-sm text-muted-foreground">• Unlimited report retention</p>
+                      <p className="text-sm text-muted-foreground">• Task automation (recurring tasks)</p>
+                      <p className="text-sm text-muted-foreground">• Priority support</p>
+                    </>
+                  )}
                 </div>
 
                 {!isFreePlan && subscription?.current_period_end && (
-                  <p className="text-sm text-muted-foreground flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    {subscription.status === "active"
-                      ? `Renews on ${new Date(subscription.current_period_end).toLocaleDateString()}`
-                      : `Expires on ${new Date(subscription.current_period_end).toLocaleDateString()}`}
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      {subscription.cancel_at_period_end ? (
+                        <span className="text-destructive font-medium">
+                          Access ends on {new Date(subscription.current_period_end).toLocaleDateString()} - Then
+                          downgrading to Starter
+                        </span>
+                      ) : subscription.status === "trialing" ? (
+                        <span>
+                          Trial ends on {new Date(subscription.current_period_end).toLocaleDateString()} - Then billing
+                          begins
+                        </span>
+                      ) : subscription.status === "active" ? (
+                        <span>Next billing date: {new Date(subscription.current_period_end).toLocaleDateString()}</span>
+                      ) : (
+                        <span>Expires on {new Date(subscription.current_period_end).toLocaleDateString()}</span>
+                      )}
+                    </p>
+                    {subscription.current_period_start && (
+                      <p className="text-xs text-muted-foreground">
+                        Current period: {new Date(subscription.current_period_start).toLocaleDateString()} -{" "}
+                        {new Date(subscription.current_period_end).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
                 )}
 
                 {isFreePlan && (

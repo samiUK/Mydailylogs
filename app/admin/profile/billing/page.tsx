@@ -376,6 +376,14 @@ export default function BillingPage() {
     subscription?.status === "active" ? "default" : subscription?.status === "trialing" ? "secondary" : "destructive"
   const displayPlanName = currentPlanName.charAt(0).toUpperCase() + currentPlanName.slice(1)
 
+  console.log("[v0] Billing page render - subscription:", subscription)
+  console.log("[v0] Current plan:", currentPlanName, "isFreePlan:", isFreePlan)
+  console.log("[v0] Subscription status:", subscription?.status)
+  console.log(
+    "[v0] Should show buttons:",
+    !isFreePlan && subscription && (subscription.status === "active" || subscription.status === "trialing"),
+  )
+
   return (
     <div className="max-w-6xl mx-auto space-y-8">
       <div>
@@ -411,8 +419,11 @@ export default function BillingPage() {
                 <div className="flex items-center gap-3 mb-2">
                   <h3 className="text-2xl font-bold">{displayPlanName}</h3>
                   <Badge variant={currentPlanColor as any} className="text-sm px-3 py-1">
-                    {displayPlanName}
-                    {subscription?.status === "trialing" && " (Trial)"}
+                    {subscription?.status === "trialing"
+                      ? "Trial"
+                      : subscription?.status === "active"
+                        ? "Active"
+                        : subscription?.status?.toUpperCase()}
                   </Badge>
                   {subscription?.cancel_at_period_end && <Badge variant="destructive">Cancelling</Badge>}
                 </div>
@@ -517,7 +528,7 @@ export default function BillingPage() {
             {!isFreePlan &&
               subscription &&
               (subscription.status === "active" || subscription.status === "trialing") && (
-                <div className="flex gap-3 pt-4 border-t">
+                <div className="flex flex-wrap gap-3 pt-4 border-t">
                   {currentPlanName === "growth" && (
                     <Button variant="default" onClick={() => handleChangePlan("scale")} disabled={processing}>
                       <Sparkles className="w-4 h-4 mr-2" />
@@ -539,10 +550,21 @@ export default function BillingPage() {
                   </Button>
                   <Button variant="destructive" onClick={handleCancel} disabled={processing}>
                     {processing ? <X className="w-4 h-4 mr-2 animate-spin" /> : <X className="w-4 h-4 mr-2" />}
-                    Cancel Subscription
+                    {subscription.status === "trialing" ? "Cancel Trial" : "Cancel Subscription"}
                   </Button>
                 </div>
               )}
+
+            {!isFreePlan && subscription && (
+              <div className="mt-2 p-2 bg-gray-100 rounded text-xs text-gray-600">
+                Debug: Status = "{subscription.status}", Plan = "{currentPlanName}", Buttons visible ={" "}
+                {String(
+                  !isFreePlan &&
+                    subscription &&
+                    (subscription.status === "active" || subscription.status === "trialing"),
+                )}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

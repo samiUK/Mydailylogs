@@ -3,7 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Crown, Sparkles, Lock } from 'lucide-react'
+import { Crown, Sparkles, Lock } from "lucide-react"
 import Link from "next/link"
 
 interface UpgradeNotificationProps {
@@ -48,7 +48,7 @@ export function UpgradeNotification({
                   Required: <span className="font-medium text-accent">{requiredPlan}</span>
                 </span>
               </div>
-              <Link href="/admin/profile/billing">
+              <Link href="/admin/billing">
                 <Button size="sm" className="bg-accent hover:bg-accent/90">
                   <Crown className="w-4 h-4 mr-2" />
                   Upgrade Now
@@ -63,7 +63,9 @@ export function UpgradeNotification({
 
   if (variant === "inline") {
     return (
-      <div className={`flex items-center justify-between p-3 rounded-lg bg-accent/10 border border-accent/20 ${className}`}>
+      <div
+        className={`flex items-center justify-between p-3 rounded-lg bg-accent/10 border border-accent/20 ${className}`}
+      >
         <div className="flex items-center gap-3">
           <Lock className="w-4 h-4 text-accent" />
           <div className="text-sm">
@@ -71,8 +73,12 @@ export function UpgradeNotification({
             <span className="text-muted-foreground ml-2">{description}</span>
           </div>
         </div>
-        <Link href="/admin/profile/billing">
-          <Button size="sm" variant="outline" className="border-accent text-accent hover:bg-accent hover:text-accent-foreground">
+        <Link href="/admin/billing">
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-accent text-accent hover:bg-accent hover:text-accent-foreground bg-transparent"
+          >
             <Crown className="w-3 h-3 mr-1" />
             Upgrade
           </Button>
@@ -93,7 +99,7 @@ export function UpgradeNotification({
             <span className="font-medium text-accent">{requiredPlan}</span> to unlock this feature
           </p>
         </div>
-        <Link href="/admin/profile/billing">
+        <Link href="/admin/billing">
           <Button size="sm" className="bg-accent hover:bg-accent/90 ml-4">
             <Crown className="w-4 h-4 mr-2" />
             Upgrade Plan

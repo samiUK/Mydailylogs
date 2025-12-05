@@ -102,7 +102,7 @@ export function PaymentList({ payments, searchTerm, onSearchChange, onRefund, on
       case "succeeded":
         return "bg-green-100 text-green-800"
       case "upcoming": // Add upcoming status for trial customers
-        return "bg-blue-100 text-blue-800"
+        return "bg-emerald-100 text-emerald-800"
       case "pending":
         return "bg-yellow-100 text-yellow-800"
       case "failed":
@@ -175,7 +175,7 @@ export function PaymentList({ payments, searchTerm, onSearchChange, onRefund, on
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">£{revenueMetrics.netRevenue.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-emerald-600">£{revenueMetrics.netRevenue.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground mt-1">
               After £{revenueMetrics.totalRefunded.toFixed(2)} refunds
             </p>
@@ -188,7 +188,7 @@ export function PaymentList({ payments, searchTerm, onSearchChange, onRefund, on
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">£{revenueMetrics.actualNetRevenue.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-emerald-600">£{revenueMetrics.actualNetRevenue.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground mt-1">
               After £{revenueMetrics.totalStripeFees.toFixed(2)} Stripe fees
             </p>
@@ -314,7 +314,7 @@ export function PaymentList({ payments, searchTerm, onSearchChange, onRefund, on
                       </Button>
                     )}
                     {payment.is_trial_customer && payment.trial_ends_at && (
-                      <span className="text-xs text-blue-600">
+                      <span className="text-xs text-emerald-600">
                         {Math.ceil((new Date(payment.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))}{" "}
                         days
                       </span>

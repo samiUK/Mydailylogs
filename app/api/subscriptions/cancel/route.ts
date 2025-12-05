@@ -68,7 +68,7 @@ export async function POST(req: Request) {
           accessUntilDate: subscription.current_period_end,
           isTrialing: subscription.status === "trialing",
           downgradeWarning: subscription.status !== "trialing",
-          billingUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/profile/billing`,
+          billingUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/billing`, // Updated billing URL
         })
 
         await sendEmail(profileData.email, template)

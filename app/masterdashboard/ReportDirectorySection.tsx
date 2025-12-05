@@ -125,7 +125,7 @@ export function ReportDirectorySection() {
           <p className="text-gray-500 text-sm">
             Accidentally deleted reports from Scale organizations appear here for 90 days before permanent removal.
           </p>
-          <Badge className="mt-4 bg-purple-100 text-purple-800">Scale Plan Premium Feature</Badge>
+          <Badge className="mt-4 bg-emerald-100 text-emerald-800">Scale Plan Premium Feature</Badge>
         </div>
       ) : (
         <div className="space-y-4">
@@ -142,7 +142,7 @@ export function ReportDirectorySection() {
                       ? "bg-red-100 text-red-800"
                       : report.days_until_removal < 14
                         ? "bg-yellow-100 text-yellow-800"
-                        : "bg-blue-100 text-blue-800"
+                        : "bg-emerald-100 text-emerald-800"
                   }
                 >
                   {report.days_until_removal} days left

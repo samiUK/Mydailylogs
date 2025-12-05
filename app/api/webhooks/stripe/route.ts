@@ -410,7 +410,7 @@ export async function POST(req: NextRequest) {
                     "Custom branding",
                   ],
                   showUpgradeOption: true,
-                  upgradeUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/profile/billing`,
+                  upgradeUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/billing`,
                 })
 
                 await sendEmail(customer.email, template.subject, template.html)
@@ -443,7 +443,7 @@ export async function POST(req: NextRequest) {
                   trialEndDate: trialEndDate.toISOString(),
                   nextBillingDate: new Date(subscription.current_period_end * 1000).toISOString(),
                   amount: amount,
-                  billingUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/profile/billing`,
+                  billingUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/billing`,
                   features: [
                     "Advanced task management",
                     "Team collaboration tools",
@@ -770,7 +770,7 @@ export async function POST(req: NextRequest) {
                 planName: invoice.lines.data[0]?.description || "Subscription",
                 failureReason: invoice.last_finalization_error?.message || "Card was declined",
                 retryDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-                updatePaymentUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/profile/billing`,
+                updatePaymentUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/billing`,
                 gracePeriodDays: 7,
               })
 

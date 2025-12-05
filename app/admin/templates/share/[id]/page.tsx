@@ -203,7 +203,7 @@ export default function ShareTemplatePage({ params }: { params: Promise<{ id: st
     return (
       <div className="text-center py-12">
         <h2 className="text-xl font-semibold text-foreground mb-2">Template not found</h2>
-        <p className="text-muted-foreground mb-4">The template you're looking for doesn't exist.</p>
+        <p className="text-muted-foreground">The template you're looking for doesn't exist.</p>
         <Link href="/admin/templates">
           <Button variant="outline">
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -252,7 +252,7 @@ export default function ShareTemplatePage({ params }: { params: Promise<{ id: st
                 <li>• Maintain security while gathering data</li>
               </ul>
             </div>
-            <Link href="/admin/profile/billing">
+            <Link href="/admin/billing">
               <Button className="w-full">Upgrade to Access Contractor Links</Button>
             </Link>
           </CardContent>

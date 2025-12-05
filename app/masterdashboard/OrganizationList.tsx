@@ -395,7 +395,7 @@ export function OrganizationList({
                       </Badge>
                       {org.is_masteradmin_trial && (
                         <div className="flex flex-wrap gap-1">
-                          <Badge className="bg-purple-600 text-xs">Complimentary Trial</Badge>
+                          <Badge className="bg-emerald-600 text-xs">Complimentary Trial</Badge>
                           <Badge variant="outline" className="text-xs">
                             No Payment
                           </Badge>
@@ -403,7 +403,7 @@ export function OrganizationList({
                       )}
                       {org.is_trial && !org.is_masteradmin_trial && (
                         <div className="flex flex-wrap gap-1">
-                          <Badge className="bg-blue-600 text-xs">Paid Trial</Badge>
+                          <Badge className="bg-emerald-600 text-xs">Paid Trial</Badge>
                           <Badge variant="outline" className="text-xs">
                             Stripe
                           </Badge>
@@ -442,7 +442,7 @@ export function OrganizationList({
                   ) : quota ? (
                     <>
                       {/* Admin & Staff Details Section */}
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 space-y-3">
                         <h4 className="font-semibold text-sm">Admin & Staff Details</h4>
 
                         {quota.admins && quota.admins.length > 0 && (
@@ -491,7 +491,7 @@ export function OrganizationList({
                       </div>
 
                       {/* Subscription & Report Retention Section */}
-                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 space-y-2">
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 space-y-2">
                         <h4 className="font-semibold text-sm">Subscription Details</h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                           <div>
@@ -870,7 +870,7 @@ export function OrganizationList({
                         variant="default"
                         size="sm"
                         onClick={() => handleEmailReports(org.organization_id)}
-                        className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white"
+                        className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white"
                       >
                         <Mail className="w-4 h-4 mr-2" />
                         Email Reports to Admins

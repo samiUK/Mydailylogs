@@ -17,6 +17,10 @@ interface Subscription {
   status: string
   current_period_start: string
   current_period_end: string
+  stripe_subscription_id?: string
+  cancel_at_period_end?: boolean
+  is_trial?: boolean
+  trial_ends_at?: string
 }
 
 export const dynamic = "force-dynamic"
@@ -129,6 +133,62 @@ export default function BillingPage() {
     router.push("/admin/profile/billing")
   }
 
+  const handleCancelSubscription = async () => {
+    if (!subscription?.stripe_subscription_id) return
+
+    if (
+      !confirm(
+        subscription.is_trial
+          ? "Are you sure you want to cancel your trial? You won't be charged."
+          : "Are you sure you want to cancel? Your subscription will remain active until the end of the current billing period.",
+      )
+    ) {
+      return
+    }
+
+    try {
+      const response = await fetch("/api/stripe/cancel-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscriptionId: subscription.stripe_subscription_id }),
+      })
+
+      if (response.ok) {
+        alert("Subscription cancelled successfully")
+        window.location.reload()
+      } else {
+        const error = await response.json()
+        alert(`Error: ${error.error || "Failed to cancel subscription"}`)
+      }
+    } catch (error) {
+      console.error("Error cancelling subscription:", error)
+      alert("Failed to cancel subscription. Please try again.")
+    }
+  }
+
+  const handleReactivateSubscription = async () => {
+    if (!subscription?.stripe_subscription_id) return
+
+    try {
+      const response = await fetch("/api/stripe/reactivate-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscriptionId: subscription.stripe_subscription_id }),
+      })
+
+      if (response.ok) {
+        alert("Subscription reactivated successfully")
+        window.location.reload()
+      } else {
+        const error = await response.json()
+        alert(`Error: ${error.error || "Failed to reactivate subscription"}`)
+      }
+    } catch (error) {
+      console.error("Error reactivating subscription:", error)
+      alert("Failed to reactivate subscription. Please try again.")
+    }
+  }
+
   if (loading) {
     return <div className="flex justify-center py-8">Loading billing information...</div>
   }
@@ -149,7 +209,7 @@ export default function BillingPage() {
       priceYearly: 96,
       maxTemplates: 10,
       maxTeamMembers: 25,
-      maxAdmins: 2,
+      maxAdmins: 3, // Updated to show 3 managers total (admin is 1st)
       maxReportSubmissions: null,
     },
     scale: {
@@ -158,13 +218,18 @@ export default function BillingPage() {
       priceYearly: 180,
       maxTemplates: 20,
       maxTeamMembers: 100,
-      maxAdmins: 5,
+      maxAdmins: 7, // Updated to show 7 managers total (admin is 1st)
       maxReportSubmissions: null,
     },
   }
 
   const currentProduct = plans[currentPlanName as keyof typeof plans] || plans.starter
   const isFreePlan = currentPlanName === "starter"
+
+  const hasStripeSubscription = subscription?.stripe_subscription_id || subscription?.status === "trialing"
+  const canManageSubscription = !isFreePlan && hasStripeSubscription
+  const isCancelled = subscription?.cancel_at_period_end === true
+  const isTrial = subscription?.is_trial === true || subscription?.status === "trialing"
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
@@ -187,7 +252,8 @@ export default function BillingPage() {
               <div className="flex items-center gap-3 mb-2">
                 {!isFreePlan && <Crown className="w-6 h-6 text-yellow-500" />}
                 <h3 className="text-2xl font-bold">{currentProduct.name}</h3>
-                <Badge variant="default">Active</Badge>
+                <Badge variant="default">{isTrial ? "Trial" : "Active"}</Badge>
+                {isCancelled && <Badge variant="destructive">Cancels at period end</Badge>}
               </div>
               <p className="text-muted-foreground mb-4">
                 £{currentProduct.priceMonthly}/month •{currentProduct.maxTemplates} templates •
@@ -197,7 +263,8 @@ export default function BillingPage() {
                 <div className="space-y-2">
                   <p className="text-sm text-muted-foreground flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
-                    Active until {new Date(subscription.current_period_end).toLocaleDateString()}
+                    {isTrial ? "Trial ends" : "Active until"}{" "}
+                    {new Date(subscription.current_period_end).toLocaleDateString()}
                   </p>
                 </div>
               )}
@@ -208,6 +275,36 @@ export default function BillingPage() {
               )}
             </div>
           </div>
+
+          {canManageSubscription && (
+            <div className="mt-6 pt-6 border-t space-y-3">
+              <h4 className="font-semibold text-sm text-muted-foreground">Subscription Management</h4>
+              <div className="flex flex-wrap gap-3">
+                {!isCancelled ? (
+                  <Button
+                    variant="outline"
+                    onClick={handleCancelSubscription}
+                    className="text-destructive hover:text-destructive bg-transparent"
+                  >
+                    {isTrial ? "Cancel Trial" : "Cancel Subscription"}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    onClick={handleReactivateSubscription}
+                    className="text-emerald-600 hover:text-emerald-700 bg-transparent"
+                  >
+                    Reactivate Subscription
+                  </Button>
+                )}
+              </div>
+              {isTrial && (
+                <p className="text-xs text-muted-foreground">
+                  You're currently on a free trial. Cancel anytime with no charges.
+                </p>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -256,7 +353,7 @@ export default function BillingPage() {
               <ul className="space-y-2 mb-6">
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                  <span className="text-sm">2 admin accounts</span>
+                  <span className="text-sm">3 managers (admin is 1st)</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
@@ -329,7 +426,7 @@ export default function BillingPage() {
               <ul className="space-y-2 mb-6">
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                  <span className="text-sm">5 admin accounts</span>
+                  <span className="text-sm">7 managers (admin is 1st)</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />

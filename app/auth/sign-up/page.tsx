@@ -95,7 +95,7 @@ export default function SignUpPage() {
         if (planFromUrl) {
           setSuccess(`Account created! Redirecting to ${planFromUrl} plan checkout...`)
           setTimeout(() => {
-            window.location.href = `/admin/profile/billing?plan=${planFromUrl}`
+            window.location.href = `/admin/billing?plan=${planFromUrl}`
           }, 1000)
         } else {
           setSuccess("Account created! Redirecting to your dashboard...")

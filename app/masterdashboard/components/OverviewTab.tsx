@@ -231,7 +231,7 @@ export function OverviewTab({
                     {/* Supabase Database */}
                     <div className="border rounded-lg p-4 bg-white">
                       <div className="flex items-start justify-between mb-2">
-                        <Database className="h-5 w-5 text-blue-600" />
+                        <Database className="h-5 w-5 text-emerald-600" />
                         <span className="text-xs font-medium text-gray-500">500MB limit</span>
                       </div>
                       <h4 className="font-medium text-sm mb-1">Supabase Database</h4>
@@ -262,7 +262,7 @@ export function OverviewTab({
                     {/* Supabase Storage */}
                     <div className="border rounded-lg p-4 bg-white">
                       <div className="flex items-start justify-between mb-2">
-                        <HardDrive className="h-5 w-5 text-purple-600" />
+                        <HardDrive className="h-5 w-5 text-emerald-600" />
                         <span className="text-xs font-medium text-gray-500">1GB limit</span>
                       </div>
                       <h4 className="font-medium text-sm mb-1">Supabase Storage</h4>

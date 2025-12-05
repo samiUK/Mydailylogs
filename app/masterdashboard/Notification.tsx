@@ -13,7 +13,7 @@ export function Notification({ notification, onClose }: NotificationProps) {
   const bgColor = {
     success: "bg-green-500",
     error: "bg-red-500",
-    info: "bg-blue-500",
+    info: "bg-emerald-500",
   }[notification.type]
 
   return (

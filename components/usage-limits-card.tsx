@@ -172,7 +172,7 @@ export function UsageLimitsCard({ organizationId }: UsageLimitsCardProps) {
           monthlySubmissionUsagePercent >= 80 ||
           isStarterPlan) && (
           <div className="pt-4 border-t">
-            <Link href="/admin/profile/billing">
+            <Link href="/admin/billing">
               <Button className="w-full bg-accent hover:bg-accent/90">
                 <Crown className="w-4 h-4 mr-2" />
                 {isStarterPlan ? "Upgrade Plan" : "Manage Subscription"}

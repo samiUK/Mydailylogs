@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { TableCell } from "@/components/ui/table"
 
 interface SubscriptionListProps {
   subscriptions: Subscription[]
@@ -285,13 +284,13 @@ export function SubscriptionList({
       return (
         <div className="flex flex-col gap-1">
           <div className="flex gap-2">
-            <Badge className="bg-purple-600 hover:bg-purple-700">Complimentary Trial</Badge>
+            <Badge className="bg-emerald-600 hover:bg-emerald-700">Complimentary Trial</Badge>
             <Badge variant="outline" className="text-xs">
               No Payment
             </Badge>
           </div>
           {trialEndsAt && (
-            <p className="text-xs text-purple-600 font-medium">Trial ends in {getDaysRemaining(trialEndsAt)} days</p>
+            <p className="text-xs text-emerald-600 font-medium">Trial ends in {getDaysRemaining(trialEndsAt)} days</p>
           )}
         </div>
       )
@@ -300,13 +299,13 @@ export function SubscriptionList({
       return (
         <div className="flex flex-col gap-1">
           <div className="flex gap-2">
-            <Badge className="bg-blue-600 hover:bg-blue-700">Paid Trial</Badge>
+            <Badge className="bg-emerald-600 hover:bg-emerald-700">Paid Trial</Badge>
             <Badge variant="outline" className="text-xs">
               Via Stripe
             </Badge>
           </div>
           {trialEndsAt && (
-            <p className="text-xs text-blue-600 font-medium">Trial ends in {getDaysRemaining(trialEndsAt)} days</p>
+            <p className="text-xs text-emerald-600 font-medium">Trial ends in {getDaysRemaining(trialEndsAt)} days</p>
           )}
         </div>
       )
@@ -316,7 +315,7 @@ export function SubscriptionList({
       past_due: "bg-yellow-500",
       canceled: "bg-red-500",
       incomplete: "bg-gray-500",
-      trialing: "bg-blue-500",
+      trialing: "bg-emerald-500",
     }
     return <Badge className={colors[status] || "bg-gray-500"}>{status}</Badge>
   }
@@ -357,7 +356,10 @@ export function SubscriptionList({
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={() => setShowTrialDialog(true)} className="bg-purple-600 hover:bg-purple-700 w-full sm:w-auto">
+        <Button
+          onClick={() => setShowTrialDialog(true)}
+          className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto"
+        >
           Create Master Admin Trial
         </Button>
       </div>
@@ -382,7 +384,7 @@ export function SubscriptionList({
                       <p className="font-semibold break-words">{sub.organization_name || "Unknown"}</p>
                       {sub.is_masteradmin_trial && (
                         <div className="flex flex-wrap gap-2 mt-1">
-                          <Badge className="bg-purple-600 hover:bg-purple-700 text-xs">Complimentary Trial</Badge>
+                          <Badge className="bg-emerald-600 hover:bg-emerald-700 text-xs">Complimentary Trial</Badge>
                           <Badge variant="outline" className="text-xs">
                             No Payment
                           </Badge>
@@ -412,14 +414,14 @@ export function SubscriptionList({
                         <p className="text-sm text-muted-foreground">N/A</p>
                       )}
                       {sub.trial_ends_at && (
-                        <p className="text-xs text-blue-600 mt-1">
+                        <p className="text-xs text-emerald-600 mt-1">
                           Trial ends: {new Date(sub.trial_ends_at).toLocaleDateString("en-GB")}
                         </p>
                       )}
                       {sub.cancel_at_period_end && <p className="text-xs text-red-600 mt-1">Cancels at period end</p>}
                     </div>
 
-                    <TableCell className="max-w-[200px]">
+                    <div className="max-w-[200px]">
                       <div className="flex flex-col gap-2">
                         {!sub.stripe_subscription_id && onForceSync && (
                           <Button
@@ -427,7 +429,7 @@ export function SubscriptionList({
                             variant="default"
                             onClick={() => onForceSync(sub.organization_id, sub.user_email || "")}
                             disabled={actionLoading === sub.id}
-                            className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
+                            className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto"
                           >
                             {actionLoading === sub.id ? "Syncing..." : "Sync from Stripe"}
                           </Button>
@@ -441,7 +443,7 @@ export function SubscriptionList({
                                 variant="default"
                                 onClick={() => setShowUpgradeDialog(sub)}
                                 disabled={actionLoading === sub.id}
-                                className="bg-purple-600 hover:bg-purple-700 w-full sm:w-auto"
+                                className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto"
                               >
                                 {actionLoading === sub.id ? "Processing..." : "Upgrade to Scale"}
                               </Button>
@@ -491,7 +493,7 @@ export function SubscriptionList({
                           </p>
                         )}
                       </div>
-                    </TableCell>
+                    </div>
                   </div>
                 </Card>
               ))
@@ -589,7 +591,7 @@ export function SubscriptionList({
             <Button
               onClick={handleCreateTrial}
               disabled={!selectedOrg || actionLoading === "trial"}
-              className="bg-purple-600 hover:bg-purple-700"
+              className="bg-emerald-600 hover:bg-emerald-700"
             >
               {actionLoading === "trial" ? "Creating..." : "Create Trial"}
             </Button>
@@ -718,7 +720,7 @@ export function SubscriptionList({
             <Button
               onClick={() => showUpgradeDialog && handleUpgrade(showUpgradeDialog, "scale")}
               disabled={actionLoading === showUpgradeDialog?.id}
-              className="bg-purple-600 hover:bg-purple-700"
+              className="bg-emerald-600 hover:bg-emerald-700"
             >
               {actionLoading === showUpgradeDialog?.id ? "Upgrading..." : "Upgrade to Scale"}
             </Button>

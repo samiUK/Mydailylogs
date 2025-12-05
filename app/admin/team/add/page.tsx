@@ -249,7 +249,7 @@ export default function AddTeamMemberPage() {
               )}
               <div className="text-sm text-muted-foreground">Plan: {subscriptionLimits.planName}</div>
               {!canCreateTeamMember && (
-                <Link href="/admin/profile/billing">
+                <Link href="/admin/billing">
                   <Button size="sm" className="bg-accent hover:bg-accent/90">
                     <Crown className="w-4 h-4 mr-1" />
                     Upgrade Plan
@@ -276,7 +276,7 @@ export default function AddTeamMemberPage() {
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
             <span>{limitCheckResult.reason}</span>
-            <Link href="/admin/profile/billing">
+            <Link href="/admin/billing">
               <Button size="sm" variant="destructive">
                 Upgrade Now
               </Button>

@@ -146,11 +146,11 @@ export function SuperuserToolsSection({
       </Card>
 
       {/* Audit Log */}
-      <Card className="border-blue-200 bg-blue-50">
-        <CardHeader className="bg-blue-100/50">
+      <Card className="border-emerald-200 bg-emerald-50">
+        <CardHeader className="bg-emerald-100/50">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-blue-600">Audit Log</CardTitle>
+              <CardTitle className="text-emerald-600">Audit Log</CardTitle>
               <CardDescription>Track all superuser management actions</CardDescription>
             </div>
             <Button
@@ -158,7 +158,7 @@ export function SuperuserToolsSection({
               size="sm"
               onClick={fetchAuditLogs}
               disabled={loadingLogs}
-              className="border-blue-300 text-blue-700 hover:bg-blue-100 bg-transparent"
+              className="border-emerald-300 text-emerald-700 hover:bg-emerald-100 bg-transparent"
             >
               <RefreshCw className={`w-4 h-4 mr-2 ${loadingLogs ? "animate-spin" : ""}`} />
               Refresh
@@ -181,7 +181,7 @@ export function SuperuserToolsSection({
                               ? "bg-green-100 text-green-700"
                               : log.action === "remove"
                                 ? "bg-red-100 text-red-700"
-                                : "bg-blue-100 text-blue-700"
+                                : "bg-emerald-100 text-emerald-700"
                           }`}
                         >
                           {log.action.toUpperCase()}

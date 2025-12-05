@@ -60,7 +60,7 @@ export default function HomePageClient() {
     } = await supabase.auth.getUser()
 
     if (user) {
-      router.push(`/admin/profile/billing?plan=${planName}`)
+      router.push(`/admin/billing?plan=${planName}`)
     } else {
       router.push(`/auth/sign-up?plan=${planName}`)
     }

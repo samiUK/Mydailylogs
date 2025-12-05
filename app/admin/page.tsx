@@ -476,24 +476,23 @@ export default function AdminDashboard() {
       try {
         const supabase = createClient()
 
-        // Fetch basic organization and subscription data
-        const { data: orgData, error: orgError } = await supabase
-          .from("organizations")
-          .select("subscriptions(*)")
-          .eq("id", organizationId)
+        const { data: subscription, error: subError } = await supabase
+          .from("subscriptions")
+          .select("*")
+          .eq("organization_id", organizationId)
           .single()
 
-        if (orgError) throw orgError
+        if (subError) throw subError
 
-        if (orgData.subscriptions?.cancel_at_period_end && orgData.subscriptions?.current_period_end) {
-          const periodEnd = new Date(orgData.subscriptions.current_period_end)
+        if (subscription?.cancel_at_period_end && subscription?.current_period_end) {
+          const periodEnd = new Date(subscription.current_period_end)
           const now = new Date()
           const daysRemaining = Math.ceil((periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
 
           if (daysRemaining <= 3 && daysRemaining > 0) {
             setSubscriptionEndWarning({
               daysRemaining,
-              periodEndDate: orgData.subscriptions.current_period_end,
+              periodEndDate: subscription.current_period_end,
             })
           }
         }
@@ -559,14 +558,22 @@ export default function AdminDashboard() {
 
       console.log("[v0] Daily checklists fetched:", checklists)
 
-      const { data: deletedTaskNotifications, error: notificationsError } = await supabase
-        .from("notifications")
-        .select("*")
-        .eq("organization_id", organizationId)
-        .eq("type", "task_auto_deleted")
-        .gte("created_at", thirtyDaysAgo.toISOString())
-        .order("created_at", { ascending: false })
-        .limit(100)
+      // Need to fetch notifications for users in this organization instead
+      const { data: orgUsers } = await supabase.from("profiles").select("id").eq("organization_id", organizationId)
+
+      const userIds = orgUsers?.map((u) => u.id) || []
+
+      const { data: deletedTaskNotifications, error: notificationsError } =
+        userIds.length > 0
+          ? await supabase
+              .from("notifications")
+              .select("*")
+              .in("user_id", userIds)
+              .eq("type", "task_auto_deleted")
+              .gte("created_at", thirtyDaysAgo.toISOString())
+              .order("created_at", { ascending: false })
+              .limit(100)
+          : { data: [], error: null }
 
       console.log("[v0] Auto-deleted task notifications fetched:", deletedTaskNotifications)
 

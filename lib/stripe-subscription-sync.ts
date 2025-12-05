@@ -1,9 +1,15 @@
 import { createClient } from "@/lib/supabase/server"
 import Stripe from "stripe"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-11-20.acacia",
-})
+// Function to get Stripe client at runtime
+function getStripeClient() {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error("STRIPE_SECRET_KEY is not defined")
+  }
+  return new Stripe(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: "2024-11-20.acacia",
+  })
+}
 
 export async function syncSubscriptionFromStripe(organizationId: string): Promise<{
   success: boolean
@@ -14,6 +20,7 @@ export async function syncSubscriptionFromStripe(organizationId: string): Promis
     console.log("[v0] Syncing subscription from Stripe for organization:", organizationId)
 
     const supabase = await createClient()
+    const stripe = getStripeClient()
 
     const { data: existingSubs } = await supabase
       .from("subscriptions")

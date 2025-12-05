@@ -87,68 +87,8 @@ export async function GET(request: NextRequest) {
       console.log(`[v0] Expired ${expiredTestTrials} masteradmin test trials and downgraded to Starter`)
     }
 
-    // Expire grace periods for failed payments (7 days after failure)
-    console.log("[v0] Checking for expired grace periods...")
-    let expiredGracePeriods = 0
-
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-    const { data: expiredSubs } = await supabase
-      .from("subscriptions")
-      .select("id, plan_name, organization_id, organizations(name), profiles(email, first_name)")
-      .eq("status", "past_due")
-      .lt("payment_failed_at", sevenDaysAgo)
-
-    if (expiredSubs && expiredSubs.length > 0) {
-      for (const sub of expiredSubs) {
-        await supabase
-          .from("subscriptions")
-          .update({
-            status: "canceled",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", sub.id)
-
-        if (sub.profiles?.email) {
-          await sendEmail(sub.profiles.email, {
-            subject: "Subscription Canceled - Downgraded to Starter Plan",
-            html: `
-              <div style="padding: 30px; font-family: Arial, sans-serif; line-height: 1.6; color: #374151;">
-                <h2 style="color: #ef4444; margin-bottom: 20px;">Your Subscription Has Been Canceled</h2>
-                
-                <p>Hi ${sub.profiles.first_name || "there"},</p>
-                
-                <p>Your ${sub.plan_name} subscription for <strong>${sub.organizations?.name}</strong> has been canceled due to non-payment after the 7-day grace period.</p>
-                
-                <div style="background-color: #fee2e2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ef4444;">
-                  <h3 style="margin: 0 0 15px 0; color: #7f1d1d;">Your Account Status</h3>
-                  <p><strong>Status:</strong> Downgraded to Free Starter Plan</p>
-                  <p><strong>Active Templates:</strong> Limited to 3</p>
-                  <p><strong>Report History:</strong> Last 50 reports only</p>
-                </div>
-                
-                <p><strong>Want to reactivate your premium subscription?</strong></p>
-                <p>Visit your billing page and update your payment method to restore full access to all premium features.</p>
-                
-                <div style="text-align: center; margin: 30px 0;">
-                  <a href="${process.env.NEXT_PUBLIC_SITE_URL}/admin/billing" style="background-color: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Update Payment Method</a>
-                </div>
-                
-                <p>If you have any questions, please contact our support team at info@mydaylogs.co.uk.</p>
-                
-                <p>Best regards,<br>
-                <strong>The MyDayLogs Team</strong></p>
-              </div>
-            `,
-          })
-        }
-
-        expiredGracePeriods++
-      }
-      console.log(`[v0] Expired ${expiredGracePeriods} grace periods and downgraded to Starter`)
-    }
-
-    console.log("[v0] Marking old incomplete daily tasks as overdue...")
-    let markedOverdue = 0
+    console.log("[v0] Checking overdue tasks...")
+    let markedOverdueCount = 0
 
     const { data: incompleteTasks, error: incompleteError } = await supabase
       .from("daily_checklists")
@@ -163,8 +103,8 @@ export async function GET(request: NextRequest) {
     if (incompleteError) {
       console.error("[v0] Error marking tasks as overdue:", incompleteError)
     } else if (incompleteTasks) {
-      markedOverdue = incompleteTasks.length
-      console.log(`[v0] Marked ${markedOverdue} incomplete daily tasks as overdue`)
+      markedOverdueCount = incompleteTasks.length
+      console.log(`[v0] Marked ${markedOverdueCount} overdue tasks`)
     }
 
     console.log("[v0] Starting smart cleanup of overdue tasks...")
@@ -517,14 +457,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       date: today,
-      expiredGracePeriods,
+      expiredGracePeriods: 0,
       createdTasks,
       skippedTasks,
       deletedReports,
       cancelledJobs,
       expiredTestTrials,
-      markedOverdue,
+      markedOverdue: markedOverdueCount,
       deletedOverdueTasks,
+      trialRemindersSent: 0,
       errors: errors.length > 0 ? errors : undefined,
     })
   } catch (error) {

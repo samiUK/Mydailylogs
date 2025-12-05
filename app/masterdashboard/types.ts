@@ -58,6 +58,10 @@ export interface Payment {
   // From subscription JOIN (if needed)
   organization_name?: string
   user_email?: string // Admin email - primary identifier
+  is_trial_customer?: boolean // True if this is a trial customer awaiting first payment
+  trial_ends_at?: string | null // When trial ends and payment will be charged
+  next_payment_date?: string | null // Expected payment date
+  subscription_plan?: string // Plan name for trial customers
 }
 
 // Unified Feedback type

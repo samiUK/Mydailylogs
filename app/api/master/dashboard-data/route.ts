@@ -48,12 +48,7 @@ export async function GET(request: NextRequest) {
         custom_team_limit,
         custom_manager_limit,
         custom_monthly_submissions,
-        subscriptions!inner(
-          plan_name,
-          status,
-          is_masteradmin_trial,
-          is_trial
-        )
+        subscriptions(plan_name, status, is_masteradmin_trial, is_trial)
       `,
       )
       .order("created_at", { ascending: false })
@@ -81,7 +76,8 @@ export async function GET(request: NextRequest) {
         is_masteradmin_trial,
         is_trial,
         cancel_at_period_end,
-        organizations!inner(organization_name)
+        created_at,
+        organizations(organization_name)
       `,
       )
       .order("created_at", { ascending: false })
@@ -206,16 +202,56 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    const stripeCustomersWithoutPayments = flatSubscriptions
+      .filter((sub) => {
+        // Include subscriptions with Stripe ID (actual Stripe customers)
+        if (!sub.stripe_subscription_id) return false
+
+        // Check if they already have a payment record
+        const hasPayment = payments?.some((p: any) => p.subscription_id === sub.id)
+        return !hasPayment
+      })
+      .map((sub) => ({
+        id: `pending-${sub.id}`,
+        subscription_id: sub.id,
+        amount: 0, // No payment yet
+        status: sub.status === "trialing" ? "upcoming" : "pending",
+        created_at: sub.trial_ends_at || sub.current_period_end || sub.created_at,
+        transaction_id: `stripe-${sub.stripe_subscription_id}`,
+        currency: "gbp",
+        organization_name: sub.organization_name,
+        user_email: sub.user_email,
+        // Additional fields for trial customers
+        is_trial_customer: true,
+        trial_ends_at: sub.trial_ends_at,
+        next_payment_date: sub.trial_ends_at || sub.current_period_end,
+        subscription_plan: sub.plan_name,
+      }))
+
+    // Combine actual payments and upcoming trial conversions
+    const allPaymentsAndUpcoming = [...flatPayments, ...stripeCustomersWithoutPayments]
+
     const now = new Date()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
 
     const newSignupsThisMonth = profiles?.filter((p) => new Date(p.created_at) >= startOfMonth).length || 0
-    const paidSubs = flatSubscriptions.filter((s) => s.status === "active" && !s.is_trial).length
-    const totalOrgs = flatOrganizations.length
-    const conversionRate = totalOrgs > 0 ? Math.round((paidSubs / totalOrgs) * 100) : 0
+
+    // Get all subscriptions that started as trials (both Stripe trials and master admin trials)
+    const allTrialSubscriptions = flatSubscriptions.filter(
+      (s) => s.is_trial || s.is_masteradmin_trial || s.stripe_subscription_id,
+    )
+
+    // Get paid subscriptions (not currently on trial, have Stripe ID, and active)
+    const convertedToPaid = flatSubscriptions.filter(
+      (s) => s.status === "active" && s.stripe_subscription_id && !s.is_trial,
+    ).length
+
+    // Calculate conversion rate: converted subscriptions / total trials started
+    const totalTrialsStarted = allTrialSubscriptions.length
+    const conversionRate = totalTrialsStarted > 0 ? Math.round((convertedToPaid / totalTrialsStarted) * 100) : 0
 
     const stats = {
-      totalOrgs,
+      totalOrgs: flatOrganizations.length,
       totalUsers: profiles?.length || 0,
       newSignupsThisMonth,
       conversionRate,
@@ -229,7 +265,7 @@ export async function GET(request: NextRequest) {
       organizations: flatOrganizations,
       profiles: profiles || [],
       subscriptions: flatSubscriptions,
-      payments: flatPayments,
+      payments: allPaymentsAndUpcoming, // Include trial customers
       feedback: feedback || [],
       superusers: superusers || [], // Return superusers with full_name included
       stats,
@@ -238,7 +274,7 @@ export async function GET(request: NextRequest) {
         organizations: flatOrganizations.length,
         profiles: profiles?.length || 0,
         subscriptions: flatSubscriptions.length,
-        payments: flatPayments.length,
+        payments: allPaymentsAndUpcoming.length, // Updated count
         feedback: feedback?.length || 0,
         superusers: superusers?.length || 0,
       },

@@ -13,6 +13,7 @@ import { FeedbackList } from "./FeedbackList"
 import { FeedbackResponseModal } from "./FeedbackResponseModal"
 import { SuperuserToolsSection } from "./SuperuserToolsSection"
 import { OverviewTab } from "./components/OverviewTab"
+import { Button } from "@/components/ui/button" // Import Button component
 import type { ConfirmDialogState, Feedback, Organization, Subscription } from "./types"
 import { useRouter } from "next/navigation"
 
@@ -425,9 +426,14 @@ export default function MasterDashboardPage() {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Master Admin Dashboard</h1>
-        <p className="text-gray-600">Manage all organizations, users, and subscriptions</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Master Admin Dashboard</h1>
+          <p className="text-gray-600">Manage all organizations, users, and subscriptions</p>
+        </div>
+        <Button variant="outline" onClick={handleSignOut}>
+          Sign Out
+        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

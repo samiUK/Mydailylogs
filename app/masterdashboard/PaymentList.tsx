@@ -88,6 +88,8 @@ export function PaymentList({ payments, searchTerm, onSearchChange, onRefund, on
     switch (status) {
       case "succeeded":
         return "bg-green-100 text-green-800"
+      case "upcoming": // Add upcoming status for trial customers
+        return "bg-blue-100 text-blue-800"
       case "pending":
         return "bg-yellow-100 text-yellow-800"
       case "failed":
@@ -227,19 +229,44 @@ export function PaymentList({ payments, searchTerm, onSearchChange, onRefund, on
                 <tr key={payment.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium">{payment.organization_name || "N/A"}</td>
                   <td className="px-4 py-3 font-semibold text-green-600">
-                    ${(payment.amount / 100).toFixed(2)} {payment.currency?.toUpperCase() || "USD"}
+                    {payment.is_trial_customer ? (
+                      <span className="text-gray-600">
+                        Payment pending
+                        {payment.subscription_plan && (
+                          <span className="block text-xs text-gray-500">({payment.subscription_plan})</span>
+                        )}
+                      </span>
+                    ) : (
+                      <>
+                        ${(payment.amount / 100).toFixed(2)} {payment.currency?.toUpperCase() || "USD"}
+                      </>
+                    )}
                   </td>
                   <td className="px-4 py-3">
-                    <Badge className={getStatusColor(payment.status)}>{payment.status}</Badge>
+                    <Badge className={getStatusColor(payment.status)}>
+                      {payment.status === "upcoming" ? "Trial - Payment Due" : payment.status}
+                    </Badge>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">
-                    {new Date(payment.created_at).toLocaleDateString("en-GB", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    {payment.is_trial_customer && payment.next_payment_date ? (
+                      <div>
+                        <span className="text-xs text-gray-500">Payment expected:</span>
+                        <br />
+                        {new Date(payment.next_payment_date).toLocaleDateString("en-GB", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })}
+                      </div>
+                    ) : (
+                      new Date(payment.created_at).toLocaleDateString("en-GB", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    )}
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-500 font-mono">
                     {payment.transaction_id?.substring(0, 20)}...
@@ -255,6 +282,12 @@ export function PaymentList({ payments, searchTerm, onSearchChange, onRefund, on
                       >
                         {refunding === payment.id ? "Processing..." : "Issue Refund"}
                       </Button>
+                    )}
+                    {payment.is_trial_customer && payment.trial_ends_at && (
+                      <span className="text-xs text-blue-600">
+                        {Math.ceil((new Date(payment.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))}{" "}
+                        days
+                      </span>
                     )}
                   </td>
                 </tr>

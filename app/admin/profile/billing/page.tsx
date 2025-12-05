@@ -211,7 +211,8 @@ export default function BillingPage() {
         `${
           isTrialing
             ? `You're currently in your 30-day trial period. Even if you cancel now, you'll keep full access until ${periodEndDate} - no charges will be made.\n\n`
-            : `Your subscription will remain fully active until ${periodEndDate}, then you'll be downgraded.\n\n`
+            : `Your subscription will remain fully active until ${periodEndDate}, then you'll be downgraded.\n\n` +
+              `📧 Don't worry: We'll send you a reminder email 3 days before ${periodEndDate} so you have time to reactivate if you change your mind.\n\n`
         }` +
         `After ${periodEndDate}:\n` +
         `• You'll be automatically downgraded to the free Starter plan\n` +
@@ -247,7 +248,7 @@ export default function BillingPage() {
       }
 
       alert(
-        `✓ Subscription cancelled successfully. ${isTrialing ? "Your 30-day trial continues with" : "You'll have"} full access until ${periodEndDate}`,
+        `✓ Subscription cancelled successfully. ${isTrialing ? "Your 30-day trial continues with" : "You'll have"} full access until ${periodEndDate}${!isTrialing ? ". We'll email you 3 days before this date as a reminder" : ""}.`,
       )
     } catch (error: any) {
       console.error("[v0] Error cancelling subscription:", error)
@@ -345,6 +346,14 @@ export default function BillingPage() {
     } finally {
       setProcessing(false)
     }
+  }
+
+  const calculateDaysRemaining = (endDate: string): number => {
+    const end = new Date(endDate)
+    const now = new Date()
+    const diffTime = end.getTime() - now.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays
   }
 
   if (loading) {
@@ -466,9 +475,12 @@ export default function BillingPage() {
                           downgrading to Starter
                         </span>
                       ) : subscription.status === "trialing" ? (
-                        <span>
-                          Trial ends on {new Date(subscription.current_period_end).toLocaleDateString()} - Then billing
-                          begins
+                        <span className="flex items-center gap-2">
+                          Trial ends on {new Date(subscription.current_period_end).toLocaleDateString()}
+                          <span className="font-semibold text-blue-600">
+                            ({calculateDaysRemaining(subscription.current_period_end)} days remaining)
+                          </span>
+                          - Then billing begins
                         </span>
                       ) : subscription.status === "active" ? (
                         <span>Next billing date: {new Date(subscription.current_period_end).toLocaleDateString()}</span>
@@ -493,33 +505,35 @@ export default function BillingPage() {
               </div>
             </div>
 
-            {!isFreePlan && subscription?.status === "active" && (
-              <div className="flex gap-3 pt-4 border-t">
-                {currentPlanName === "growth" && (
-                  <Button variant="default" onClick={() => handleChangePlan("scale")} disabled={processing}>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Upgrade to Scale
-                  </Button>
-                )}
-                {currentPlanName === "scale" && (
-                  <Button variant="outline" onClick={() => handleChangePlan("growth")} disabled={processing}>
-                    Downgrade to Growth
-                  </Button>
-                )}
-                <Button variant="outline" onClick={handleManageBilling} disabled={processing}>
-                  {processing ? (
-                    <X className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <ArrowUpCircle className="w-4 h-4 mr-2" />
+            {!isFreePlan &&
+              subscription &&
+              (subscription.status === "active" || subscription.status === "trialing") && (
+                <div className="flex gap-3 pt-4 border-t">
+                  {currentPlanName === "growth" && (
+                    <Button variant="default" onClick={() => handleChangePlan("scale")} disabled={processing}>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Upgrade to Scale
+                    </Button>
                   )}
-                  Manage Billing
-                </Button>
-                <Button variant="destructive" onClick={handleCancel} disabled={processing}>
-                  {processing ? <X className="w-4 h-4 mr-2 animate-spin" /> : <X className="w-4 h-4 mr-2" />}
-                  Cancel Subscription
-                </Button>
-              </div>
-            )}
+                  {currentPlanName === "scale" && (
+                    <Button variant="outline" onClick={() => handleChangePlan("growth")} disabled={processing}>
+                      Downgrade to Growth
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={handleManageBilling} disabled={processing}>
+                    {processing ? (
+                      <X className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <ArrowUpCircle className="w-4 h-4 mr-2" />
+                    )}
+                    Manage Billing
+                  </Button>
+                  <Button variant="destructive" onClick={handleCancel} disabled={processing}>
+                    {processing ? <X className="w-4 h-4 mr-2 animate-spin" /> : <X className="w-4 h-4 mr-2" />}
+                    Cancel Subscription
+                  </Button>
+                </div>
+              )}
           </div>
         </CardContent>
       </Card>

@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { createClient as createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
-import { sendEmail } from "@/lib/email/smtp"
+import { sendEmail, emailTemplates } from "@/lib/email/smtp"
 import { handleSubscriptionDowngrade } from "@/lib/subscription-limits"
 
 export const runtime = "nodejs"
@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
       deletedPhotos: 0,
       deletedLogs: 0,
       cancelledJobs: 0,
+      trialReminders: 0,
       errors: [] as string[],
     }
 
@@ -163,6 +164,62 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       results.errors.push(`Section 2 error: ${error}`)
       console.error("[v0] ✗ Section 2 failed:", error)
+    }
+
+    console.log("[v0] === SECTION 3: Sending trial ending reminders ===")
+    try {
+      const threeDaysFromNow = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+      const startOfDay = new Date(threeDaysFromNow.setHours(0, 0, 0, 0)).toISOString()
+      const endOfDay = new Date(threeDaysFromNow.setHours(23, 59, 59, 999)).toISOString()
+
+      const { data: trialsEndingSoon } = await supabase
+        .from("subscriptions")
+        .select(`
+          id,
+          plan_name,
+          trial_ends_at,
+          stripe_subscription_id,
+          organization_id,
+          organizations(name),
+          profiles(email, first_name)
+        `)
+        .eq("is_trial", true)
+        .eq("is_masteradmin_trial", false)
+        .not("stripe_subscription_id", "is", null)
+        .gte("trial_ends_at", startOfDay)
+        .lte("trial_ends_at", endOfDay)
+
+      if (trialsEndingSoon && trialsEndingSoon.length > 0) {
+        for (const trial of trialsEndingSoon) {
+          if (trial.profiles?.email && trial.trial_ends_at) {
+            const trialEndDate = new Date(trial.trial_ends_at).toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })
+
+            const emailContent = emailTemplates.trialEndingReminder(
+              trial.profiles.first_name || "there",
+              trial.organizations?.name || "your organization",
+              trialEndDate,
+              trial.plan_name,
+            )
+
+            await sendEmail(trial.profiles.email, {
+              subject: "Your Trial Ends in 3 Days - Action Required",
+              html: emailContent,
+            })
+
+            results.trialReminders++
+          }
+        }
+        console.log(`[v0] ✓ Sent ${results.trialReminders} trial ending reminders`)
+      } else {
+        console.log(`[v0] ✓ No trials ending in 3 days`)
+      }
+    } catch (error) {
+      results.errors.push(`Section 3 error: ${error}`)
+      console.error("[v0] ✗ Section 3 failed:", error)
     }
 
     console.log("[v0] ========== MIDNIGHT OPERATIONS ENDED ==========")

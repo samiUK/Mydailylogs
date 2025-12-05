@@ -49,6 +49,7 @@ export async function POST(req: Request) {
       })
       .eq("id", subscription.id)
 
+    const isTrialing = subscription.status === "trialing"
     const periodEndDate = subscription.current_period_end
       ? new Date(subscription.current_period_end).toLocaleDateString()
       : "the end of your billing period"
@@ -77,9 +78,13 @@ export async function POST(req: Request) {
       console.error("[v0] Failed to send cancellation email:", emailError)
     }
 
+    const responseMessage = isTrialing
+      ? `Subscription cancelled successfully. Your trial continues with full access until ${periodEndDate} - no charges will be made.`
+      : `Subscription will be cancelled on ${periodEndDate}. You'll continue to have full access until then, then be downgraded to Starter plan. We'll send you a reminder email 3 days before your subscription ends.`
+
     return NextResponse.json({
       success: true,
-      message: `Subscription will be cancelled on ${periodEndDate}. You'll continue to have full access until then, then be downgraded to Starter plan.`,
+      message: responseMessage,
     })
   } catch (error: any) {
     console.error("[v0] Error cancelling subscription:", error)

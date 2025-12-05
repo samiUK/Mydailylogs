@@ -117,7 +117,7 @@ export function SubscriptionCancelDialog({
           )}
 
           <DialogDescription className="text-base pt-2 space-y-4">
-            {isScalePlan && (
+            {isScalePlan && !isTrial && (
               <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4 mb-4">
                 <div className="flex items-start gap-3">
                   <Users className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
@@ -126,10 +126,11 @@ export function SubscriptionCancelDialog({
                     <p className="text-sm text-red-800">
                       You currently have{" "}
                       <span className="font-bold">{currentPlanFeatures?.maxTeamMembers} team members</span> and{" "}
-                      <span className="font-bold">{currentPlanFeatures?.maxAdmins} managers</span>. After downgrade,
-                      you'll be limited to <span className="font-bold">5 team members and 1 admin only</span>. This
-                      means you'll need to remove {(currentPlanFeatures?.maxTeamMembers || 0) - 5} team members and{" "}
-                      {(currentPlanFeatures?.maxAdmins || 0) - 1} managers immediately.
+                      <span className="font-bold">{currentPlanFeatures?.maxAdmins} managers</span>. After cancellation
+                      on {cancellationDate}, you'll be limited to{" "}
+                      <span className="font-bold">5 team members and 1 admin only</span>. This means you'll need to
+                      remove {(currentPlanFeatures?.maxTeamMembers || 0) - 5} team members and{" "}
+                      {(currentPlanFeatures?.maxAdmins || 0) - 1} managers before the downgrade.
                     </p>
                   </div>
                 </div>
@@ -147,18 +148,19 @@ export function SubscriptionCancelDialog({
                       <FileText className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                       <span className="text-sm">
                         <span className="font-semibold">{currentPlanFeatures.maxTemplates} custom templates</span> →
-                        You'll be limited to only <span className="font-semibold text-red-600">3 templates</span>
+                        Only your <span className="font-semibold text-emerald-600">first 3 templates will remain</span>
                       </span>
                     </div>
                     <div className="flex items-start gap-3">
                       <Users className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                       <span className="text-sm">
-                        <span className="font-semibold">{currentPlanFeatures.maxTeamMembers} team members</span> →
-                        You'll be limited to only <span className="font-semibold text-red-600">5 team members</span>
-                        {isScalePlan && (
+                        <span className="font-semibold">{currentPlanFeatures.maxTeamMembers} team members</span> → Only
+                        your <span className="font-semibold text-emerald-600">first 5 team members will remain</span>
+                        {isScalePlan && !isTrial && (
                           <span className="text-red-600 font-semibold">
                             {" "}
-                            (you'll need to remove {(currentPlanFeatures.maxTeamMembers || 0) - 5} people)
+                            (you must remove {(currentPlanFeatures.maxTeamMembers || 0) - 5} members before{" "}
+                            {cancellationDate})
                           </span>
                         )}
                       </span>
@@ -167,11 +169,12 @@ export function SubscriptionCancelDialog({
                       <UserCog className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                       <span className="text-sm">
                         <span className="font-semibold">{currentPlanFeatures.maxAdmins} managers</span> with admin-level
-                        access → You'll be limited to <span className="font-semibold text-red-600">1 admin only</span>
-                        {isScalePlan && (
+                        access → Only <span className="font-semibold text-emerald-600">1 admin will remain</span>
+                        {isScalePlan && !isTrial && (
                           <span className="text-red-600 font-semibold">
                             {" "}
-                            (you'll need to remove {(currentPlanFeatures.maxAdmins || 0) - 1} managers)
+                            (you must remove {(currentPlanFeatures.maxAdmins || 0) - 1} managers before{" "}
+                            {cancellationDate})
                           </span>
                         )}
                       </span>
@@ -179,8 +182,9 @@ export function SubscriptionCancelDialog({
                     <div className="flex items-start gap-3">
                       <X className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                       <span className="text-sm">
-                        <span className="font-semibold">Unlimited report submissions</span> → You'll be limited to{" "}
-                        <span className="font-semibold text-red-600">50 reports per month</span>
+                        <span className="font-semibold">Unlimited report submissions</span> → Your{" "}
+                        <span className="font-semibold text-emerald-600">last 50 reports will remain</span> unless you
+                        modify your organization to exceed this limit
                       </span>
                     </div>
                   </>
@@ -193,7 +197,8 @@ export function SubscriptionCancelDialog({
                 {isTrial ? (
                   <>
                     <span className="font-semibold text-foreground">If you cancel now:</span> You won't be charged, and
-                    you'll be immediately downgraded to the free Starter plan with limited features.
+                    you'll be <span className="font-semibold text-red-600">immediately downgraded</span> to the free
+                    Starter plan with limited features.
                   </>
                 ) : (
                   <>
@@ -208,8 +213,17 @@ export function SubscriptionCancelDialog({
 
             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mt-4">
               <p className="text-sm text-emerald-800">
-                <span className="font-semibold">Changed your mind?</span> You can always reactivate your subscription or
-                upgrade again from the billing page.
+                {isTrial ? (
+                  <>
+                    <span className="font-semibold">Changed your mind?</span> After cancellation, you can upgrade again
+                    anytime from the billing page.
+                  </>
+                ) : (
+                  <>
+                    <span className="font-semibold">Changed your mind?</span> You can reactivate your subscription
+                    anytime before {cancellationDate} to keep your current plan and avoid losing access.
+                  </>
+                )}
               </p>
             </div>
 
@@ -224,8 +238,8 @@ export function SubscriptionCancelDialog({
                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
               >
                 I understand that I will lose access to these premium features
-                {isScalePlan && " and will need to remove team members and managers"}, and I want to proceed with
-                cancellation
+                {isScalePlan && !isTrial && " and will need to remove team members and managers"}, and I want to proceed
+                with cancellation
               </label>
             </div>
           </DialogDescription>

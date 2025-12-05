@@ -33,26 +33,39 @@ export async function POST(req: Request) {
     }
 
     const stripeSubId = subscription.stripe_subscription_id || subscription.id
-
-    console.log("[v0] Marking subscription for cancellation at period end:", subscription.id)
-
-    // Mark for cancellation at period end (works for both trialing and active)
-    await stripe.subscriptions.update(stripeSubId, {
-      cancel_at_period_end: true,
-    })
-
-    await supabase
-      .from("subscriptions")
-      .update({
-        cancel_at_period_end: true,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", subscription.id)
-
     const isTrialing = subscription.status === "trialing"
-    const periodEndDate = subscription.current_period_end
-      ? new Date(subscription.current_period_end).toLocaleDateString()
-      : "the end of your billing period"
+
+    if (isTrialing) {
+      console.log("[v0] Immediately cancelling trial subscription:", subscription.id)
+
+      // Immediately cancel the Stripe subscription for trial users
+      await stripe.subscriptions.cancel(stripeSubId)
+
+      // Update database to reflect immediate cancellation
+      await supabase
+        .from("subscriptions")
+        .update({
+          status: "cancelled",
+          cancel_at_period_end: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", subscription.id)
+    } else {
+      console.log("[v0] Scheduling cancellation at period end for paid subscription:", subscription.id)
+
+      // Schedule cancellation at period end for paid users
+      await stripe.subscriptions.update(stripeSubId, {
+        cancel_at_period_end: true,
+      })
+
+      await supabase
+        .from("subscriptions")
+        .update({
+          cancel_at_period_end: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", subscription.id)
+    }
 
     try {
       const { data: profileData } = await supabase
@@ -62,13 +75,21 @@ export async function POST(req: Request) {
         .single()
 
       if (profileData?.email) {
+        const periodEndDate = subscription.current_period_end
+          ? new Date(subscription.current_period_end).toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })
+          : "the end of your billing period"
+
         const template = emailTemplates.subscriptionCancelled({
           customerName: profileData.full_name || "Customer",
           planName: subscription.plan_name.includes("growth") ? "Growth" : "Scale",
           accessUntilDate: subscription.current_period_end,
-          isTrialing: subscription.status === "trialing",
-          downgradeWarning: subscription.status !== "trialing",
-          billingUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/billing`, // Updated billing URL
+          isTrialing: isTrialing,
+          downgradeWarning: !isTrialing,
+          billingUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/billing`,
         })
 
         await sendEmail(profileData.email, template)
@@ -79,12 +100,21 @@ export async function POST(req: Request) {
     }
 
     const responseMessage = isTrialing
-      ? `Subscription cancelled successfully. Your trial continues with full access until ${periodEndDate} - no charges will be made.`
-      : `Subscription will be cancelled on ${periodEndDate}. You'll continue to have full access until then, then be downgraded to Starter plan. We'll send you a reminder email 3 days before your subscription ends.`
+      ? "Subscription cancelled successfully. You have been immediately downgraded to the free Starter plan. You can upgrade again anytime from the billing page."
+      : `Subscription will be cancelled on ${
+          subscription.current_period_end
+            ? new Date(subscription.current_period_end).toLocaleDateString("en-GB", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })
+            : "the end of your billing period"
+        }. You'll continue to have full access until then. You can reactivate anytime before this date.`
 
     return NextResponse.json({
       success: true,
       message: responseMessage,
+      immediate: isTrialing,
     })
   } catch (error: any) {
     console.error("[v0] Error cancelling subscription:", error)

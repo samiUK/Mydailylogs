@@ -74,18 +74,34 @@ export default function SignUpPage() {
           return
         }
 
-        console.log("[v0] Auto-login successful, redirecting to dashboard...")
+        console.log("[v0] Auto-login successful, waiting for session to be fully established...")
+
+        // Give the browser time to write auth cookies properly
+        await new Promise((resolve) => setTimeout(resolve, 500))
+
+        // Verify session is actually set
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+        console.log("[v0] Session verification:", session ? "Session active" : "No session")
+
+        if (!session) {
+          console.error("[v0] Session not established after login")
+          setError("Login succeeded but session failed. Please try logging in manually.")
+          setTimeout(() => router.push("/auth/login"), 2000)
+          return
+        }
 
         if (planFromUrl) {
           setSuccess(`Account created! Redirecting to ${planFromUrl} plan checkout...`)
           setTimeout(() => {
-            router.push(`/admin/profile/billing?plan=${planFromUrl}`)
-          }, 1500)
+            window.location.href = `/admin/profile/billing?plan=${planFromUrl}`
+          }, 1000)
         } else {
           setSuccess("Account created! Redirecting to your dashboard...")
           setTimeout(() => {
-            router.push("/admin")
-          }, 1500)
+            window.location.href = "/admin"
+          }, 1000)
         }
       } else {
         setError(result.error || "Failed to create account")

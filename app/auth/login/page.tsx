@@ -307,6 +307,21 @@ export default function LoginPage() {
       const redirectUrl = selectedProfileData.role === "admin" ? "/admin" : "/staff"
       console.log("[v0] Regular login redirect to:", redirectUrl)
 
+      // Give cookies time to be properly written
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+
+      // Verify session is actually established
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      console.log("[v0] Session verification after login:", session ? "Session active" : "No session")
+
+      if (!session) {
+        console.error("[v0] Session not established after login")
+        throw new Error("Login succeeded but session failed. Please try again.")
+      }
+
+      console.log("[v0] Session confirmed, redirecting to:", redirectUrl)
       window.location.href = redirectUrl
     } catch (error: unknown) {
       console.error("[v0] Login error:", error)

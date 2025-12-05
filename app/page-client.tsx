@@ -69,42 +69,39 @@ export default function HomePageClient() {
   }
 
   const checkUserAuth = async () => {
-    const supabase = createClientClient()
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
-
-    if (authUser) {
-      const { data: userProfiles } = await supabase
-        .from("profiles")
-        .select("id, role, organization_name")
-        .eq("email", authUser.email)
-
-      if (userProfiles && userProfiles.length > 0) {
-        if (userProfiles.length > 1) {
-          router.push("/profile")
-        } else {
-          const profile = userProfiles[0]
-
-          if (profile.role === "admin") {
-            router.push(`/admin`)
-          } else if (profile.role === "staff") {
-            router.push(`/staff`)
-          } else {
-            router.push(`/admin`)
-          }
-        }
-      } else {
-        router.push("/auth/login?error=no_profile_found")
-      }
-    }
+    // const supabase = createClientClient()
+    // const {
+    //   data: { user: authUser },
+    // } = await supabase.auth.getUser()
+    // if (authUser) {
+    //   const { data: userProfiles } = await supabase
+    //     .from("profiles")
+    //     .select("id, role, organization_name")
+    //     .eq("email", authUser.email)
+    //   if (userProfiles && userProfiles.length > 0) {
+    //     if (userProfiles.length > 1) {
+    //       router.push("/profile")
+    //     } else {
+    //       const profile = userProfiles[0]
+    //       if (profile.role === "admin") {
+    //         router.push(`/admin`)
+    //       } else if (profile.role === "staff") {
+    //         router.push(`/staff`)
+    //       } else {
+    //         router.push(`/admin`)
+    //       }
+    //     }
+    //   } else {
+    //     router.push("/auth/login?error=no_profile_found")
+    //   }
+    // }
   }
 
   const currentDate = new Date()
   const showBanner = true
 
   useEffect(() => {
-    checkUserAuth()
+    // checkUserAuth()
   }, [])
 
   const formatPrice = (gbpPence: number) => {

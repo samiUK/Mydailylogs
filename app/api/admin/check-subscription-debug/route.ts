@@ -47,7 +47,7 @@ export async function GET(request: Request) {
   let stripeData = null
   if (allSubs && allSubs.length > 0 && allSubs[0].stripe_customer_id) {
     try {
-      const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY)
+      const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY_MYDAYLOGS)
       const customer = await stripe.customers.retrieve(allSubs[0].stripe_customer_id)
       const subscriptions = await stripe.subscriptions.list({
         customer: allSubs[0].stripe_customer_id,

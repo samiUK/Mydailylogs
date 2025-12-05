@@ -38,12 +38,21 @@ interface OverviewTabProps {
     checklists: { total: number; completed: number; pending: number }
     templates: { total: number; active: number; inactive: number }
   }
+  usageMetrics?: any
+  metricsLastRefreshed?: string | null
+  refreshUsageMetrics?: () => Promise<void>
 }
 
-export function OverviewTab({ stats, databaseStats }: OverviewTabProps) {
-  const [usageMetrics, setUsageMetrics] = useState<any>(null)
-  const [isRefreshingUsageMetrics, setIsRefreshingUsageMetrics] = useState(false)
-  const [lastRefreshed, setLastRefreshed] = useState<string | null>(null)
+export function OverviewTab({
+  stats,
+  databaseStats,
+  usageMetrics,
+  metricsLastRefreshed,
+  refreshUsageMetrics,
+}: OverviewTabProps) {
+  const [localUsageMetrics, setLocalUsageMetrics] = useState<any>(usageMetrics || null)
+  const [isRefreshingLocalUsageMetrics, setIsRefreshingLocalUsageMetrics] = useState(false)
+  const [lastRefreshed, setLastRefreshed] = useState<string | null>(metricsLastRefreshed || null)
   const [metricsLoadedFromCache, setMetricsLoadedFromCache] = useState(false)
 
   // Load cached metrics on mount
@@ -57,7 +66,7 @@ export function OverviewTab({ stats, databaseStats }: OverviewTabProps) {
         const oneHour = 60 * 60 * 1000
 
         if (cacheAge < oneHour) {
-          setUsageMetrics(JSON.parse(cached))
+          setLocalUsageMetrics(JSON.parse(cached))
           const cacheDate = new Date(timestamp)
           setLastRefreshed(`${cacheDate.getHours()}:${cacheDate.getMinutes().toString().padStart(2, "0")}`)
           setMetricsLoadedFromCache(true)
@@ -68,32 +77,36 @@ export function OverviewTab({ stats, databaseStats }: OverviewTabProps) {
     }
   }, [])
 
-  const refreshUsageMetrics = async () => {
-    setIsRefreshingUsageMetrics(true)
+  const handleRefreshUsageMetrics = async () => {
+    setIsRefreshingLocalUsageMetrics(true)
     setLastRefreshed(null)
     try {
-      const response = await fetch("/api/master/usage-metrics", {
-        cache: "no-store",
-      })
-      const data = await response.json()
+      if (refreshUsageMetrics) {
+        await refreshUsageMetrics()
+      } else {
+        const response = await fetch("/api/master/usage-metrics", {
+          cache: "no-store",
+        })
+        const data = await response.json()
 
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to fetch usage metrics")
-      }
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to fetch usage metrics")
+        }
 
-      if (data && data.storage && data.counts && data.bandwidth) {
-        setUsageMetrics(data)
-        const now = new Date()
-        const timeStr = `${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}`
-        setLastRefreshed(timeStr)
+        if (data && data.storage && data.counts && data.bandwidth) {
+          setLocalUsageMetrics(data)
+          const now = new Date()
+          const timeStr = `${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}`
+          setLastRefreshed(timeStr)
 
-        localStorage.setItem("mydaylogs_usage_metrics", JSON.stringify(data))
-        localStorage.setItem("mydaylogs_usage_metrics_timestamp", now.toISOString())
+          localStorage.setItem("mydaylogs_usage_metrics", JSON.stringify(data))
+          localStorage.setItem("mydaylogs_usage_metrics_timestamp", now.toISOString())
+        }
       }
     } catch (err: any) {
       // Silent fail - user can retry with refresh button
     } finally {
-      setIsRefreshingUsageMetrics(false)
+      setIsRefreshingLocalUsageMetrics(false)
     }
   }
 
@@ -129,14 +142,19 @@ export function OverviewTab({ stats, databaseStats }: OverviewTabProps) {
                 {lastRefreshed && ` • Last updated: ${lastRefreshed}`}
               </CardDescription>
             </div>
-            <Button onClick={refreshUsageMetrics} disabled={isRefreshingUsageMetrics} variant="outline" size="sm">
-              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshingUsageMetrics ? "animate-spin" : ""}`} />
+            <Button
+              onClick={handleRefreshUsageMetrics}
+              disabled={isRefreshingLocalUsageMetrics}
+              variant="outline"
+              size="sm"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshingLocalUsageMetrics ? "animate-spin" : ""}`} />
               Refresh
             </Button>
           </div>
         </CardHeader>
         <CardContent>
-          {!usageMetrics ? (
+          {!localUsageMetrics ? (
             <div className="text-center py-8 text-gray-500">
               <Database className="h-8 w-8 mx-auto mb-2 text-gray-400" />
               <p className="text-sm mb-2">No usage metrics loaded</p>
@@ -150,55 +168,57 @@ export function OverviewTab({ stats, databaseStats }: OverviewTabProps) {
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
                   <div>
                     <span className="text-gray-600">Auth Users:</span>
-                    <span className="ml-2 font-medium">{usageMetrics.counts?.authUsers || 0}</span>
+                    <span className="ml-2 font-medium">{localUsageMetrics.counts?.authUsers || 0}</span>
                   </div>
                   <div>
                     <span className="text-gray-600">Active This Month:</span>
-                    <span className="ml-2 font-medium">{usageMetrics.counts?.activeUsersThisMonth || 0}</span>
+                    <span className="ml-2 font-medium">{localUsageMetrics.counts?.activeUsersThisMonth || 0}</span>
                   </div>
                   <div>
                     <span className="text-gray-600">Total Rows:</span>
-                    <span className="ml-2 font-medium">{(usageMetrics.counts?.totalRows || 0).toLocaleString()}</span>
+                    <span className="ml-2 font-medium">
+                      {(localUsageMetrics.counts?.totalRows || 0).toLocaleString()}
+                    </span>
                   </div>
                   <div>
                     <span className="text-gray-600">Profiles:</span>
-                    <span className="ml-2 font-medium">{usageMetrics.counts?.profiles || 0}</span>
+                    <span className="ml-2 font-medium">{localUsageMetrics.counts?.profiles || 0}</span>
                   </div>
                   <div>
                     <span className="text-gray-600">Organizations:</span>
-                    <span className="ml-2 font-medium">{usageMetrics.counts?.organizations || 0}</span>
+                    <span className="ml-2 font-medium">{localUsageMetrics.counts?.organizations || 0}</span>
                   </div>
                   <div>
                     <span className="text-gray-600">Templates:</span>
-                    <span className="ml-2 font-medium">{usageMetrics.counts?.templates || 0}</span>
+                    <span className="ml-2 font-medium">{localUsageMetrics.counts?.templates || 0}</span>
                   </div>
                   <div>
                     <span className="text-gray-600">Daily Checklists:</span>
-                    <span className="ml-2 font-medium">{usageMetrics.counts?.dailyChecklists || 0}</span>
+                    <span className="ml-2 font-medium">{localUsageMetrics.counts?.dailyChecklists || 0}</span>
                   </div>
                   <div>
                     <span className="text-gray-600">Responses:</span>
-                    <span className="ml-2 font-medium">{usageMetrics.counts?.responses || 0}</span>
+                    <span className="ml-2 font-medium">{localUsageMetrics.counts?.responses || 0}</span>
                   </div>
                   <div>
                     <span className="text-gray-600">Reports:</span>
-                    <span className="ml-2 font-medium">{usageMetrics.counts?.reports || 0}</span>
+                    <span className="ml-2 font-medium">{localUsageMetrics.counts?.reports || 0}</span>
                   </div>
                   <div>
                     <span className="text-gray-600">Reports (This Month):</span>
-                    <span className="ml-2 font-medium">{usageMetrics.counts?.reportsThisMonth || 0}</span>
+                    <span className="ml-2 font-medium">{localUsageMetrics.counts?.reportsThisMonth || 0}</span>
                   </div>
                   <div>
                     <span className="text-gray-600">Notifications:</span>
-                    <span className="ml-2 font-medium">{usageMetrics.counts?.notifications || 0}</span>
+                    <span className="ml-2 font-medium">{localUsageMetrics.counts?.notifications || 0}</span>
                   </div>
                   <div>
                     <span className="text-gray-600">Subscriptions:</span>
-                    <span className="ml-2 font-medium">{usageMetrics.counts?.subscriptions || 0}</span>
+                    <span className="ml-2 font-medium">{localUsageMetrics.counts?.subscriptions || 0}</span>
                   </div>
                   <div>
                     <span className="text-gray-600">Payments:</span>
-                    <span className="ml-2 font-medium">{usageMetrics.counts?.payments || 0}</span>
+                    <span className="ml-2 font-medium">{localUsageMetrics.counts?.payments || 0}</span>
                   </div>
                 </div>
               </div>
@@ -216,26 +236,26 @@ export function OverviewTab({ stats, databaseStats }: OverviewTabProps) {
                       </div>
                       <h4 className="font-medium text-sm mb-1">Supabase Database</h4>
                       <p className="text-xs text-gray-500 mb-3">
-                        Storage: {formatBytes(usageMetrics.storage?.database || 0)}
+                        Storage: {formatBytes(localUsageMetrics.storage?.database || 0)}
                       </p>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
-                          className={`h-2 rounded-full ${getStatusColor(getPercentage(usageMetrics.storage?.database || 0, 500 * 1024 * 1024))}`}
+                          className={`h-2 rounded-full ${getStatusColor(getPercentage(localUsageMetrics.storage?.database || 0, 500 * 1024 * 1024))}`}
                           style={{
-                            width: `${getPercentage(usageMetrics.storage?.database || 0, 500 * 1024 * 1024)}%`,
+                            width: `${getPercentage(localUsageMetrics.storage?.database || 0, 500 * 1024 * 1024)}%`,
                             backgroundColor:
-                              getPercentage(usageMetrics.storage?.database || 0, 500 * 1024 * 1024) >= 90
+                              getPercentage(localUsageMetrics.storage?.database || 0, 500 * 1024 * 1024) >= 90
                                 ? "#dc2626"
-                                : getPercentage(usageMetrics.storage?.database || 0, 500 * 1024 * 1024) >= 70
+                                : getPercentage(localUsageMetrics.storage?.database || 0, 500 * 1024 * 1024) >= 70
                                   ? "#ca8a04"
                                   : "#16a34a",
                           }}
                         />
                       </div>
                       <p
-                        className={`text-xs font-medium mt-1 ${getStatusColor(getPercentage(usageMetrics.storage?.database || 0, 500 * 1024 * 1024))}`}
+                        className={`text-xs font-medium mt-1 ${getStatusColor(getPercentage(localUsageMetrics.storage?.database || 0, 500 * 1024 * 1024))}`}
                       >
-                        {getPercentage(usageMetrics.storage?.database || 0, 500 * 1024 * 1024)}%
+                        {getPercentage(localUsageMetrics.storage?.database || 0, 500 * 1024 * 1024)}%
                       </p>
                     </div>
 
@@ -247,27 +267,27 @@ export function OverviewTab({ stats, databaseStats }: OverviewTabProps) {
                       </div>
                       <h4 className="font-medium text-sm mb-1">Supabase Storage</h4>
                       <p className="text-xs text-gray-500 mb-3">
-                        {formatBytes(usageMetrics.storage?.storage || 0)} ({usageMetrics.storage?.photoCount || 0}{" "}
-                        photos)
+                        {formatBytes(localUsageMetrics.storage?.storage || 0)} (
+                        {localUsageMetrics.storage?.photoCount || 0} photos)
                       </p>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
-                          className={`h-2 rounded-full ${getStatusColor(getPercentage(usageMetrics.storage?.storage || 0, 1024 * 1024 * 1024))}`}
+                          className={`h-2 rounded-full ${getStatusColor(getPercentage(localUsageMetrics.storage?.storage || 0, 1024 * 1024 * 1024))}`}
                           style={{
-                            width: `${getPercentage(usageMetrics.storage?.storage || 0, 1024 * 1024 * 1024)}%`,
+                            width: `${getPercentage(localUsageMetrics.storage?.storage || 0, 1024 * 1024 * 1024)}%`,
                             backgroundColor:
-                              getPercentage(usageMetrics.storage?.storage || 0, 1024 * 1024 * 1024) >= 90
+                              getPercentage(localUsageMetrics.storage?.storage || 0, 1024 * 1024 * 1024) >= 90
                                 ? "#dc2626"
-                                : getPercentage(usageMetrics.storage?.storage || 0, 1024 * 1024 * 1024) >= 70
+                                : getPercentage(localUsageMetrics.storage?.storage || 0, 1024 * 1024 * 1024) >= 70
                                   ? "#ca8a04"
                                   : "#16a34a",
                           }}
                         />
                       </div>
                       <p
-                        className={`text-xs font-medium mt-1 ${getStatusColor(getPercentage(usageMetrics.storage?.storage || 0, 1024 * 1024 * 1024))}`}
+                        className={`text-xs font-medium mt-1 ${getStatusColor(getPercentage(localUsageMetrics.storage?.storage || 0, 1024 * 1024 * 1024))}`}
                       >
-                        {getPercentage(usageMetrics.storage?.storage || 0, 1024 * 1024 * 1024)}%
+                        {getPercentage(localUsageMetrics.storage?.storage || 0, 1024 * 1024 * 1024)}%
                       </p>
                     </div>
 
@@ -279,26 +299,26 @@ export function OverviewTab({ stats, databaseStats }: OverviewTabProps) {
                       </div>
                       <h4 className="font-medium text-sm mb-1">Resend Emails</h4>
                       <p className="text-xs text-gray-500 mb-3">
-                        Sent this month: ~{usageMetrics.bandwidth?.emailsSent || 0}
+                        Sent this month: ~{localUsageMetrics.bandwidth?.emailsSent || 0}
                       </p>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
-                          className={`h-2 rounded-full ${getStatusColor(getPercentage(usageMetrics.bandwidth?.emailsSent || 0, 3000))}`}
+                          className={`h-2 rounded-full ${getStatusColor(getPercentage(localUsageMetrics.bandwidth?.emailsSent || 0, 3000))}`}
                           style={{
-                            width: `${getPercentage(usageMetrics.bandwidth?.emailsSent || 0, 3000)}%`,
+                            width: `${getPercentage(localUsageMetrics.bandwidth?.emailsSent || 0, 3000)}%`,
                             backgroundColor:
-                              getPercentage(usageMetrics.bandwidth?.emailsSent || 0, 3000) >= 90
+                              getPercentage(localUsageMetrics.bandwidth?.emailsSent || 0, 3000) >= 90
                                 ? "#dc2626"
-                                : getPercentage(usageMetrics.bandwidth?.emailsSent || 0, 3000) >= 70
+                                : getPercentage(localUsageMetrics.bandwidth?.emailsSent || 0, 3000) >= 70
                                   ? "#ca8a04"
                                   : "#16a34a",
                           }}
                         />
                       </div>
                       <p
-                        className={`text-xs font-medium mt-1 ${getStatusColor(getPercentage(usageMetrics.bandwidth?.emailsSent || 0, 3000))}`}
+                        className={`text-xs font-medium mt-1 ${getStatusColor(getPercentage(localUsageMetrics.bandwidth?.emailsSent || 0, 3000))}`}
                       >
-                        {getPercentage(usageMetrics.bandwidth?.emailsSent || 0, 3000)}%
+                        {getPercentage(localUsageMetrics.bandwidth?.emailsSent || 0, 3000)}%
                       </p>
                     </div>
 
@@ -310,26 +330,27 @@ export function OverviewTab({ stats, databaseStats }: OverviewTabProps) {
                       </div>
                       <h4 className="font-medium text-sm mb-1">Vercel Bandwidth</h4>
                       <p className="text-xs text-gray-500 mb-3">
-                        Estimated: {formatBytes(usageMetrics.bandwidth?.vercel || 0)}
+                        Estimated: {formatBytes(localUsageMetrics.bandwidth?.vercel || 0)}
                       </p>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
-                          className={`h-2 rounded-full ${getStatusColor(getPercentage(usageMetrics.bandwidth?.vercel || 0, 100 * 1024 * 1024 * 1024))}`}
+                          className={`h-2 rounded-full ${getStatusColor(getPercentage(localUsageMetrics.bandwidth?.vercel || 0, 100 * 1024 * 1024 * 1024))}`}
                           style={{
-                            width: `${getPercentage(usageMetrics.bandwidth?.vercel || 0, 100 * 1024 * 1024 * 1024)}%`,
+                            width: `${getPercentage(localUsageMetrics.bandwidth?.vercel || 0, 100 * 1024 * 1024 * 1024)}%`,
                             backgroundColor:
-                              getPercentage(usageMetrics.bandwidth?.vercel || 0, 100 * 1024 * 1024 * 1024) >= 90
+                              getPercentage(localUsageMetrics.bandwidth?.vercel || 0, 100 * 1024 * 1024 * 1024) >= 90
                                 ? "#dc2626"
-                                : getPercentage(usageMetrics.bandwidth?.vercel || 0, 100 * 1024 * 1024 * 1024) >= 70
+                                : getPercentage(localUsageMetrics.bandwidth?.vercel || 0, 100 * 1024 * 1024 * 1024) >=
+                                    70
                                   ? "#ca8a04"
                                   : "#16a34a",
                           }}
                         />
                       </div>
                       <p
-                        className={`text-xs font-medium mt-1 ${getStatusColor(getPercentage(usageMetrics.bandwidth?.vercel || 0, 100 * 1024 * 1024 * 1024))}`}
+                        className={`text-xs font-medium mt-1 ${getStatusColor(getPercentage(localUsageMetrics.bandwidth?.vercel || 0, 100 * 1024 * 1024 * 1024))}`}
                       >
-                        {getPercentage(usageMetrics.bandwidth?.vercel || 0, 100 * 1024 * 1024 * 1024)}%
+                        {getPercentage(localUsageMetrics.bandwidth?.vercel || 0, 100 * 1024 * 1024 * 1024)}%
                       </p>
                     </div>
                   </div>

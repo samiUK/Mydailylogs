@@ -37,14 +37,46 @@ export async function POST(req: NextRequest) {
           sessionId: session.id,
           subscriptionId: session.subscription,
           customerId: session.customer,
+          customerEmail: session.customer_email,
           metadata: session.metadata,
         })
 
-        const organizationId = session.metadata?.organization_id
+        // PRIMARY: Try to get organization_id from metadata
+        let organizationId: string | null = null
+        let bindingMethod = "unknown"
+
+        // PRIMARY: Try to get organization_id from metadata
+        if (session.metadata?.organization_id) {
+          organizationId = session.metadata.organization_id
+          bindingMethod = "metadata"
+          console.log("[v0] Found organization via METADATA:", organizationId)
+        }
+
+        // FALLBACK: Look up organization by customer email
+        if (!organizationId && session.customer_email) {
+          const { data: profile } = await supabaseAdmin
+            .from("profiles")
+            .select("organization_id, id")
+            .eq("email", session.customer_email)
+            .single()
+
+          if (profile?.organization_id) {
+            organizationId = profile.organization_id
+            bindingMethod = "email"
+            console.log("[v0] Found organization via EMAIL lookup:", organizationId)
+          }
+        }
+
+        if (!organizationId) {
+          console.error("[v0] Could not determine organization from metadata or email")
+          throw new Error("Organization not found via metadata or email binding")
+        }
+
+        const customerEmail = session.customer_email
         const subscriptionType = session.metadata?.subscription_type
 
-        if (!organizationId || !subscriptionType) {
-          console.error("[v0] Missing required metadata in session:", session.metadata)
+        if (!subscriptionType) {
+          console.error("[v0] Missing subscription type in metadata:", session.metadata)
           throw new Error("Invalid session metadata")
         }
 
@@ -82,7 +114,7 @@ export async function POST(req: NextRequest) {
           stripe_subscription_id: subscriptionId,
           stripe_customer_id: customerId,
           organization_id: organizationId,
-          plan_name: planName, // Use extracted plan name ("growth", "scale") not full type
+          plan_name: planName,
           status: subscription.status,
           is_trial: isTrial,
           has_used_trial: true,
@@ -99,11 +131,13 @@ export async function POST(req: NextRequest) {
         }
 
         console.log(
-          "[v0] Successfully created subscription with plan:",
+          "[v0] ✅ Successfully created subscription via",
+          bindingMethod.toUpperCase(),
+          "for:",
+          customerEmail || "unknown",
+          "plan:",
           planName,
-          "(type:",
-          subscriptionType,
-          ") for organization:",
+          "org:",
           organizationId,
         )
 

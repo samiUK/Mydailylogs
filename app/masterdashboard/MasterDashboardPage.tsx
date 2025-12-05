@@ -39,6 +39,71 @@ export default function MasterDashboardPage() {
   const { isLoading: loading, data, notification, showNotification, refreshData, userRole } = useAuthAndData()
   console.log("[v0] useAuthAndData hook returned:", { loading, hasData: !!data, notification })
 
+  const calculateStats = () => {
+    if (!data) {
+      return {
+        totalOrganizations: 0,
+        totalUsers: 0,
+        activeSubscriptions: 0,
+        totalRevenue: 0,
+        newSignupsThisMonth: 0,
+        conversionRate: 0,
+        paidCustomers: 0,
+        complimentaryCustomers: 0,
+        totalReports: 0,
+        totalTemplates: 0,
+        totalChecklists: 0,
+      }
+    }
+
+    const paidSubs =
+      data.subscriptions?.filter((s: any) => s.status === "active" && s.stripe_subscription_id && !s.is_trial) || []
+
+    const trialSubs =
+      data.subscriptions?.filter((s: any) => s.status === "active" && (s.is_trial || s.is_masteradmin_trial)) || []
+
+    const totalRevenue =
+      data.payments
+        ?.filter((p: any) => p.status === "succeeded")
+        .reduce((sum: number, p: any) => sum + (p.amount || 0), 0) || 0
+
+    return {
+      totalOrganizations: data.organizations?.length || 0,
+      totalUsers: data.profiles?.length || 0,
+      activeSubscriptions: data.subscriptions?.filter((s: any) => s.status === "active").length || 0,
+      totalRevenue: totalRevenue / 100, // Convert cents to pounds
+      newSignupsThisMonth: data.stats?.newSignupsThisMonth || 0,
+      conversionRate: data.stats?.conversionRate || 0,
+      paidCustomers: paidSubs.length,
+      complimentaryCustomers: trialSubs.length,
+      totalReports: 0, // TODO: Add when reports data is available
+      totalTemplates: data.stats?.totalTemplates || 0,
+      totalChecklists: data.stats?.totalChecklists || 0,
+    }
+  }
+
+  const calculateDatabaseStats = () => {
+    if (!data) {
+      return {
+        checklists: { total: 0, completed: 0, pending: 0 },
+        templates: { total: 0, active: 0, inactive: 0 },
+      }
+    }
+
+    return {
+      checklists: {
+        total: data.stats?.totalChecklists || 0,
+        completed: 0,
+        pending: 0,
+      },
+      templates: {
+        total: data.stats?.totalTemplates || 0,
+        active: data.stats?.totalTemplates || 0,
+        inactive: 0,
+      },
+    }
+  }
+
   useEffect(() => {
     console.log("[v0] useEffect for metrics cache running")
     try {
@@ -206,6 +271,30 @@ export default function MasterDashboardPage() {
     }
   }
 
+  const handleForceSync = async (organizationId: string, userEmail: string) => {
+    console.log("[v0] Forcing subscription sync for:", { organizationId, userEmail })
+
+    try {
+      const response = await fetch("/api/admin/force-sync-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, userEmail }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Sync failed")
+      }
+
+      showNotification(result.message || "Subscription synced successfully from Stripe!", "success")
+      refreshData()
+    } catch (error: any) {
+      console.error("[v0] Force sync error:", error)
+      showNotification(error.message || "Failed to sync subscription", "error")
+    }
+  }
+
   const handleRespondToFeedback = async (feedbackId: string, response: string) => {
     const res = await fetch("/api/admin/respond-to-feedback", {
       method: "POST",
@@ -355,6 +444,8 @@ export default function MasterDashboardPage() {
         <div className="mt-6">
           <TabsContent value="overview">
             <OverviewTab
+              stats={calculateStats()}
+              databaseStats={calculateDatabaseStats()}
               usageMetrics={usageMetrics}
               metricsLastRefreshed={metricsLastRefreshed}
               refreshUsageMetrics={refreshUsageMetrics}
@@ -374,6 +465,7 @@ export default function MasterDashboardPage() {
               onSearchChange={setSearchTerm}
               onManage={handleManageSubscription}
               onRefresh={refreshData}
+              onForceSync={handleForceSync}
             />
           </TabsContent>
 

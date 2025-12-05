@@ -13,7 +13,7 @@ export async function POST(request: Request) {
 
     console.log(`[v0] [Sync API] Syncing subscription for org: ${organizationId}`)
 
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY_MYDAYLOGS!, {
       apiVersion: "2024-11-20.acacia",
     })
 

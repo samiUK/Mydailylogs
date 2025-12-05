@@ -23,9 +23,16 @@ interface SubscriptionListProps {
   searchTerm: string
   onSearchChange: (term: string) => void
   onRefresh: () => void
+  onForceSync?: (organizationId: string, userEmail: string) => void
 }
 
-export function SubscriptionList({ subscriptions, searchTerm, onSearchChange, onRefresh }: SubscriptionListProps) {
+export function SubscriptionList({
+  subscriptions,
+  searchTerm,
+  onSearchChange,
+  onRefresh,
+  onForceSync,
+}: SubscriptionListProps) {
   const { toast } = useToast()
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [showTrialDialog, setShowTrialDialog] = useState(false)
@@ -274,7 +281,18 @@ export function SubscriptionList({ subscriptions, searchTerm, onSearchChange, on
                     </div>
 
                     <div className="flex flex-col gap-2">
-                      {sub.status === "active" && !sub.cancel_at_period_end && (
+                      {!sub.stripe_subscription_id && onForceSync && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => onForceSync(sub.organization_id, sub.user_email || "")}
+                          disabled={actionLoading === sub.id}
+                          className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
+                        >
+                          {actionLoading === sub.id ? "Syncing..." : "Sync from Stripe"}
+                        </Button>
+                      )}
+                      {sub.status === "active" && !sub.cancel_at_period_end && sub.stripe_subscription_id && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -285,19 +303,23 @@ export function SubscriptionList({ subscriptions, searchTerm, onSearchChange, on
                           {actionLoading === sub.id ? "Processing..." : "Cancel Subscription"}
                         </Button>
                       )}
-                      {(sub.status === "active" || sub.status === "trialing") && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setShowDowngradeDialog(sub)}
-                          disabled={actionLoading === sub.id}
-                          className="border-red-500 text-red-600 hover:bg-red-50 w-full sm:w-auto"
-                        >
-                          {actionLoading === sub.id ? "Processing..." : "Downgrade to Starter"}
-                        </Button>
-                      )}
-                      {sub.stripe_subscription_id && (
+                      {(sub.status === "active" || sub.status === "trialing") &&
+                        sub.plan_name &&
+                        sub.plan_name.toLowerCase() !== "starter" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setShowDowngradeDialog(sub)}
+                            disabled={actionLoading === sub.id}
+                            className="border-red-500 text-red-600 hover:bg-red-50 w-full sm:w-auto"
+                          >
+                            {actionLoading === sub.id ? "Processing..." : "Downgrade to Starter"}
+                          </Button>
+                        )}
+                      {sub.stripe_subscription_id ? (
                         <p className="text-xs text-muted-foreground mt-2 break-all">ID: {sub.stripe_subscription_id}</p>
+                      ) : (
+                        <p className="text-xs text-orange-600 mt-2">⚠️ Not synced with Stripe</p>
                       )}
                     </div>
                   </div>

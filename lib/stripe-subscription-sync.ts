@@ -1,12 +1,14 @@
 import { createClient } from "@/lib/supabase/server"
 import Stripe from "stripe"
 
-// Function to get Stripe client at runtime
 function getStripeClient() {
-  if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error("STRIPE_SECRET_KEY is not defined")
+  const stripeKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY_MYDAYLOGS
+
+  if (!stripeKey) {
+    throw new Error("Stripe API key not found. Please set STRIPE_SECRET_KEY or STRIPE_SECRET_KEY_MYDAYLOGS")
   }
-  return new Stripe(process.env.STRIPE_SECRET_KEY, {
+
+  return new Stripe(stripeKey, {
     apiVersion: "2024-11-20.acacia",
   })
 }

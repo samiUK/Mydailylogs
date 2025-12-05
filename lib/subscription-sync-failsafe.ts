@@ -4,90 +4,114 @@ export async function syncSubscriptionOnLogin(organizationId: string, userEmail:
   const { createClient } = await import("@supabase/supabase-js")
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
+  const stripeKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY_MYDAYLOGS
+
+  if (!stripeKey) {
+    throw new Error("Stripe API key not found")
+  }
+
   const Stripe = (await import("stripe")).default
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  const stripe = new Stripe(stripeKey, {
     apiVersion: "2024-11-20.acacia",
   })
 
-  // Search for customer by email
-  const customers = await stripe.customers.list({
-    email: userEmail,
-    limit: 1,
+  let bindingMethod = "none"
+  let activeSubscription: any = null
+
+  // PRIMARY: Search by organization_id in metadata
+  console.log(`[v0] [LOGIN-SYNC] Step 1: Searching Stripe by organization_id metadata`)
+  const subscriptionsByMetadata = await stripe.subscriptions.list({
+    limit: 100,
   })
 
-  if (customers.data.length === 0) {
-    console.log(`[v0] [LOGIN-SYNC] No Stripe customer found for ${userEmail}`)
-    return
+  for (const sub of subscriptionsByMetadata.data) {
+    if (sub.metadata?.organization_id === organizationId && (sub.status === "active" || sub.status === "trialing")) {
+      activeSubscription = sub
+      bindingMethod = "metadata"
+      console.log(`[v0] [LOGIN-SYNC] ✅ Found subscription via METADATA:`, sub.id)
+      break
+    }
   }
 
-  const customer = customers.data[0]
-  console.log(`[v0] [LOGIN-SYNC] Found Stripe customer: ${customer.id}`)
+  // FALLBACK: Search by customer email
+  if (!activeSubscription) {
+    console.log(`[v0] [LOGIN-SYNC] Step 2: Searching Stripe by customer email`)
+    const customers = await stripe.customers.list({
+      email: userEmail,
+      limit: 10,
+    })
 
-  // Get active subscriptions from Stripe
-  const subscriptions = await stripe.subscriptions.list({
-    customer: customer.id,
-    status: "all",
-    limit: 10,
-  })
+    if (customers.data.length > 0) {
+      for (const customer of customers.data) {
+        const subscriptions = await stripe.subscriptions.list({
+          customer: customer.id,
+          status: "all",
+          limit: 10,
+        })
 
-  console.log(`[v0] [LOGIN-SYNC] Found ${subscriptions.data.length} Stripe subscriptions`)
+        const activeSub = subscriptions.data.find((sub) => sub.status === "active" || sub.status === "trialing")
 
-  // Find active or trialing subscription
-  const activeSubscription = subscriptions.data.find((sub) => sub.status === "active" || sub.status === "trialing")
+        if (activeSub) {
+          activeSubscription = activeSub
+          bindingMethod = "email"
+          console.log(`[v0] [LOGIN-SYNC] ✅ Found subscription via EMAIL:`, activeSub.id)
+          break
+        }
+      }
+    }
+  }
 
   if (!activeSubscription) {
-    console.log(`[v0] [LOGIN-SYNC] No active Stripe subscription found`)
+    console.log(`[v0] [LOGIN-SYNC] No active Stripe subscription found via metadata or email`)
     // Delete any stale subscriptions in DB
     await supabase.from("subscriptions").delete().eq("organization_id", organizationId)
     return
   }
 
-  console.log(`[v0] [LOGIN-SYNC] Found active Stripe subscription: ${activeSubscription.id}`)
-
-  // Extract plan from price ID
-  const priceId = activeSubscription.items.data[0]?.price.id
   let planName = "starter"
-  let billingPeriod = "monthly"
+  const subscriptionType = activeSubscription.metadata?.subscription_type
 
-  const { STRIPE_PRICES } = await import("./stripe-prices")
+  if (subscriptionType) {
+    planName = subscriptionType.split("-")[0]
+  } else {
+    const priceId = activeSubscription.items.data[0]?.price.id
+    const { STRIPE_PRICES } = await import("./stripe-prices")
 
-  if (priceId === STRIPE_PRICES.growth.monthly.GBP || priceId === STRIPE_PRICES.growth.monthly.USD) {
-    planName = "growth"
-    billingPeriod = "monthly"
-  } else if (priceId === STRIPE_PRICES.growth.yearly.GBP || priceId === STRIPE_PRICES.growth.yearly.USD) {
-    planName = "growth"
-    billingPeriod = "yearly"
-  } else if (priceId === STRIPE_PRICES.scale.monthly.GBP || priceId === STRIPE_PRICES.scale.monthly.USD) {
-    planName = "scale"
-    billingPeriod = "monthly"
-  } else if (priceId === STRIPE_PRICES.scale.yearly.GBP || priceId === STRIPE_PRICES.scale.yearly.USD) {
-    planName = "scale"
-    billingPeriod = "yearly"
+    if (priceId === STRIPE_PRICES.growth.monthly.GBP || priceId === STRIPE_PRICES.growth.monthly.USD) {
+      planName = "growth"
+    } else if (priceId === STRIPE_PRICES.growth.yearly.GBP || priceId === STRIPE_PRICES.growth.yearly.USD) {
+      planName = "growth"
+    } else if (priceId === STRIPE_PRICES.scale.monthly.GBP || priceId === STRIPE_PRICES.scale.monthly.USD) {
+      planName = "scale"
+    } else if (priceId === STRIPE_PRICES.scale.yearly.GBP || priceId === STRIPE_PRICES.scale.yearly.USD) {
+      planName = "scale"
+    }
   }
 
-  console.log(`[v0] [LOGIN-SYNC] Detected plan from price ID ${priceId}: ${planName} (${billingPeriod})`)
-
   if (userEmail === "arsami.uk@gmail.com") {
-    console.log(`[v0] [LOGIN-SYNC] ⭐ ARSAMI SUBSCRIPTION CHECK ⭐`)
-    console.log(`[v0] [LOGIN-SYNC] Stripe Subscription ID: ${activeSubscription.id}`)
-    console.log(`[v0] [LOGIN-SYNC] Price ID: ${priceId}`)
+    console.log(`[v0] [LOGIN-SYNC] ⭐ ARSAMI DUAL-BINDING SYNC ⭐`)
+    console.log(`[v0] [LOGIN-SYNC] Email: ${userEmail}`)
+    console.log(`[v0] [LOGIN-SYNC] Binding Method: ${bindingMethod.toUpperCase()}`)
+    console.log(`[v0] [LOGIN-SYNC] Stripe Subscription: ${activeSubscription.id}`)
     console.log(`[v0] [LOGIN-SYNC] Plan: ${planName}`)
-    console.log(`[v0] [LOGIN-SYNC] Billing Period: ${billingPeriod}`)
     console.log(`[v0] [LOGIN-SYNC] Status: ${activeSubscription.status}`)
   }
 
+  // Delete all existing subscriptions for this org
   await supabase.from("subscriptions").delete().eq("organization_id", organizationId)
 
+  // Insert new subscription from Stripe
   const { error: insertError } = await supabase.from("subscriptions").insert({
     organization_id: organizationId,
     plan_name: planName,
     status: activeSubscription.status,
     stripe_subscription_id: activeSubscription.id,
-    stripe_customer_id: customer.id,
-    stripe_price_id: priceId,
+    stripe_customer_id: activeSubscription.customer as string,
     current_period_start: new Date(activeSubscription.current_period_start * 1000).toISOString(),
     current_period_end: new Date(activeSubscription.current_period_end * 1000).toISOString(),
-    trial_end: activeSubscription.trial_end ? new Date(activeSubscription.trial_end * 1000).toISOString() : null,
+    trial_ends_at: activeSubscription.trial_end ? new Date(activeSubscription.trial_end * 1000).toISOString() : null,
+    is_trial: activeSubscription.status === "trialing",
+    cancel_at_period_end: activeSubscription.cancel_at_period_end || false,
   })
 
   if (insertError) {
@@ -95,12 +119,24 @@ export async function syncSubscriptionOnLogin(organizationId: string, userEmail:
     throw insertError
   }
 
-  console.log(`[v0] [LOGIN-SYNC] ✅ Successfully synced ${planName} (${billingPeriod}) subscription`)
+  console.log(
+    `[v0] [LOGIN-SYNC] ✅ Successfully synced ${planName} subscription via ${bindingMethod.toUpperCase()} binding`,
+  )
 
+  // Log activity
   await supabase.from("subscription_activity_logs").insert({
     organization_id: organizationId,
-    action: "sync",
-    details: `Subscription synced from Stripe on login: ${planName} (${billingPeriod})`,
+    subscription_id: activeSubscription.id,
+    stripe_subscription_id: activeSubscription.id,
+    event_type: "login_sync",
+    to_plan: planName,
+    to_status: activeSubscription.status,
     triggered_by: "system_login",
+    details: {
+      binding_method: bindingMethod,
+      email: userEmail,
+      customer_id: activeSubscription.customer,
+      synced_at: new Date().toISOString(),
+    },
   })
 }

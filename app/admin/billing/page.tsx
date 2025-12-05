@@ -10,6 +10,8 @@ import { CreditCard, CheckCircle, Calendar, Crown, Sparkles, ArrowUpCircle, Arro
 import { useRouter } from "next/navigation"
 import { getStripePriceId } from "@/lib/stripe-prices"
 import StripeCheckout from "@/components/stripe-checkout"
+import { useToast } from "@/hooks/use-toast"
+import { SubscriptionCancelDialog } from "@/components/subscription-cancel-dialog"
 
 interface Subscription {
   id: string
@@ -32,6 +34,9 @@ export default function BillingPage() {
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("yearly")
   const [showCheckout, setShowCheckout] = useState(false)
   const [currency] = useState<"GBP" | "USD">("GBP")
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [cancelLoading, setCancelLoading] = useState(false)
+  const { toast } = useToast()
   const router = useRouter()
 
   useEffect(() => {
@@ -124,45 +129,71 @@ export default function BillingPage() {
       setShowCheckout(true)
     } catch (error) {
       console.error("Error opening checkout:", error)
-      alert("There was an error opening checkout. Please refresh and try again.")
+      toast({
+        title: "Error",
+        description: "There was an error opening checkout. Please refresh and try again.",
+        variant: "destructive",
+      })
     }
   }
 
   const handleChangePlan = async (planId: string) => {
-    alert("Please use the main billing page to change your subscription plan.")
-    router.push("/admin/profile/billing")
+    toast({
+      title: "Change Plan",
+      description: "Please use the main billing page to change your subscription plan.",
+    })
+    router.push("/admin/billing")
   }
 
-  const handleCancelSubscription = async () => {
+  const handleCancelSubscription = () => {
+    const currentPlan = subscription?.plan_name as "starter" | "growth" | "scale"
+    const planFeatures = currentPlan ? plans[currentPlan] : undefined
+
+    setShowCancelDialog(true)
+  }
+
+  const confirmCancelSubscription = async () => {
     if (!subscription?.stripe_subscription_id) return
 
-    if (
-      !confirm(
-        subscription.is_trial
-          ? "Are you sure you want to cancel your trial? You won't be charged."
-          : "Are you sure you want to cancel? Your subscription will remain active until the end of the current billing period.",
-      )
-    ) {
-      return
-    }
+    setCancelLoading(true)
 
     try {
-      const response = await fetch("/api/stripe/cancel-subscription", {
+      const response = await fetch("/api/subscriptions/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subscriptionId: subscription.stripe_subscription_id }),
       })
 
       if (response.ok) {
-        alert("Subscription cancelled successfully")
-        window.location.reload()
+        const data = await response.json()
+        toast({
+          title: "Subscription Cancelled",
+          description: data.message || "Your subscription has been cancelled successfully.",
+          variant: "default",
+        })
+        setShowCancelDialog(false)
+        setTimeout(() => {
+          window.location.reload()
+        }, 1500)
       } else {
         const error = await response.json()
-        alert(`Error: ${error.error || "Failed to cancel subscription"}`)
+        toast({
+          title: "Cancellation Failed",
+          description: error.error || "Failed to cancel subscription. Please try again.",
+          variant: "destructive",
+        })
+        setShowCancelDialog(false)
       }
     } catch (error) {
       console.error("Error cancelling subscription:", error)
-      alert("Failed to cancel subscription. Please try again.")
+      toast({
+        title: "Error",
+        description: "Failed to cancel subscription. Please try again.",
+        variant: "destructive",
+      })
+      setShowCancelDialog(false)
+    } finally {
+      setCancelLoading(false)
     }
   }
 
@@ -170,22 +201,36 @@ export default function BillingPage() {
     if (!subscription?.stripe_subscription_id) return
 
     try {
-      const response = await fetch("/api/stripe/reactivate-subscription", {
+      const response = await fetch("/api/subscriptions/reactivate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subscriptionId: subscription.stripe_subscription_id }),
       })
 
       if (response.ok) {
-        alert("Subscription reactivated successfully")
-        window.location.reload()
+        toast({
+          title: "Subscription Reactivated",
+          description: "Your subscription has been reactivated successfully.",
+          variant: "default",
+        })
+        setTimeout(() => {
+          window.location.reload()
+        }, 1500)
       } else {
         const error = await response.json()
-        alert(`Error: ${error.error || "Failed to reactivate subscription"}`)
+        toast({
+          title: "Reactivation Failed",
+          description: error.error || "Failed to reactivate subscription. Please try again.",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("Error reactivating subscription:", error)
-      alert("Failed to reactivate subscription. Please try again.")
+      toast({
+        title: "Error",
+        description: "Failed to reactivate subscription. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -232,7 +277,7 @@ export default function BillingPage() {
   const isTrial = subscription?.is_trial === true || subscription?.status === "trialing"
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="container mx-auto py-8 px-4">
       <div>
         <h1 className="text-3xl font-bold text-foreground">Billing & Subscription</h1>
         <p className="text-muted-foreground mt-2">Manage your subscription and billing information</p>
@@ -486,6 +531,23 @@ export default function BillingPage() {
           }}
         />
       )}
+
+      <SubscriptionCancelDialog
+        isOpen={showCancelDialog}
+        onClose={() => setShowCancelDialog(false)}
+        onConfirm={confirmCancelSubscription}
+        isTrial={isTrial}
+        loading={cancelLoading}
+        planName={currentProduct.name}
+        trialEndsAt={subscription?.trial_ends_at}
+        currentPeriodEnd={subscription?.current_period_end}
+        currentPlanFeatures={{
+          maxTemplates: currentProduct.maxTemplates,
+          maxTeamMembers: currentProduct.maxTeamMembers,
+          maxAdmins: currentProduct.maxAdmins,
+          maxReportSubmissions: currentProduct.maxReportSubmissions,
+        }}
+      />
     </div>
   )
 }

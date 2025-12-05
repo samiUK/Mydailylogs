@@ -5,7 +5,7 @@ import { JetBrains_Mono } from "next/font/google"
 import "./globals.css"
 import { BrandingProvider } from "@/components/branding-provider"
 import { SpeedInsights } from "@vercel/speed-insights/next"
-import { Toaster } from "sonner"
+import { Toaster } from "@/components/ui/toaster"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -115,7 +115,7 @@ export default function RootLayout({
       </head>
       <body className="font-sans antialiased">
         <BrandingProvider>{children}</BrandingProvider>
-        <Toaster position="top-right" />
+        <Toaster />
         <SpeedInsights />
       </body>
     </html>

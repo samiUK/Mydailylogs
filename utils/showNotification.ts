@@ -1,19 +1,11 @@
-import { toast } from "sonner"
+import { toast } from "@/hooks/use-toast"
 
 export function showNotification(message: string, type: "success" | "error" | "info" | "warning" = "info") {
-  switch (type) {
-    case "success":
-      toast.success(message)
-      break
-    case "error":
-      toast.error(message)
-      break
-    case "warning":
-      toast.warning(message)
-      break
-    case "info":
-    default:
-      toast.info(message)
-      break
-  }
+  const variant = type === "error" ? "destructive" : "default"
+
+  toast({
+    title: type.charAt(0).toUpperCase() + type.slice(1),
+    description: message,
+    variant,
+  })
 }

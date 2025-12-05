@@ -14,11 +14,15 @@ export async function GET(request: NextRequest) {
 
     const supabase = createAdminClient()
 
-    const { data: profiles, error: profileError } = await supabase
-      .from("profiles")
-      .select("id, email, full_name, role, organization_id, created_at")
-      .order("created_at", { ascending: false })
-      .limit(200)
+    const [{ data: profiles, error: profileError }, { data: templates }, { data: assignments }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, email, full_name, role, organization_id, created_at")
+        .order("created_at", { ascending: false })
+        .limit(200),
+      supabase.from("checklist_templates").select("*", { count: "exact", head: true }),
+      supabase.from("template_assignments").select("*", { count: "exact", head: true }),
+    ])
 
     if (profileError) throw profileError
 
@@ -40,6 +44,10 @@ export async function GET(request: NextRequest) {
         slug,
         created_at,
         staff_reports_page_enabled,
+        custom_template_limit,
+        custom_team_limit,
+        custom_manager_limit,
+        custom_monthly_submissions,
         subscriptions!inner(
           plan_name,
           status,
@@ -146,6 +154,23 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+
+    const newSignupsThisMonth = profiles?.filter((p) => new Date(p.created_at) >= startOfMonth).length || 0
+    const paidSubs = flatSubscriptions.filter((s) => s.status === "active" && !s.is_trial).length
+    const totalOrgs = flatOrganizations.length
+    const conversionRate = totalOrgs > 0 ? Math.round((paidSubs / totalOrgs) * 100) : 0
+
+    const stats = {
+      totalOrgs,
+      totalUsers: profiles?.length || 0,
+      newSignupsThisMonth,
+      conversionRate,
+      totalTemplates: templates?.count || 0,
+      totalChecklists: assignments?.count || 0,
+    }
+
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
@@ -154,14 +179,16 @@ export async function GET(request: NextRequest) {
       subscriptions: flatSubscriptions,
       payments: flatPayments,
       feedback: feedback || [],
-      superusers: superusers || [], // Include superusers in response
+      superusers: superusers || [],
+      stats, // Add calculated stats
+      checklistsData: {}, // Add placeholder for checklist data
       counts: {
         organizations: flatOrganizations.length,
         profiles: profiles?.length || 0,
         subscriptions: flatSubscriptions.length,
         payments: flatPayments.length,
         feedback: feedback?.length || 0,
-        superusers: superusers?.length || 0, // Add superuser count
+        superusers: superusers?.length || 0,
       },
     })
   } catch (error: any) {
@@ -175,7 +202,9 @@ export async function GET(request: NextRequest) {
         subscriptions: [],
         payments: [],
         feedback: [],
-        superusers: [], // Ensure superusers array is included in error response
+        superusers: [],
+        stats: {}, // Include empty stats in error response
+        checklistsData: {}, // Include empty checklistsData in error response
       },
       { status: 500 },
     )

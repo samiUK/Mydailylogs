@@ -78,9 +78,26 @@ export default function MasterDashboardPage() {
     setIsRefreshingMetrics(true)
     try {
       const response = await fetch("/api/master/usage-metrics", { cache: "no-store" })
-      const metricsData = await response.json()
+      const apiData = await response.json()
 
-      if (response.ok && metricsData?.storage && metricsData?.counts && metricsData?.bandwidth) {
+      if (response.ok && apiData?.supabase) {
+        const metricsData = {
+          storage: {
+            database: apiData.supabase.database.usedMB * 1024 * 1024, // Convert MB to bytes
+            storage: apiData.supabase.storage.usedMB * 1024 * 1024, // Convert MB to bytes
+          },
+          counts: {
+            authUsers: apiData.counts.authUsers,
+            activeUsersThisMonth: apiData.counts.activeUsersThisMonth,
+            totalRows: apiData.counts.totalRows,
+            profiles: apiData.counts.profiles,
+            organizations: apiData.counts.organizations,
+          },
+          bandwidth: {
+            egress: apiData.vercel.bandwidth.usedGB * 1024 * 1024 * 1024, // Convert GB to bytes
+          },
+        }
+
         setUsageMetrics(metricsData)
         const now = new Date()
         const timeStr = `${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}`
@@ -90,7 +107,7 @@ export default function MasterDashboardPage() {
         localStorage.setItem("mydaylogs_usage_metrics_timestamp", now.toISOString())
       }
     } catch (err) {
-      // Silent fail
+      console.error("[v0] Failed to fetch usage metrics:", err)
     } finally {
       setIsRefreshingMetrics(false)
     }
@@ -533,16 +550,34 @@ export default function MasterDashboardPage() {
 
       <div className="px-6 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-8 mb-6">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="users">Users ({data?.profiles?.length || 0})</TabsTrigger>
-            <TabsTrigger value="organizations">Organizations ({data?.organizations?.length || 0})</TabsTrigger>
-            <TabsTrigger value="subscriptions">Subscriptions ({data?.subscriptions?.length || 0})</TabsTrigger>
-            <TabsTrigger value="payments">Payments ({data?.payments?.length || 0})</TabsTrigger>
-            <TabsTrigger value="feedback">Feedback ({data?.feedback?.length || 0})</TabsTrigger>
-            <TabsTrigger value="reports">Report Directory</TabsTrigger>
-            <TabsTrigger value="superusers">Superusers</TabsTrigger>
-          </TabsList>
+          <div className="mb-6 overflow-x-auto">
+            <TabsList className="inline-flex w-auto min-w-full">
+              <TabsTrigger value="overview" className="whitespace-nowrap">
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="users" className="whitespace-nowrap">
+                Users ({data?.profiles?.length || 0})
+              </TabsTrigger>
+              <TabsTrigger value="organizations" className="whitespace-nowrap">
+                Orgs ({data?.organizations?.length || 0})
+              </TabsTrigger>
+              <TabsTrigger value="subscriptions" className="whitespace-nowrap">
+                Subs ({data?.subscriptions?.length || 0})
+              </TabsTrigger>
+              <TabsTrigger value="payments" className="whitespace-nowrap">
+                Payments ({data?.payments?.length || 0})
+              </TabsTrigger>
+              <TabsTrigger value="feedback" className="whitespace-nowrap">
+                Feedback ({data?.feedback?.length || 0})
+              </TabsTrigger>
+              <TabsTrigger value="reports" className="whitespace-nowrap">
+                Report Directory
+              </TabsTrigger>
+              <TabsTrigger value="superusers" className="whitespace-nowrap">
+                Superusers
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <div className="bg-green-50 rounded-lg p-6 min-h-[600px]">
             <TabsContent value="overview">{renderOverview()}</TabsContent>

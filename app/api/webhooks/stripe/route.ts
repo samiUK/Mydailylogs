@@ -5,6 +5,7 @@ import type Stripe from "stripe"
 import { sendEmail, emailTemplates } from "@/lib/email/smtp"
 import { handleSubscriptionDowngrade } from "@/lib/subscription-limits"
 import { logSubscriptionActivity } from "@/lib/subscription-activity-logger"
+import { calculateStripeFees } from "@/lib/stripe-fee-calculator"
 
 const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -609,31 +610,101 @@ export async function POST(req: NextRequest) {
         console.log("[v0] Payment succeeded for invoice:", invoice.id)
 
         if (invoice.subscription) {
+          const grossAmount = (invoice.amount_paid || 0) / 100
+          const currency = invoice.currency || "gbp"
+
+          // Try to get customer country from Stripe
+          let customerCountry = "GB" // Default to UK
+          let cardRegion: "domestic" | "international_eea" | "international_non_eea" = "domestic"
+
+          try {
+            if (invoice.customer) {
+              const customer = (await stripe.customers.retrieve(invoice.customer as string)) as Stripe.Customer
+              customerCountry = customer.address?.country || "GB"
+            }
+
+            // Determine card region (simplified - you may want to enhance this)
+            if (currency === "gbp") {
+              if (customerCountry === "GB" || customerCountry === "UK") {
+                cardRegion = "domestic"
+              } else if (
+                [
+                  "AT",
+                  "BE",
+                  "BG",
+                  "HR",
+                  "CY",
+                  "CZ",
+                  "DK",
+                  "EE",
+                  "FI",
+                  "FR",
+                  "DE",
+                  "GR",
+                  "HU",
+                  "IE",
+                  "IT",
+                  "LV",
+                  "LT",
+                  "LU",
+                  "MT",
+                  "NL",
+                  "PL",
+                  "PT",
+                  "RO",
+                  "SK",
+                  "SI",
+                  "ES",
+                  "SE",
+                ].includes(customerCountry)
+              ) {
+                cardRegion = "international_eea"
+              } else {
+                cardRegion = "international_non_eea"
+              }
+            }
+          } catch (err) {
+            console.error("[v0] Error getting customer country:", err)
+          }
+
+          const feeCalculation = calculateStripeFees(
+            grossAmount,
+            currency,
+            customerCountry,
+            cardRegion,
+            cardRegion !== "domestic",
+          )
+
+          console.log(`[v0] Payment fee breakdown:`, feeCalculation)
+
           const { error } = await supabaseAdmin.from("payments").insert({
             subscription_id: invoice.subscription as string,
-            amount: (invoice.amount_paid || 0) / 100,
-            currency: invoice.currency || "gbp",
+            amount: grossAmount,
+            currency: currency,
             status: "completed",
             transaction_id: invoice.payment_intent as string,
             payment_method: "card",
             stripe_invoice_url: invoice.hosted_invoice_url || undefined,
             stripe_invoice_pdf: invoice.invoice_pdf || undefined,
+            stripe_processing_fee: feeCalculation.processingFee,
+            currency_conversion_fee: feeCalculation.currencyConversionFee,
+            net_amount: feeCalculation.netAmount,
+            refundable_amount: feeCalculation.refundableAmount,
+            customer_country: customerCountry,
+            card_region: cardRegion,
           })
 
           if (error) {
             console.error("[v0] Error recording payment:", error)
           }
 
-          if (invoice.customer_email && invoice.billing_reason === "subscription_cycle") {
+          if (invoice.customer_email) {
             try {
-              const periodStart = new Date(invoice.period_start * 1000)
-              const periodEnd = new Date(invoice.period_end * 1000)
-
               const template = emailTemplates.monthlyInvoice({
                 customerName: invoice.customer_name || "Customer",
                 invoiceNumber: invoice.number || invoice.id,
                 planName: invoice.lines.data[0]?.description || "Subscription",
-                period: `${periodStart.toLocaleDateString("en-GB")} - ${periodEnd.toLocaleDateString("en-GB")}`,
+                period: `${new Date(invoice.period_start * 1000).toLocaleDateString("en-GB")} - ${new Date(invoice.period_end * 1000).toLocaleDateString("en-GB")}`,
                 amount: `£${((invoice.amount_paid || 0) / 100).toFixed(2)}`,
                 paymentDate: new Date(invoice.status_transitions.paid_at! * 1000).toISOString(),
                 invoiceUrl: invoice.hosted_invoice_url || undefined,

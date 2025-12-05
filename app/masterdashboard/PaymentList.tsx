@@ -34,6 +34,17 @@ export function PaymentList({ payments, searchTerm, onSearchChange, onRefund, on
     const totalRefunded = refunded.reduce((sum, p) => sum + p.amount, 0) / 100
     const netRevenue = totalRevenue - totalRefunded
 
+    const totalStripeFees = succeeded.reduce((sum, p) => {
+      // Estimate Stripe fees if not stored (2.9% + $0.30 or 1.5% + £0.20)
+      const isGBP = p.currency?.toLowerCase() === "gbp"
+      const percentFee = isGBP ? 0.015 : 0.029
+      const fixedFee = isGBP ? 0.2 : 0.3
+      const fee = (p.amount / 100) * percentFee + fixedFee
+      return sum + fee
+    }, 0)
+
+    const actualNetRevenue = netRevenue - totalStripeFees
+
     const now = new Date()
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
     const thisMonthPayments = succeeded.filter((p) => new Date(p.created_at) >= firstDayOfMonth)
@@ -59,6 +70,8 @@ export function PaymentList({ payments, searchTerm, onSearchChange, onRefund, on
       totalRevenue,
       netRevenue,
       totalRefunded,
+      totalStripeFees,
+      actualNetRevenue,
       monthlyRevenue,
       mrr,
       currencyBreakdown,
@@ -129,6 +142,21 @@ export function PaymentList({ payments, searchTerm, onSearchChange, onRefund, on
       </div>
       <p className="text-gray-600 mb-6">Track all payment transactions and revenue metrics</p>
 
+      <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+        <div className="flex items-start gap-2">
+          <span className="text-amber-600 text-lg">💳</span>
+          <div className="flex-1">
+            <h3 className="font-semibold text-amber-900 mb-1">Stripe Processing Fees (Non-Refundable)</h3>
+            <p className="text-sm text-amber-800 leading-relaxed">
+              All payments include non-refundable Stripe processing fees: <strong>1.5% + £0.20</strong> for UK cards,{" "}
+              <strong>3.25% + £0.20</strong> for international cards, or <strong>2.9% + $0.30</strong> for US cards.
+              These fees are NOT returned when issuing refunds, meaning refunds cost the business both the refunded
+              amount AND the original processing fees.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -143,7 +171,7 @@ export function PaymentList({ payments, searchTerm, onSearchChange, onRefund, on
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Net Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">Net Revenue (After Refunds)</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -156,23 +184,25 @@ export function PaymentList({ payments, searchTerm, onSearchChange, onRefund, on
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">This Month</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Actual Net (After Fees)</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">£{revenueMetrics.monthlyRevenue.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Current billing period</p>
+            <div className="text-2xl font-bold text-purple-600">£{revenueMetrics.actualNetRevenue.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              After £{revenueMetrics.totalStripeFees.toFixed(2)} Stripe fees
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">MRR</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">This Month</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">£{revenueMetrics.mrr.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Monthly recurring revenue</p>
+            <div className="text-2xl font-bold text-orange-600">£{revenueMetrics.monthlyRevenue.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground mt-1">Current billing period</p>
           </CardContent>
         </Card>
       </div>

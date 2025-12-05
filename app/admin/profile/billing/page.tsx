@@ -11,6 +11,8 @@ import { getStripePriceId } from "@/lib/stripe-prices"
 import StripeCheckout from "@/components/stripe-checkout"
 import { toast } from "@/components/ui/use-toast"
 import { createBillingPortalSession } from "@/lib/billing-portal" // Import the createBillingPortalSession function
+import { calculateStripeFee } from "@/lib/stripe-fee-calculator" // Import Stripe fee calculator for displaying processing fees to customers
+import { TermsModal } from "./components/terms-modal"
 
 interface Subscription {
   id: string
@@ -38,6 +40,7 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
+  const [showTerms, setShowTerms] = useState(false)
   const [selectedPlanId, setSelectedPlanId] = useState<"growth" | "scale" | null>(null)
   const searchParams = useSearchParams()
   const [currency, setCurrency] = useState<"GBP" | "USD">("GBP")
@@ -210,9 +213,11 @@ export default function BillingPage() {
       `⚠️ Cancel Subscription - Important Information\n\n` +
         `${
           isTrialing
-            ? `You're currently in your 30-day trial period. Even if you cancel now, you'll keep full access until ${periodEndDate} - no charges will be made.\n\n`
+            ? `You're currently in your 30-day trial period. Even if you cancel now, you'll keep full access until ${periodEndDate} - no charges will be made.\n\n` +
+              `💡 Good news: Since you haven't been charged yet, there are no fees or penalties.\n\n`
             : `Your subscription will remain fully active until ${periodEndDate}, then you'll be downgraded.\n\n` +
-              `📧 Don't worry: We'll send you a reminder email 3 days before ${periodEndDate} so you have time to reactivate if you change your mind.\n\n`
+              `📧 Don't worry: We'll send you a reminder email 3 days before ${periodEndDate} so you have time to reactivate if you change your mind.\n\n` +
+              `⚠️ REFUND POLICY: If you've made payments, please note that Stripe processing fees (2.9% + £0.20 for UK cards, or 2.9% + $0.30 for US cards) are non-refundable. These fees are charged by Stripe, not us.\n\n`
         }` +
         `After ${periodEndDate}:\n` +
         `• You'll be automatically downgraded to the free Starter plan\n` +
@@ -367,6 +372,9 @@ export default function BillingPage() {
 
   const currentPlanName = subscription?.plan_name?.toLowerCase() || "starter"
   const isFreePlan = currentPlanName === "starter"
+  const currentPlanColor =
+    subscription?.status === "active" ? "default" : subscription?.status === "trialing" ? "secondary" : "destructive"
+  const displayPlanName = currentPlanName.charAt(0).toUpperCase() + currentPlanName.slice(1)
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
@@ -401,26 +409,27 @@ export default function BillingPage() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-2xl font-bold">
-                    {currentPlanName.charAt(0).toUpperCase() + currentPlanName.slice(1)}
-                  </h3>
-                  <Badge
-                    variant={
-                      subscription?.status === "active"
-                        ? "default"
-                        : subscription?.status === "trialing"
-                          ? "secondary"
-                          : "destructive"
-                    }
-                  >
-                    {subscription?.status === "trialing"
-                      ? "Trial"
-                      : subscription?.status === "active"
-                        ? "Active"
-                        : subscription?.status || "Active"}
+                  <h3 className="text-2xl font-bold">{displayPlanName}</h3>
+                  <Badge variant={currentPlanColor as any} className="text-sm px-3 py-1">
+                    {displayPlanName}
+                    {subscription?.status === "trialing" && " (Trial)"}
                   </Badge>
                   {subscription?.cancel_at_period_end && <Badge variant="destructive">Cancelling</Badge>}
                 </div>
+
+                {!isFreePlan && (
+                  <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-xs text-amber-900 leading-relaxed">
+                      💳 <strong>Payment Processing:</strong> All payments are processed by Stripe. Processing fees (
+                      {subscription.plan_name?.includes("gbp") || subscription.plan_name?.includes("uk")
+                        ? "1.5% + £0.20 for UK cards, 3.25% + £0.20 for international cards"
+                        : "2.9% + $0.30"}
+                      ) are charged by Stripe and are <strong>non-refundable</strong> if you cancel or receive a refund.
+                      Currency conversion fees (if applicable) are also non-refundable.
+                    </p>
+                  </div>
+                )}
+
                 {!isFreePlan && subscription && (
                   <p className="text-lg font-semibold text-primary mb-2">
                     {subscription.plan_name.includes("yearly")
@@ -541,7 +550,12 @@ export default function BillingPage() {
       <Card>
         <CardHeader>
           <CardTitle>Available Plans</CardTitle>
-          <CardDescription>Choose the plan that fits your needs</CardDescription>
+          <CardDescription>
+            Choose the plan that fits your needs.
+            <button onClick={() => setShowTerms(true)} className="ml-1 text-primary hover:underline">
+              View payment terms
+            </button>
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex justify-center mb-6">
@@ -578,6 +592,9 @@ export default function BillingPage() {
               const displayPrice = billingPeriod === "yearly" ? yearlyTotalPrice : monthlyPrice
               const monthlyEquivalent = billingPeriod === "yearly" ? Math.round(yearlyTotalPrice / 12) : monthlyPrice
 
+              const stripeFee = calculateStripeFee(displayPrice, currency, "domestic")
+              const totalWithFee = displayPrice + stripeFee.feeAmount
+
               return (
                 <div
                   key={plan}
@@ -598,12 +615,43 @@ export default function BillingPage() {
                   </div>
 
                   {billingPeriod === "yearly" && (
-                    <p className="text-sm text-muted-foreground mb-4">
-                      {formatPriceWithCurrency(displayPrice)} billed annually
-                    </p>
+                    <div className="mb-4 space-y-1">
+                      <p className="text-sm text-muted-foreground">
+                        {formatPriceWithCurrency(displayPrice)} billed annually
+                      </p>
+                      <div className="text-xs bg-muted p-2 rounded space-y-1">
+                        <div className="flex justify-between">
+                          <span>Subscription:</span>
+                          <span className="font-medium">{formatPriceWithCurrency(displayPrice)}</span>
+                        </div>
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Processing fee:</span>
+                          <span>{formatPriceWithCurrency(stripeFee.feeAmount)}</span>
+                        </div>
+                        <div className="flex justify-between border-t pt-1 font-semibold">
+                          <span>Total:</span>
+                          <span>{formatPriceWithCurrency(totalWithFee)}</span>
+                        </div>
+                      </div>
+                    </div>
                   )}
 
-                  <p className="text-sm text-muted-foreground mb-4">Description for {plan}</p>
+                  {billingPeriod === "monthly" && (
+                    <div className="mb-4 text-xs bg-muted p-2 rounded space-y-1">
+                      <div className="flex justify-between">
+                        <span>Subscription:</span>
+                        <span className="font-medium">{formatPriceWithCurrency(displayPrice)}</span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Processing fee:</span>
+                        <span>{formatPriceWithCurrency(stripeFee.feeAmount)}</span>
+                      </div>
+                      <div className="flex justify-between border-t pt-1 font-semibold">
+                        <span>Total:</span>
+                        <span>{formatPriceWithCurrency(totalWithFee)}</span>
+                      </div>
+                    </div>
+                  )}
 
                   <ul className="space-y-2 flex-1">
                     <li className="flex items-center gap-2">
@@ -620,7 +668,9 @@ export default function BillingPage() {
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-primary" />
-                      <span className="text-sm">Photo Upload on Reports</span>
+                      <span className="text-sm">
+                        Photo Upload on Reports <span className="text-xs text-muted-foreground">(Coming soon)</span>
+                      </span>
                     </li>
                     {plan === "scale" && (
                       <>
@@ -778,8 +828,21 @@ export default function BillingPage() {
             setShowCheckout(false)
             setPriceId(null)
           }}
+          onClose={() => {
+            setShowCheckout(false)
+            setPriceId(null)
+          }}
         />
       )}
+
+      <TermsModal open={showTerms} onClose={() => setShowTerms(false)} />
+      <div className="mt-8 text-center">
+        <p className="text-sm text-muted-foreground">
+          * Standard Stripe payment processing fees apply to all paid plans. These fees vary by region (UK: 1.5% +
+          £0.20, US: 2.9% + $0.30) and are transparently displayed during checkout. Processing fees are non-refundable
+          as per Stripe's policy.
+        </p>
+      </div>
     </div>
   )
 }

@@ -92,13 +92,24 @@ export async function processRefund(paymentId: string, amount?: number, reason?:
   try {
     const { data: payment } = await supabaseAdmin
       .from("payments")
-      .select("transaction_id, amount, subscription_id, subscriptions(organization_id)")
+      .select(
+        "transaction_id, amount, subscription_id, subscriptions(organization_id), stripe_processing_fee, currency, customer_country",
+      )
       .eq("id", paymentId)
       .single()
 
     if (!payment || !payment.transaction_id) {
       throw new Error("Payment not found")
     }
+
+    const refundAmount = amount || payment.amount
+    const stripeFee = payment.stripe_processing_fee || 0
+    const actualLoss = refundAmount // Customer receives this
+    const businessLoss = actualLoss + stripeFee // We lose the refund PLUS the non-refundable Stripe fee
+
+    console.log(
+      `[v0] Processing refund: Customer receives ${refundAmount}, Business loses ${businessLoss} (includes non-refundable Stripe fee of ${stripeFee})`,
+    )
 
     const refund = await stripe.refunds.create({
       payment_intent: payment.transaction_id,
@@ -113,9 +124,18 @@ export async function processRefund(paymentId: string, amount?: number, reason?:
       status: "refunded",
       transaction_id: refund.id,
       payment_method: "refund",
+      stripe_processing_fee: stripeFee, // Track that these fees were NOT refunded
+      net_amount: -(refund.amount / 100) - stripeFee, // Actual business loss
+      customer_country: payment.customer_country,
     })
 
-    return { success: true, refund }
+    return {
+      success: true,
+      refund,
+      refundedToCustomer: refund.amount / 100,
+      nonRefundableStripeFees: stripeFee,
+      totalBusinessLoss: refund.amount / 100 + stripeFee,
+    }
   } catch (error) {
     console.error("Error processing refund:", error)
     throw error

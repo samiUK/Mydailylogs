@@ -604,7 +604,10 @@ export default function HomePageClient() {
                     </li>
                     <li className="flex items-center">
                       <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
-                      <span className="font-semibold">📸 Photo Upload on Reports</span>
+                      <span className="font-semibold">
+                        📸 Photo Upload on Reports{" "}
+                        <span className="text-xs text-muted-foreground font-normal">(Coming soon)</span>
+                      </span>
                     </li>
                     <li className="flex items-center">
                       <CheckCircle className="w-5 h-5 text-accent mr-2 flex-shrink-0" />
@@ -616,7 +619,7 @@ export default function HomePageClient() {
                     disabled={checkingAuth}
                     className="w-full h-12 text-lg font-semibold bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
                   >
-                    {checkingAuth ? "Loading..." : "Get Started Free"}
+                    {checkingAuth ? "Loading..." : "Get started"}
                   </Button>
                 </CardContent>
               </Card>
@@ -677,11 +680,10 @@ export default function HomePageClient() {
                     </li>
                     <li className="flex items-center">
                       <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
-                      <span className="font-semibold">📸 Photo Upload on Reports</span>
-                    </li>
-                    <li className="flex items-center">
-                      <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
-                      <span className="font-semibold">90-day report storage</span>
+                      <span className="font-semibold">
+                        📸 Photo Upload on Reports{" "}
+                        <span className="text-xs text-muted-foreground font-normal">(Coming soon)</span>
+                      </span>
                     </li>
                     <li className="flex items-start">
                       <CheckCircle className="w-5 h-5 text-accent mr-3 mt-0.5 flex-shrink-0" />
@@ -699,10 +701,17 @@ export default function HomePageClient() {
                     disabled={checkingAuth}
                     className="w-full h-12 text-lg font-semibold bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
                   >
-                    {checkingAuth ? "Loading..." : "Get Started Free"}
+                    {checkingAuth ? "Loading..." : "Get started"}
                   </Button>
                 </CardContent>
               </Card>
+            </div>
+            <div className="mt-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                * Standard Stripe payment processing fees apply to all paid plans. These fees vary by region (UK: 1.5% +
+                £0.20, US: 2.9% + $0.30) and are transparently displayed during checkout. Processing fees are
+                non-refundable as per Stripe's policy.
+              </p>
             </div>
           </div>
         </section>

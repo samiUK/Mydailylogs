@@ -479,21 +479,21 @@ export default function AdminDashboard() {
         // Fetch basic organization and subscription data
         const { data: orgData, error: orgError } = await supabase
           .from("organizations")
-          .select("subscription(*)")
+          .select("subscriptions(*)")
           .eq("id", organizationId)
           .single()
 
         if (orgError) throw orgError
 
-        if (orgData.subscription?.cancel_at_period_end && orgData.subscription?.current_period_end) {
-          const periodEnd = new Date(orgData.subscription.current_period_end)
+        if (orgData.subscriptions?.cancel_at_period_end && orgData.subscriptions?.current_period_end) {
+          const periodEnd = new Date(orgData.subscriptions.current_period_end)
           const now = new Date()
           const daysRemaining = Math.ceil((periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
 
           if (daysRemaining <= 3 && daysRemaining > 0) {
             setSubscriptionEndWarning({
               daysRemaining,
-              periodEndDate: orgData.subscription.current_period_end,
+              periodEndDate: orgData.subscriptions.current_period_end,
             })
           }
         }

@@ -38,12 +38,10 @@ export async function POST(req: NextRequest) {
           subscriptionId: session.subscription,
           customerId: session.customer,
           metadata: session.metadata,
-          customer_email: session.customer_email,
-          amount_total: session.amount_total,
         })
 
         const organizationId = session.metadata?.organization_id
-        const subscriptionType = session.metadata?.subscription_type // Use subscription_type
+        const subscriptionType = session.metadata?.subscription_type
 
         if (!organizationId || !subscriptionType) {
           console.error("[v0] Missing required metadata in session:", session.metadata)
@@ -60,52 +58,34 @@ export async function POST(req: NextRequest) {
 
         const subscription = await stripe.subscriptions.retrieve(subscriptionId)
 
-        console.log("[v0] Retrieved subscription from Stripe:", {
-          id: subscription.id,
-          status: subscription.status,
-          trial_end: subscription.trial_end,
-          current_period_start: subscription.current_period_start,
-          current_period_end: subscription.current_period_end,
-        })
+        await supabaseAdmin.from("subscriptions").delete().eq("organization_id", organizationId)
 
-        const isTrial = subscription.trial_end ? true : false
+        console.log("[v0] Cleared existing subscriptions for organization")
 
-        console.log("[v0] Inserting subscription into database:", {
+        const isTrial = subscription.trial_end ? subscription.trial_end > Math.floor(Date.now() / 1000) : false
+
+        const { error: subError } = await supabaseAdmin.from("subscriptions").insert({
           id: subscriptionId,
-          stripe_subscription_id: subscriptionId, // Explicit Stripe subscription ID
-          stripe_customer_id: customerId, // Stripe customer ID for tracking
+          stripe_subscription_id: subscriptionId,
+          stripe_customer_id: customerId,
           organization_id: organizationId,
           plan_name: subscriptionType,
           status: subscription.status,
           is_trial: isTrial,
+          has_used_trial: true,
+          trial_ends_at: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
+          current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+          current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+          cancel_at_period_end: subscription.cancel_at_period_end || false,
+          is_masteradmin_trial: false,
         })
 
-        const { error: subError } = await supabaseAdmin.from("subscriptions").upsert(
-          {
-            id: subscriptionId,
-            stripe_subscription_id: subscriptionId, // Explicit Stripe subscription ID
-            stripe_customer_id: customerId, // Stripe customer ID for tracking
-            organization_id: organizationId,
-            plan_name: subscriptionType,
-            status: subscription.status,
-            is_trial: isTrial,
-            has_used_trial: isTrial ? true : undefined,
-            trial_ends_at: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
-            current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-          {
-            onConflict: "id",
-          },
-        )
-
         if (subError) {
-          console.error("[v0] Error upserting subscription:", subError)
+          console.error("[v0] Error inserting subscription:", subError)
           throw subError
         }
 
-        console.log("[v0] Successfully created/updated subscription in database for organization:", organizationId)
+        console.log("[v0] Successfully created subscription in database:", subscriptionId)
 
         if (isTrial) {
           const { error: profileError } = await supabaseAdmin
@@ -173,17 +153,13 @@ export async function POST(req: NextRequest) {
         console.log("[v0] Subscription created event received:", {
           subscriptionId: subscription.id,
           status: subscription.status,
-          customerId: subscription.customer,
-          metadata: subscription.metadata,
-          trial_end: subscription.trial_end,
         })
 
-        // Check if subscription already exists (from checkout.session.completed)
         const { data: existingSub } = await supabaseAdmin
           .from("subscriptions")
           .select("id")
-          .eq("id", subscription.id)
-          .single()
+          .eq("stripe_subscription_id", subscription.id)
+          .maybeSingle()
 
         if (existingSub) {
           console.log("[v0] Subscription already exists, skipping duplicate creation")
@@ -196,17 +172,11 @@ export async function POST(req: NextRequest) {
           break
         }
 
-        const isTrial = subscription.trial_end ? true : false
         const organizationId = subscription.metadata.organization_id
         const subscriptionType = subscription.metadata.subscription_type
+        const isTrial = subscription.trial_end ? subscription.trial_end > Math.floor(Date.now() / 1000) : false
 
-        console.log("[v0] Creating subscription from customer.subscription.created:", {
-          id: subscription.id,
-          organization_id: organizationId,
-          plan_name: subscriptionType,
-          status: subscription.status,
-          is_trial: isTrial,
-        })
+        await supabaseAdmin.from("subscriptions").delete().eq("organization_id", organizationId)
 
         const { error: subError } = await supabaseAdmin.from("subscriptions").insert({
           id: subscription.id,
@@ -216,10 +186,12 @@ export async function POST(req: NextRequest) {
           plan_name: subscriptionType,
           status: subscription.status,
           is_trial: isTrial,
-          has_used_trial: isTrial ? true : undefined,
+          has_used_trial: true,
           trial_ends_at: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
           current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
           current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+          cancel_at_period_end: subscription.cancel_at_period_end || false,
+          is_masteradmin_trial: false,
         })
 
         if (subError) {

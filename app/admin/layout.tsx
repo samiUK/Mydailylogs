@@ -8,6 +8,7 @@ import { EmailVerificationBanner } from "@/components/email-verification-banner"
 import { PaymentFailedBanner } from "@/components/payment-failed-banner"
 import { ImpersonationBanner } from "@/components/impersonation-banner"
 import { cookies } from "next/headers"
+import { syncSubscriptionFromStripe, deduplicateSubscriptions } from "@/lib/stripe-subscription-sync"
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -51,6 +52,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect("/unauthorized")
   }
 
+  const organizationId = profile.organizations?.organization_id
+
+  if (organizationId) {
+    await deduplicateSubscriptions(organizationId)
+  }
+
+  if (organizationId) {
+    await syncSubscriptionFromStripe(organizationId)
+    console.log("[v0] Synced subscription from Stripe on login")
+  }
+
   const handleSignOut = async () => {
     "use server"
     const supabase = await createClient()
@@ -71,9 +83,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const { data: subscription } = await supabase
     .from("subscriptions")
     .select("status, plan_name, grace_period_ends_at, stripe_subscription_id, cancel_at_period_end, current_period_end")
-    .eq("organization_id", profile.organizations?.organization_id)
+    .eq("organization_id", organizationId)
     .in("status", ["active", "trialing"])
-    .single()
+    .maybeSingle()
 
   const hasPaymentFailed = subscription?.status === "past_due" && subscription?.grace_period_ends_at
   const gracePeriodEndsAt = subscription?.grace_period_ends_at || null

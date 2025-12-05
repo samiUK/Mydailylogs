@@ -3,10 +3,6 @@ import { NextResponse } from "next/server"
 import Stripe from "stripe"
 import { upsertSubscription } from "@/lib/subscription-realtime-sync"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-11-20.acacia",
-})
-
 export async function POST(request: Request) {
   try {
     const { organizationId } = await request.json()
@@ -16,6 +12,10 @@ export async function POST(request: Request) {
     }
 
     console.log(`[v0] [Sync API] Syncing subscription for org: ${organizationId}`)
+
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+      apiVersion: "2024-11-20.acacia",
+    })
 
     const supabase = await createClient()
 

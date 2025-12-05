@@ -77,7 +77,7 @@ export default function SignUpPage() {
         console.log("[v0] Auto-login successful, waiting for session to be fully established...")
 
         // Give the browser time to write auth cookies properly
-        await new Promise((resolve) => setTimeout(resolve, 500))
+        await new Promise((resolve) => setTimeout(resolve, 100))
 
         // Verify session is actually set
         const {

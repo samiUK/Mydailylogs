@@ -307,9 +307,6 @@ export default function LoginPage() {
       const redirectUrl = selectedProfileData.role === "admin" ? "/admin" : "/staff"
       console.log("[v0] Regular login redirect to:", redirectUrl)
 
-      // Give cookies time to be properly written
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
       // Verify session is actually established
       const {
         data: { session },

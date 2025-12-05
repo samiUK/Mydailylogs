@@ -252,10 +252,11 @@ export default function HomePageClient() {
           </div>
         </nav>
 
-        <section className="py-20 px-4 sm:px-6 lg:px-8 text-center">
+        <section className="py-16 px-4 sm:px-6 lg:px-8 text-center">
           <div className="max-w-4xl mx-auto">
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-foreground mb-6 leading-tight">
-              Simple Task Management & Compliance <span className="text-accent block">for Growing Businesses</span>
+              Simple Task Management & Compliance Reporting{" "}
+              <span className="text-accent block">for growing businesses</span>
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground leading-relaxed">
               Professional task management and compliance reporting built for teams working on-site, in the office, or

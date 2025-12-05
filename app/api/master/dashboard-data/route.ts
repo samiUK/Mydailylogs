@@ -1,161 +1,183 @@
-import { NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/admin"
-import { cookies } from "next/headers"
+import { type NextRequest, NextResponse } from "next/server"
+import { createAdminClient } from "@/lib/supabase/admin"
+import { getMasterAuthPayload } from "@/lib/master-auth-jwt"
 
-export async function GET(request: Request) {
+export const dynamic = "force-dynamic"
+
+export async function GET(request: NextRequest) {
   try {
-    console.log("[v0] Dashboard data API called")
+    const payload = await getMasterAuthPayload()
 
-    const cookieStore = await cookies()
-    const masterAdminImpersonation = cookieStore.get("masterAdminImpersonation")
-    const isMasterAdmin = masterAdminImpersonation?.value === "true"
-
-    console.log("[v0] Master admin check:", { isMasterAdmin, hasCookie: !!masterAdminImpersonation })
-
-    if (!isMasterAdmin) {
-      console.log("[v0] Unauthorized access attempt")
+    if (!payload || (payload.role !== "masteradmin" && payload.role !== "superuser")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    console.log("[v0] Creating admin client...")
-    const adminClient = createClient()
-    console.log("[v0] Admin client created successfully")
+    const supabase = createAdminClient()
 
-    // Fetch all data in parallel
-    console.log("[v0] Fetching all dashboard data...")
-    const [
-      { data: organizationsData, error: orgError },
-      { data: profilesData, error: profilesError },
-      { data: superusersData, error: superusersError },
-      { data: templatesData, error: templatesError },
-      { data: subscriptionsData, error: subscriptionsError },
-      { data: paymentsData, error: paymentsError },
-      { data: feedbackData, error: feedbackError },
-      { data: reportsData, error: reportsError },
-      { data: checklistsData, error: checklistsError },
-      { data: templateAssignmentsData, error: templateAssignmentsError },
-      { data: notificationsData, error: notificationsError },
-      { data: holidaysData, error: holidaysError },
-      { data: staffUnavailabilityData, error: staffUnavailabilityError },
-      { data: auditLogsData, error: auditLogsError },
-      { data: backupsData, error: backupsError },
-    ] = await Promise.all([
-      adminClient.from("organizations").select("*"),
-      adminClient.from("profiles").select("*"),
-      adminClient.from("superusers").select("*"),
-      adminClient.from("checklist_templates").select("id, name, organization_id, is_active").limit(100),
-      adminClient.from("subscriptions").select(`
-          *,
-          organizations!left(
-            organization_id,
-            organization_name,
-            logo_url,
-            primary_color,
-            slug
-          )
-        `),
-      adminClient.from("payments").select(`*, subscriptions(*, organizations(*))`),
-      adminClient.from("feedback").select("*"),
-      adminClient.from("submitted_reports").select("*"),
-      adminClient.from("daily_checklists").select("id, status"),
-      adminClient.from("template_assignments").select("id, status, is_active"),
-      adminClient.from("notifications").select("id, is_read"),
-      adminClient.from("holidays").select("id, date"),
-      adminClient.from("staff_unavailability").select("id, start_date, end_date"),
-      adminClient.from("report_audit_logs").select("id, created_at"),
-      adminClient.from("report_backups").select("id, created_at"),
-    ])
+    const { data: profiles, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, email, full_name, role, organization_id, created_at")
+      .order("created_at", { ascending: false })
+      .limit(200)
 
-    if (orgError) console.error("[v0] Organizations error:", orgError)
-    if (profilesError) console.error("[v0] Profiles error:", profilesError)
-    if (superusersError) console.error("[v0] Superusers error:", superusersError)
-    if (templatesError) console.error("[v0] Templates error:", templatesError)
-    if (subscriptionsError) console.error("[v0] Subscriptions error:", subscriptionsError)
-    if (paymentsError) console.error("[v0] Payments error:", paymentsError)
-    if (feedbackError) console.error("[v0] Feedback error:", feedbackError)
+    if (profileError) throw profileError
 
-    console.log(
-      "[v0] Sample organization:",
-      organizationsData?.[0]
-        ? {
-            id: organizationsData[0].organization_id,
-            name: organizationsData[0].organization_name,
-          }
-        : "No orgs",
-    )
+    const orgAdminEmailMap = new Map<string, string>()
+    const orgNameMap = new Map<string, string>()
 
-    console.log(
-      "[v0] Sample profiles:",
-      profilesData?.slice(0, 3).map((p) => ({
-        id: p.id,
-        email: p.email,
-        name: p.full_name,
-        role: p.role,
-        org_id: p.organization_id,
-      })),
-    )
-
-    const enrichedOrganizations = organizationsData?.map((org) => {
-      const orgProfiles = profilesData?.filter((p) => p.organization_id === org.organization_id) || []
-      console.log(`[v0] Org ${org.organization_name} (${org.organization_id}): ${orgProfiles.length} profiles`)
-      return {
-        ...org,
-        profiles: orgProfiles,
+    profiles?.forEach((profile: any) => {
+      if (profile.role === "admin" && !orgAdminEmailMap.has(profile.organization_id)) {
+        orgAdminEmailMap.set(profile.organization_id, profile.email)
       }
     })
 
-    const enrichedSubscriptions = subscriptionsData?.map((sub) => {
-      const userProfile = profilesData?.find((p) => p.organization_id === sub.organization_id && p.role === "admin")
-      return {
-        ...sub,
-        user_email: userProfile?.email || null,
-        user_name: userProfile?.full_name || null,
+    const { data: organizations, error: orgError } = await supabase
+      .from("organizations")
+      .select(
+        `
+        organization_id,
+        organization_name,
+        slug,
+        created_at,
+        staff_reports_page_enabled,
+        subscriptions!inner(
+          plan_name,
+          status,
+          is_masteradmin_trial,
+          is_trial
+        )
+      `,
+      )
+      .order("created_at", { ascending: false })
+      .limit(100)
+
+    if (orgError) throw orgError
+
+    // Build org name map
+    organizations?.forEach((org: any) => {
+      orgNameMap.set(org.organization_id, org.organization_name)
+    })
+
+    const { data: subscriptions, error: subError } = await supabase
+      .from("subscriptions")
+      .select(
+        `
+        id,
+        organization_id,
+        stripe_subscription_id,
+        status,
+        plan_name,
+        current_period_start,
+        current_period_end,
+        trial_ends_at,
+        is_masteradmin_trial,
+        is_trial,
+        organizations!inner(organization_name)
+      `,
+      )
+      .order("created_at", { ascending: false })
+      .limit(100)
+
+    if (subError) throw subError
+
+    const { data: payments, error: paymentError } = await supabase
+      .from("payments")
+      .select("id, subscription_id, amount, status, created_at, transaction_id")
+      .order("created_at", { ascending: false })
+      .limit(100)
+
+    if (paymentError) throw paymentError
+
+    const { data: feedback, error: feedbackError } = await supabase
+      .from("feedback")
+      .select("id, email, name, subject, message, status, created_at")
+      .order("created_at", { ascending: false })
+      .limit(50)
+
+    if (feedbackError) throw feedbackError
+
+    const { data: superusers, error: superuserError } = await supabase
+      .from("profiles")
+      .select("id, email, created_at")
+      .eq("role", "superuser")
+      .order("created_at", { ascending: false })
+
+    if (superuserError) throw superuserError
+
+    const subToEmailMap = new Map<string, string>()
+    subscriptions?.forEach((sub: any) => {
+      const email = orgAdminEmailMap.get(sub.organization_id)
+      if (email) {
+        subToEmailMap.set(sub.id, email)
       }
     })
 
-    console.log("[v0] Dashboard data fetched:", {
-      organizations: organizationsData?.length || 0,
-      profiles: profilesData?.length || 0,
-      superusers: superusersData?.length || 0,
-      subscriptions: subscriptionsData?.length || 0,
-      subscriptionsWithOrgs: subscriptionsData?.filter((s: any) => s.organizations)?.length || 0,
-      subscriptionsWithoutOrgs: subscriptionsData?.filter((s: any) => !s.organizations)?.length || 0,
-      payments: paymentsData?.length || 0,
-      feedback: feedbackData?.length || 0,
-    })
+    const flatOrganizations = (organizations || []).map((org: any) => ({
+      ...org,
+      plan_name: org.subscriptions?.[0]?.plan_name || "starter",
+      subscription_status: org.subscriptions?.[0]?.status || "inactive",
+      is_trial: org.subscriptions?.[0]?.is_trial || false,
+      is_masteradmin_trial: org.subscriptions?.[0]?.is_masteradmin_trial || false,
+      trial_type: org.subscriptions?.[0]?.is_masteradmin_trial
+        ? "complimentary"
+        : org.subscriptions?.[0]?.is_trial
+          ? "paid"
+          : null,
+      admin_email: orgAdminEmailMap.get(org.organization_id) || "N/A",
+    }))
 
-    console.log(
-      "[v0] Enriched organizations sample:",
-      enrichedOrganizations?.[0]
-        ? {
-            org_id: enrichedOrganizations[0].organization_id,
-            org_name: enrichedOrganizations[0].organization_name,
-            profiles_count: enrichedOrganizations[0].profiles.length,
-            profile_emails: enrichedOrganizations[0].profiles.map((p: any) => p.email),
-            profile_roles: enrichedOrganizations[0].profiles.map((p: any) => p.role),
-          }
-        : "No organizations",
-    )
+    const flatSubscriptions = (subscriptions || []).map((sub: any) => ({
+      ...sub,
+      organization_name: sub.organizations?.organization_name || "Unknown",
+      user_email: orgAdminEmailMap.get(sub.organization_id) || "N/A",
+      payment_source: sub.stripe_subscription_id ? "stripe" : "manual",
+      trial_type: sub.is_masteradmin_trial ? "complimentary" : sub.is_trial ? "paid_stripe" : null,
+    }))
+
+    const flatPayments = (payments || []).map((payment: any) => {
+      // Find subscription for this payment
+      const subscription = subscriptions?.find((s: any) => s.id === payment.subscription_id)
+      const orgId = subscription?.organization_id
+
+      return {
+        ...payment,
+        organization_name: orgId ? orgNameMap.get(orgId) : "Unknown",
+        user_email: orgId ? orgAdminEmailMap.get(orgId) : "N/A", // Email as identifier
+      }
+    })
 
     return NextResponse.json({
-      organizations: enrichedOrganizations || [],
-      profiles: profilesData || [],
-      superusers: superusersData || [],
-      templates: templatesData || [],
-      subscriptions: enrichedSubscriptions || [],
-      payments: paymentsData || [],
-      feedback: feedbackData || [],
-      reports: reportsData || [],
-      checklists: checklistsData || [],
-      templateAssignments: templateAssignmentsData || [],
-      notifications: notificationsData || [],
-      holidays: holidaysData || [],
-      staffUnavailability: staffUnavailabilityData || [],
-      auditLogs: auditLogsData || [],
-      backups: backupsData || [],
+      success: true,
+      timestamp: new Date().toISOString(),
+      organizations: flatOrganizations,
+      profiles: profiles || [],
+      subscriptions: flatSubscriptions,
+      payments: flatPayments,
+      feedback: feedback || [],
+      superusers: superusers || [], // Include superusers in response
+      counts: {
+        organizations: flatOrganizations.length,
+        profiles: profiles?.length || 0,
+        subscriptions: flatSubscriptions.length,
+        payments: flatPayments.length,
+        feedback: feedback?.length || 0,
+        superusers: superusers?.length || 0, // Add superuser count
+      },
     })
   } catch (error: any) {
-    console.error("[v0] Dashboard data fetch error:", error)
-    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 })
+    console.error("[v0] Dashboard Data Error:", error.message)
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message || "Failed to fetch dashboard data",
+        organizations: [],
+        profiles: [],
+        subscriptions: [],
+        payments: [],
+        feedback: [],
+        superusers: [], // Ensure superusers array is included in error response
+      },
+      { status: 500 },
+    )
   }
 }

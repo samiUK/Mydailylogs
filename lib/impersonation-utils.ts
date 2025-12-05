@@ -146,12 +146,16 @@ export async function startImpersonation(
       throw new Error("Profile not found")
     }
 
-    // Set cookies for impersonation
-    document.cookie = `masterAdminImpersonation=true; path=/; max-age=86400; SameSite=Lax`
-    document.cookie = `impersonatedUserEmail=${encodeURIComponent(targetUserEmail)}; path=/; max-age=86400; SameSite=Lax`
-    document.cookie = `impersonatedUserRole=${targetUserRole}; path=/; max-age=86400; SameSite=Lax`
-    document.cookie = `impersonatedOrganizationId=${targetOrganizationId}; path=/; max-age=86400; SameSite=Lax`
-    document.cookie = `masterAdminType=${masterAdminType}; path=/; max-age=86400; SameSite=Lax`
+    await fetch("/api/admin/start-impersonation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        targetUserId: profile.id,
+        targetUserEmail,
+        targetUserRole,
+        targetOrganizationId,
+      }),
+    })
 
     const profileBasedUrl = `/${profile.id}/${targetUserRole}`
     console.log("[v0] Navigating to profile-based URL:", profileBasedUrl)
@@ -163,16 +167,9 @@ export async function startImpersonation(
 }
 
 export function exitImpersonation() {
-  // Clear cookies
-  document.cookie = "masterAdminImpersonation=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-  document.cookie = "impersonatedUserEmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-  document.cookie = "impersonatedUserRole=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-  document.cookie = "impersonatedOrganizationId=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-  document.cookie = "impersonatedOrganizationSlug=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;" // Clear organization slug cookie
-  document.cookie = "masterAdminType=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-
-  // Redirect to master dashboard
-  window.location.href = "/masterdashboard"
+  fetch("/api/admin/end-impersonation", { method: "POST" }).then(() => {
+    window.location.href = "/masterdashboard"
+  })
 }
 
 export function isCurrentlyImpersonating(): boolean {

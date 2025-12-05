@@ -73,7 +73,7 @@ export async function POST(request: Request) {
       isCustomMonthlySubmissions:
         customLimits?.custom_monthly_submissions !== null && customLimits?.custom_monthly_submissions !== undefined,
       submissionPeriodReset,
-      planName: limits.planName,
+      plan_name: limits.planName,
     })
   } catch (error) {
     console.error("[v0] Error fetching organization quota:", error)

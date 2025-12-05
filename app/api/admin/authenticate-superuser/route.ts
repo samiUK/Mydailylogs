@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { setMasterAuthCookie } from "@/lib/master-auth-jwt"
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,21 +28,18 @@ export async function POST(request: NextRequest) {
 
     if (email === MASTER_EMAIL && password === MASTER_PASSWORD) {
       console.log("[v0] Master admin authenticated successfully")
-      const response = NextResponse.json({
+
+      await setMasterAuthCookie({
+        email,
+        role: "masteradmin",
+      })
+
+      return NextResponse.json({
         success: true,
         userType: "master_admin",
         role: "masteradmin",
         message: "Master admin authenticated successfully",
       })
-
-      response.cookies.set("master-admin-session", "authenticated", {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 7,
-      })
-
-      return response
     }
 
     console.log("[v0] Master admin credentials didn't match, checking superusers table")
@@ -81,21 +79,18 @@ export async function POST(request: NextRequest) {
     console.log("[v0] Superuser authenticated successfully")
     await supabase.from("superusers").update({ last_login: new Date().toISOString() }).eq("id", superuser.id)
 
-    const response = NextResponse.json({
+    await setMasterAuthCookie({
+      email,
+      role: "superuser",
+      superuserRole: superuser.role || "support",
+    })
+
+    return NextResponse.json({
       success: true,
       userType: "superuser",
       role: superuser.role || "support",
       message: "Superuser authenticated successfully",
     })
-
-    response.cookies.set("superuser-session", email, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7,
-    })
-
-    return response
   } catch (error) {
     console.error("[v0] Authentication error:", error)
     return NextResponse.json({ error: "Authentication failed", details: String(error) }, { status: 500 })

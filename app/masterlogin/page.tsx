@@ -59,24 +59,7 @@ export default function MasterLoginPage() {
         return
       }
 
-      // Set localStorage
-      localStorage.setItem("masterAdminAuth", "true")
-      localStorage.setItem("masterAdminEmail", email)
-
-      if (data.userType === "master_admin") {
-        document.cookie = `masterAdminImpersonation=true; path=/; max-age=86400; SameSite=Lax`
-        document.cookie = `masterAdminEmail=${email}; path=/; max-age=86400; SameSite=Lax`
-        document.cookie = `userType=master_admin; path=/; max-age=86400; SameSite=Lax`
-        console.log("[v0] Set master admin authentication cookies")
-      } else if (data.userType === "superuser") {
-        document.cookie = `masterAdminImpersonation=true; path=/; max-age=86400; SameSite=Lax`
-        document.cookie = `superuser-email=${email}; path=/; max-age=86400; SameSite=Lax`
-        document.cookie = `userType=superuser; path=/; max-age=86400; SameSite=Lax`
-        console.log("[v0] Set superuser authentication cookies")
-      }
-
       console.log("[v0] Redirecting to /masterdashboard")
-      // Both redirect to masterdashboard
       router.push("/masterdashboard")
     } catch (error: unknown) {
       console.error("[v0] Master login error:", error)

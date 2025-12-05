@@ -1,11 +1,11 @@
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 let client: SupabaseClient | null = null
 
 export function createClient() {
   // Return existing client if available (singleton pattern)
-  if (typeof window !== 'undefined' && client) {
+  if (typeof window !== "undefined" && client) {
     return client
   }
 
@@ -18,17 +18,17 @@ export function createClient() {
     )
   }
 
-  client = createBrowserClient(supabaseUrl, supabaseAnonKey, {
+  client = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      flowType: 'pkce',
-      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-      storageKey: 'sb-sgurqdjmnvkechuewenx-auth-token',
+      flowType: "pkce",
+      storage: typeof window !== "undefined" ? window.localStorage : undefined,
+      storageKey: "sb-sgurqdjmnvkechuewenx-auth-token",
     },
   })
-  
+
   return client
 }
 

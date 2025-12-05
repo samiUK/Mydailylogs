@@ -1,20 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { cookies } from "next/headers"
+import { getMasterAuthPayload } from "@/lib/master-auth-jwt"
 
 export const dynamic = "force-dynamic"
-export const revalidate = 60 // Cache for 60 seconds
+export const revalidate = 3600 // Cache for 1 hour instead of 60 seconds
 
 export async function GET(request: NextRequest) {
   try {
-    // Check master admin authentication
-    const cookieStore = await cookies()
-    const masterAdminAuth = cookieStore.get("master-admin-session")?.value
-    const masterAdminEmail = cookieStore.get("masterAdminEmail")?.value
+    const payload = await getMasterAuthPayload()
 
-    if (masterAdminAuth !== "authenticated" || masterAdminEmail !== "arsami.uk@gmail.com") {
+    if (!payload) {
       return new NextResponse("Unauthorized", { status: 401 })
     }
+
+    console.log("[v0] Admin authorized via JWT:", { email: payload.email, role: payload.role })
 
     const supabase = createAdminClient()
 

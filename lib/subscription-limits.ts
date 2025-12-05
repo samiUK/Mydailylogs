@@ -381,6 +381,17 @@ export async function handleSubscriptionDowngrade(organizationId: string): Promi
     if (limits.planName === "Starter") {
       console.log("[v0] Downgrading to Starter plan - applying strict limits")
 
+      await supabase
+        .from("organizations")
+        .update({
+          logo_url: null,
+          primary_color: null,
+          secondary_color: null,
+        })
+        .eq("organization_id", organizationId)
+
+      console.log("[v0] Removed custom branding (logo and colors) - reverted to MyDayLogs branding")
+
       // Archive extra templates (keep first 3)
       const { data: templates } = await supabase
         .from("checklist_templates")

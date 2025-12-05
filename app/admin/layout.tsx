@@ -107,7 +107,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <BrandingProvider initialBranding={brandingData}>
       <SubscriptionRealtimeProvider organizationId={organizationId!} initialSubscription={subscription as any}>
-        <div className="min-h-screen bg-gray-50 flex flex-col">
+        <div className="min-h-screen flex flex-col" style={{ backgroundColor: "var(--brand-accent-bg, #f0fdf4)" }}>
           {impersonationActive && parsedImpersonationData && (
             <ImpersonationBanner
               userEmail={parsedImpersonationData.userEmail}

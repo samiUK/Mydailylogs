@@ -136,6 +136,30 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
     const root = document.documentElement
     root.style.setProperty("--brand-primary", branding.primaryColor)
     root.style.setProperty("--brand-secondary", branding.secondaryColor)
+
+    const hexToRgb = (hex: string) => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+      return result
+        ? {
+            r: Number.parseInt(result[1], 16),
+            g: Number.parseInt(result[2], 16),
+            b: Number.parseInt(result[3], 16),
+          }
+        : null
+    }
+
+    const primaryRgb = hexToRgb(branding.primaryColor)
+    const secondaryRgb = hexToRgb(branding.secondaryColor)
+
+    if (primaryRgb) {
+      root.style.setProperty("--brand-primary-rgb", `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`)
+      root.style.setProperty("--brand-accent-bg", `rgba(${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}, 0.05)`)
+      root.style.setProperty("--brand-accent-border", `rgba(${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}, 0.2)`)
+    }
+
+    if (secondaryRgb) {
+      root.style.setProperty("--brand-secondary-rgb", `${secondaryRgb.r}, ${secondaryRgb.g}, ${secondaryRgb.b}`)
+    }
   }, [branding.primaryColor, branding.secondaryColor])
 
   const contextValue = {

@@ -30,40 +30,24 @@ export default function LoginPage() {
   const [showResetOption, setShowResetOption] = useState(false)
   const [resetEmailSent, setResetEmailSent] = useState(false)
   const [isImpersonateMode, setIsImpersonateMode] = useState(false)
+  const [cachedLogo, setCachedLogo] = useState<string | null>(null)
+  const [cachedOrgName, setCachedOrgName] = useState<string | null>(null)
+  const [cachedBrandColor, setCachedBrandColor] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
 
   useEffect(() => {
     setIsClient(true)
+
+    if (typeof window !== "undefined") {
+      const savedLogo = localStorage.getItem("mydaylogs_org_logo")
+      const savedOrgName = localStorage.getItem("mydaylogs_org_name")
+      const savedBrandColor = localStorage.getItem("mydaylogs_org_brand_color")
+      if (savedLogo) setCachedLogo(savedLogo)
+      if (savedOrgName) setCachedOrgName(savedOrgName)
+      if (savedBrandColor) setCachedBrandColor(savedBrandColor)
+    }
   }, [])
-
-  useEffect(() => {
-    if (!isClient) return
-
-    const emailParam = searchParams.get("email")
-    if (emailParam) {
-      setEmail(emailParam)
-    }
-
-    const impersonateParam = searchParams.get("impersonate")
-    if (impersonateParam === "true") {
-      setIsImpersonateMode(true)
-    }
-
-    const savedEmail = localStorage.getItem("mydaylogs_remembered_email")
-    if (savedEmail && !emailParam) {
-      setEmail(savedEmail)
-      setRememberMe(true)
-    }
-
-    const masterEmail = sessionStorage.getItem("masterLoginEmail")
-    if (masterEmail) {
-      setIsMasterLogin(true)
-      setMasterLoginEmail(masterEmail)
-      setEmail(masterEmail)
-      sessionStorage.removeItem("masterLoginEmail")
-    }
-  }, [isClient, searchParams])
 
   const checkUserProfiles = useCallback(
     async (emailAddress: string) => {
@@ -91,6 +75,8 @@ export default function LoginPage() {
           setAvailableProfiles(profiles)
           setShowProfileSelection(false)
           setSelectedProfile(profiles[0].id)
+
+          loadBrandingForEmail(emailAddress)
         } else {
           setAvailableProfiles([])
           setShowProfileSelection(false)
@@ -317,6 +303,73 @@ export default function LoginPage() {
     }
   }
 
+  const loadBrandingForEmail = async (emailAddress: string) => {
+    if (!emailAddress || !emailAddress.includes("@")) return
+
+    try {
+      const supabase = createClient()
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select(`
+          organization_name,
+          organization_id,
+          organizations!inner(logo_url, primary_color),
+          subscriptions!inner(plan_name, status)
+        `)
+        .eq("email", emailAddress)
+        .limit(1)
+        .single()
+
+      if (profile?.organizations && profile?.subscriptions) {
+        const planName = profile.subscriptions.plan_name
+        const status = profile.subscriptions.status
+
+        const isPaidCustomer =
+          (planName === "growth" || planName === "scale") && (status === "active" || status === "trialing")
+
+        console.log("[v0] Subscription check:", { planName, status, isPaidCustomer })
+
+        if (isPaidCustomer) {
+          const logoUrl = profile.organizations.logo_url
+          const orgName = profile.organization_name
+          const brandColor = profile.organizations.primary_color
+
+          if (logoUrl) {
+            setCachedLogo(logoUrl)
+            localStorage.setItem("mydaylogs_org_logo", logoUrl)
+          }
+          if (orgName) {
+            setCachedOrgName(orgName)
+            localStorage.setItem("mydaylogs_org_name", orgName)
+          }
+          if (brandColor) {
+            setCachedBrandColor(brandColor)
+            localStorage.setItem("mydaylogs_org_brand_color", brandColor)
+          }
+        } else {
+          setCachedLogo(null)
+          setCachedOrgName(null)
+          setCachedBrandColor(null)
+          localStorage.removeItem("mydaylogs_org_logo")
+          localStorage.removeItem("mydaylogs_org_name")
+          localStorage.removeItem("mydaylogs_org_brand_color")
+          console.log("[v0] Branding not available for starter plan")
+        }
+      }
+    } catch (error) {
+      console.log("[v0] Could not load branding for email:", error)
+      setCachedLogo(null)
+      setCachedOrgName(null)
+      setCachedBrandColor(null)
+    }
+  }
+
+  const brandedStyles = cachedBrandColor
+    ? {
+        background: `linear-gradient(135deg, ${cachedBrandColor}08 0%, ${cachedBrandColor}15 100%)`,
+      }
+    : {}
+
   if (!isClient) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-secondary to-accent/20 flex items-center justify-center p-6">
@@ -337,7 +390,16 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-secondary to-accent/20 flex items-center justify-center p-4 sm:p-6">
+    <div
+      className="min-h-screen flex items-center justify-center p-4 sm:p-6 transition-colors"
+      style={
+        cachedBrandColor
+          ? {
+              background: `linear-gradient(135deg, ${cachedBrandColor}08 0%, ${cachedBrandColor}15 100%)`,
+            }
+          : undefined
+      }
+    >
       <div className="w-full max-w-md">
         <div className="mb-3 sm:mb-4">
           <Link
@@ -352,7 +414,25 @@ export default function LoginPage() {
           <CardHeader className="text-center space-y-2 sm:space-y-3">
             <div className="flex justify-center mb-2 sm:mb-4">
               <Link href="/">
-                <MyDayLogsLogo size="lg" />
+                {cachedLogo ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <img
+                      src={cachedLogo || "/placeholder.svg"}
+                      alt={cachedOrgName || "Organization"}
+                      className="h-16 sm:h-20 w-auto object-contain"
+                    />
+                    {cachedOrgName && (
+                      <span
+                        className="text-base sm:text-lg font-semibold"
+                        style={cachedBrandColor ? { color: cachedBrandColor } : undefined}
+                      >
+                        {cachedOrgName}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <MyDayLogsLogo size="lg" />
+                )}
               </Link>
             </div>
             <CardTitle className="text-xl sm:text-2xl">
@@ -470,6 +550,14 @@ export default function LoginPage() {
                   type="submit"
                   className="w-full h-11 sm:h-10 text-base font-semibold touch-manipulation"
                   disabled={isLoading}
+                  style={
+                    cachedBrandColor
+                      ? {
+                          backgroundColor: cachedBrandColor,
+                          borderColor: cachedBrandColor,
+                        }
+                      : undefined
+                  }
                 >
                   {isLoading ? "Signing in..." : isMasterLogin ? "Login as User" : "Sign In"}
                 </Button>

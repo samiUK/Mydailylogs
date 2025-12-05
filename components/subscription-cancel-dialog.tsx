@@ -142,15 +142,30 @@ export function SubscriptionCancelDialog({
                 By cancelling your {planName} plan, you'll lose access to:
               </p>
               <div className="space-y-3 pl-1">
+                {/* Custom Branding Loss */}
+                <div className="flex items-start gap-3">
+                  <X className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  <span className="text-sm">
+                    <span className="font-semibold">Custom branding & white-label experience</span> → Your logo, brand
+                    colors, and branded login will be{" "}
+                    <span className="font-semibold text-red-600">immediately removed</span> and reverted to MyDayLogs
+                    default branding
+                  </span>
+                </div>
+
+                {/* Templates */}
                 {currentPlanFeatures && (
                   <>
                     <div className="flex items-start gap-3">
                       <FileText className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                       <span className="text-sm">
                         <span className="font-semibold">{currentPlanFeatures.maxTemplates} custom templates</span> →
-                        Only your <span className="font-semibold text-emerald-600">first 3 templates will remain</span>
+                        Only your <span className="font-semibold text-emerald-600">first 3 templates will remain</span>{" "}
+                        (others will be archived)
                       </span>
                     </div>
+
+                    {/* Team Members */}
                     <div className="flex items-start gap-3">
                       <Users className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                       <span className="text-sm">
@@ -165,6 +180,8 @@ export function SubscriptionCancelDialog({
                         )}
                       </span>
                     </div>
+
+                    {/* Managers */}
                     <div className="flex items-start gap-3">
                       <UserCog className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                       <span className="text-sm">
@@ -179,12 +196,41 @@ export function SubscriptionCancelDialog({
                         )}
                       </span>
                     </div>
+
+                    {/* Reports */}
                     <div className="flex items-start gap-3">
                       <X className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                       <span className="text-sm">
-                        <span className="font-semibold">Unlimited report submissions</span> → Your{" "}
-                        <span className="font-semibold text-emerald-600">last 50 reports will remain</span> unless you
-                        modify your organization to exceed this limit
+                        <span className="font-semibold">Unlimited report submissions</span> → Limited to{" "}
+                        <span className="font-semibold text-orange-600">50 reports per month</span>, and only your{" "}
+                        <span className="font-semibold text-emerald-600">last 50 reports will remain</span>
+                      </span>
+                    </div>
+
+                    {/* Premium Features */}
+                    <div className="flex items-start gap-3">
+                      <X className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                      <span className="text-sm">
+                        <span className="font-semibold">Premium features:</span> Task automation, contractor link
+                        sharing, photo uploads, email notifications, and priority support
+                      </span>
+                    </div>
+
+                    {/* Report Retention */}
+                    <div className="flex items-start gap-3">
+                      <X className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                      <span className="text-sm">
+                        <span className="font-semibold">Report retention reduced</span> from 90 days to{" "}
+                        <span className="font-semibold text-orange-600">30 days only</span>
+                      </span>
+                    </div>
+
+                    {/* Dashboard Experience */}
+                    <div className="flex items-start gap-3">
+                      <X className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                      <span className="text-sm">
+                        <span className="font-semibold">Branded dashboard experience</span> → Background colors and UI
+                        accents will revert to MyDayLogs default theme
                       </span>
                     </div>
                   </>

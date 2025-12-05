@@ -515,13 +515,26 @@ export default function OrganizationSettingsPage() {
   }
 
   const addHoliday = async () => {
-    if (!selectedHolidayDate) return
+    console.log("[v0] Adding holiday - Date:", selectedHolidayDate, "Name:", holidayName)
+
+    if (!selectedHolidayDate) {
+      console.log("[v0] No date selected, aborting")
+      toast({
+        title: "Error",
+        description: "Please select a date for the holiday",
+        variant: "destructive",
+      })
+      return
+    }
 
     try {
       const {
         data: { user },
       } = await createClient().auth.getUser()
-      if (!user) return
+      if (!user) {
+        console.log("[v0] No user found")
+        return
+      }
 
       const { data: profile } = await createClient()
         .from("profiles")
@@ -529,32 +542,41 @@ export default function OrganizationSettingsPage() {
         .eq("id", user.id)
         .single()
 
-      if (!profile?.organization_id) return
+      if (!profile?.organization_id) {
+        console.log("[v0] No organization_id found")
+        return
+      }
 
-      const { error } = await createClient()
+      console.log("[v0] Inserting holiday for organization:", profile.organization_id)
+
+      const { data, error } = await createClient()
         .from("holidays")
         .insert({
           name: holidayName.trim() || format(selectedHolidayDate, "MMMM d, yyyy"),
           date: format(selectedHolidayDate, "yyyy-MM-dd"),
           organization_id: profile.organization_id,
         })
+        .select()
 
-      if (!error) {
-        setHolidayName("")
-        setSelectedHolidayDate(undefined)
-        fetchHolidays()
-        toast({
-          title: "Success",
-          description: "Holiday added successfully",
-        })
-      } else {
+      if (error) {
+        console.error("[v0] Error inserting holiday:", error)
         throw error
       }
+
+      console.log("[v0] Holiday added successfully:", data)
+
+      setHolidayName("")
+      setSelectedHolidayDate(undefined)
+      await fetchHolidays()
+      toast({
+        title: "Success",
+        description: "Holiday added successfully",
+      })
     } catch (error) {
-      console.error("[v0] Error adding holiday:", error)
+      console.error("[v0] Add holiday error:", error)
       toast({
         title: "Error",
-        description: "Failed to add holiday. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to add holiday",
         variant: "destructive",
       })
     }

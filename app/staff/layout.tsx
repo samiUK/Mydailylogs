@@ -86,7 +86,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         hasCustomBranding: true,
       }}
     >
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="min-h-screen flex flex-col" style={{ backgroundColor: "var(--brand-accent-bg, #f0fdf4)" }}>
         {impersonationActive && parsedImpersonationData && (
           <ImpersonationBanner
             userEmail={parsedImpersonationData.userEmail}

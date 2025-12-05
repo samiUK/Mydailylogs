@@ -97,11 +97,13 @@ export async function syncSubscriptionOnLogin(organizationId: string, userEmail:
     console.log(`[v0] [LOGIN-SYNC] Status: ${activeSubscription.status}`)
   }
 
-  // Delete all existing subscriptions for this org
-  await supabase.from("subscriptions").delete().eq("organization_id", organizationId)
+  const { data: existingSubscription } = await supabase
+    .from("subscriptions")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .single()
 
-  // Insert new subscription from Stripe
-  const { error: insertError } = await supabase.from("subscriptions").insert({
+  const subscriptionData = {
     organization_id: organizationId,
     plan_name: planName,
     status: activeSubscription.status,
@@ -112,21 +114,48 @@ export async function syncSubscriptionOnLogin(organizationId: string, userEmail:
     trial_ends_at: activeSubscription.trial_end ? new Date(activeSubscription.trial_end * 1000).toISOString() : null,
     is_trial: activeSubscription.status === "trialing",
     cancel_at_period_end: activeSubscription.cancel_at_period_end || false,
-  })
+    updated_at: new Date().toISOString(),
+  }
 
-  if (insertError) {
-    console.error(`[v0] [LOGIN-SYNC] Failed to sync subscription:`, insertError)
-    throw insertError
+  let syncError = null
+
+  if (existingSubscription) {
+    // Update existing subscription
+    const { error: updateError } = await supabase
+      .from("subscriptions")
+      .update(subscriptionData)
+      .eq("id", existingSubscription.id)
+
+    syncError = updateError
+  } else {
+    // Insert new subscription
+    const { error: insertError } = await supabase.from("subscriptions").insert({
+      ...subscriptionData,
+      created_at: new Date().toISOString(),
+    })
+
+    syncError = insertError
+  }
+
+  if (syncError) {
+    console.error(`[v0] [LOGIN-SYNC] Failed to sync subscription:`, syncError)
+    throw syncError
   }
 
   console.log(
     `[v0] [LOGIN-SYNC] ✅ Successfully synced ${planName} subscription via ${bindingMethod.toUpperCase()} binding`,
   )
 
+  const { data: dbSubscription } = await supabase
+    .from("subscriptions")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .single()
+
   // Log activity
   await supabase.from("subscription_activity_logs").insert({
     organization_id: organizationId,
-    subscription_id: activeSubscription.id,
+    subscription_id: dbSubscription?.id || null,
     stripe_subscription_id: activeSubscription.id,
     event_type: "login_sync",
     to_plan: planName,

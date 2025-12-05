@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { CreditCard, CheckCircle, Calendar, AlertCircle, Sparkles, ArrowUpCircle, X } from "lucide-react"
+import { CheckCircle, Calendar, AlertCircle, Sparkles, ArrowUpCircle, X, XCircle, Clock, Settings } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { getStripePriceId } from "@/lib/stripe-prices"
 import StripeCheckout from "@/components/stripe-checkout"
@@ -22,6 +22,9 @@ interface Subscription {
   current_period_end: string
   stripe_subscription_id?: string
   cancel_at_period_end?: boolean
+  is_trial?: boolean
+  trial_ends_at?: string
+  is_masteradmin_trial?: boolean
 }
 
 interface Payment {
@@ -203,17 +206,17 @@ export default function BillingPage() {
     setShowCheckout(true)
   }
 
-  const handleCancel = async () => {
+  const handleCancelSubscription = async () => {
     if (!subscription) return
 
-    const isTrialing = subscription.status === "trialing"
+    const isTrialing = subscription.status === "trialing" || subscription.is_trial
     const periodEndDate = new Date(subscription.current_period_end).toLocaleDateString()
 
     const confirmed = window.confirm(
       `⚠️ Cancel Subscription - Important Information\n\n` +
         `${
           isTrialing
-            ? `You're currently in your 30-day trial period. Even if you cancel now, you'll keep full access until ${periodEndDate} - no charges will be made.\n\n` +
+            ? `You're currently in your trial period. Even if you cancel now, you'll keep full access until ${periodEndDate} - no charges will be made.\n\n` +
               `💡 Good news: Since you haven't been charged yet, there are no fees or penalties.\n\n`
             : `Your subscription will remain fully active until ${periodEndDate}, then you'll be downgraded.\n\n` +
               `📧 Don't worry: We'll send you a reminder email 3 days before ${periodEndDate} so you have time to reactivate if you change your mind.\n\n` +
@@ -253,7 +256,7 @@ export default function BillingPage() {
       }
 
       alert(
-        `✓ Subscription cancelled successfully. ${isTrialing ? "Your 30-day trial continues with" : "You'll have"} full access until ${periodEndDate}${!isTrialing ? ". We'll email you 3 days before this date as a reminder" : ""}.`,
+        `✓ Subscription cancelled successfully. ${isTrialing ? "Your trial continues with" : "You'll have"} full access until ${periodEndDate}${!isTrialing ? ". We'll email you 3 days before this date as a reminder" : ""}.`,
       )
     } catch (error: any) {
       console.error("[v0] Error cancelling subscription:", error)
@@ -353,6 +356,44 @@ export default function BillingPage() {
     }
   }
 
+  const handleReactivate = async () => {
+    if (!subscription) return
+
+    const confirmed = window.confirm(
+      "Reactivate Subscription\n\n" +
+        "You're about to reactivate your subscription.\n\n" +
+        "Continue with reactivation?",
+    )
+
+    if (!confirmed) return
+
+    setProcessing(true)
+
+    try {
+      const response = await fetch("/api/subscriptions/reactivate", {
+        method: "POST",
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to reactivate subscription")
+      }
+
+      toast({
+        title: "Subscription Reactivated",
+        description: "Your subscription has been reactivated successfully.",
+      })
+
+      await loadBillingData()
+    } catch (error: any) {
+      console.error("[v0] Error reactivating subscription:", error)
+      alert("Failed to reactivate subscription: " + error.message)
+    } finally {
+      setProcessing(false)
+    }
+  }
+
   const calculateDaysRemaining = (endDate: string): number => {
     const end = new Date(endDate)
     const now = new Date()
@@ -375,13 +416,35 @@ export default function BillingPage() {
   const currentPlanColor =
     subscription?.status === "active" ? "default" : subscription?.status === "trialing" ? "secondary" : "destructive"
   const displayPlanName = currentPlanName.charAt(0).toUpperCase() + currentPlanName.slice(1)
+  const planPrice = subscription?.plan_name?.includes("yearly")
+    ? subscription?.plan_name?.includes("growth")
+      ? 8400
+      : 16800
+    : subscription?.plan_name?.includes("growth")
+      ? 800
+      : 1500
+
+  console.log("[v0] 🔍 Billing Page - Full Subscription Object:", JSON.stringify(subscription, null, 2))
+  console.log("[v0] 🔍 Billing Page - Subscription Data:", {
+    status: subscription?.status,
+    stripe_subscription_id: subscription?.stripe_subscription_id,
+    is_trial: subscription?.is_trial,
+    trial_ends_at: subscription?.trial_ends_at,
+    cancel_at_period_end: subscription?.cancel_at_period_end,
+    plan_name: subscription?.plan_name,
+    currentPlanName,
+    isFreePlan,
+  })
 
   console.log("[v0] Billing page render - subscription:", subscription)
   console.log("[v0] Current plan:", currentPlanName, "isFreePlan:", isFreePlan)
   console.log("[v0] Subscription status:", subscription?.status)
+  console.log("[v0] Will Current Plan card render?", !!(subscription && subscription.plan_name !== "starter"))
   console.log(
     "[v0] Should show buttons:",
-    !isFreePlan && subscription && (subscription.status === "active" || subscription.status === "trialing"),
+    (subscription?.stripe_subscription_id || subscription?.status === "trialing") &&
+      (subscription?.status === "active" || subscription?.status === "trialing") &&
+      !subscription?.cancel_at_period_end,
   )
 
   return (
@@ -405,169 +468,103 @@ export default function BillingPage() {
         </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CreditCard className="w-5 h-5" />
-            Current Plan
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-2xl font-bold">{displayPlanName}</h3>
-                  <Badge variant={currentPlanColor as any} className="text-sm px-3 py-1">
-                    {subscription?.status === "trialing"
-                      ? "Trial"
-                      : subscription?.status === "active"
-                        ? "Active"
-                        : subscription?.status?.toUpperCase()}
-                  </Badge>
-                  {subscription?.cancel_at_period_end && <Badge variant="destructive">Cancelling</Badge>}
+      {/* Current Plan Card */}
+      {subscription && subscription.plan_name !== "starter" && (
+        <Card className="border-2 border-green-500 bg-green-50/50">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between flex-wrap gap-2">
+              <span className="flex items-center gap-2">
+                {displayPlanName}
+                {subscription.status === "trialing" || subscription.is_trial ? (
+                  <Badge className="bg-blue-500 text-white">Trial</Badge>
+                ) : subscription.status === "active" ? (
+                  <Badge className="bg-green-500 text-white">Active</Badge>
+                ) : subscription.cancel_at_period_end ? (
+                  <Badge variant="destructive">Cancelling</Badge>
+                ) : (
+                  <Badge variant="secondary">{subscription.status}</Badge>
+                )}
+              </span>
+            </CardTitle>
+            <CardDescription className="mt-2">
+              £{planPrice}/month • {subscription.plan_name === "growth" ? "10" : "20"} templates •{" "}
+              {subscription.plan_name === "growth" ? "25" : "100"} team members
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            {(subscription.status === "trialing" || subscription.is_trial) && subscription.trial_ends_at && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-900">Trial Period Active</span>
                 </div>
-
-                {!isFreePlan && (
-                  <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                    <p className="text-xs text-amber-900 leading-relaxed">
-                      💳 <strong>Payment Processing:</strong> All payments are processed by Stripe. Processing fees (
-                      {subscription.plan_name?.includes("gbp") || subscription.plan_name?.includes("uk")
-                        ? "1.5% + £0.20 for UK cards, 3.25% + £0.20 for international cards"
-                        : "2.9% + $0.30"}
-                      ) are charged by Stripe and are <strong>non-refundable</strong> if you cancel or receive a refund.
-                      Currency conversion fees (if applicable) are also non-refundable.
-                    </p>
-                  </div>
-                )}
-
-                {!isFreePlan && subscription && (
-                  <p className="text-lg font-semibold text-primary mb-2">
-                    {subscription.plan_name.includes("yearly")
-                      ? `${formatPriceWithCurrency(subscription.plan_name.includes("growth") ? 8400 : 16800)}/year`
-                      : `${formatPriceWithCurrency(subscription.plan_name.includes("growth") ? 800 : 1500)}/month`}
-                  </p>
-                )}
-                {isFreePlan && (
-                  <p className="text-lg font-semibold text-primary mb-2">{formatPriceWithCurrency(0)}/month</p>
-                )}
-
-                <div className="space-y-2 mb-4">
-                  {currentPlanName === "starter" && (
-                    <>
-                      <p className="text-sm text-muted-foreground">• 3 templates</p>
-                      <p className="text-sm text-muted-foreground">• 5 team members</p>
-                      <p className="text-sm text-muted-foreground">• 1 admin account</p>
-                      <p className="text-sm text-muted-foreground">• 50 report submissions per month</p>
-                      <p className="text-sm text-muted-foreground">• 30-day report retention</p>
-                    </>
-                  )}
-                  {currentPlanName === "growth" && (
-                    <>
-                      <p className="text-sm text-muted-foreground">• 10 templates</p>
-                      <p className="text-sm text-muted-foreground">• 25 team members</p>
-                      <p className="text-sm text-muted-foreground">• 2 admin accounts</p>
-                      <p className="text-sm text-muted-foreground">• Unlimited report submissions</p>
-                      <p className="text-sm text-muted-foreground">• 90-day report retention</p>
-                      <p className="text-sm text-muted-foreground">• Task automation (recurring tasks)</p>
-                    </>
-                  )}
-                  {currentPlanName === "scale" && (
-                    <>
-                      <p className="text-sm text-muted-foreground">• 20 templates</p>
-                      <p className="text-sm text-muted-foreground">• 100 team members</p>
-                      <p className="text-sm text-muted-foreground">• 5 admin accounts</p>
-                      <p className="text-sm text-muted-foreground">• Unlimited report submissions</p>
-                      <p className="text-sm text-muted-foreground">• Unlimited report retention</p>
-                      <p className="text-sm text-muted-foreground">• Task automation (recurring tasks)</p>
-                      <p className="text-sm text-muted-foreground">• Priority support</p>
-                    </>
-                  )}
-                </div>
-
-                {!isFreePlan && subscription?.current_period_end && (
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground flex items-center gap-2">
-                      <Calendar className="w-4 h-4" />
-                      {subscription.cancel_at_period_end ? (
-                        <span className="text-destructive font-medium">
-                          Access ends on {new Date(subscription.current_period_end).toLocaleDateString()} - Then
-                          downgrading to Starter
-                        </span>
-                      ) : subscription.status === "trialing" ? (
-                        <span className="flex items-center gap-2">
-                          Trial ends on {new Date(subscription.current_period_end).toLocaleDateString()}
-                          <span className="font-semibold text-blue-600">
-                            ({calculateDaysRemaining(subscription.current_period_end)} days remaining)
-                          </span>
-                          - Then billing begins
-                        </span>
-                      ) : subscription.status === "active" ? (
-                        <span>Next billing date: {new Date(subscription.current_period_end).toLocaleDateString()}</span>
-                      ) : (
-                        <span>Expires on {new Date(subscription.current_period_end).toLocaleDateString()}</span>
-                      )}
-                    </p>
-                    {subscription.current_period_start && (
-                      <p className="text-xs text-muted-foreground">
-                        Current period: {new Date(subscription.current_period_start).toLocaleDateString()} -{" "}
-                        {new Date(subscription.current_period_end).toLocaleDateString()}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {isFreePlan && (
-                  <p className="text-sm text-muted-foreground">
-                    All organizations start with the Starter plan. Upgrade anytime to unlock premium features.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {!isFreePlan &&
-              subscription &&
-              (subscription.status === "active" || subscription.status === "trialing") && (
-                <div className="flex flex-wrap gap-3 pt-4 border-t">
-                  {currentPlanName === "growth" && (
-                    <Button variant="default" onClick={() => handleChangePlan("scale")} disabled={processing}>
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      Upgrade to Scale
-                    </Button>
-                  )}
-                  {currentPlanName === "scale" && (
-                    <Button variant="outline" onClick={() => handleChangePlan("growth")} disabled={processing}>
-                      Downgrade to Growth
-                    </Button>
-                  )}
-                  <Button variant="outline" onClick={handleManageBilling} disabled={processing}>
-                    {processing ? (
-                      <X className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <ArrowUpCircle className="w-4 h-4 mr-2" />
-                    )}
-                    Manage Billing
-                  </Button>
-                  <Button variant="destructive" onClick={handleCancel} disabled={processing}>
-                    {processing ? <X className="w-4 h-4 mr-2 animate-spin" /> : <X className="w-4 h-4 mr-2" />}
-                    {subscription.status === "trialing" ? "Cancel Trial" : "Cancel Subscription"}
-                  </Button>
-                </div>
-              )}
-
-            {!isFreePlan && subscription && (
-              <div className="mt-2 p-2 bg-gray-100 rounded text-xs text-gray-600">
-                Debug: Status = "{subscription.status}", Plan = "{currentPlanName}", Buttons visible ={" "}
-                {String(
-                  !isFreePlan &&
-                    subscription &&
-                    (subscription.status === "active" || subscription.status === "trialing"),
-                )}
+                <p className="text-sm text-blue-700">
+                  Trial ends: {new Date(subscription.trial_ends_at).toLocaleDateString()}
+                  <span className="ml-2 font-semibold">
+                    ({Math.ceil((new Date(subscription.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))}{" "}
+                    days remaining)
+                  </span>
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  You can cancel anytime during your trial - no charges will be made
+                </p>
               </div>
             )}
-          </div>
-        </CardContent>
-      </Card>
+
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Calendar className="w-4 h-4" />
+              {subscription.cancel_at_period_end ? (
+                <span className="text-orange-600 font-medium">
+                  Cancels on {new Date(subscription.current_period_end).toLocaleDateString()}
+                </span>
+              ) : (
+                <span>Active until {new Date(subscription.current_period_end).toLocaleDateString()}</span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {/* Show cancel button for any Stripe subscription (including trials) that's active/trialing and not already cancelled */}
+              {(subscription.stripe_subscription_id || subscription.status === "trialing") &&
+                (subscription.status === "active" || subscription.status === "trialing") &&
+                !subscription.cancel_at_period_end && (
+                  <Button
+                    variant="destructive"
+                    onClick={handleCancelSubscription}
+                    disabled={processing}
+                    className="flex-1 sm:flex-initial"
+                  >
+                    {processing ? <X className="w-4 h-4 mr-2 animate-spin" /> : <XCircle className="w-4 h-4 mr-2" />}
+                    {subscription.status === "trialing" || subscription.is_trial
+                      ? "Cancel Trial"
+                      : "Cancel Subscription"}
+                  </Button>
+                )}
+
+              {/* Show reactivate button if subscription is marked for cancellation */}
+              {subscription.cancel_at_period_end && subscription.stripe_subscription_id && (
+                <Button onClick={handleReactivate} disabled={processing} className="flex-1 sm:flex-initial">
+                  {processing ? <X className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+                  Reactivate Subscription
+                </Button>
+              )}
+
+              {/* Show billing portal button for any Stripe subscription */}
+              {subscription.stripe_subscription_id && (
+                <Button
+                  variant="outline"
+                  onClick={handleManageBilling}
+                  disabled={processing}
+                  className="flex-1 sm:flex-initial bg-transparent"
+                >
+                  {processing ? <X className="w-4 h-4 mr-2 animate-spin" /> : <Settings className="w-4 h-4 mr-2" />}
+                  Manage Billing
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

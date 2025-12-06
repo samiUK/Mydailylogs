@@ -2,14 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
@@ -20,32 +13,29 @@ import {
   X,
   Upload,
   Trash2,
-  CheckCircle,
   Share2,
   Facebook,
   Twitter,
   Linkedin,
-  Check,
   Copy,
+  Sparkles,
+  CheckCircle2,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
 interface FeedbackModalProps {
   isOpen?: boolean
-  onOpenChange?: (open: boolean) => void
-  trigger?: React.ReactNode
-  autoTrigger?: boolean
+  onClose?: (open: boolean) => void
 }
 
-export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = false }: FeedbackModalProps) {
+export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
   const [open, setOpen] = useState(isOpen || false)
   const [subject, setSubject] = useState("Feedback!")
   const [feedback, setFeedback] = useState("")
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [hasSubmitted, setHasSubmitted] = useState(false)
-  const [showThankYou, setShowThankYou] = useState(false)
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
   const [attachments, setAttachments] = useState<File[]>([])
   const [currentPage, setCurrentPage] = useState("")
   const [activeCampaign, setActiveCampaign] = useState<{
@@ -61,7 +51,6 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
   const [hasShared, setHasShared] = useState(false)
   const [issuedPromoCode, setIssuedPromoCode] = useState<string | null>(null)
   const [isIssuingCode, setIsIssuingCode] = useState(false)
-  const [codeCopied, setCodeCopied] = useState(false)
 
   const requiresSocialShare =
     activeCampaign?.requirement_type === "feedback_and_share" || activeCampaign?.requirement_type === "share_only"
@@ -71,51 +60,22 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
     activeCampaign?.requirement_type === "first_time_user" || activeCampaign?.requirement_type === "none"
 
   useEffect(() => {
-    const submitted = localStorage.getItem("feedbackSubmitted")
-    if (submitted) {
-      setHasSubmitted(true)
-    }
-
     if (typeof window !== "undefined") {
       setCurrentPage(window.location.href)
     }
   }, [])
 
   useEffect(() => {
-    if (autoTrigger && !hasSubmitted) {
-      const checkGamificationTrigger = async () => {
-        const supabase = createClient()
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        if (!user) return
-
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("organization_id", user.id)
-          .neq("id", user.id)
-
-        const { data: templates } = await supabase.from("templates").select("id").eq("created_by", user.id)
-
-        const teamMemberCount = profiles?.length || 0
-        const templateCount = templates?.length || 0
-
-        if (teamMemberCount >= 1 && templateCount >= 2) {
-          setTimeout(() => setOpen(true), 2000)
-        }
-      }
-
-      checkGamificationTrigger()
+    if (open && typeof window !== "undefined") {
+      setCurrentPage(window.location.href)
     }
-  }, [autoTrigger, hasSubmitted])
+  }, [open])
 
   useEffect(() => {
-    if (showThankYou) {
+    if (feedbackSubmitted) {
       fetchActiveCampaign()
     }
-  }, [showThankYou])
+  }, [feedbackSubmitted])
 
   const fetchActiveCampaign = async () => {
     try {
@@ -196,6 +156,8 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
       console.log("[v0] Feedback saved successfully:", insertedFeedback.id)
       setFeedbackId(insertedFeedback.id)
 
+      setFeedbackSubmitted(true)
+
       if (activeCampaign && !requiresSocialShare) {
         console.log("[v0] Auto-issuing code for non-share campaign")
         setIsIssuingCode(true)
@@ -217,47 +179,12 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
           const { promoCode } = await codeResponse.json()
           console.log("[v0] Promo code auto-issued:", promoCode)
           setIssuedPromoCode(promoCode)
-          setHasShared(true) // Mark as "completed" to show code
+          setHasShared(true)
         }
         setIsIssuingCode(false)
       }
-
-      try {
-        console.log("[v0] Sending email notification to admin...")
-        const emailResponse = await fetch("/api/send-email", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            type: "feedback_notification",
-            to: "info@mydaylogs.co.uk",
-            subject: `New Feedback: ${subject || "Feedback!"}`,
-            data: {
-              name: name.trim(),
-              email: email.trim(),
-              subject: subject || "Feedback!",
-              message: feedback.trim(),
-              page_url: currentPage,
-              submitted_at: new Date().toISOString(),
-            },
-          }),
-        })
-
-        if (!emailResponse.ok) {
-          console.error("[v0] Failed to send admin notification email")
-        } else {
-          console.log("[v0] Admin notification email sent successfully")
-        }
-      } catch (emailError) {
-        console.error("[v0] Error sending admin notification:", emailError)
-      }
-
-      localStorage.setItem("feedbackSubmitted", "true")
-      setHasSubmitted(true)
-      setShowThankYou(true)
     } catch (error) {
-      console.error("[v0] Error sending feedback:", error)
+      console.error("[v0] Error submitting feedback:", error)
       alert(
         `Sorry, there was an error sending your feedback: ${error instanceof Error ? error.message : "Unknown error"}. Please try again.`,
       )
@@ -358,204 +285,13 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
     }
   }
 
-  const handleCopyCode = () => {
-    if (issuedPromoCode) {
-      navigator.clipboard.writeText(issuedPromoCode)
-      setCodeCopied(true)
-      setTimeout(() => setCodeCopied(false), 2000)
-    }
-  }
-
-  const handleCloseModal = () => {
-    setShowThankYou(false)
-    setSubject("Feedback!")
-    setFeedback("")
-    setName("")
-    setEmail("")
-    setAttachments([])
-    setOpen(false)
-    onOpenChange?.(false)
-  }
-
-  const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen)
-    onOpenChange?.(newOpen)
-
-    if (newOpen && typeof window !== "undefined") {
-      setCurrentPage(window.location.href)
-    }
-  }
-
-  if (hasSubmitted && !trigger) return null
+  if (!open) return null
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-        {showThankYou ? (
-          <div className="text-center py-8">
-            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-            <h3 className="text-2xl font-semibold text-green-700 mb-2">Thank You!</h3>
-            <p className="text-gray-600 mb-4">Your feedback has been received and will be reviewed by our team.</p>
-            <p className="text-sm text-gray-500 mb-6">
-              We appreciate you taking the time to help us improve MyDayLogs.
-            </p>
-
-            <div className="border-t pt-6">
-              {activeCampaign && !requiresSocialShare && issuedPromoCode && (
-                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-lg p-4 mb-6">
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <span className="text-2xl">🎉</span>
-                    <h4 className="text-lg font-bold text-emerald-700">You Unlocked Your Discount!</h4>
-                    <span className="text-2xl">🎉</span>
-                  </div>
-                  <p className="text-sm text-gray-700 mb-3">
-                    Thank you for your feedback! Here's your exclusive {activeCampaign.discount_value}% off promo code:
-                  </p>
-                  <div className="bg-white border-2 border-dashed border-emerald-400 rounded-lg p-3 mb-2">
-                    <div className="text-xs text-gray-600 mb-1">Your Unique Promo Code:</div>
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="text-2xl font-bold text-emerald-600 tracking-wider">{issuedPromoCode}</div>
-                      <Button variant="ghost" size="sm" onClick={handleCopyCode} className="hover:bg-emerald-100">
-                        {codeCopied ? (
-                          <Check className="w-4 h-4 text-green-600" />
-                        ) : (
-                          <Copy className="w-4 h-4 text-gray-600" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-500 mb-2">
-                    Use this code at checkout to get {activeCampaign.discount_value}% off your first month!
-                  </p>
-                </div>
-              )}
-
-              {activeCampaign && requiresSocialShare && hasShared && issuedPromoCode && (
-                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-lg p-4 mb-6">
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <span className="text-2xl">🎉</span>
-                    <h4 className="text-lg font-bold text-emerald-700">You Unlocked Your Discount!</h4>
-                    <span className="text-2xl">🎉</span>
-                  </div>
-                  <p className="text-sm text-gray-700 mb-3">
-                    Thank you for sharing! Here's your exclusive {activeCampaign.discount_value}% off promo code:
-                  </p>
-                  <div className="bg-white border-2 border-dashed border-emerald-400 rounded-lg p-3 mb-2">
-                    <div className="text-xs text-gray-600 mb-1">Your Unique Promo Code:</div>
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="text-2xl font-bold text-emerald-600 tracking-wider">{issuedPromoCode}</div>
-                      <Button variant="ghost" size="sm" onClick={handleCopyCode} className="hover:bg-emerald-100">
-                        {codeCopied ? (
-                          <Check className="w-4 h-4 text-green-600" />
-                        ) : (
-                          <Copy className="w-4 h-4 text-gray-600" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="bg-blue-50 border border-blue-200 rounded p-2 mb-2">
-                    <p className="text-xs text-blue-700 font-medium">
-                      💡 Not ready to upgrade yet? Save this code! It's valid for {activeCampaign.max_redemptions}{" "}
-                      redemptions and you can use it anytime.
-                    </p>
-                  </div>
-                  <p className="text-xs text-gray-500 mb-2">
-                    Use this code at checkout to get {activeCampaign.discount_value}% off your first month!
-                  </p>
-                  <p className="text-xs text-amber-600 font-medium">
-                    This code is unique to you and can only be used once.
-                  </p>
-                </div>
-              )}
-
-              {activeCampaign && requiresSocialShare && hasShared && isIssuingCode && (
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-lg p-4 mb-6">
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                    <p className="text-sm text-blue-700">Generating your unique promo code...</p>
-                  </div>
-                </div>
-              )}
-
-              {activeCampaign && requiresSocialShare && !hasShared && (
-                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-lg p-4 mb-6">
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <span className="text-2xl">🎁</span>
-                    <h4 className="text-lg font-bold text-amber-700">Unlock {activeCampaign.discount_value}% Off!</h4>
-                    <span className="text-2xl">🎁</span>
-                  </div>
-                  <p className="text-sm text-gray-700 mb-3">
-                    Share MyDayLogs on social media to unlock your exclusive discount code!
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Click any button below to share MyDayLogs and{" "}
-                    <span className="font-semibold text-emerald-600">
-                      unlock your {activeCampaign.discount_value}% discount code
-                    </span>
-                  </p>
-                </div>
-              )}
-
-              {requiresSocialShare && (
-                <>
-                  <div className="flex items-center justify-center gap-2 mb-4">
-                    <Share2 className="w-5 h-5 text-accent" />
-                    <h4 className="text-lg font-semibold text-gray-700">
-                      {activeCampaign && !hasShared
-                        ? "Share to Unlock Your Code!"
-                        : activeCampaign
-                          ? "Share & Help Others Save!"
-                          : "Share MyDayLogs!"}
-                    </h4>
-                  </div>
-                  <p className="text-sm text-gray-600 mb-4">
-                    {activeCampaign && !hasShared ? (
-                      <>
-                        Click any button below to share MyDayLogs and{" "}
-                        <span className="font-semibold text-emerald-600">
-                          unlock your {activeCampaign.discount_value}% discount code
-                        </span>
-                      </>
-                    ) : activeCampaign ? (
-                      "Help others discover MyDayLogs and save on their first month!"
-                    ) : (
-                      "Help spread the word about MyDayLogs by sharing with your network!"
-                    )}
-                  </p>
-
-                  <div className="flex gap-4 justify-center">
-                    <Button
-                      onClick={() => trackSocialShare("facebook")}
-                      disabled={!activeCampaign || isIssuingCode}
-                      className="bg-[#1877F2] hover:bg-[#1877F2]/90 text-white"
-                    >
-                      <Facebook className="w-5 h-5 mr-2" />
-                      Facebook
-                    </Button>
-                    <Button
-                      onClick={() => trackSocialShare("twitter")}
-                      disabled={!activeCampaign || isIssuingCode}
-                      className="bg-[#1DA1F2] hover:bg-[#1DA1F2]/90 text-white"
-                    >
-                      <Twitter className="w-5 h-5 mr-2" />
-                      Twitter
-                    </Button>
-                    <Button
-                      onClick={() => trackSocialShare("linkedin")}
-                      disabled={!activeCampaign || isIssuingCode}
-                      className="bg-[#0A66C2] hover:bg-[#0A66C2]/90 text-white"
-                    >
-                      <Linkedin className="w-5 h-5 mr-2" />
-                      LinkedIn
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        ) : (
-          <>
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        {!feedbackSubmitted ? (
+          <form onSubmit={handleSubmit} className="space-y-4">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-accent" />
@@ -566,115 +302,222 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
               </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Your Name *</Label>
-                  <Input
-                    id="name"
-                    placeholder="Your full name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="email">Your Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="your@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="subject">Subject</Label>
-                  <Input
-                    id="subject"
-                    placeholder="Brief description of your feedback"
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                  />
-                </div>
-              </div>
-
+            <div className="space-y-4">
               <div>
-                <Label htmlFor="feedback">Your Message *</Label>
-                <Textarea
-                  id="feedback"
-                  placeholder="Tell us what you think, what could be improved, or any features you'd like to see..."
-                  value={feedback}
-                  onChange={(e) => setFeedback(e.target.value)}
-                  rows={6}
+                <Label htmlFor="name">Your Name *</Label>
+                <Input
+                  id="name"
+                  placeholder="Your full name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   required
-                  className="min-h-[120px] border-2 border-gray-300 focus:border-accent bg-white dark:bg-gray-50 dark:text-gray-900"
                 />
               </div>
-
               <div>
-                <Label>Screenshots (optional)</Label>
-                <div className="space-y-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full sm:w-auto"
-                    disabled={attachments.length >= 3}
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload Screenshots (Max 3)
-                  </Button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
+                <Label htmlFor="email">Your Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="your@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="subject">Subject</Label>
+                <Input
+                  id="subject"
+                  placeholder="Brief description of your feedback"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                />
+              </div>
+            </div>
 
-                  {attachments.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {attachments.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
-                          <span className="text-sm truncate flex-1">{file.name}</span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeAttachment(index)}
-                            className="ml-2 h-6 w-6 p-0"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+            <div>
+              <Label htmlFor="feedback">Your Message *</Label>
+              <Textarea
+                id="feedback"
+                placeholder="Tell us what you think, what could be improved, or any features you'd like to see..."
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                rows={6}
+                required
+                className="min-h-[120px] border-2 border-gray-300 focus:border-accent bg-white dark:bg-gray-50 dark:text-gray-900"
+              />
+            </div>
+
+            <div>
+              <Label>Screenshots (optional)</Label>
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full sm:w-auto"
+                  disabled={attachments.length >= 3}
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Screenshots (Max 3)
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+
+                {attachments.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {attachments.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
+                        <span className="text-sm truncate flex-1">{file.name}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeAttachment(index)}
+                          className="ml-2 h-6 w-6 p-0"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Upload screenshots to help us understand your feedback better. Max 5MB per file.
+              </p>
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setOpen(false)} type="button">
+                <X className="w-4 h-4 mr-2" />
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={!feedback.trim() || !name.trim() || !email.trim() || isSubmitting}
+                className="bg-accent hover:bg-accent/90 w-full sm:w-auto"
+              >
+                <Send className="w-4 h-4 mr-2" />
+                {isSubmitting ? "Sending..." : "Send Feedback"}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <div className="space-y-4">
+            <div className="bg-emerald-50 border-2 border-emerald-300 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                <h4 className="text-lg font-semibold text-emerald-700">Feedback Submitted!</h4>
+              </div>
+              <p className="text-sm text-gray-700">Thank you for your feedback. We appreciate your input!</p>
+            </div>
+
+            {activeCampaign && requiresSocialShare && !hasShared && (
+              <>
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-lg p-4">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <span className="text-2xl">🎁</span>
+                    <h4 className="text-lg font-bold text-amber-700">One More Step!</h4>
+                    <span className="text-2xl">🎁</span>
+                  </div>
+                  <p className="text-sm text-gray-700 mb-3 text-center">
+                    Share MyDayLogs on social media to unlock your exclusive {activeCampaign.discount_value}% discount
+                    code!
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Upload screenshots to help us understand your feedback better. Max 5MB per file.
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center gap-2">
+                    <Share2 className="w-5 h-5 text-accent" />
+                    <h4 className="text-lg font-semibold text-gray-700">Share to Unlock Your Code!</h4>
+                  </div>
+                  <p className="text-sm text-gray-600 text-center">
+                    Click any button below to share MyDayLogs and{" "}
+                    <span className="font-semibold text-emerald-600">
+                      unlock your {activeCampaign.discount_value}% discount code
+                    </span>
+                  </p>
+
+                  <div className="flex gap-4 justify-center">
+                    <Button
+                      onClick={() => trackSocialShare("facebook")}
+                      disabled={isIssuingCode}
+                      className="bg-[#1877F2] hover:bg-[#1877F2]/90 text-white"
+                    >
+                      <Facebook className="w-5 h-5 mr-2" />
+                      Facebook
+                    </Button>
+                    <Button
+                      onClick={() => trackSocialShare("twitter")}
+                      disabled={isIssuingCode}
+                      className="bg-[#1DA1F2] hover:bg-[#1DA1F2]/90 text-white"
+                    >
+                      <Twitter className="w-5 h-5 mr-2" />
+                      Twitter
+                    </Button>
+                    <Button
+                      onClick={() => trackSocialShare("linkedin")}
+                      disabled={isIssuingCode}
+                      className="bg-[#0A66C2] hover:bg-[#0A66C2]/90 text-white"
+                    >
+                      <Linkedin className="w-5 h-5 mr-2" />
+                      LinkedIn
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {issuedPromoCode && hasShared && (
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-lg p-6">
+                <div className="flex items-center justify-center gap-2 mb-3">
+                  <Sparkles className="w-6 h-6 text-emerald-600" />
+                  <h4 className="text-xl font-bold text-emerald-700">Your Discount Code is Ready!</h4>
+                  <Sparkles className="w-6 h-6 text-emerald-600" />
+                </div>
+
+                <div className="bg-white border-2 border-emerald-400 rounded-lg p-4 mb-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <code className="text-2xl font-mono font-bold text-emerald-600">{issuedPromoCode}</code>
+                    <Button
+                      onClick={() => {
+                        navigator.clipboard.writeText(issuedPromoCode)
+                        alert("Promo code copied to clipboard!")
+                      }}
+                      size="sm"
+                      className="bg-emerald-600 hover:bg-emerald-700"
+                    >
+                      <Copy className="w-4 h-4 mr-1" />
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+
+                <p className="text-sm text-gray-700 text-center mb-2">
+                  <strong className="text-emerald-700">Save this code!</strong> Use it at checkout to get{" "}
+                  {activeCampaign?.discount_value}% off your first month.
+                </p>
+                <p className="text-xs text-gray-500 text-center">
+                  This code is unique to you and can only be used once.
                 </p>
               </div>
+            )}
 
-              <div className="flex flex-col sm:flex-row justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="w-full sm:w-auto">
-                  <X className="w-4 h-4 mr-2" />
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={!feedback.trim() || !name.trim() || !email.trim() || isSubmitting}
-                  className="bg-accent hover:bg-accent/90 w-full sm:w-auto"
-                >
-                  <Send className="w-4 h-4 mr-2" />
-                  {isSubmitting ? "Sending..." : "Send Feedback"}
+            {(hasShared || (!requiresSocialShare && feedbackSubmitted)) && (
+              <div className="flex justify-center">
+                <Button onClick={onClose} className="bg-accent hover:bg-accent/90">
+                  Close
                 </Button>
               </div>
-            </form>
-          </>
+            )}
+          </div>
         )}
       </DialogContent>
     </Dialog>

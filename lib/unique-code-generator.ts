@@ -15,7 +15,7 @@ export async function generateUniqueCodes(
   prefix: string,
   count: number,
 ): Promise<{ success: boolean; generated: number; error?: string }> {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   try {
     const codes: { campaign_id: string; promo_code: string }[] = []
@@ -36,7 +36,7 @@ export async function generateUniqueCodes(
     })
 
     // Batch insert codes
-    const { error } = await supabase.from("promo_campaign_codes").insert(codes)
+    const { error } = await supabase.from("unique_promo_codes").insert(codes)
 
     if (error) {
       console.error("[v0] Error inserting promo codes:", error)
@@ -54,12 +54,12 @@ export async function issueCodeToUser(
   campaignId: string,
   userEmail: string,
 ): Promise<{ success: boolean; code?: string; error?: string }> {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   try {
     // Check if user already has a code for this campaign
     const { data: existing } = await supabase
-      .from("promo_campaign_codes")
+      .from("unique_promo_codes")
       .select("promo_code")
       .eq("campaign_id", campaignId)
       .eq("issued_to_email", userEmail)
@@ -71,7 +71,7 @@ export async function issueCodeToUser(
 
     // Get an unissued code
     const { data: availableCode, error: selectError } = await supabase
-      .from("promo_campaign_codes")
+      .from("unique_promo_codes")
       .select("id, promo_code")
       .eq("campaign_id", campaignId)
       .eq("is_issued", false)
@@ -85,7 +85,7 @@ export async function issueCodeToUser(
 
     // Mark code as issued
     const { error: updateError } = await supabase
-      .from("promo_campaign_codes")
+      .from("unique_promo_codes")
       .update({
         is_issued: true,
         issued_to_email: userEmail,

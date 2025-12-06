@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
-import { createStripeCoupon, deactivateStripePromotionCode } from "@/lib/stripe-coupons"
+import { createStripeCoupon, deactivateStripePromotionCode, deleteStripeCoupon } from "@/lib/stripe-coupons"
 import { generateUniqueCodes } from "@/lib/unique-code-generator"
 
 // GET - List all promo campaigns
@@ -24,8 +25,20 @@ export async function GET(request: NextRequest) {
 
 // POST - Create new promo campaign
 export async function POST(request: NextRequest) {
+  let stripeCouponId: string | null = null
+
   try {
     const supabase = await createClient()
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const adminClient = createAdminClient()
     const body = await request.json()
 
     console.log("[v0] Campaign creation request received:", body)
@@ -63,7 +76,7 @@ export async function POST(request: NextRequest) {
 
     if (show_on_banner) {
       console.log("[v0] Disabling banner display on all other campaigns")
-      await supabase
+      await adminClient
         .from("promotional_campaigns")
         .update({ show_on_banner: false })
         .eq("is_active", true)
@@ -78,69 +91,81 @@ export async function POST(request: NextRequest) {
     })
 
     const stripeCoupon = await createStripeCoupon(promo_code_template, discount_type, discount_value, max_redemptions)
+    stripeCouponId = stripeCoupon.id
     console.log("[v0] Stripe coupon created:", stripeCoupon.id)
 
-    const { data: campaign, error } = await supabase
-      .from("promotional_campaigns")
-      .insert({
-        name,
-        description,
-        discount_type,
-        discount_value,
-        max_redemptions,
-        requirement_type,
-        promo_code_template,
+    try {
+      const { data: campaign, error } = await adminClient
+        .from("promotional_campaigns")
+        .insert({
+          name,
+          description,
+          discount_type,
+          discount_value,
+          max_redemptions,
+          requirement_type,
+          promo_code_template,
+          stripe_coupon_id: stripeCoupon.id,
+          is_active: true,
+          show_on_banner,
+          banner_message,
+          banner_cta_text,
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error("[v0] Database error creating campaign:", error)
+        throw error
+      }
+
+      console.log("[v0] Campaign created in database:", campaign)
+
+      const codeGenResult = await generateUniqueCodes(campaign.id, promo_code_template, max_redemptions)
+
+      if (!codeGenResult.success) {
+        console.error("[v0] Failed to generate codes, rolling back campaign:", codeGenResult.error)
+        await adminClient.from("promotional_campaigns").delete().eq("id", campaign.id)
+        throw new Error(`Failed to generate unique codes: ${codeGenResult.error}`)
+      }
+
+      console.log("[v0] Promo campaign created successfully with unique codes:", {
+        campaign_id: campaign.id,
         stripe_coupon_id: stripeCoupon.id,
-        is_active: true,
+        unique_codes_generated: codeGenResult.generated,
         show_on_banner,
-        banner_message,
-        banner_cta_text,
       })
-      .select()
-      .single()
 
-    if (error) {
-      console.error("[v0] Database error creating campaign:", error)
-      throw error
+      return NextResponse.json({
+        campaign,
+        stripeIntegration: {
+          couponId: stripeCoupon.id,
+          note: `ONE universal Stripe promo code created: ${promo_code_template}`,
+        },
+        uniqueCodes: {
+          generated: codeGenResult.generated,
+          total: max_redemptions,
+          note: "These are tracking codes for feedback/share verification, not Stripe codes",
+        },
+        message: `Promo campaign created successfully! ${codeGenResult.generated} unique codes generated and ready to be issued.${show_on_banner ? " Campaign is now showing on the homepage banner." : ""}`,
+      })
+    } catch (dbError: any) {
+      console.error("[v0] Database operation failed, rolling back Stripe coupon:", stripeCouponId)
+      if (stripeCouponId) {
+        try {
+          await deleteStripeCoupon(stripeCouponId)
+          console.log("[v0] Successfully rolled back Stripe coupon:", stripeCouponId)
+        } catch (rollbackError: any) {
+          console.error("[v0] Failed to rollback Stripe coupon:", rollbackError)
+        }
+      }
+      throw dbError
     }
-
-    console.log("[v0] Campaign created in database:", campaign)
-
-    const codeGenResult = await generateUniqueCodes(campaign.id, promo_code_template, max_redemptions)
-
-    if (!codeGenResult.success) {
-      console.error("[v0] Failed to generate codes, rolling back campaign:", codeGenResult.error)
-      // Rollback campaign creation if code generation fails
-      await supabase.from("promotional_campaigns").delete().eq("id", campaign.id)
-      throw new Error(`Failed to generate unique codes: ${codeGenResult.error}`)
-    }
-
-    console.log("[v0] Promo campaign created successfully with unique codes:", {
-      campaign_id: campaign.id,
-      stripe_coupon_id: stripeCoupon.id,
-      unique_codes_generated: codeGenResult.generated,
-      show_on_banner,
-    })
-
-    return NextResponse.json({
-      campaign,
-      stripeIntegration: {
-        couponId: stripeCoupon.id,
-      },
-      uniqueCodes: {
-        generated: codeGenResult.generated,
-        total: max_redemptions,
-      },
-      message: `Promo campaign created successfully! ${codeGenResult.generated} unique codes generated and ready to be issued.${show_on_banner ? " Campaign is now showing on the homepage banner." : ""}`,
-    })
   } catch (error: any) {
     console.error("[v0] Error creating promo campaign:", error)
 
     if (error.message?.includes("already exists")) {
-      return NextResponse.json(
-        { error: "A Stripe coupon with this code already exists. Please use a different promo code." },
-        { status: 409 },
-      )
+      return NextResponse.json({ error: error.message }, { status: 409 })
     }
 
     return NextResponse.json({ error: error.message || "Failed to create campaign" }, { status: 500 })
@@ -151,6 +176,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const supabase = await createClient()
+    const adminClient = createAdminClient()
     const body = await request.json()
 
     const { campaign_id, is_active } = body
@@ -159,7 +185,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Missing campaign_id or is_active" }, { status: 400 })
     }
 
-    const { data: existingCampaign, error: fetchError } = await supabase
+    const { data: existingCampaign, error: fetchError } = await adminClient
       .from("promotional_campaigns")
       .select("stripe_promotion_code_id")
       .eq("id", campaign_id)
@@ -176,7 +202,7 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    const { data: campaign, error } = await supabase
+    const { data: campaign, error } = await adminClient
       .from("promotional_campaigns")
       .update({ is_active })
       .eq("id", campaign_id)
@@ -199,6 +225,7 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const supabase = await createClient()
+    const adminClient = createAdminClient()
     const { searchParams } = new URL(request.url)
     const campaign_id = searchParams.get("campaign_id")
 
@@ -206,7 +233,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Missing campaign_id" }, { status: 400 })
     }
 
-    const { data: campaign, error: fetchError } = await supabase
+    const { data: campaign, error: fetchError } = await adminClient
       .from("promotional_campaigns")
       .select("name")
       .eq("id", campaign_id)
@@ -214,7 +241,7 @@ export async function DELETE(request: NextRequest) {
 
     if (fetchError) throw fetchError
 
-    const { error: deleteError } = await supabase.from("promotional_campaigns").delete().eq("id", campaign_id)
+    const { error: deleteError } = await adminClient.from("promotional_campaigns").delete().eq("id", campaign_id)
 
     if (deleteError) throw deleteError
 

@@ -1,12 +1,42 @@
 import "server-only"
 import { stripe } from "./stripe"
 
+export async function deleteStripeCoupon(couponId: string) {
+  try {
+    const coupon = await stripe.coupons.del(couponId)
+    console.log("[v0] Deleted Stripe coupon:", couponId)
+    return coupon
+  } catch (error: any) {
+    console.error("[v0] Error deleting Stripe coupon:", error)
+    throw new Error(`Failed to delete Stripe coupon: ${error.message}`)
+  }
+}
+
+export async function stripeCouponExists(couponId: string): Promise<boolean> {
+  try {
+    await stripe.coupons.retrieve(couponId)
+    return true
+  } catch (error: any) {
+    if (error.code === "resource_missing") {
+      return false
+    }
+    throw error
+  }
+}
+
 export async function createStripeCoupon(
   couponCode: string,
   discountType: "percentage" | "fixed_amount",
   discountValue: number,
   maxRedemptions?: number,
 ) {
+  const exists = await stripeCouponExists(couponCode)
+  if (exists) {
+    throw new Error(
+      `A Stripe coupon with code "${couponCode}" already exists. Please use a different promo code or delete the existing one from Stripe Dashboard.`,
+    )
+  }
+
   const couponData: any = {
     id: couponCode,
     duration: "once", // Always apply to first billing period only

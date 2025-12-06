@@ -1,5 +1,5 @@
 // Generate unique promo codes for campaigns
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 
 function generateRandomCode(prefix: string, length = 6): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // Remove ambiguous chars
@@ -15,7 +15,7 @@ export async function generateUniqueCodes(
   prefix: string,
   count: number,
 ): Promise<{ success: boolean; generated: number; error?: string }> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   try {
     const codes: { campaign_id: string; promo_code: string }[] = []
@@ -54,7 +54,7 @@ export async function issueCodeToUser(
   campaignId: string,
   userEmail: string,
 ): Promise<{ success: boolean; code?: string; error?: string }> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   try {
     // Check if user already has a code for this campaign

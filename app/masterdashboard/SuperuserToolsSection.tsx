@@ -39,24 +39,21 @@ interface AuditLog {
 
 interface Campaign {
   id: string
+  campaign_id?: string // Add optional campaign_id alias for compatibility
   name: string
   description: string
   discount_type: string
   discount_value: number
   max_redemptions: number
-  current_redemptions: number
   requirement_type: string
   promo_code_template: string
-  stripe_coupon_id?: string
-  stripe_promotion_code_id?: string
+  stripe_coupon_id: string
   is_active: boolean
   show_on_banner: boolean
-  banner_message?: string
-  banner_cta_text?: string
+  banner_message: string | null
+  banner_cta_text: string
   generate_unique_codes: boolean
   created_at: string
-  total_submissions?: number
-  total_redeemed?: number
 }
 
 interface Submission {
@@ -147,7 +144,12 @@ export function SuperuserToolsSection({
       const res = await fetch("/api/master/promo-campaigns")
       if (res.ok) {
         const data = await res.json()
-        setCampaigns(data.campaigns || [])
+        const mappedCampaigns = (data.campaigns || []).map((campaign: any) => ({
+          ...campaign,
+          campaign_id: campaign.id, // Add campaign_id alias
+        }))
+        setCampaigns(mappedCampaigns)
+        console.log("[v0] Campaigns fetched and mapped:", mappedCampaigns)
       }
     } catch (error) {
       console.error("[v0] Error fetching campaigns:", error)
@@ -347,6 +349,8 @@ export function SuperuserToolsSection({
   }
 
   const handleDeleteCampaign = async (campaignId: string, campaignName: string) => {
+    console.log("[v0] Delete campaign called with:", { campaignId, campaignName })
+
     if (
       !confirm(
         `Are you sure you want to permanently delete the campaign "${campaignName}"?\n\nThis will:\n- Remove the campaign from the database\n- Delete all associated unique promo codes\n- Cannot be undone\n\nExisting redemptions will remain valid in Stripe.`,
@@ -356,15 +360,18 @@ export function SuperuserToolsSection({
     }
 
     try {
+      console.log("[v0] Sending DELETE request with campaign_id:", campaignId)
       const res = await fetch(`/api/master/promo-campaigns?campaign_id=${campaignId}`, {
         method: "DELETE",
       })
 
       if (res.ok) {
+        console.log("[v0] Campaign deleted successfully")
         await fetchCampaigns()
         alert(`Campaign "${campaignName}" deleted successfully.`)
       } else {
         const data = await res.json()
+        console.error("[v0] Delete failed:", data)
         alert(`Failed to delete campaign: ${data.error}`)
       }
     } catch (error) {

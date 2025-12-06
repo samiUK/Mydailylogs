@@ -2,13 +2,13 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-11-20.acacia",
-})
-
 // POST - Sync campaign with Stripe to verify coupon status
 export async function POST(request: NextRequest) {
   try {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+      apiVersion: "2024-11-20.acacia",
+    })
+
     const { searchParams } = new URL(request.url)
     const campaign_id = searchParams.get("campaign_id")
     const stripe_coupon_id = searchParams.get("stripe_coupon_id")

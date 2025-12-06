@@ -285,10 +285,23 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
     }
   }
 
+  useEffect(() => {
+    if (isOpen !== undefined) {
+      setOpen(isOpen)
+    }
+  }, [isOpen])
+
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen)
+    if (onClose) {
+      onClose(newOpen)
+    }
+  }
+
   if (!open) return null
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         {!feedbackSubmitted ? (
           <form onSubmit={handleSubmit} className="space-y-4">

@@ -9,11 +9,11 @@ import { createBrowserClient } from "@supabase/ssr"
 export function FeedbackBanner() {
   const [isVisible, setIsVisible] = useState(true)
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
-  const [activeCampaign, setActiveCampaign] = useState<{
-    promo_code: string
+  const [bannerCampaign, setBannerCampaign] = useState<{
+    banner_message: string
+    banner_cta_text: string
     discount_value: number
-    current_redemptions?: number
-    max_redemptions: number
+    discount_type: string
   } | null>(null)
 
   useEffect(() => {
@@ -40,17 +40,17 @@ export function FeedbackBanner() {
 
     initializeAuth()
 
-    const fetchActiveCampaign = async () => {
+    const fetchBannerCampaign = async () => {
       try {
-        const response = await fetch("/api/promo-campaign/active")
+        const response = await fetch("/api/promo-campaign/banner")
         const data = await response.json()
-        setActiveCampaign(data.campaign)
+        setBannerCampaign(data.campaign)
       } catch (error) {
-        console.log("[v0] Failed to fetch active campaign:", error)
+        console.log("[v0] Failed to fetch banner campaign:", error)
       }
     }
 
-    fetchActiveCampaign()
+    fetchBannerCampaign()
 
     const bannerClosed = localStorage.getItem("feedback-banner-closed")
     if (bannerClosed === "true") {
@@ -70,21 +70,27 @@ export function FeedbackBanner() {
 
   if (!showBanner || !isVisible) return null
 
-  const isCompleted =
-    activeCampaign &&
-    activeCampaign.current_redemptions &&
-    activeCampaign.current_redemptions >= activeCampaign.max_redemptions
-  const message = isCompleted
-    ? "We've just launched and you might find system bugs. Share them via feedback to help us improve!"
-    : activeCampaign
-      ? `We've just launched and you might find system bugs. Share them via feedback and tell others about us to get a ${activeCampaign.discount_value}% discount code!`
-      : "We've just launched and you might find system bugs. Share them via feedback to help us improve!"
+  const defaultMessage =
+    "We've just launched and you might find system bugs. Share them via feedback to help us improve!"
+
+  let displayMessage = defaultMessage
+  if (bannerCampaign?.banner_message) {
+    // Replace {discount} placeholder with actual discount value
+    displayMessage = bannerCampaign.banner_message.replace(
+      /{discount}/g,
+      bannerCampaign.discount_type === "percentage"
+        ? `${bannerCampaign.discount_value}%`
+        : `$${bannerCampaign.discount_value}`,
+    )
+  }
+
+  const ctaText = bannerCampaign?.banner_cta_text || "Give Feedback"
 
   return (
     <div className="bg-accent text-accent-foreground py-2 px-4">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm">
-          <span>{message}</span>
+          <span>{displayMessage}</span>
         </div>
         <div className="flex items-center gap-2">
           <FeedbackModal
@@ -94,7 +100,7 @@ export function FeedbackBanner() {
                 className="!text-white !bg-orange-500 hover:!bg-orange-600 !border-orange-400 hover:!border-orange-300 h-8 px-4 text-sm font-medium transition-all duration-200 hover:scale-105 hover:shadow-lg"
               >
                 <MessageSquare className="w-4 h-4 mr-2" />
-                Give Feedback
+                {ctaText}
               </Button>
             }
           />

@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
 
     const { data: campaigns, error } = await supabase
-      .from("promo_campaigns")
+      .from("promotional_campaigns")
       .select("*")
       .order("created_at", { ascending: false })
 
@@ -30,8 +30,18 @@ export async function POST(request: NextRequest) {
 
     console.log("[v0] Campaign creation request received:", body)
 
-    const { name, description, discount_type, discount_value, max_redemptions, requirement_type, promo_code_template } =
-      body
+    const {
+      name,
+      description,
+      discount_type,
+      discount_value,
+      max_redemptions,
+      requirement_type,
+      promo_code_template,
+      show_on_banner = false,
+      banner_message = null,
+      banner_cta_text = "Give Feedback",
+    } = body
 
     // Validate required fields
     if (!name || !discount_type || !discount_value || !max_redemptions || !requirement_type || !promo_code_template) {
@@ -49,6 +59,15 @@ export async function POST(request: NextRequest) {
     if (!/^[A-Z0-9]+$/.test(promo_code_template)) {
       console.error("[v0] Invalid promo code format:", promo_code_template)
       return NextResponse.json({ error: "Promo code must be uppercase alphanumeric (e.g., SOCIAL20)" }, { status: 400 })
+    }
+
+    if (show_on_banner) {
+      console.log("[v0] Disabling banner display on all other campaigns")
+      await supabase
+        .from("promotional_campaigns")
+        .update({ show_on_banner: false })
+        .eq("is_active", true)
+        .eq("show_on_banner", true)
     }
 
     console.log("[v0] Creating promo campaign with Stripe integration:", {
@@ -73,6 +92,9 @@ export async function POST(request: NextRequest) {
         promo_code_template,
         stripe_coupon_id: stripeCoupon.id,
         is_active: true,
+        show_on_banner,
+        banner_message,
+        banner_cta_text,
       })
       .select()
       .single()
@@ -97,6 +119,7 @@ export async function POST(request: NextRequest) {
       campaign_id: campaign.id,
       stripe_coupon_id: stripeCoupon.id,
       unique_codes_generated: codeGenResult.generated,
+      show_on_banner,
     })
 
     return NextResponse.json({
@@ -108,7 +131,7 @@ export async function POST(request: NextRequest) {
         generated: codeGenResult.generated,
         total: max_redemptions,
       },
-      message: `Promo campaign created successfully! ${codeGenResult.generated} unique codes generated and ready to be issued.`,
+      message: `Promo campaign created successfully! ${codeGenResult.generated} unique codes generated and ready to be issued.${show_on_banner ? " Campaign is now showing on the homepage banner." : ""}`,
     })
   } catch (error: any) {
     console.error("[v0] Error creating promo campaign:", error)
@@ -138,15 +161,15 @@ export async function PATCH(request: NextRequest) {
 
     const { data: existingCampaign, error: fetchError } = await supabase
       .from("promotional_campaigns")
-      .select("stripe_promo_code_id")
+      .select("stripe_promotion_code_id")
       .eq("id", campaign_id)
       .single()
 
     if (fetchError) throw fetchError
 
-    if (!is_active && existingCampaign?.stripe_promo_code_id) {
+    if (!is_active && existingCampaign?.stripe_promotion_code_id) {
       try {
-        await deactivateStripePromotionCode(existingCampaign.stripe_promo_code_id)
+        await deactivateStripePromotionCode(existingCampaign.stripe_promotion_code_id)
         console.log("[v0] Deactivated Stripe promotion code for campaign:", campaign_id)
       } catch (stripeError: any) {
         console.error("[v0] Error deactivating Stripe promotion code:", stripeError)

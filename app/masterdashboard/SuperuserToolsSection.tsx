@@ -38,6 +38,9 @@ interface Campaign {
   total_submissions?: number
   total_redeemed?: number
   promo_code_template?: string
+  show_on_banner?: boolean
+  banner_message?: string
+  banner_cta_text?: string
 }
 
 interface Submission {
@@ -97,6 +100,9 @@ export function SuperuserToolsSection({
     requirement_type: "feedback_and_share",
     requirement_details: "Submit feedback and share on social media",
     promo_code_template: "", // Added universal promo code field
+    show_on_banner: false,
+    banner_message: "",
+    banner_cta_text: "Give Feedback",
   })
 
   const fetchAuditLogs = async () => {
@@ -181,6 +187,18 @@ export function SuperuserToolsSection({
     try {
       console.log("[v0] Creating campaign with data:", newCampaign)
 
+      if (newCampaign.show_on_banner) {
+        const existingBannerCampaign = campaigns.find((c) => c.is_active && c.show_on_banner)
+        if (existingBannerCampaign) {
+          const confirmSwitch = confirm(
+            `Campaign "${existingBannerCampaign.name}" is currently showing on the banner. Do you want to switch to the new campaign?`,
+          )
+          if (!confirmSwitch) {
+            return
+          }
+        }
+      }
+
       const res = await fetch("/api/master/promo-campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -203,6 +221,9 @@ export function SuperuserToolsSection({
           requirement_type: "feedback_and_share",
           requirement_details: "Submit feedback and share on social media",
           promo_code_template: "",
+          show_on_banner: false,
+          banner_message: "",
+          banner_cta_text: "Give Feedback",
         })
         alert(`Campaign created successfully! ${data.uniqueCodes?.generated || 0} unique codes generated.`)
       } else {
@@ -460,6 +481,54 @@ export function SuperuserToolsSection({
                   Enter a unique promo code (alphanumeric, uppercase). The system will automatically create the Stripe
                   coupon and promotion code for you.
                 </p>
+              </div>
+
+              {/* Banner Promotion Section */}
+              <div className="border-t pt-4 space-y-4">
+                <h4 className="text-sm font-semibold text-purple-900">Banner Promotion (Optional)</h4>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="show_on_banner"
+                    checked={newCampaign.show_on_banner}
+                    onChange={(e) => setNewCampaign({ ...newCampaign, show_on_banner: e.target.checked })}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <Label htmlFor="show_on_banner" className="cursor-pointer">
+                    Show on Homepage Banner
+                  </Label>
+                </div>
+
+                {newCampaign.show_on_banner && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Banner Message</Label>
+                      <Textarea
+                        placeholder="We've just launched! Share feedback and tell others to get {discount} off your first month!"
+                        value={newCampaign.banner_message}
+                        onChange={(e) => setNewCampaign({ ...newCampaign, banner_message: e.target.value })}
+                        rows={3}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Use {"{discount}"} placeholder to automatically show the discount value. Leave empty to use
+                        default message.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Call-to-Action Button Text</Label>
+                      <Input
+                        placeholder="Give Feedback"
+                        value={newCampaign.banner_cta_text}
+                        onChange={(e) => setNewCampaign({ ...newCampaign, banner_cta_text: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Customize the button text (default: "Give Feedback")
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="flex gap-2">

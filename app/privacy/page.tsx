@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 }
 
 export default function PrivacyPage() {
-  const lastUpdated = "29 November 2024"
+  const lastUpdated = "6 December 2024"
 
   return (
     <div className="min-h-screen bg-white">
@@ -113,6 +113,10 @@ export default function PrivacyPage() {
               <li>
                 <strong>Billing Information:</strong> Payment details (processed securely by Stripe)
               </li>
+              <li>
+                <strong>Promotional Campaign Data:</strong> Feedback submissions, social media sharing activity,
+                promotional code usage, and participation in marketing campaigns
+              </li>
             </ul>
 
             <h3>3.2 Information Collected Automatically</h3>
@@ -162,6 +166,10 @@ export default function PrivacyPage() {
                 <strong>Customer Support:</strong> To provide technical assistance, troubleshoot issues, and respond to
                 support requests
               </li>
+              <li>
+                <strong>Marketing Campaigns:</strong> To administer promotional campaigns, validate eligibility, prevent
+                fraud, issue promotional codes, track redemptions, and analyze campaign effectiveness
+              </li>
             </ul>
           </section>
 
@@ -204,13 +212,21 @@ export default function PrivacyPage() {
               </li>
             </ul>
 
-            <h3>6.2 Legal Requirements</h3>
+            <h3>6.2 Promotional Campaign Participation</h3>
+            <p>
+              When you participate in promotional campaigns, we may collect and use your email address, feedback
+              submissions, social media sharing activity, and promotional code redemption data. This information is used
+              solely to administer the campaign, prevent fraud, and analyze campaign performance. We do not share this
+              information with third parties except as required by law.
+            </p>
+
+            <h3>6.3 Legal Requirements</h3>
             <p>
               We may disclose your information if required by law, court order, or legal process, or to protect our
               rights and safety.
             </p>
 
-            <h3>6.3 Business Transfers</h3>
+            <h3>6.4 Business Transfers</h3>
             <p>
               If we are involved in a merger, acquisition, or sale of assets, your information may be transferred as
               part of that transaction.
@@ -364,6 +380,11 @@ export default function PrivacyPage() {
               We use cookies and similar technologies to improve your experience. Essential cookies are necessary for
               the Service to function. You can control non-essential cookies through our cookie banner and browser
               settings. For more information, see our Cookie Policy.
+            </p>
+            <p>
+              For promotional campaigns, we use cookies and similar tracking technologies to prevent fraud, track
+              campaign participation, and ensure fair redemption of promotional offers. This includes IP address
+              logging, browser fingerprinting, and user agent tracking to detect duplicate submissions and abuse.
             </p>
           </section>
 

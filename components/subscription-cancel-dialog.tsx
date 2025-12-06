@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { AlertTriangle, Calendar, Clock, Users, X, FileText, UserCog } from "lucide-react"
+import { AlertTriangle, Calendar, Clock, Users, X, FileText } from "lucide-react"
 import { useState } from "react"
 
 interface SubscriptionCancelDialogProps {
@@ -142,110 +142,51 @@ export function SubscriptionCancelDialog({
                 By cancelling your {planName} plan, you'll lose access to:
               </p>
               <div className="space-y-3 pl-1">
-                {/* Custom Branding Loss */}
+                {/* Custom branding */}
                 <div className="flex items-start gap-3">
                   <X className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                   <span className="text-sm">
-                    <span className="font-semibold">Custom branding & white-label experience</span> → Your logo, brand
-                    colors, and branded login will be{" "}
-                    <span className="font-semibold text-red-600">immediately removed</span> and reverted to MyDayLogs
-                    default branding
+                    <span className="font-semibold">Custom branding</span> → Logo, brand colors, and branded dashboard
+                    will be <span className="font-semibold text-red-600">immediately removed</span>
                   </span>
                 </div>
 
-                {/* Templates */}
+                {/* Templates & Team Limits */}
                 {currentPlanFeatures && (
-                  <>
-                    <div className="flex items-start gap-3">
-                      <FileText className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm">
-                        <span className="font-semibold">{currentPlanFeatures.maxTemplates} custom templates</span> →
-                        Only your{" "}
-                        <span className="font-semibold" style={{ color: "var(--brand-primary)" }}>
-                          first 3 templates will remain
-                        </span>{" "}
-                        (others will be archived)
-                      </span>
-                    </div>
-
-                    {/* Team Members */}
-                    <div className="flex items-start gap-3">
-                      <Users className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm">
-                        <span className="font-semibold">{currentPlanFeatures.maxTeamMembers} team members</span> → Only
-                        your{" "}
-                        <span className="font-semibold" style={{ color: "var(--brand-primary)" }}>
-                          first 5 team members will remain
-                        </span>
-                        {isScalePlan && !isTrial && (
-                          <span className="text-red-600 font-semibold">
-                            {" "}
-                            (you must remove {(currentPlanFeatures.maxTeamMembers || 0) - 5} members before{" "}
-                            {cancellationDate})
-                          </span>
-                        )}
-                      </span>
-                    </div>
-
-                    {/* Managers */}
-                    <div className="flex items-start gap-3">
-                      <UserCog className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm">
-                        <span className="font-semibold">{currentPlanFeatures.maxAdmins} managers</span> with admin-level
-                        access → Only{" "}
-                        <span className="font-semibold" style={{ color: "var(--brand-primary)" }}>
-                          1 admin will remain
-                        </span>
-                        {isScalePlan && !isTrial && (
-                          <span className="text-red-600 font-semibold">
-                            {" "}
-                            (you must remove {(currentPlanFeatures.maxAdmins || 0) - 1} managers before{" "}
-                            {cancellationDate})
-                          </span>
-                        )}
-                      </span>
-                    </div>
-
-                    {/* Reports */}
-                    <div className="flex items-start gap-3">
-                      <X className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm">
-                        <span className="font-semibold">Unlimited report submissions</span> → Limited to{" "}
-                        <span className="font-semibold text-orange-600">50 reports per month</span>, and only your{" "}
-                        <span className="font-semibold" style={{ color: "var(--brand-primary)" }}>
-                          last 50 reports will remain
-                        </span>
-                      </span>
-                    </div>
-
-                    {/* Premium Features */}
-                    <div className="flex items-start gap-3">
-                      <X className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm">
-                        <span className="font-semibold">Premium features:</span> Task automation, contractor link
-                        sharing, photo uploads, email notifications, and priority support
-                      </span>
-                    </div>
-
-                    {/* Report Retention */}
-                    <div className="flex items-start gap-3">
-                      <X className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm">
-                        <span className="font-semibold">Report retention reduced</span> from 90 days to{" "}
-                        <span className="font-semibold text-orange-600">30 days only</span>
-                      </span>
-                    </div>
-
-                    {/* Dashboard Experience */}
-                    <div className="flex items-start gap-3">
-                      <X className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm">
-                        <span className="font-semibold">Branded dashboard experience</span> → Background colors and UI
-                        accents will revert to MyDayLogs default theme
-                      </span>
-                    </div>
-                  </>
+                  <div className="flex items-start gap-3">
+                    <Users className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                    <span className="text-sm">
+                      <span className="font-semibold">Account limits reduced</span> → Only{" "}
+                      <span className="font-semibold" style={{ color: "var(--brand-primary)" }}>
+                        3 templates, 5 team members, and 1 admin
+                      </span>{" "}
+                      will remain (currently: {currentPlanFeatures.maxTemplates} templates,{" "}
+                      {currentPlanFeatures.maxTeamMembers} members, {currentPlanFeatures.maxAdmins} managers)
+                    </span>
+                  </div>
                 )}
+
+                {/* Reports & Retention */}
+                {currentPlanFeatures && (
+                  <div className="flex items-start gap-3">
+                    <FileText className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                    <span className="text-sm">
+                      <span className="font-semibold">Report restrictions</span> → Limited to{" "}
+                      <span className="font-semibold text-orange-600">50 reports/month</span>, only last 50 reports
+                      retained, and <span className="font-semibold text-orange-600">30-day retention</span> (down from
+                      90 days)
+                    </span>
+                  </div>
+                )}
+
+                {/* Premium Features */}
+                <div className="flex items-start gap-3">
+                  <X className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  <span className="text-sm">
+                    <span className="font-semibold">Premium features</span> → Task automation, contractor links, photo
+                    uploads, email notifications, and priority support
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -261,8 +202,7 @@ export function SubscriptionCancelDialog({
                   <>
                     <span className="font-semibold text-foreground">If you cancel now:</span> Your {planName}{" "}
                     subscription will remain active until <span className="font-semibold">{cancellationDate}</span>. You
-                    can reactivate anytime before this date to keep your plan. After that, you'll be downgraded to the
-                    free Starter plan.
+                    can reactivate anytime before this date to keep your plan.
                   </>
                 )}
               </p>
@@ -270,17 +210,10 @@ export function SubscriptionCancelDialog({
 
             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mt-4">
               <p className="text-sm text-emerald-800">
-                {isTrial ? (
-                  <>
-                    <span className="font-semibold">Changed your mind?</span> After cancellation, you can upgrade again
-                    anytime from the billing page.
-                  </>
-                ) : (
-                  <>
-                    <span className="font-semibold">Changed your mind?</span> You can reactivate your subscription
-                    anytime before {cancellationDate} to keep your current plan and avoid losing access.
-                  </>
-                )}
+                <span className="font-semibold">Changed your mind?</span>{" "}
+                {isTrial
+                  ? "After cancellation, you can upgrade again anytime from the billing page."
+                  : `You can reactivate your subscription anytime before ${cancellationDate} to keep your current plan.`}
               </p>
             </div>
 

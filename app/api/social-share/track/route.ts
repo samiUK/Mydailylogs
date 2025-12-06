@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
+    const adminSupabase = createAdminClient()
 
-    // Get user info
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -13,13 +14,13 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { platform, promoCode, campaignId, feedbackId } = body
 
-    // Validate platform
+    console.log("[v0] Social share tracking request:", { platform, promoCode, campaignId, feedbackId })
+
     const validPlatforms = ["facebook", "twitter", "linkedin", "other"]
     if (!platform || !validPlatforms.includes(platform)) {
       return NextResponse.json({ error: "Invalid share platform" }, { status: 400 })
     }
 
-    // Get user email and organization
     let userEmail = user?.email || "Anonymous"
     let organizationId = null
 
@@ -36,27 +37,31 @@ export async function POST(request: Request) {
       }
     }
 
-    // Get IP and user agent for tracking
     const forwardedFor = request.headers.get("x-forwarded-for")
     const ipAddress = forwardedFor ? forwardedFor.split(",")[0] : null
     const userAgent = request.headers.get("user-agent")
 
-    // Insert social share tracking
-    const { error: insertError } = await supabase.from("social_shares").insert({
-      user_id: user?.id || null,
-      user_email: userEmail,
-      organization_id: organizationId,
-      feedback_id: feedbackId || null,
-      share_platform: platform,
-      promo_code: promoCode || null,
-      campaign_id: campaignId || null,
-      ip_address: ipAddress,
-      user_agent: userAgent,
-    })
+    const { error: insertError, data: insertedData } = await adminSupabase
+      .from("social_shares")
+      .insert({
+        user_id: user?.id || null,
+        user_email: userEmail,
+        organization_id: organizationId,
+        feedback_id: feedbackId || null,
+        share_platform: platform,
+        promo_code: promoCode || null,
+        campaign_id: campaignId || null,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        shared_at: new Date().toISOString(),
+      })
+      .select()
+
+    console.log("[v0] Social share insert result:", { error: insertError, data: insertedData })
 
     if (insertError) {
       console.error("[v0] Error tracking social share:", insertError)
-      // Don't fail the request if tracking fails
+      return NextResponse.json({ error: insertError.message }, { status: 500 })
     }
 
     return NextResponse.json({

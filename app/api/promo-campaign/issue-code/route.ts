@@ -1,61 +1,60 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { issueCodeToUser } from "@/lib/unique-code-generator"
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = createAdminClient()
 
-    // Get user session
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
+    const { campaignId, feedbackId, socialSharePlatform, userEmail } = await request.json()
 
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    console.log("[v0] Issue code request:", { campaignId, feedbackId, socialSharePlatform, userEmail })
 
-    const { campaignId, feedbackId, socialSharePlatform } = await request.json()
-
-    if (!campaignId || !feedbackId || !socialSharePlatform) {
+    if (!campaignId || !feedbackId || !socialSharePlatform || !userEmail) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // Verify user completed both feedback and social share
-    const { data: feedback } = await supabase
+    const { data: feedback, error: feedbackError } = await supabase
       .from("feedback")
-      .select("id")
+      .select("id, email")
       .eq("id", feedbackId)
-      .eq("user_id", user.id)
       .single()
 
-    if (!feedback) {
+    console.log("[v0] Feedback lookup:", { feedback, feedbackError })
+
+    if (feedbackError || !feedback) {
       return NextResponse.json({ error: "Feedback not found" }, { status: 404 })
     }
 
-    const { data: share } = await supabase
+    const { data: share, error: shareError } = await supabase
       .from("social_shares")
       .select("id")
       .eq("feedback_id", feedbackId)
-      .eq("platform", socialSharePlatform)
+      .eq("share_platform", socialSharePlatform)
       .single()
 
-    if (!share) {
+    console.log("[v0] Share lookup:", { share, shareError })
+
+    if (shareError || !share) {
       return NextResponse.json({ error: "Social share not completed" }, { status: 400 })
     }
 
-    // Issue unique code to user
-    const result = await issueCodeToUser(campaignId, user.email!)
+    const result = await issueCodeToUser(campaignId, userEmail)
+
+    console.log("[v0] Issue code result:", result)
 
     if (!result.success) {
       return NextResponse.json({ error: result.error || "Failed to issue code" }, { status: 400 })
     }
 
-    // Update social share with issued code
-    await supabase.from("social_shares").update({ unique_promo_code: result.code }).eq("id", share.id)
+    const { error: updateError } = await supabase
+      .from("social_shares")
+      .update({ promo_code: result.code })
+      .eq("id", share.id)
 
-    // No sendPromoCodeEmail call - users must copy from modal
+    if (updateError) {
+      console.error("[v0] Failed to update social share:", updateError)
+    }
 
     return NextResponse.json({
       success: true,

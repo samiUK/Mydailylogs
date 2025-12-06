@@ -237,6 +237,44 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
 
   const trackSocialShare = async (platform: string) => {
     try {
+      console.log("[v0] Tracking social share:", platform)
+
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user?.email) {
+        console.error("[v0] No user email found")
+        return
+      }
+
+      // Construct share URLs for each platform
+      const shareMessage = activeCampaign
+        ? `I'm using MyDayLogs to streamline my work! ${activeCampaign.discount_value}% off for new users - submit feedback to get your code!`
+        : "I'm using MyDayLogs to streamline my work! Check it out!"
+
+      const shareUrl = typeof window !== "undefined" ? window.location.origin : "https://mydaylogs.co.uk"
+
+      let platformUrl = ""
+
+      switch (platform) {
+        case "facebook":
+          platformUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(shareMessage)}`
+          break
+        case "twitter":
+          platformUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareMessage)}&url=${encodeURIComponent(shareUrl)}`
+          break
+        case "linkedin":
+          platformUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`
+          break
+      }
+
+      // Open social platform in new tab
+      if (platformUrl) {
+        window.open(platformUrl, "_blank", "noopener,noreferrer")
+      }
+
       // Track the share
       const shareResponse = await fetch("/api/social-share/track", {
         method: "POST",
@@ -251,13 +289,16 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
         }),
       })
 
+      console.log("[v0] Share tracking response:", shareResponse.status)
+
       if (!shareResponse.ok) {
         throw new Error("Failed to track share")
       }
 
-      // Issue unique promo code to user
       if (activeCampaign?.id && feedbackId) {
         setIsIssuingCode(true)
+        console.log("[v0] Issuing code for campaign:", activeCampaign.id)
+
         const codeResponse = await fetch("/api/promo-campaign/issue-code", {
           method: "POST",
           headers: {
@@ -267,12 +308,19 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
             campaignId: activeCampaign.id,
             feedbackId,
             socialSharePlatform: platform,
+            userEmail: user.email,
           }),
         })
 
+        console.log("[v0] Code issuance response:", codeResponse.status)
+
         if (codeResponse.ok) {
           const { promoCode } = await codeResponse.json()
+          console.log("[v0] Promo code issued:", promoCode)
           setIssuedPromoCode(promoCode)
+        } else {
+          const errorData = await codeResponse.json()
+          console.error("[v0] Failed to issue code:", errorData)
         }
         setIsIssuingCode(false)
       }

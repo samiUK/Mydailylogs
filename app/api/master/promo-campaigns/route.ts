@@ -199,6 +199,71 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// PUT - Update promo campaign details
+export async function PUT(request: NextRequest) {
+  try {
+    const adminClient = createAdminClient()
+    const body = await request.json()
+
+    const {
+      campaign_id,
+      name,
+      description,
+      discount_value,
+      max_redemptions,
+      requirement_type,
+      show_on_banner,
+      banner_message,
+      banner_cta_text,
+    } = body
+
+    if (!campaign_id) {
+      return NextResponse.json({ error: "Missing campaign_id" }, { status: 400 })
+    }
+
+    console.log("[v0] Updating campaign:", campaign_id)
+
+    // If enabling banner on this campaign, disable it on others
+    if (show_on_banner) {
+      console.log("[v0] Disabling banner display on all other campaigns")
+      await adminClient
+        .from("promotional_campaigns")
+        .update({ show_on_banner: false })
+        .neq("id", campaign_id)
+        .eq("show_on_banner", true)
+    }
+
+    const updateData: any = {}
+    if (name !== undefined) updateData.name = name
+    if (description !== undefined) updateData.description = description
+    if (discount_value !== undefined) updateData.discount_value = discount_value
+    if (max_redemptions !== undefined) updateData.max_redemptions = max_redemptions
+    if (requirement_type !== undefined) updateData.requirement_type = requirement_type
+    if (show_on_banner !== undefined) updateData.show_on_banner = show_on_banner
+    if (banner_message !== undefined) updateData.banner_message = banner_message
+    if (banner_cta_text !== undefined) updateData.banner_cta_text = banner_cta_text
+
+    const { data: campaign, error } = await adminClient
+      .from("promotional_campaigns")
+      .update(updateData)
+      .eq("id", campaign_id)
+      .select()
+      .single()
+
+    if (error) throw error
+
+    console.log("[v0] Campaign updated successfully:", campaign.name)
+
+    return NextResponse.json({
+      campaign,
+      message: "Campaign updated successfully",
+    })
+  } catch (error: any) {
+    console.error("[v0] Error updating promo campaign:", error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
 // PATCH - Update promo campaign (activate/deactivate)
 export async function PATCH(request: NextRequest) {
   try {

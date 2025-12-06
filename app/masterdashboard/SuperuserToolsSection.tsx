@@ -4,7 +4,19 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Edit2, Trash2, RefreshCw, Gift, Users, CheckCircle2, XCircle, Plus, CreditCard } from "lucide-react"
+import {
+  Edit2,
+  Trash2,
+  RefreshCw,
+  Gift,
+  Users,
+  CheckCircle2,
+  XCircle,
+  Plus,
+  CreditCard,
+  Edit,
+  Loader2,
+} from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -89,16 +101,21 @@ export function SuperuserToolsSection({
   const [campaignSubmissions, setCampaignSubmissions] = useState<Submission[]>([])
   const [campaignRedemptions, setCampaignRedemptions] = useState<Redemption[]>([])
   const [loadingCampaigns, setLoadingCampaigns] = useState(false)
-  const [showNewCampaignForm, setShowNewCampaignForm] = useState(false)
+
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null)
+  // Rename showNewCampaignForm to showCreateForm for clarity
+  const [showCreateForm, setShowCreateForm] = useState(false)
   const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null)
   const [viewingRedemptions, setViewingRedemptions] = useState<string | null>(null)
+  const [creatingCampaign, setCreatingCampaign] = useState(false) // Add state for campaign creation loading
+
   const [newCampaign, setNewCampaign] = useState({
     name: "",
     description: "",
     discount_type: "percentage",
     discount_value: 20,
     max_redemptions: 100,
-    requirement_type: "feedback_and_share",
+    requirement_type: "feedback_and_share", // Changed default value to match the update
     requirement_details: "Submit feedback and share on social media",
     promo_code_template: "", // Added universal promo code field
     show_on_banner: false,
@@ -116,6 +133,7 @@ export function SuperuserToolsSection({
         setAuditLogs(data.logs || [])
       }
     } catch (error) {
+      console.error("[v0] Error fetching audit logs:", error)
     } finally {
       setLoadingLogs(false)
     }
@@ -166,84 +184,142 @@ export function SuperuserToolsSection({
 
   const handleAdd = async () => {
     if (!newEmail || !newPassword) return
-    await onAddSuperuser(newEmail, newPassword)
-    setNewEmail("")
-    setNewPassword("")
-    fetchAuditLogs()
+    try {
+      await onAddSuperuser(newEmail, newPassword)
+      setNewEmail("")
+      setNewPassword("")
+      fetchAuditLogs()
+    } catch (error) {
+      console.error("[v0] Error adding superuser:", error)
+      alert("Failed to add superuser. Please check console for details.")
+    }
   }
 
   const handleUpdate = async () => {
     if (!editingSuperuser || !editPassword) return
-    await onUpdateSuperuser(editingSuperuser.id, editPassword)
-    setEditingSuperuser(null)
-    setEditPassword("")
-    fetchAuditLogs()
+    try {
+      await onUpdateSuperuser(editingSuperuser.id, editPassword)
+      setEditingSuperuser(null)
+      setEditPassword("")
+      fetchAuditLogs()
+    } catch (error) {
+      console.error("[v0] Error updating superuser:", error)
+      alert("Failed to update superuser. Please check console for details.")
+    }
   }
 
   const handleRemove = async (id: string) => {
-    await onRemoveSuperuser(id)
-    fetchAuditLogs()
+    if (!confirm("Are you sure you want to remove this superuser? This action cannot be undone.")) {
+      return
+    }
+    try {
+      await onRemoveSuperuser(id)
+      fetchAuditLogs()
+    } catch (error) {
+      console.error("[v0] Error removing superuser:", error)
+      alert("Failed to remove superuser. Please check console for details.")
+    }
+  }
+
+  const handleEditCampaign = (campaign: Campaign) => {
+    setEditingCampaign(campaign)
+    setNewCampaign({
+      name: campaign.name,
+      description: campaign.description,
+      discount_type: campaign.discount_type,
+      discount_value: campaign.discount_value,
+      max_redemptions: campaign.max_redemptions,
+      requirement_type: campaign.requirement_type,
+      promo_code_template: campaign.promo_code_template || "",
+      show_on_banner: campaign.show_on_banner || false,
+      banner_message: campaign.banner_message || "",
+      banner_cta_text: campaign.banner_cta_text || "Give Feedback",
+      generate_unique_codes: campaign.generate_unique_codes !== false, // Ensure this correctly maps to boolean
+    })
+    setShowCreateForm(true)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingCampaign(null)
+    setNewCampaign({
+      name: "",
+      description: "",
+      discount_type: "percentage",
+      discount_value: 20,
+      max_redemptions: 100,
+      requirement_type: "feedback_and_share", // Changed default to match original
+      promo_code_template: "",
+      show_on_banner: false,
+      banner_message: "",
+      banner_cta_text: "Give Feedback",
+      generate_unique_codes: true,
+    })
+    setShowCreateForm(false)
   }
 
   const handleCreateCampaign = async () => {
-    try {
-      console.log("[v0] Creating campaign with data:", newCampaign)
+    const isEditing = !!editingCampaign
 
+    try {
+      setCreatingCampaign(true)
+
+      // Validation
       if (!newCampaign.name || !newCampaign.promo_code_template) {
         alert("Please fill in campaign name and promo code")
         return
       }
 
-      if (newCampaign.show_on_banner) {
-        const existingBannerCampaign = campaigns.find((c) => c.is_active && c.show_on_banner)
-        if (existingBannerCampaign) {
-          const confirmSwitch = confirm(
-            `Campaign "${existingBannerCampaign.name}" is currently showing on the banner. Do you want to switch to the new campaign?`,
-          )
-          if (!confirmSwitch) {
-            return
-          }
-        }
+      // Regex for uppercase alphanumeric
+      if (!/^[A-Z0-9]+$/.test(newCampaign.promo_code_template)) {
+        alert("Promo code must be uppercase alphanumeric (e.g., SOCIAL20)")
+        return
       }
 
-      const res = await fetch("/api/master/promo-campaigns", {
-        method: "POST",
+      const endpoint = isEditing ? "/api/master/promo-campaigns" : "/api/master/promo-campaigns"
+      const method = isEditing ? "PUT" : "POST"
+
+      // Construct payload based on whether it's an edit or create operation
+      const payload = isEditing
+        ? {
+            campaign_id: editingCampaign.campaign_id,
+            name: newCampaign.name,
+            description: newCampaign.description,
+            discount_type: newCampaign.discount_type, // Include if editable
+            discount_value: newCampaign.discount_value,
+            max_redemptions: newCampaign.max_redemptions,
+            requirement_type: newCampaign.requirement_type,
+            show_on_banner: newCampaign.show_on_banner,
+            banner_message: newCampaign.banner_message || null, // Ensure null if empty
+            banner_cta_text: newCampaign.banner_cta_text,
+            // generate_unique_codes is likely not editable after creation, omit if so.
+            // If editable, add: generate_unique_codes: newCampaign.generate_unique_codes
+          }
+        : {
+            ...newCampaign,
+            requirement_details: newCampaign.requirement_details || "N/A", // Ensure requirement_details is present
+            // generate_unique_codes is already in newCampaign state
+          }
+
+      const res = await fetch(endpoint, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newCampaign),
+        body: JSON.stringify(payload),
       })
 
-      const data = await res.json()
-      console.log("[v0] Campaign creation response:", data)
-
       if (res.ok) {
-        console.log("[v0] Campaign created successfully:", data)
-        await fetchCampaigns()
-        setShowNewCampaignForm(false)
-        setNewCampaign({
-          name: "",
-          description: "",
-          discount_type: "percentage",
-          discount_value: 20,
-          max_redemptions: 100,
-          requirement_type: "feedback_and_share",
-          requirement_details: "Submit feedback and share on social media",
-          promo_code_template: "",
-          show_on_banner: false,
-          banner_message: "",
-          banner_cta_text: "Give Feedback",
-          generate_unique_codes: true,
-        })
-        const codeMessage = newCampaign.generate_unique_codes
-          ? `${data.uniqueCodes?.generated || 0} unique tracking codes generated.`
-          : "Generic code created - no tracking codes needed."
-        alert(`Campaign created successfully! ${codeMessage}`)
+        const data = await res.json()
+        alert(data.message || (isEditing ? "Campaign updated successfully!" : "Campaign created successfully!"))
+        handleCancelEdit() // This will reset form and exit edit mode
+        await fetchCampaigns() // Refresh the list
       } else {
-        console.error("[v0] Campaign creation failed:", data.error)
-        alert(`Failed to create campaign: ${data.error || "Unknown error"}`)
+        const data = await res.json()
+        alert(`Failed to ${isEditing ? "update" : "create"} campaign: ${data.error}`)
       }
     } catch (error) {
-      console.error("[v0] Error creating campaign:", error)
-      alert("Failed to create campaign")
+      console.error(`[v0] Error ${isEditing ? "updating" : "creating"} campaign:`, error)
+      alert(`Failed to ${isEditing ? "update" : "create"} campaign. Please try again.`)
+    } finally {
+      setCreatingCampaign(false)
     }
   }
 
@@ -257,9 +333,13 @@ export function SuperuserToolsSection({
 
       if (res.ok) {
         await fetchCampaigns()
+      } else {
+        const data = await res.json()
+        alert(`Failed to ${isActive ? "deactivate" : "activate"} campaign: ${data.error}`)
       }
     } catch (error) {
       console.error("[v0] Error toggling campaign:", error)
+      alert("Failed to toggle campaign status. Please try again.")
     }
   }
 
@@ -307,6 +387,8 @@ export function SuperuserToolsSection({
   useEffect(() => {
     if (selectedCampaign) {
       fetchCampaignSubmissions(selectedCampaign)
+    } else {
+      setCampaignSubmissions([]) // Clear submissions when no campaign is selected
     }
   }, [selectedCampaign])
 
@@ -389,7 +471,7 @@ export function SuperuserToolsSection({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowNewCampaignForm(!showNewCampaignForm)}
+              onClick={() => setShowCreateForm(!showCreateForm)} // Use showCreateForm
               className="border-purple-300 text-purple-700 hover:bg-purple-100 bg-transparent"
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -398,10 +480,15 @@ export function SuperuserToolsSection({
           </div>
         </CardHeader>
         <CardContent className="pt-6 space-y-6">
-          {/* New Campaign Form */}
-          {showNewCampaignForm && (
+          {/* Create/Edit Campaign Form */}
+          {showCreateForm ? ( // Use showCreateForm
             <div className="p-4 border border-purple-200 rounded-lg bg-white space-y-4">
-              <h3 className="text-sm font-semibold text-purple-900">Create New Campaign</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">{editingCampaign ? "Edit Campaign" : "Create New Campaign"}</h3>
+                <Button variant="ghost" size="sm" onClick={handleCancelEdit}>
+                  <XCircle className="w-4 h-4" />
+                </Button>
+              </div>
 
               <div className="space-y-2">
                 <Label>Campaign Name</Label>
@@ -498,58 +585,62 @@ export function SuperuserToolsSection({
                   onChange={(e) =>
                     setNewCampaign({ ...newCampaign, promo_code_template: e.target.value.toUpperCase() })
                   }
+                  disabled={editingCampaign !== null} // Disable if editing
                 />
                 <p className="text-xs text-muted-foreground">
-                  Enter a unique promo code (alphanumeric, uppercase). The system will automatically create the Stripe
-                  coupon and promotion code for you.
+                  {editingCampaign
+                    ? "Promo code cannot be changed after creation."
+                    : "Enter a unique promo code (alphanumeric, uppercase). The system will automatically create the Stripe coupon and promotion code for you."}
                 </p>
               </div>
 
               {/* Code Generation Mode */}
-              <div className="border-t pt-4 space-y-4">
-                <h4 className="text-sm font-semibold text-purple-900">Code Generation Mode</h4>
+              {!editingCampaign && (
+                <div className="border-t pt-4 space-y-4">
+                  <h4 className="text-sm font-semibold text-purple-900">Code Generation Mode</h4>
 
-                <div className="space-y-3">
-                  <div className="flex items-start space-x-3">
-                    <input
-                      type="radio"
-                      id="unique_codes_mode"
-                      checked={newCampaign.generate_unique_codes}
-                      onChange={() => setNewCampaign({ ...newCampaign, generate_unique_codes: true })}
-                      className="mt-1 h-4 w-4"
-                    />
-                    <div>
-                      <Label htmlFor="unique_codes_mode" className="cursor-pointer font-semibold">
-                        Tracked Codes (Recommended)
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Generates {newCampaign.max_redemptions} unique tracking codes (e.g.,{" "}
-                        {newCampaign.promo_code_template || "CODE"}-A1B2C3). Track who submitted feedback/shares.
-                        Prevents duplicate redemptions.
-                      </p>
+                  <div className="space-y-3">
+                    <div className="flex items-start space-x-3">
+                      <input
+                        type="radio"
+                        id="unique_codes_mode"
+                        checked={newCampaign.generate_unique_codes}
+                        onChange={() => setNewCampaign({ ...newCampaign, generate_unique_codes: true })}
+                        className="mt-1 h-4 w-4"
+                      />
+                      <div>
+                        <Label htmlFor="unique_codes_mode" className="cursor-pointer font-semibold">
+                          Tracked Codes (Recommended)
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Generates {newCampaign.max_redemptions} unique tracking codes (e.g.,{" "}
+                          {newCampaign.promo_code_template || "CODE"}-A1B2C3). Track who submitted feedback/shares.
+                          Prevents duplicate redemptions.
+                        </p>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-start space-x-3">
-                    <input
-                      type="radio"
-                      id="generic_code_mode"
-                      checked={!newCampaign.generate_unique_codes}
-                      onChange={() => setNewCampaign({ ...newCampaign, generate_unique_codes: false })}
-                      className="mt-1 h-4 w-4"
-                    />
-                    <div>
-                      <Label htmlFor="generic_code_mode" className="cursor-pointer font-semibold">
-                        Generic Code
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Creates only ONE universal code ({newCampaign.promo_code_template || "CODE"}). Anyone can use it
-                        directly. No feedback/share tracking. Use for public promotions.
-                      </p>
+                    <div className="flex items-start space-x-3">
+                      <input
+                        type="radio"
+                        id="generic_code_mode"
+                        checked={!newCampaign.generate_unique_codes}
+                        onChange={() => setNewCampaign({ ...newCampaign, generate_unique_codes: false })}
+                        className="mt-1 h-4 w-4"
+                      />
+                      <div>
+                        <Label htmlFor="generic_code_mode" className="cursor-pointer font-semibold">
+                          Generic Code
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Creates only ONE universal code ({newCampaign.promo_code_template || "CODE"}). Anyone can use
+                          it directly. No feedback/share tracking. Use for public promotions.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Banner Promotion Section */}
               <div className="border-t pt-4 space-y-4">
@@ -599,211 +690,234 @@ export function SuperuserToolsSection({
                 )}
               </div>
 
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setShowNewCampaignForm(false)} className="flex-1">
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-4">
+                <Button variant="outline" onClick={handleCancelEdit} disabled={creatingCampaign}>
                   Cancel
                 </Button>
-                <Button onClick={handleCreateCampaign} className="flex-1 bg-purple-600 hover:bg-purple-700">
-                  Create Campaign
+                <Button
+                  onClick={handleCreateCampaign}
+                  disabled={creatingCampaign}
+                  className="flex-1 bg-purple-600 hover:bg-purple-700"
+                >
+                  {creatingCampaign ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      {editingCampaign ? "Updating..." : "Creating Campaign..."}
+                    </>
+                  ) : (
+                    <>{editingCampaign ? "Update Campaign" : "Create Campaign"}</>
+                  )}
                 </Button>
               </div>
             </div>
-          )}
+          ) : (
+            // Active Campaigns - Rendered when showCreateForm is false
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold">Active Campaigns</h3>
+                <Button variant="ghost" size="sm" onClick={fetchCampaigns} disabled={loadingCampaigns}>
+                  <RefreshCw className={`w-4 h-4 ${loadingCampaigns ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
 
-          {/* Active Campaigns */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold">Active Campaigns</h3>
-              <Button variant="ghost" size="sm" onClick={fetchCampaigns} disabled={loadingCampaigns}>
-                <RefreshCw className={`w-4 h-4 ${loadingCampaigns ? "animate-spin" : ""}`} />
-              </Button>
-            </div>
-
-            {campaigns.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-8 border rounded-lg bg-white">
-                No campaigns yet. Create one above to get started.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {campaigns.map((campaign) => (
-                  <div
-                    key={campaign.campaign_id}
-                    className={`p-4 border rounded-lg bg-white ${
-                      campaign.is_active ? "border-purple-200" : "border-gray-200 opacity-60"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-semibold">{campaign.name}</h4>
-                          {campaign.is_active ? (
-                            <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">Active</span>
-                          ) : (
-                            <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full">Inactive</span>
-                          )}
+              {campaigns.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-8 border rounded-lg bg-white">
+                  No campaigns yet. Create one above to get started.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {campaigns.map((campaign) => (
+                    <div
+                      key={campaign.campaign_id}
+                      className={`p-4 border rounded-lg bg-white ${
+                        campaign.is_active ? "border-purple-200" : "border-gray-200 opacity-60"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-semibold">{campaign.name}</h4>
+                            {campaign.is_active ? (
+                              <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
+                                Active
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full">
+                                Inactive
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-600">{campaign.description}</p>
                         </div>
-                        <p className="text-sm text-gray-600">{campaign.description}</p>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" onClick={() => handleEditCampaign(campaign)}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggleCampaign(campaign.campaign_id, campaign.is_active)}
+                          >
+                            {campaign.is_active ? (
+                              <XCircle className="w-4 h-4" />
+                            ) : (
+                              <CheckCircle2 className="w-4 h-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteCampaign(campaign.campaign_id, campaign.name)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex gap-2">
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3 pt-3 border-t">
+                        <div>
+                          <p className="text-xs text-gray-500">Discount</p>
+                          <p className="font-semibold">
+                            {campaign.discount_type === "percentage"
+                              ? `${campaign.discount_value}%`
+                              : `$${campaign.discount_value}`}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Max Redemptions</p>
+                          <p className="font-semibold">{campaign.max_redemptions}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Submissions</p>
+                          <p className="font-semibold">{campaign.total_submissions || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Redeemed</p>
+                          <p className="font-semibold">{campaign.total_redeemed || 0}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 mt-2">
                         <Button
-                          variant="outline"
+                          variant="link"
                           size="sm"
-                          onClick={() => handleToggleCampaign(campaign.campaign_id, campaign.is_active)}
+                          onClick={() =>
+                            setSelectedCampaign(selectedCampaign === campaign.campaign_id ? null : campaign.campaign_id)
+                          }
+                          className="text-purple-600 hover:text-purple-700 p-0 h-auto"
                         >
-                          {campaign.is_active ? <XCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+                          <Users className="w-4 h-4 mr-1" />
+                          {selectedCampaign === campaign.campaign_id ? "Hide" : "View"} Submissions
                         </Button>
+                        <span className="text-gray-300">|</span>
                         <Button
-                          variant="outline"
+                          variant="link"
                           size="sm"
-                          onClick={() => handleDeleteCampaign(campaign.campaign_id, campaign.name)}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleViewRedemptions(campaign.campaign_id)}
+                          className="text-green-600 hover:text-green-700 p-0 h-auto"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <CreditCard className="w-4 h-4 mr-1" />
+                          {viewingRedemptions === campaign.campaign_id ? "Hide" : "View"} Redeemers
                         </Button>
                       </div>
-                    </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3 pt-3 border-t">
-                      <div>
-                        <p className="text-xs text-gray-500">Discount</p>
-                        <p className="font-semibold">
-                          {campaign.discount_type === "percentage"
-                            ? `${campaign.discount_value}%`
-                            : `$${campaign.discount_value}`}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Max Redemptions</p>
-                        <p className="font-semibold">{campaign.max_redemptions}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Submissions</p>
-                        <p className="font-semibold">{campaign.total_submissions || 0}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Redeemed</p>
-                        <p className="font-semibold">{campaign.total_redeemed || 0}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2 mt-2">
-                      <Button
-                        variant="link"
-                        size="sm"
-                        onClick={() =>
-                          setSelectedCampaign(selectedCampaign === campaign.campaign_id ? null : campaign.campaign_id)
-                        }
-                        className="text-purple-600 hover:text-purple-700 p-0 h-auto"
-                      >
-                        <Users className="w-4 h-4 mr-1" />
-                        {selectedCampaign === campaign.campaign_id ? "Hide" : "View"} Submissions
-                      </Button>
-                      <span className="text-gray-300">|</span>
-                      <Button
-                        variant="link"
-                        size="sm"
-                        onClick={() => handleViewRedemptions(campaign.campaign_id)}
-                        className="text-green-600 hover:text-green-700 p-0 h-auto"
-                      >
-                        <CreditCard className="w-4 h-4 mr-1" />
-                        {viewingRedemptions === campaign.campaign_id ? "Hide" : "View"} Redeemers
-                      </Button>
-                    </div>
-
-                    {/* Submissions List */}
-                    {selectedCampaign === campaign.campaign_id && (
-                      <div className="mt-3 pt-3 border-t space-y-2 max-h-64 overflow-y-auto">
-                        {campaignSubmissions.length === 0 ? (
-                          <p className="text-sm text-gray-500 text-center py-4">No submissions yet</p>
-                        ) : (
-                          campaignSubmissions.map((submission) => (
-                            <div key={submission.submission_id} className="p-2 bg-gray-50 rounded text-sm">
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium">{submission.user_email}</span>
-                                <span className="text-xs text-gray-500">#{submission.submission_rank}</span>
-                              </div>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-xs text-gray-600">Code: {submission.promo_code}</span>
-                                {submission.is_redeemed && (
-                                  <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-xs rounded">
-                                    Redeemed
-                                  </span>
+                      {/* Submissions List */}
+                      {selectedCampaign === campaign.campaign_id && (
+                        <div className="mt-3 pt-3 border-t space-y-2 max-h-64 overflow-y-auto">
+                          {campaignSubmissions.length === 0 ? (
+                            <p className="text-sm text-gray-500 text-center py-4">No submissions yet</p>
+                          ) : (
+                            campaignSubmissions.map((submission) => (
+                              <div key={submission.submission_id} className="p-2 bg-gray-50 rounded text-sm">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium">{submission.user_email}</span>
+                                  <span className="text-xs text-gray-500">#{submission.submission_rank}</span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-xs text-gray-600">Code: {submission.promo_code}</span>
+                                  {submission.is_redeemed && (
+                                    <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-xs rounded">
+                                      Redeemed
+                                    </span>
+                                  )}
+                                </div>
+                                {submission.social_share_url && (
+                                  <a
+                                    href={submission.social_share_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-purple-600 hover:underline"
+                                  >
+                                    View Share
+                                  </a>
                                 )}
                               </div>
-                              {submission.social_share_url && (
-                                <a
-                                  href={submission.social_share_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-purple-600 hover:underline"
-                                >
-                                  View Share
-                                </a>
-                              )}
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    )}
+                            ))
+                          )}
+                        </div>
+                      )}
 
-                    {viewingRedemptions === campaign.campaign_id && (
-                      <div className="mt-3 pt-3 border-t space-y-2 max-h-96 overflow-y-auto">
-                        <h5 className="text-xs font-semibold text-gray-700 uppercase mb-2">
-                          Voucher Redeemers ({campaignRedemptions.length})
-                        </h5>
-                        {campaignRedemptions.length === 0 ? (
-                          <p className="text-sm text-gray-500 text-center py-4">No redemptions yet</p>
-                        ) : (
-                          <div className="space-y-2">
-                            {campaignRedemptions.map((redemption) => (
-                              <div
-                                key={redemption.id}
-                                className="p-3 bg-green-50 border border-green-200 rounded text-sm"
-                              >
-                                <div className="flex items-start justify-between">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="font-semibold text-green-900">{redemption.user_email}</span>
-                                      <span className="px-1.5 py-0.5 bg-green-600 text-white text-xs rounded">
-                                        Redeemed
-                                      </span>
-                                    </div>
-                                    <div className="text-xs text-gray-600 space-y-1">
-                                      <p>
-                                        <span className="font-medium">Organization:</span>{" "}
-                                        {redemption.organization_name}
-                                      </p>
-                                      <p>
-                                        <span className="font-medium">Plan:</span> {redemption.plan_name}
-                                      </p>
-                                      <p>
-                                        <span className="font-medium">Discount:</span> $
-                                        {redemption.discount_amount.toFixed(2)}
-                                      </p>
-                                      <p>
-                                        <span className="font-medium">Code:</span> {redemption.promo_code}
-                                      </p>
-                                      <p>
-                                        <span className="font-medium">Date:</span>{" "}
-                                        {new Date(redemption.redeemed_at).toLocaleString()}
-                                      </p>
-                                      <p className="text-xs text-gray-500">
-                                        IP: {redemption.ip_address} | Customer: {redemption.stripe_customer_id}
-                                      </p>
+                      {viewingRedemptions === campaign.campaign_id && (
+                        <div className="mt-3 pt-3 border-t space-y-2 max-h-96 overflow-y-auto">
+                          <h5 className="text-xs font-semibold text-gray-700 uppercase mb-2">
+                            Voucher Redeemers ({campaignRedemptions.length})
+                          </h5>
+                          {campaignRedemptions.length === 0 ? (
+                            <p className="text-sm text-gray-500 text-center py-4">No redemptions yet</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {campaignRedemptions.map((redemption) => (
+                                <div
+                                  key={redemption.id}
+                                  className="p-3 bg-green-50 border border-green-200 rounded text-sm"
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="font-semibold text-green-900">{redemption.user_email}</span>
+                                        <span className="px-1.5 py-0.5 bg-green-600 text-white text-xs rounded">
+                                          Redeemed
+                                        </span>
+                                      </div>
+                                      <div className="text-xs text-gray-600 space-y-1">
+                                        <p>
+                                          <span className="font-medium">Organization:</span>{" "}
+                                          {redemption.organization_name}
+                                        </p>
+                                        <p>
+                                          <span className="font-medium">Plan:</span> {redemption.plan_name}
+                                        </p>
+                                        <p>
+                                          <span className="font-medium">Discount:</span> $
+                                          {redemption.discount_amount.toFixed(2)}
+                                        </p>
+                                        <p>
+                                          <span className="font-medium">Code:</span> {redemption.promo_code}
+                                        </p>
+                                        <p>
+                                          <span className="font-medium">Date:</span>{" "}
+                                          {new Date(redemption.redeemed_at).toLocaleString()}
+                                        </p>
+                                        <p className="text-xs text-gray-500">
+                                          IP: {redemption.ip_address} | Customer: {redemption.stripe_customer_id}
+                                        </p>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -843,7 +957,9 @@ export function SuperuserToolsSection({
                               ? "bg-green-100 text-green-700"
                               : log.action === "remove"
                                 ? "bg-red-100 text-red-700"
-                                : "bg-emerald-100 text-emerald-700"
+                                : log.action === "update"
+                                  ? "bg-blue-100 text-blue-700" // Added for update action
+                                  : "bg-emerald-100 text-emerald-700"
                           }`}
                         >
                           {log.action.toUpperCase()}
@@ -865,7 +981,7 @@ export function SuperuserToolsSection({
         </CardContent>
       </Card>
 
-      {/* Edit Modal */}
+      {/* Edit Modal for Superuser Password */}
       {editingSuperuser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">

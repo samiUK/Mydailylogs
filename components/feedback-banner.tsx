@@ -1,18 +1,17 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { MessageSquare, X } from "lucide-react"
+import { MessageSquare } from "lucide-react"
 import { FeedbackModal } from "@/components/feedback-modal"
 import { createBrowserClient } from "@supabase/ssr"
 
 export function FeedbackBanner() {
-  const [isVisible, setIsVisible] = useState(true)
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
   const [bannerData, setBannerData] = useState<{
     campaign: any
     bannerType: "classic" | "auto-promo" | "custom"
   } | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -49,24 +48,7 @@ export function FeedbackBanner() {
     }
 
     fetchBannerData()
-
-    const bannerClosed = localStorage.getItem("feedback-banner-closed")
-    if (bannerClosed === "true") {
-      setIsVisible(false)
-    }
   }, [])
-
-  const deploymentDate = new Date("2024-12-24")
-  const currentDate = new Date()
-  const daysSinceDeployment = Math.floor((currentDate.getTime() - deploymentDate.getTime()) / (1000 * 60 * 60 * 24))
-  const showBanner = daysSinceDeployment <= 90
-
-  const handleClose = () => {
-    setIsVisible(false)
-    localStorage.setItem("feedback-banner-closed", "true")
-  }
-
-  if (!showBanner || !isVisible) return null
 
   let displayMessage = ""
   let ctaText = "Give Feedback"
@@ -82,7 +64,7 @@ export function FeedbackBanner() {
         ? `${bannerData.campaign.discount_value}%`
         : `$${bannerData.campaign.discount_value}`
     displayMessage = `We've just launched and you might find system bugs. Share them via feedback and tell others about us to get a ${discountDisplay} discount code!`
-    ctaText = `Get ${discountDisplay} Off`
+    ctaText = "Give Feedback"
   } else if (bannerData.bannerType === "custom") {
     // Type 3: Custom dynamic - campaign active, toggle ON
     const discountDisplay =
@@ -94,33 +76,23 @@ export function FeedbackBanner() {
   }
 
   return (
-    <div className="bg-accent text-accent-foreground py-2 px-4">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm">
-          <span>{displayMessage}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <FeedbackModal
-            trigger={
-              <Button
-                size="sm"
-                className="!text-white !bg-orange-500 hover:!bg-orange-600 !border-orange-400 hover:!border-orange-300 h-8 px-4 text-sm font-medium transition-all duration-200 hover:scale-105 hover:shadow-lg"
-              >
-                <MessageSquare className="w-4 h-4 mr-2" />
-                {ctaText}
-              </Button>
-            }
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleClose}
-            className="text-accent-foreground hover:bg-accent-foreground/20 h-8 w-8 p-0"
+    <>
+      <div className="bg-emerald-600 text-white py-2 px-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-sm flex-1">
+            <MessageSquare className="w-4 h-4 flex-shrink-0" />
+            <span>{displayMessage}</span>
+          </div>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-2"
           >
-            <X className="w-4 h-4" />
-          </Button>
+            <MessageSquare className="w-4 h-4" />
+            {ctaText}
+          </button>
         </div>
       </div>
-    </div>
+      <FeedbackModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+    </>
   )
 }

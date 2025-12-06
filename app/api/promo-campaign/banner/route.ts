@@ -6,6 +6,8 @@ export async function GET() {
   try {
     const supabase = await createClient()
 
+    console.log("[v0] Fetching active campaigns for banner...")
+
     const { data: activeCampaign, error: activeError } = await supabase
       .from("promotional_campaigns")
       .select("*")
@@ -14,10 +16,15 @@ export async function GET() {
       .limit(1)
       .single()
 
+    console.log("[v0] Active campaign query result:", { activeCampaign, activeError })
+
     // Type 1: No active campaign - return null for classic default
     if (activeError || !activeCampaign) {
+      console.log("[v0] No active campaign found, returning classic banner")
       return NextResponse.json({ campaign: null, bannerType: "classic" })
     }
+
+    console.log("[v0] Active campaign found:", activeCampaign.name)
 
     // Count current redemptions
     const { count: redemptionCount, error: countError } = await supabase

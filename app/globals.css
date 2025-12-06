@@ -4,9 +4,11 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(1 0 0);
+  /* Changed from pure white to very light emerald green background */
+  --background: oklch(0.98 0.01 166); /* Very light emerald background */
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
+  /* Changed card background to match light green theme */
+  --card: oklch(0.99 0.005 166); /* Slightly lighter than background for cards */
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);

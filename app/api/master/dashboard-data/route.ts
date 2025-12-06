@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       `,
       )
       .order("created_at", { ascending: false })
-      .limit(100)
+      .limit(500)
 
     if (orgError) throw orgError
 
@@ -60,6 +60,30 @@ export async function GET(request: NextRequest) {
     organizations?.forEach((org: any) => {
       orgNameMap.set(org.organization_id, org.organization_name)
     })
+
+    console.log(`[v0] Total organizations fetched: ${organizations?.length || 0}`)
+    const arsamiOrg = organizations?.find((org: any) => {
+      const email = orgAdminEmailMap.get(org.organization_id)
+      return email === "arsami.uk@gmail.com"
+    })
+    if (arsamiOrg) {
+      console.log("[v0] arsami.uk@gmail.com organization found:", {
+        organization_id: arsamiOrg.organization_id,
+        organization_name: arsamiOrg.organization_name,
+        subscription: arsamiOrg.subscriptions?.[0],
+      })
+    } else {
+      console.log("[v0] WARNING: arsami.uk@gmail.com organization NOT FOUND in results!")
+      // Check if it exists at all in DB
+      const { data: arsamiCheck } = await supabase
+        .from("profiles")
+        .select("organization_id, organization_name")
+        .eq("email", "arsami.uk@gmail.com")
+        .single()
+      if (arsamiCheck) {
+        console.log("[v0] arsami organization EXISTS in DB:", arsamiCheck)
+      }
+    }
 
     const { data: subscriptions, error: subError } = await supabase
       .from("subscriptions")
@@ -81,7 +105,7 @@ export async function GET(request: NextRequest) {
       `,
       )
       .order("created_at", { ascending: false })
-      .limit(100)
+      .limit(500)
 
     if (subError) throw subError
 

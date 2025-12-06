@@ -6,6 +6,7 @@ import { sendEmail, emailTemplates } from "@/lib/email/smtp"
 import { handleSubscriptionDowngrade } from "@/lib/subscription-limits"
 import { logSubscriptionActivity } from "@/lib/subscription-activity-logger"
 import { calculateStripeFees } from "@/lib/stripe-fee-calculator"
+import { trackPromoRedemption } from "@/lib/anti-fraud"
 
 const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -176,6 +177,38 @@ export async function POST(req: NextRequest) {
             console.error("[v0] Error resetting submission quota:", resetError)
           } else {
             console.log("[v0] Reset submission quota for organization:", organizationId)
+          }
+        }
+
+        if (session.total_details?.amount_discount && session.total_details.amount_discount > 0) {
+          try {
+            // Retrieve the checkout session to get promo code details
+            const fullSession = await stripe.checkout.sessions.retrieve(session.id, {
+              expand: ["total_details.breakdown"],
+            })
+
+            // Get promo code from session
+            const promoCode =
+              fullSession.total_details?.breakdown?.discounts?.[0]?.discount?.coupon?.name ||
+              fullSession.total_details?.breakdown?.discounts?.[0]?.discount?.id ||
+              "unknown"
+
+            await trackPromoRedemption({
+              organizationId,
+              userEmail: session.customer_email || session.metadata?.user_email || "unknown",
+              promoCode,
+              stripeCheckoutSessionId: session.id,
+              stripeCustomerId: customerId,
+              planName,
+              discountAmount: session.total_details.amount_discount / 100,
+              ipAddress: session.metadata?.ip_address,
+              userAgent: session.metadata?.user_agent,
+            })
+
+            console.log("[v0] Promo code redemption tracked:", promoCode)
+          } catch (promoError) {
+            console.error("[v0] Failed to track promo redemption:", promoError)
+            // Don't fail the webhook for tracking errors
           }
         }
 
@@ -600,6 +633,20 @@ export async function POST(req: NextRequest) {
           }
 
           console.log("[v0] Downgrade cleanup completed for organization:", subData.organization_id)
+        }
+
+        const { error: cancelTrackError } = await supabaseAdmin
+          .from("organizations")
+          .update({
+            last_subscription_cancelled_at: new Date().toISOString(),
+            subscription_cancel_count: supabaseAdmin.raw("subscription_cancel_count + 1"),
+          })
+          .eq("organization_id", subData?.organization_id)
+
+        if (cancelTrackError) {
+          console.error("[v0] Failed to track cancellation:", cancelTrackError)
+        } else {
+          console.log("[v0] Cancellation tracked for cooldown enforcement")
         }
 
         break

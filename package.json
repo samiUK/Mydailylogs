@@ -76,6 +76,7 @@
     "server-only": "latest",
     "sonner": "latest",
     "stripe": "latest",
+    "supabase": "2.65.5",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "tw-animate-css": "latest",

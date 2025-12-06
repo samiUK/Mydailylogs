@@ -417,4 +417,50 @@ export const emailTemplates = {
       `Action required: Payment failed for ${data.planName}`,
     )
   },
+
+  promoCode: (data: {
+    userName: string
+    promoCode: string
+    rank: number
+  }) => {
+    return getEmailLayout(
+      `
+        <div style="text-align: center; margin-bottom: 32px;">
+          <h1 style="color: #059669; margin-bottom: 16px; font-size: 32px;">🎉 Congratulations!</h1>
+          <p style="font-size: 18px; color: #1f2937; margin: 0;">
+            You're <strong>#${data.rank}</strong> of the first 100 users to claim this exclusive offer!
+          </p>
+        </div>
+
+        <p>Hi ${data.userName},</p>
+
+        <p>Thank you for sharing your valuable feedback and supporting us on social media! As promised, here's your exclusive 20% discount code:</p>
+
+        <div style="background: linear-gradient(135deg, #059669 0%, #047857 100%); border-radius: 12px; padding: 32px; margin: 32px 0; text-align: center;">
+          <p style="color: #ffffff; margin: 0 0 12px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.9;">Your Promo Code</p>
+          <h2 style="color: #ffffff; margin: 0; font-size: 36px; letter-spacing: 4px; font-weight: 700;">${data.promoCode}</h2>
+        </div>
+
+        <div style="background: #ecfdf5; border: 1px solid #059669; border-radius: 8px; padding: 20px; margin: 24px 0;">
+          <h3 style="margin: 0 0 12px 0; color: #1f2937; font-size: 16px;">How to use your code:</h3>
+          <ol style="margin: 0; padding-left: 20px; color: #374151;">
+            <li style="margin-bottom: 8px;">Choose your Growth or Scale plan at checkout</li>
+            <li style="margin-bottom: 8px;">Enter promo code <strong>${data.promoCode}</strong> during checkout</li>
+            <li>Enjoy 20% off your first billing period!</li>
+          </ol>
+        </div>
+
+        <a href="${getBaseUrl()}/admin/billing" class="button">Upgrade Now</a>
+
+        <div class="security-note">
+          <p style="margin: 0;"><strong>Important:</strong> This promo code can only be used once per account and applies to your first billing period only (after trial ends).</p>
+        </div>
+
+        <p style="margin-top: 32px; color: #6b7280;">
+          Thank you for being an early supporter of MyDayLogs! We're grateful for your feedback and excited to help you manage your tasks more effectively.
+        </p>
+      `,
+      `Your exclusive 20% discount code: ${data.promoCode}`,
+    )
+  },
 }

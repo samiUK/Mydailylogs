@@ -142,7 +142,8 @@ export default function HomePageClient() {
             <div className="max-w-7xl mx-auto flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm">
                 <span>
-                  🚀 You're using the Beta version of MyDayLogs. Things may change, and we'd love your feedback!
+                  We've just launched and you might find system bugs. Share them via feedback and tell others about us
+                  to get a 20% discount code!
                 </span>
               </div>
               <FeedbackModal

@@ -49,29 +49,63 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
             <div className="hidden md:ml-10 md:flex md:space-x-8">
               <Link
                 href="/admin"
-                className="text-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
-                style={{ "--hover-color": primaryColor } as React.CSSProperties}
+                className="text-foreground hover:opacity-80 px-3 py-2 rounded-md text-sm font-medium transition-all"
+                style={
+                  {
+                    color: "var(--brand-primary)",
+                  } as React.CSSProperties
+                }
               >
                 Admin Dashboard
               </Link>
               <Link
                 href="/admin/templates"
-                className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
-                style={{ "--hover-color": primaryColor } as React.CSSProperties}
+                className="text-muted-foreground hover:opacity-80 px-3 py-2 rounded-md text-sm font-medium transition-all"
+                style={
+                  {
+                    "--hover-color": "var(--brand-primary)",
+                  } as React.CSSProperties
+                }
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = "var(--brand-primary)"
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = ""
+                }}
               >
                 Log Templates
               </Link>
               <Link
                 href="/admin/team"
-                className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
-                style={{ "--hover-color": primaryColor } as React.CSSProperties}
+                className="text-muted-foreground hover:opacity-80 px-3 py-2 rounded-md text-sm font-medium transition-all"
+                style={
+                  {
+                    "--hover-color": "var(--brand-primary)",
+                  } as React.CSSProperties
+                }
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = "var(--brand-primary)"
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = ""
+                }}
               >
                 Team
               </Link>
               <Link
                 href="/admin/dashboard-analytics"
-                className="text-muted-foreground hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
-                style={{ "--hover-color": primaryColor } as React.CSSProperties}
+                className="text-muted-foreground hover:opacity-80 px-3 py-2 rounded-md text-sm font-medium transition-all"
+                style={
+                  {
+                    "--hover-color": "var(--brand-primary)",
+                  } as React.CSSProperties
+                }
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = "var(--brand-primary)"
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = ""
+                }}
               >
                 Reports and Analytics
               </Link>
@@ -173,7 +207,20 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                   trigger={
                     <DropdownMenuItem
                       onSelect={(e) => e.preventDefault()}
-                      className="!bg-orange-500 hover:!bg-orange-600 !text-white focus:!bg-orange-600 focus:!text-white py-3"
+                      className="py-3 transition-colors"
+                      style={
+                        {
+                          backgroundColor: "var(--brand-primary)",
+                          color: "white",
+                        } as React.CSSProperties
+                      }
+                      onMouseEnter={(e) => {
+                        const rgb = getComputedStyle(document.documentElement).getPropertyValue("--brand-primary-rgb")
+                        e.currentTarget.style.backgroundColor = `rgba(${rgb}, 0.9)`
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "var(--brand-primary)"
+                      }}
                     >
                       <MessageSquare className="mr-2 h-4 w-4" />
                       <span>Give Feedback</span>

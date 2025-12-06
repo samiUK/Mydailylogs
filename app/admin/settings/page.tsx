@@ -1015,7 +1015,10 @@ export default function OrganizationSettingsPage() {
               <Calendar
                 mode="single"
                 selected={selectedHolidayDate}
-                onSelect={setSelectedHolidayDate}
+                onSelect={(date) => {
+                  console.log("[v0] Calendar date selected:", date)
+                  setSelectedHolidayDate(date)
+                }}
                 modifiers={{
                   holiday: holidays.map((h) => new Date(h.date)),
                 }}
@@ -1025,9 +1028,19 @@ export default function OrganizationSettingsPage() {
                 className="rounded-md border"
                 disabled={!canEditOrganizationName}
               />
+              {selectedHolidayDate && (
+                <p className="text-xs text-emerald-600">Selected: {format(selectedHolidayDate, "MMMM d, yyyy")}</p>
+              )}
             </div>
 
-            <Button onClick={addHoliday} disabled={!selectedHolidayDate || !canEditOrganizationName} className="w-full">
+            <Button
+              onClick={() => {
+                console.log("[v0] Add Holiday button clicked")
+                addHoliday()
+              }}
+              disabled={!selectedHolidayDate || !canEditOrganizationName}
+              className="w-full"
+            >
               <Plus className="h-4 w-4 mr-2" />
               Add Holiday
             </Button>

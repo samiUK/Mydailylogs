@@ -18,7 +18,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { Textarea } from "@/components/ui/text-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface Superuser {
@@ -38,22 +38,25 @@ interface AuditLog {
 }
 
 interface Campaign {
-  campaign_id: string
+  id: string
   name: string
   description: string
   discount_type: string
   discount_value: number
   max_redemptions: number
+  current_redemptions: number
   requirement_type: string
-  requirement_details: string
+  promo_code_template: string
+  stripe_coupon_id?: string
+  stripe_promotion_code_id?: string
   is_active: boolean
-  total_submissions?: number
-  total_redeemed?: number
-  promo_code_template?: string
-  show_on_banner?: boolean
+  show_on_banner: boolean
   banner_message?: string
   banner_cta_text?: string
-  generate_unique_codes?: boolean
+  generate_unique_codes: boolean
+  created_at: string
+  total_submissions?: number
+  total_redeemed?: number
 }
 
 interface Submission {
@@ -116,7 +119,6 @@ export function SuperuserToolsSection({
     discount_value: 20,
     max_redemptions: 100,
     requirement_type: "feedback_and_share", // Changed default value to match the update
-    requirement_details: "Submit feedback and share on social media",
     promo_code_template: "", // Added universal promo code field
     show_on_banner: false,
     banner_message: "",
@@ -281,7 +283,7 @@ export function SuperuserToolsSection({
       // Construct payload based on whether it's an edit or create operation
       const payload = isEditing
         ? {
-            campaign_id: editingCampaign.campaign_id,
+            campaign_id: editingCampaign.id, // Use campaign_id for update endpoint
             name: newCampaign.name,
             description: newCampaign.description,
             discount_type: newCampaign.discount_type, // Include if editable
@@ -323,12 +325,13 @@ export function SuperuserToolsSection({
     }
   }
 
-  const handleToggleCampaign = async (campaignId: string, isActive: boolean) => {
+  // Fixed campaign_id to id to match database schema in fetchCampaigns
+  const handleToggleCampaign = async (id: string, isActive: boolean) => {
     try {
       const res = await fetch("/api/master/promo-campaigns", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campaign_id: campaignId, is_active: !isActive }),
+        body: JSON.stringify({ campaign_id: id, is_active: !isActive }), // Use campaign_id for API
       })
 
       if (res.ok) {
@@ -346,7 +349,7 @@ export function SuperuserToolsSection({
   const handleDeleteCampaign = async (campaignId: string, campaignName: string) => {
     if (
       !confirm(
-        `Are you sure you want to permanently delete the campaign "${campaignName}"?\n\nThis will:\n- Remove the campaign from the database\n- Deactivate the Stripe promotion code\n- Cannot be undone\n\nExisting redemptions will remain valid, but no new users can use this code.`,
+        `Are you sure you want to permanently delete the campaign "${campaignName}"?\n\nThis will:\n- Remove the campaign from the database\n- Delete all associated unique promo codes\n- Cannot be undone\n\nExisting redemptions will remain valid in Stripe.`,
       )
     ) {
       return
@@ -359,6 +362,7 @@ export function SuperuserToolsSection({
 
       if (res.ok) {
         await fetchCampaigns()
+        alert(`Campaign "${campaignName}" deleted successfully.`)
       } else {
         const data = await res.json()
         alert(`Failed to delete campaign: ${data.error}`)
@@ -369,14 +373,37 @@ export function SuperuserToolsSection({
     }
   }
 
-  const handleViewRedemptions = async (campaignId: string) => {
-    if (viewingRedemptions === campaignId) {
-      setViewingRedemptions(null)
-      setCampaignRedemptions([])
-    } else {
-      setViewingRedemptions(campaignId)
-      await fetchCampaignRedemptions(campaignId)
+  const handleSyncWithStripe = async (campaignId: string, stripeCouponId: string | undefined, campaignName: string) => {
+    if (!stripeCouponId) {
+      alert(`Campaign "${campaignName}" does not have a Stripe Coupon ID associated. Cannot sync.`)
+      return
     }
+    try {
+      const res = await fetch(
+        `/api/master/promo-campaigns/sync-stripe?campaign_id=${campaignId}&stripe_coupon_id=${stripeCouponId}`,
+        {
+          method: "POST",
+        },
+      )
+
+      const data = await res.json()
+
+      if (res.ok) {
+        alert(
+          `Stripe Sync Complete for "${campaignName}":\n\n${data.message}\n\nStripe Status: ${data.stripe_status}\nDatabase Status: ${data.db_status}`,
+        )
+        await fetchCampaigns()
+      } else {
+        alert(`Failed to sync with Stripe: ${data.error}`)
+      }
+    } catch (error) {
+      console.error("[v0] Error syncing with Stripe:", error)
+      alert("Failed to sync with Stripe. Please try again.")
+    }
+  }
+
+  const handleViewRedemptions = (campaignId: string) => {
+    setViewingRedemptions(viewingRedemptions === campaignId ? null : campaignId)
   }
 
   useEffect(() => {
@@ -729,7 +756,7 @@ export function SuperuserToolsSection({
                 <div className="space-y-3">
                   {campaigns.map((campaign) => (
                     <div
-                      key={campaign.campaign_id}
+                      key={campaign.id}
                       className={`p-4 border rounded-lg bg-white ${
                         campaign.is_active ? "border-purple-200" : "border-gray-200 opacity-60"
                       }`}
@@ -751,13 +778,23 @@ export function SuperuserToolsSection({
                           <p className="text-sm text-gray-600">{campaign.description}</p>
                         </div>
                         <div className="flex gap-2">
+                          {/* Added Sync button */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSyncWithStripe(campaign.id, campaign.stripe_coupon_id, campaign.name)}
+                            title="Sync with Stripe to verify coupon status"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                          </Button>
                           <Button variant="outline" size="sm" onClick={() => handleEditCampaign(campaign)}>
                             <Edit className="w-4 h-4" />
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleToggleCampaign(campaign.campaign_id, campaign.is_active)}
+                            onClick={() => handleToggleCampaign(campaign.id, campaign.is_active)}
+                            title={campaign.is_active ? "Deactivate campaign" : "Activate campaign"}
                           >
                             {campaign.is_active ? (
                               <XCircle className="w-4 h-4" />
@@ -768,7 +805,7 @@ export function SuperuserToolsSection({
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDeleteCampaign(campaign.campaign_id, campaign.name)}
+                            onClick={() => handleDeleteCampaign(campaign.id, campaign.name)}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -803,28 +840,26 @@ export function SuperuserToolsSection({
                         <Button
                           variant="link"
                           size="sm"
-                          onClick={() =>
-                            setSelectedCampaign(selectedCampaign === campaign.campaign_id ? null : campaign.campaign_id)
-                          }
+                          onClick={() => setSelectedCampaign(selectedCampaign === campaign.id ? null : campaign.id)}
                           className="text-purple-600 hover:text-purple-700 p-0 h-auto"
                         >
                           <Users className="w-4 h-4 mr-1" />
-                          {selectedCampaign === campaign.campaign_id ? "Hide" : "View"} Submissions
+                          {selectedCampaign === campaign.id ? "Hide" : "View"} Submissions
                         </Button>
                         <span className="text-gray-300">|</span>
                         <Button
                           variant="link"
                           size="sm"
-                          onClick={() => handleViewRedemptions(campaign.campaign_id)}
+                          onClick={() => handleViewRedemptions(campaign.id)}
                           className="text-green-600 hover:text-green-700 p-0 h-auto"
                         >
                           <CreditCard className="w-4 h-4 mr-1" />
-                          {viewingRedemptions === campaign.campaign_id ? "Hide" : "View"} Redeemers
+                          {viewingRedemptions === campaign.id ? "Hide" : "View"} Redeemers
                         </Button>
                       </div>
 
                       {/* Submissions List */}
-                      {selectedCampaign === campaign.campaign_id && (
+                      {selectedCampaign === campaign.id && (
                         <div className="mt-3 pt-3 border-t space-y-2 max-h-64 overflow-y-auto">
                           {campaignSubmissions.length === 0 ? (
                             <p className="text-sm text-gray-500 text-center py-4">No submissions yet</p>
@@ -859,7 +894,7 @@ export function SuperuserToolsSection({
                         </div>
                       )}
 
-                      {viewingRedemptions === campaign.campaign_id && (
+                      {viewingRedemptions === campaign.id && (
                         <div className="mt-3 pt-3 border-t space-y-2 max-h-96 overflow-y-auto">
                           <h5 className="text-xs font-semibold text-gray-700 uppercase mb-2">
                             Voucher Redeemers ({campaignRedemptions.length})

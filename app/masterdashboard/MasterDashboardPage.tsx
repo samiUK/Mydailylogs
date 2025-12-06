@@ -379,6 +379,26 @@ export default function MasterDashboardPage() {
     }
   }
 
+  const handleDeleteFeedback = async (feedbackId: string) => {
+    try {
+      const response = await fetch("/api/master/delete-feedback", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ feedbackId }),
+      })
+
+      if (response.ok) {
+        showNotification("Feedback deleted successfully", "success")
+        refreshData()
+      } else {
+        const data = await response.json()
+        showNotification(data.error || "Failed to delete feedback", "error")
+      }
+    } catch (error) {
+      showNotification("Error deleting feedback", "error")
+    }
+  }
+
   const renderOrganizations = () => {
     if (loading) {
       return (
@@ -491,6 +511,7 @@ export default function MasterDashboardPage() {
               searchTerm={searchTerm}
               onSearchChange={setSearchTerm}
               onRespond={setSelectedFeedback}
+              onDelete={handleDeleteFeedback}
               onRefresh={refreshData}
             />
           </TabsContent>

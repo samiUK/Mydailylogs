@@ -9,11 +9,9 @@ import { createBrowserClient } from "@supabase/ssr"
 export function FeedbackBanner() {
   const [isVisible, setIsVisible] = useState(true)
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
-  const [bannerCampaign, setBannerCampaign] = useState<{
-    banner_message: string
-    banner_cta_text: string
-    discount_value: number
-    discount_type: string
+  const [bannerData, setBannerData] = useState<{
+    campaign: any
+    bannerType: "classic" | "auto-promo" | "custom"
   } | null>(null)
 
   useEffect(() => {
@@ -40,17 +38,17 @@ export function FeedbackBanner() {
 
     initializeAuth()
 
-    const fetchBannerCampaign = async () => {
+    const fetchBannerData = async () => {
       try {
         const response = await fetch("/api/promo-campaign/banner")
         const data = await response.json()
-        setBannerCampaign(data.campaign)
+        setBannerData(data)
       } catch (error) {
-        console.log("[v0] Failed to fetch banner campaign:", error)
+        console.log("[v0] Failed to fetch banner data:", error)
       }
     }
 
-    fetchBannerCampaign()
+    fetchBannerData()
 
     const bannerClosed = localStorage.getItem("feedback-banner-closed")
     if (bannerClosed === "true") {
@@ -70,21 +68,30 @@ export function FeedbackBanner() {
 
   if (!showBanner || !isVisible) return null
 
-  const defaultMessage =
-    "We've just launched and you might find system bugs. Share them via feedback to help us improve!"
+  let displayMessage = ""
+  let ctaText = "Give Feedback"
 
-  let displayMessage = defaultMessage
-  if (bannerCampaign?.banner_message) {
-    // Replace {discount} placeholder with actual discount value
-    displayMessage = bannerCampaign.banner_message.replace(
-      /{discount}/g,
-      bannerCampaign.discount_type === "percentage"
-        ? `${bannerCampaign.discount_value}%`
-        : `$${bannerCampaign.discount_value}`,
-    )
+  if (!bannerData || bannerData.bannerType === "classic") {
+    // Type 1: Classic default - no campaign
+    displayMessage = "We've just launched and you might find system bugs. Share them via feedback to help us improve!"
+    ctaText = "Give Feedback"
+  } else if (bannerData.bannerType === "auto-promo") {
+    // Type 2: Auto promo - campaign active, toggle OFF
+    const discountDisplay =
+      bannerData.campaign.discount_type === "percentage"
+        ? `${bannerData.campaign.discount_value}%`
+        : `$${bannerData.campaign.discount_value}`
+    displayMessage = `We've just launched and you might find system bugs. Share them via feedback and tell others about us to get a ${discountDisplay} discount code!`
+    ctaText = `Get ${discountDisplay} Off`
+  } else if (bannerData.bannerType === "custom") {
+    // Type 3: Custom dynamic - campaign active, toggle ON
+    const discountDisplay =
+      bannerData.campaign.discount_type === "percentage"
+        ? `${bannerData.campaign.discount_value}%`
+        : `$${bannerData.campaign.discount_value}`
+    displayMessage = bannerData.campaign.banner_message.replace(/{discount}/g, discountDisplay)
+    ctaText = bannerData.campaign.banner_cta_text || "Give Feedback"
   }
-
-  const ctaText = bannerCampaign?.banner_cta_text || "Give Feedback"
 
   return (
     <div className="bg-accent text-accent-foreground py-2 px-4">

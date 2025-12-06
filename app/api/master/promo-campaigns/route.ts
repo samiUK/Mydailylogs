@@ -28,6 +28,8 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient()
     const body = await request.json()
 
+    console.log("[v0] Campaign creation request received:", body)
+
     const {
       name,
       description,
@@ -41,10 +43,19 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!name || !discount_type || !discount_value || !max_redemptions || !requirement_type || !promo_code_template) {
+      console.error("[v0] Missing required fields:", {
+        name,
+        discount_type,
+        discount_value,
+        max_redemptions,
+        requirement_type,
+        promo_code_template,
+      })
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
     if (!/^[A-Z0-9]+$/.test(promo_code_template)) {
+      console.error("[v0] Invalid promo code format:", promo_code_template)
       return NextResponse.json({ error: "Promo code must be uppercase alphanumeric (e.g., SOCIAL20)" }, { status: 400 })
     }
 
@@ -56,9 +67,10 @@ export async function POST(request: NextRequest) {
     })
 
     const stripeCoupon = await createStripeCoupon(promo_code_template, discount_type, discount_value, max_redemptions)
+    console.log("[v0] Stripe coupon created:", stripeCoupon.id)
 
     const { data: campaign, error } = await supabase
-      .from("promo_campaigns")
+      .from("promotional_campaigns")
       .insert({
         name,
         description,
@@ -66,7 +78,7 @@ export async function POST(request: NextRequest) {
         discount_value,
         max_redemptions,
         requirement_type,
-        requirement_details,
+        requirement_details: requirement_details || `Complete ${requirement_type.replace(/_/g, " ")}`,
         promo_code_template,
         stripe_coupon_id: stripeCoupon.id,
         is_active: true,
@@ -74,12 +86,19 @@ export async function POST(request: NextRequest) {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error("[v0] Database error creating campaign:", error)
+      throw error
+    }
+
+    console.log("[v0] Campaign created in database:", campaign)
 
     const codeGenResult = await generateUniqueCodes(campaign.id, promo_code_template, max_redemptions)
 
     if (!codeGenResult.success) {
-      await supabase.from("promo_campaigns").delete().eq("id", campaign.id)
+      console.error("[v0] Failed to generate codes, rolling back campaign:", codeGenResult.error)
+      // Rollback campaign creation if code generation fails
+      await supabase.from("promotional_campaigns").delete().eq("id", campaign.id)
       throw new Error(`Failed to generate unique codes: ${codeGenResult.error}`)
     }
 
@@ -110,7 +129,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message || "Failed to create campaign" }, { status: 500 })
   }
 }
 
@@ -127,9 +146,9 @@ export async function PATCH(request: NextRequest) {
     }
 
     const { data: existingCampaign, error: fetchError } = await supabase
-      .from("promo_campaigns")
+      .from("promotional_campaigns")
       .select("stripe_promo_code_id")
-      .eq("campaign_id", campaign_id)
+      .eq("id", campaign_id)
       .single()
 
     if (fetchError) throw fetchError
@@ -144,9 +163,9 @@ export async function PATCH(request: NextRequest) {
     }
 
     const { data: campaign, error } = await supabase
-      .from("promo_campaigns")
+      .from("promotional_campaigns")
       .update({ is_active })
-      .eq("campaign_id", campaign_id)
+      .eq("id", campaign_id)
       .select()
       .single()
 
@@ -174,14 +193,14 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { data: campaign, error: fetchError } = await supabase
-      .from("promo_campaigns")
+      .from("promotional_campaigns")
       .select("name")
       .eq("id", campaign_id)
       .single()
 
     if (fetchError) throw fetchError
 
-    const { error: deleteError } = await supabase.from("promo_campaigns").delete().eq("id", campaign_id)
+    const { error: deleteError } = await supabase.from("promotional_campaigns").delete().eq("id", campaign_id)
 
     if (deleteError) throw deleteError
 

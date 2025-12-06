@@ -179,13 +179,19 @@ export function SuperuserToolsSection({
 
   const handleCreateCampaign = async () => {
     try {
+      console.log("[v0] Creating campaign with data:", newCampaign)
+
       const res = await fetch("/api/master/promo-campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newCampaign),
       })
 
+      const data = await res.json()
+      console.log("[v0] Campaign creation response:", data)
+
       if (res.ok) {
+        console.log("[v0] Campaign created successfully:", data)
         await fetchCampaigns()
         setShowNewCampaignForm(false)
         setNewCampaign({
@@ -196,11 +202,16 @@ export function SuperuserToolsSection({
           max_redemptions: 100,
           requirement_type: "feedback_and_share",
           requirement_details: "Submit feedback and share on social media",
-          promo_code_template: "", // Reset promo code template field
+          promo_code_template: "",
         })
+        alert(`Campaign created successfully! ${data.uniqueCodes?.generated || 0} unique codes generated.`)
+      } else {
+        console.error("[v0] Campaign creation failed:", data.error)
+        alert(`Failed to create campaign: ${data.error || "Unknown error"}`)
       }
     } catch (error) {
       console.error("[v0] Error creating campaign:", error)
+      alert(`Error creating campaign: ${error instanceof Error ? error.message : "Unknown error"}`)
     }
   }
 

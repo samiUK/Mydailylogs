@@ -45,7 +45,7 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
   })
 
   const refreshBranding = useCallback(async () => {
-    if (branding.isLoading) return // Prevent multiple simultaneous calls
+    if (branding.isLoading) return
 
     const supabase = createClient()
     setBranding((prev) => ({ ...prev, isLoading: true }))
@@ -133,6 +133,7 @@ export function BrandingProvider({ children, initialBranding }: BrandingProvider
   }, [])
 
   useEffect(() => {
+    // These variables are used specifically in admin/staff layouts only
     const root = document.documentElement
     root.style.setProperty("--brand-primary", branding.primaryColor)
     root.style.setProperty("--brand-secondary", branding.secondaryColor)

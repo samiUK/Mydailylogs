@@ -3,9 +3,8 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { JetBrains_Mono } from "next/font/google"
 import "./globals.css"
-import { BrandingProvider } from "@/components/branding-provider"
-import { SpeedInsights } from "@vercel/speed-insights/next"
 import { Toaster } from "@/components/ui/toaster"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -120,7 +119,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#059669" />
       </head>
       <body className="font-sans antialiased">
-        <BrandingProvider>{children}</BrandingProvider>
+        {children}
         <Toaster />
         <SpeedInsights />
       </body>

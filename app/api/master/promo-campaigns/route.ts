@@ -30,16 +30,8 @@ export async function POST(request: NextRequest) {
 
     console.log("[v0] Campaign creation request received:", body)
 
-    const {
-      name,
-      description,
-      discount_type,
-      discount_value,
-      max_redemptions,
-      requirement_type,
-      requirement_details,
-      promo_code_template,
-    } = body
+    const { name, description, discount_type, discount_value, max_redemptions, requirement_type, promo_code_template } =
+      body
 
     // Validate required fields
     if (!name || !discount_type || !discount_value || !max_redemptions || !requirement_type || !promo_code_template) {
@@ -78,7 +70,6 @@ export async function POST(request: NextRequest) {
         discount_value,
         max_redemptions,
         requirement_type,
-        requirement_details: requirement_details || `Complete ${requirement_type.replace(/_/g, " ")}`,
         promo_code_template,
         stripe_coupon_id: stripeCoupon.id,
         is_active: true,

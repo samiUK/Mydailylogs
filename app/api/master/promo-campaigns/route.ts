@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
 import { createStripeCoupon, deactivateStripePromotionCode, deleteStripeCoupon } from "@/lib/stripe-coupons"
@@ -7,9 +6,9 @@ import { generateUniqueCodes } from "@/lib/unique-code-generator"
 // GET - List all promo campaigns
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    const adminClient = createAdminClient()
 
-    const { data: campaigns, error } = await supabase
+    const { data: campaigns, error } = await adminClient
       .from("promotional_campaigns")
       .select("*")
       .order("created_at", { ascending: false })
@@ -28,16 +27,6 @@ export async function POST(request: NextRequest) {
   let stripeCouponId: string | null = null
 
   try {
-    const supabase = await createClient()
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const adminClient = createAdminClient()
     const body = await request.json()
 
@@ -175,7 +164,6 @@ export async function POST(request: NextRequest) {
 // PATCH - Update promo campaign (activate/deactivate)
 export async function PATCH(request: NextRequest) {
   try {
-    const supabase = await createClient()
     const adminClient = createAdminClient()
     const body = await request.json()
 
@@ -224,7 +212,6 @@ export async function PATCH(request: NextRequest) {
 // DELETE - Delete promo campaign
 export async function DELETE(request: NextRequest) {
   try {
-    const supabase = await createClient()
     const adminClient = createAdminClient()
     const { searchParams } = new URL(request.url)
     const campaign_id = searchParams.get("campaign_id")

@@ -54,6 +54,7 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
     discount_type: string
     id: string
     max_redemptions: number
+    requirement_type: string
   } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [feedbackId, setFeedbackId] = useState<string | null>(null)
@@ -61,6 +62,13 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
   const [issuedPromoCode, setIssuedPromoCode] = useState<string | null>(null)
   const [isIssuingCode, setIsIssuingCode] = useState(false)
   const [codeCopied, setCodeCopied] = useState(false)
+
+  const requiresSocialShare =
+    activeCampaign?.requirement_type === "feedback_and_share" || activeCampaign?.requirement_type === "share_only"
+  const requiresFeedback =
+    activeCampaign?.requirement_type === "feedback_and_share" || activeCampaign?.requirement_type === "feedback_only"
+  const isAutoPromo =
+    activeCampaign?.requirement_type === "first_time_user" || activeCampaign?.requirement_type === "none"
 
   useEffect(() => {
     const submitted = localStorage.getItem("feedbackSubmitted")
@@ -135,7 +143,7 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!feedback.trim() || !name.trim()) return
+    if (!feedback.trim() || !name.trim() || !email.trim()) return
 
     setIsSubmitting(true)
 
@@ -164,7 +172,7 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
 
       const feedbackData = {
         name: name.trim(),
-        email: email.trim() || user?.email || "Anonymous",
+        email: email.trim(),
         subject: subject || "Feedback!",
         message: feedback.trim(),
         page_url: currentPage,
@@ -174,22 +182,45 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
         status: "unread",
       }
 
-      console.log("[v0] Feedback data to insert:", feedbackData)
+      const { data: insertedFeedback, error: feedbackError } = await supabase
+        .from("feedback")
+        .insert(feedbackData)
+        .select()
+        .single()
 
-      const { error: dbError, data: insertedData } = await supabase.from("feedback").insert(feedbackData).select()
-
-      console.log("[v0] Database insert result:", { error: dbError, data: insertedData })
-
-      if (dbError) {
-        console.error("[v0] Database error:", dbError)
-        throw new Error(`Failed to save feedback: ${dbError.message}`)
+      if (feedbackError) {
+        console.error("[v0] Failed to save feedback:", feedbackError)
+        throw feedbackError
       }
 
-      if (insertedData && insertedData.length > 0) {
-        setFeedbackId(insertedData[0].id)
-      }
+      console.log("[v0] Feedback saved successfully:", insertedFeedback.id)
+      setFeedbackId(insertedFeedback.id)
 
-      console.log("[v0] Feedback successfully saved to database")
+      if (activeCampaign && !requiresSocialShare) {
+        console.log("[v0] Auto-issuing code for non-share campaign")
+        setIsIssuingCode(true)
+
+        const codeResponse = await fetch("/api/promo-campaign/issue-code", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            campaignId: activeCampaign.id,
+            feedbackId: insertedFeedback.id,
+            socialSharePlatform: null,
+            userEmail: email.trim(),
+          }),
+        })
+
+        if (codeResponse.ok) {
+          const { promoCode } = await codeResponse.json()
+          console.log("[v0] Promo code auto-issued:", promoCode)
+          setIssuedPromoCode(promoCode)
+          setHasShared(true) // Mark as "completed" to show code
+        }
+        setIsIssuingCode(false)
+      }
 
       try {
         console.log("[v0] Sending email notification to admin...")
@@ -204,7 +235,7 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
             subject: `New Feedback: ${subject || "Feedback!"}`,
             data: {
               name: name.trim(),
-              email: email.trim() || user?.email || "Anonymous",
+              email: email.trim(),
               subject: subject || "Feedback!",
               message: feedback.trim(),
               page_url: currentPage,
@@ -239,17 +270,13 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
     try {
       console.log("[v0] Tracking social share:", platform)
 
-      const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+      const userEmail = email.trim()
 
-      if (!user?.email) {
+      if (!userEmail) {
         console.error("[v0] No user email found")
         return
       }
 
-      // Construct share URLs for each platform
       const shareMessage = activeCampaign
         ? `I'm using MyDayLogs to streamline my work! ${activeCampaign.discount_value}% off for new users - submit feedback to get your code!`
         : "I'm using MyDayLogs to streamline my work! Check it out!"
@@ -270,12 +297,10 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
           break
       }
 
-      // Open social platform in new tab
       if (platformUrl) {
         window.open(platformUrl, "_blank", "noopener,noreferrer")
       }
 
-      // Track the share
       const shareResponse = await fetch("/api/social-share/track", {
         method: "POST",
         headers: {
@@ -286,6 +311,7 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
           promoCode: activeCampaign?.promo_code,
           campaignId: activeCampaign?.id,
           feedbackId,
+          userEmail,
         }),
       })
 
@@ -308,7 +334,7 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
             campaignId: activeCampaign.id,
             feedbackId,
             socialSharePlatform: platform,
-            userEmail: user.email,
+            userEmail,
           }),
         })
 
@@ -376,7 +402,36 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
             </p>
 
             <div className="border-t pt-6">
-              {activeCampaign && hasShared && issuedPromoCode && (
+              {activeCampaign && !requiresSocialShare && issuedPromoCode && (
+                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-lg p-4 mb-6">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <span className="text-2xl">🎉</span>
+                    <h4 className="text-lg font-bold text-emerald-700">You Unlocked Your Discount!</h4>
+                    <span className="text-2xl">🎉</span>
+                  </div>
+                  <p className="text-sm text-gray-700 mb-3">
+                    Thank you for your feedback! Here's your exclusive {activeCampaign.discount_value}% off promo code:
+                  </p>
+                  <div className="bg-white border-2 border-dashed border-emerald-400 rounded-lg p-3 mb-2">
+                    <div className="text-xs text-gray-600 mb-1">Your Unique Promo Code:</div>
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="text-2xl font-bold text-emerald-600 tracking-wider">{issuedPromoCode}</div>
+                      <Button variant="ghost" size="sm" onClick={handleCopyCode} className="hover:bg-emerald-100">
+                        {codeCopied ? (
+                          <Check className="w-4 h-4 text-green-600" />
+                        ) : (
+                          <Copy className="w-4 h-4 text-gray-600" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Use this code at checkout to get {activeCampaign.discount_value}% off your first month!
+                  </p>
+                </div>
+              )}
+
+              {activeCampaign && requiresSocialShare && hasShared && issuedPromoCode && (
                 <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-lg p-4 mb-6">
                   <div className="flex items-center justify-center gap-2 mb-2">
                     <span className="text-2xl">🎉</span>
@@ -414,7 +469,7 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
                 </div>
               )}
 
-              {activeCampaign && hasShared && isIssuingCode && (
+              {activeCampaign && requiresSocialShare && hasShared && isIssuingCode && (
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-lg p-4 mb-6">
                   <div className="flex items-center justify-center gap-2">
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
@@ -423,7 +478,7 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
                 </div>
               )}
 
-              {activeCampaign && !hasShared && (
+              {activeCampaign && requiresSocialShare && !hasShared && (
                 <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-lg p-4 mb-6">
                   <div className="flex items-center justify-center gap-2 mb-2">
                     <span className="text-2xl">🎁</span>
@@ -434,66 +489,69 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
                     Share MyDayLogs on social media to unlock your exclusive discount code!
                   </p>
                   <p className="text-xs text-gray-500">
-                    Click any share button below and your unique promo code will appear instantly
-                  </p>
-                </div>
-              )}
-
-              <div className="flex items-center justify-center gap-2 mb-4">
-                <Share2 className="w-5 h-5 text-accent" />
-                <h4 className="text-lg font-semibold text-gray-700">
-                  {activeCampaign && !hasShared
-                    ? "Share to Unlock Your Code!"
-                    : activeCampaign
-                      ? "Share & Help Others Save!"
-                      : "Share MyDayLogs!"}
-                </h4>
-              </div>
-              <p className="text-sm text-gray-600 mb-4">
-                {activeCampaign && !hasShared ? (
-                  <>
                     Click any button below to share MyDayLogs and{" "}
                     <span className="font-semibold text-emerald-600">
                       unlock your {activeCampaign.discount_value}% discount code
                     </span>
-                  </>
-                ) : activeCampaign ? (
-                  "Help others discover MyDayLogs and save on their first month!"
-                ) : (
-                  "Help spread the word about MyDayLogs by sharing with your network!"
-                )}
-              </p>
+                  </p>
+                </div>
+              )}
 
-              <div className="flex justify-center gap-3 mb-6">
-                <Button
-                  onClick={() => trackSocialShare("facebook")}
-                  className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
-                  size="sm"
-                >
-                  <Facebook className="w-4 h-4" />
-                  Facebook
-                </Button>
-                <Button
-                  onClick={() => trackSocialShare("twitter")}
-                  className="bg-sky-500 hover:bg-sky-600 text-white flex items-center gap-2"
-                  size="sm"
-                >
-                  <Twitter className="w-4 h-4" />
-                  Twitter
-                </Button>
-                <Button
-                  onClick={() => trackSocialShare("linkedin")}
-                  className="bg-blue-700 hover:bg-blue-800 text-white flex items-center gap-2"
-                  size="sm"
-                >
-                  <Linkedin className="w-4 h-4" />
-                  LinkedIn
-                </Button>
-              </div>
+              {requiresSocialShare && (
+                <>
+                  <div className="flex items-center justify-center gap-2 mb-4">
+                    <Share2 className="w-5 h-5 text-accent" />
+                    <h4 className="text-lg font-semibold text-gray-700">
+                      {activeCampaign && !hasShared
+                        ? "Share to Unlock Your Code!"
+                        : activeCampaign
+                          ? "Share & Help Others Save!"
+                          : "Share MyDayLogs!"}
+                    </h4>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-4">
+                    {activeCampaign && !hasShared ? (
+                      <>
+                        Click any button below to share MyDayLogs and{" "}
+                        <span className="font-semibold text-emerald-600">
+                          unlock your {activeCampaign.discount_value}% discount code
+                        </span>
+                      </>
+                    ) : activeCampaign ? (
+                      "Help others discover MyDayLogs and save on their first month!"
+                    ) : (
+                      "Help spread the word about MyDayLogs by sharing with your network!"
+                    )}
+                  </p>
 
-              <Button onClick={handleCloseModal} variant="outline" className="w-full sm:w-auto bg-transparent">
-                Close
-              </Button>
+                  <div className="flex gap-4 justify-center">
+                    <Button
+                      onClick={() => trackSocialShare("facebook")}
+                      disabled={!activeCampaign || isIssuingCode}
+                      className="bg-[#1877F2] hover:bg-[#1877F2]/90 text-white"
+                    >
+                      <Facebook className="w-5 h-5 mr-2" />
+                      Facebook
+                    </Button>
+                    <Button
+                      onClick={() => trackSocialShare("twitter")}
+                      disabled={!activeCampaign || isIssuingCode}
+                      className="bg-[#1DA1F2] hover:bg-[#1DA1F2]/90 text-white"
+                    >
+                      <Twitter className="w-5 h-5 mr-2" />
+                      Twitter
+                    </Button>
+                    <Button
+                      onClick={() => trackSocialShare("linkedin")}
+                      disabled={!activeCampaign || isIssuingCode}
+                      className="bg-[#0A66C2] hover:bg-[#0A66C2]/90 text-white"
+                    >
+                      <Linkedin className="w-5 h-5 mr-2" />
+                      LinkedIn
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         ) : (
@@ -521,13 +579,14 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
                   />
                 </div>
                 <div>
-                  <Label htmlFor="email">Your Email (optional)</Label>
+                  <Label htmlFor="email">Your Email</Label>
                   <Input
                     id="email"
                     type="email"
                     placeholder="your@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    required
                   />
                 </div>
                 <div>
@@ -607,7 +666,7 @@ export function FeedbackModal({ isOpen, onOpenChange, trigger, autoTrigger = fal
                 </Button>
                 <Button
                   type="submit"
-                  disabled={!feedback.trim() || !name.trim() || isSubmitting}
+                  disabled={!feedback.trim() || !name.trim() || !email.trim() || isSubmitting}
                   className="bg-accent hover:bg-accent/90 w-full sm:w-auto"
                 >
                   <Send className="w-4 h-4 mr-2" />

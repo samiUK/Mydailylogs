@@ -1,5 +1,6 @@
 // Generate unique promo codes for campaigns
 import { createAdminClient } from "@/lib/supabase/admin"
+import { createStripePromotionCode } from "./stripe-coupons"
 
 function generateRandomCode(prefix: string, length = 6): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // Remove ambiguous chars
@@ -14,11 +15,12 @@ export async function generateUniqueCodes(
   campaignId: string,
   prefix: string,
   count: number,
+  stripeCouponId: string, // Added Stripe coupon ID parameter
 ): Promise<{ success: boolean; generated: number; error?: string }> {
   const supabase = createAdminClient()
 
   try {
-    const codes: { campaign_id: string; promo_code: string }[] = []
+    const codes: { campaign_id: string; promo_code: string; stripe_promotion_code_id?: string }[] = []
     const uniqueCodes = new Set<string>()
 
     // Generate unique codes
@@ -27,13 +29,31 @@ export async function generateUniqueCodes(
       uniqueCodes.add(code)
     }
 
-    // Prepare batch insert
-    uniqueCodes.forEach((code) => {
-      codes.push({
-        campaign_id: campaignId,
-        promo_code: code,
-      })
-    })
+    console.log(`[v0] Creating ${count} Stripe promotion codes...`)
+
+    for (const code of uniqueCodes) {
+      try {
+        // Create individual Stripe promotion code
+        const stripePromo = await createStripePromotionCode(
+          stripeCouponId,
+          code,
+          1, // Each code can only be used once
+        )
+
+        codes.push({
+          campaign_id: campaignId,
+          promo_code: code,
+          stripe_promotion_code_id: stripePromo.id,
+        })
+      } catch (error) {
+        console.error(`[v0] Failed to create Stripe promo for ${code}:`, error)
+        // Continue with next code even if one fails
+      }
+    }
+
+    if (codes.length === 0) {
+      return { success: false, generated: 0, error: "Failed to create any Stripe promotion codes" }
+    }
 
     // Batch insert codes
     const { error } = await supabase.from("unique_promo_codes").insert(codes)
@@ -43,6 +63,7 @@ export async function generateUniqueCodes(
       return { success: false, generated: 0, error: error.message }
     }
 
+    console.log(`[v0] Successfully created ${codes.length} unique codes with Stripe promotion codes`)
     return { success: true, generated: codes.length }
   } catch (error) {
     console.error("[v0] Error generating codes:", error)

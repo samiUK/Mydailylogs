@@ -41,6 +41,7 @@ interface Campaign {
   show_on_banner?: boolean
   banner_message?: string
   banner_cta_text?: string
+  generate_unique_codes?: boolean
 }
 
 interface Submission {
@@ -103,6 +104,7 @@ export function SuperuserToolsSection({
     show_on_banner: false,
     banner_message: "",
     banner_cta_text: "Give Feedback",
+    generate_unique_codes: true,
   })
 
   const fetchAuditLogs = async () => {
@@ -187,6 +189,11 @@ export function SuperuserToolsSection({
     try {
       console.log("[v0] Creating campaign with data:", newCampaign)
 
+      if (!newCampaign.name || !newCampaign.promo_code_template) {
+        alert("Please fill in campaign name and promo code")
+        return
+      }
+
       if (newCampaign.show_on_banner) {
         const existingBannerCampaign = campaigns.find((c) => c.is_active && c.show_on_banner)
         if (existingBannerCampaign) {
@@ -224,15 +231,19 @@ export function SuperuserToolsSection({
           show_on_banner: false,
           banner_message: "",
           banner_cta_text: "Give Feedback",
+          generate_unique_codes: true,
         })
-        alert(`Campaign created successfully! ${data.uniqueCodes?.generated || 0} unique codes generated.`)
+        const codeMessage = newCampaign.generate_unique_codes
+          ? `${data.uniqueCodes?.generated || 0} unique tracking codes generated.`
+          : "Generic code created - no tracking codes needed."
+        alert(`Campaign created successfully! ${codeMessage}`)
       } else {
         console.error("[v0] Campaign creation failed:", data.error)
         alert(`Failed to create campaign: ${data.error || "Unknown error"}`)
       }
     } catch (error) {
       console.error("[v0] Error creating campaign:", error)
-      alert(`Error creating campaign: ${error instanceof Error ? error.message : "Unknown error"}`)
+      alert("Failed to create campaign")
     }
   }
 
@@ -462,10 +473,21 @@ export function SuperuserToolsSection({
                     <SelectItem value="feedback_and_share">Feedback + Social Share</SelectItem>
                     <SelectItem value="feedback_only">Feedback Only</SelectItem>
                     <SelectItem value="share_only">Social Share Only</SelectItem>
+                    <SelectItem value="first_time_user">First Time User (Auto)</SelectItem>
                     <SelectItem value="referral">Referral</SelectItem>
-                    <SelectItem value="first_time_user">First Time User</SelectItem>
+                    <SelectItem value="none">No Requirements (Auto-Issue)</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-gray-500">
+                  {newCampaign.requirement_type === "none" && "Code issued automatically to all new users"}
+                  {newCampaign.requirement_type === "first_time_user" &&
+                    "Code issued automatically to first-time users"}
+                  {newCampaign.requirement_type === "feedback_only" && "Code issued after feedback submission"}
+                  {newCampaign.requirement_type === "share_only" && "Code issued after social share"}
+                  {newCampaign.requirement_type === "feedback_and_share" &&
+                    "Code issued after feedback and social share"}
+                  {newCampaign.requirement_type === "referral" && "Code issued through referral program"}
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -481,6 +503,52 @@ export function SuperuserToolsSection({
                   Enter a unique promo code (alphanumeric, uppercase). The system will automatically create the Stripe
                   coupon and promotion code for you.
                 </p>
+              </div>
+
+              {/* Code Generation Mode */}
+              <div className="border-t pt-4 space-y-4">
+                <h4 className="text-sm font-semibold text-purple-900">Code Generation Mode</h4>
+
+                <div className="space-y-3">
+                  <div className="flex items-start space-x-3">
+                    <input
+                      type="radio"
+                      id="unique_codes_mode"
+                      checked={newCampaign.generate_unique_codes}
+                      onChange={() => setNewCampaign({ ...newCampaign, generate_unique_codes: true })}
+                      className="mt-1 h-4 w-4"
+                    />
+                    <div>
+                      <Label htmlFor="unique_codes_mode" className="cursor-pointer font-semibold">
+                        Tracked Codes (Recommended)
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Generates {newCampaign.max_redemptions} unique tracking codes (e.g.,{" "}
+                        {newCampaign.promo_code_template || "CODE"}-A1B2C3). Track who submitted feedback/shares.
+                        Prevents duplicate redemptions.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start space-x-3">
+                    <input
+                      type="radio"
+                      id="generic_code_mode"
+                      checked={!newCampaign.generate_unique_codes}
+                      onChange={() => setNewCampaign({ ...newCampaign, generate_unique_codes: false })}
+                      className="mt-1 h-4 w-4"
+                    />
+                    <div>
+                      <Label htmlFor="generic_code_mode" className="cursor-pointer font-semibold">
+                        Generic Code
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Creates only ONE universal code ({newCampaign.promo_code_template || "CODE"}). Anyone can use it
+                        directly. No feedback/share tracking. Use for public promotions.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Banner Promotion Section */}

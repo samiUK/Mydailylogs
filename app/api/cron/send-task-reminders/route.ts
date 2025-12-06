@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
+import { isBusinessDay } from "@/lib/holiday-utils"
 // import { sendEmail, emailTemplates } from "@/lib/email/resend"
 
 export async function GET(request: NextRequest) {
@@ -67,6 +68,14 @@ export async function GET(request: NextRequest) {
       }
 
       if (!dueDate) continue
+
+      const dueDateString = dueDate.toISOString().split("T")[0]
+      const isBusiness = await isBusinessDay(supabase, assignment.organization_id, dueDateString)
+
+      if (!isBusiness) {
+        console.log(`[v0] Skipping reminder for task due on ${dueDateString} - not a business day`)
+        continue
+      }
 
       const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
       const userId = assignment.assigned_to

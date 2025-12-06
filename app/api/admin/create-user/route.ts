@@ -34,6 +34,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Only admins and managers can create team members" }, { status: 403 })
     }
 
+    const { data: organization } = await supabase
+      .from("organizations")
+      .select("organization_name")
+      .eq("organization_id", organizationId)
+      .single()
+
+    if (!organization) {
+      return NextResponse.json({ message: "Organization not found" }, { status: 404 })
+    }
+
     // Check team member limit
     const teamMemberCheck = await checkCanCreateTeamMember(organizationId)
     if (!teamMemberCheck.canCreate) {
@@ -99,6 +109,7 @@ export async function POST(request: NextRequest) {
       position,
       role,
       organization_id: organizationId,
+      organization_name: organization.organization_name,
       reports_to: reportsTo,
       is_email_verified: false,
     })

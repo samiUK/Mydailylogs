@@ -514,6 +514,9 @@ export default function OrganizationSettingsPage() {
     }))
   }
 
+  // Alias for clarity when fetching holidays after modifications
+  const loadHolidays = fetchHolidays
+
   const addHoliday = async () => {
     console.log("[v0] Adding holiday - Date:", selectedHolidayDate, "Name:", holidayName)
 
@@ -533,6 +536,11 @@ export default function OrganizationSettingsPage() {
       } = await createClient().auth.getUser()
       if (!user) {
         console.log("[v0] No user found")
+        toast({
+          title: "Error",
+          description: "User not authenticated",
+          variant: "destructive",
+        })
         return
       }
 
@@ -544,6 +552,11 @@ export default function OrganizationSettingsPage() {
 
       if (!profile?.organization_id) {
         console.log("[v0] No organization_id found")
+        toast({
+          title: "Error",
+          description: "Organization not found",
+          variant: "destructive",
+        })
         return
       }
 
@@ -555,6 +568,7 @@ export default function OrganizationSettingsPage() {
           name: holidayName.trim() || format(selectedHolidayDate, "MMMM d, yyyy"),
           date: format(selectedHolidayDate, "yyyy-MM-dd"),
           organization_id: profile.organization_id,
+          created_by: user.id,
         })
         .select()
 
@@ -563,20 +577,24 @@ export default function OrganizationSettingsPage() {
         throw error
       }
 
-      console.log("[v0] Holiday added successfully:", data)
+      console.log("[v0] Holiday inserted successfully:", data)
 
-      setHolidayName("")
-      setSelectedHolidayDate(undefined)
-      await fetchHolidays()
       toast({
         title: "Success",
         description: "Holiday added successfully",
       })
-    } catch (error) {
+
+      // Reload holidays
+      await loadHolidays()
+
+      // Reset form
+      setSelectedHolidayDate(undefined)
+      setHolidayName("")
+    } catch (error: any) {
       console.error("[v0] Add holiday error:", error)
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to add holiday",
+        description: error.message || "Failed to add holiday",
         variant: "destructive",
       })
     }

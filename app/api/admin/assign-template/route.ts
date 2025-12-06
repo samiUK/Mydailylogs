@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { sendEmail, emailTemplates } from "@/lib/email/resend"
 import { formatUKDate } from "@/lib/date-formatter"
 import { getSubscriptionLimits } from "@/lib/subscription-limits"
+import { adjustToBusinessDay } from "@/lib/holiday-utils"
 
 export async function POST(request: NextRequest) {
   try {
@@ -87,17 +88,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    let holidayWarning = null
-    if (assignmentDueDate) {
-      const { data: holidays } = await supabase
-        .from("holidays")
-        .select("name, date")
-        .eq("organization_id", profile.organization_id)
-        .eq("date", assignmentDueDate)
+    let adjustedDueDate = assignmentDueDate
+    let dueDateAdjustment: { wasAdjusted: boolean; reason?: string } | null = null
 
-      if (holidays && holidays.length > 0) {
-        holidayWarning = `Warning: Due date ${formatUKDate(assignmentDueDate)} is ${holidays[0].name}`
-        console.log(`[v0] ${holidayWarning}`)
+    if (assignmentDueDate) {
+      const adjustment = await adjustToBusinessDay(supabase, profile.organization_id, assignmentDueDate)
+      adjustedDueDate = adjustment.adjustedDate
+      dueDateAdjustment = adjustment
+
+      if (adjustment.wasAdjusted) {
+        console.log(
+          `[v0] Due date adjusted from ${formatUKDate(assignmentDueDate)} to ${formatUKDate(adjustedDueDate)} - Reason: ${adjustment.reason}`,
+        )
       }
     }
 
@@ -107,7 +109,7 @@ export async function POST(request: NextRequest) {
       assigned_by: user.id,
       organization_id: profile.organization_id,
       assigned_at: new Date().toISOString(),
-      due_date: assignmentDueDate,
+      due_date: adjustedDueDate,
       is_active: true,
     }))
 
@@ -126,7 +128,7 @@ export async function POST(request: NextRequest) {
       .in("id", memberIds)
 
     if (assignedMembers && assignedMembers.length > 0) {
-      const dueDateText = assignmentDueDate ? ` by ${formatUKDate(assignmentDueDate)}` : ""
+      const dueDateText = adjustedDueDate ? ` by ${formatUKDate(adjustedDueDate)}` : ""
 
       const notifications = assignedMembers.map((member) => ({
         user_id: member.id,
@@ -160,7 +162,7 @@ export async function POST(request: NextRequest) {
                 memberName,
                 taskName: template.name,
                 taskDescription: template.description || "",
-                dueDate: assignmentDueDate ? formatUKDate(assignmentDueDate) : "No specific due date",
+                dueDate: adjustedDueDate ? formatUKDate(adjustedDueDate) : "No specific due date",
                 assignerName,
                 loginUrl: `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.mydaylogs.co.uk"}/auth/login`,
               }),
@@ -178,7 +180,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       assignedCount: assignments.length,
-      holidayWarning,
+      dueDateAdjustment: dueDateAdjustment?.wasAdjusted
+        ? {
+            originalDate: assignmentDueDate,
+            adjustedDate: adjustedDueDate,
+            reason: dueDateAdjustment.reason,
+          }
+        : null,
       duplicateWarnings: duplicateWarnings.length > 0 ? duplicateWarnings : null,
     })
   } catch (error) {

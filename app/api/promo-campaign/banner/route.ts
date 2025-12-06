@@ -30,7 +30,7 @@ export async function GET() {
       .from("unique_promo_codes")
       .select("*", { count: "exact", head: true })
       .eq("campaign_id", activeCampaign.id)
-      .eq("is_used", true)
+      .eq("is_redeemed", true)
 
     if (countError) {
       console.error("[v0] Error counting redemptions:", countError)

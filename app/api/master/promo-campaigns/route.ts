@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { type NextRequest, NextResponse } from "next/server"
 import { createStripeCoupon, deactivateStripePromotionCode, deleteStripeCoupon } from "@/lib/stripe-coupons"
 import { generateUniqueCodes } from "@/lib/unique-code-generator"
+import Stripe from "stripe" // Added Stripe import
 
 // GET - List all promo campaigns
 export async function GET(request: NextRequest) {
@@ -118,23 +119,35 @@ export async function POST(request: NextRequest) {
 
       console.log("[v0] Campaign created in database:", campaign)
 
-      let codeGenResult = { success: true, generated: 0, error: null }
+      let generatedCodesCount = 0
 
       if (generate_unique_codes) {
-        codeGenResult = await generateUniqueCodes(
-          campaign.id,
+        const stripeKey = process.env.STRIPE_SECRET_KEY
+        if (!stripeKey) {
+          throw new Error("Stripe API key not configured")
+        }
+        const stripe = new Stripe(stripeKey, { apiVersion: "2024-11-20.acacia" })
+
+        const codesToGenerate = max_redemptions * 5 // 5x multiplier for new campaigns
+
+        const generatedCodes = await generateUniqueCodes(
           promo_code_template,
-          max_redemptions,
-          stripeCoupon.id, // Pass coupon ID for Stripe promotion code creation
+          codesToGenerate,
+          stripeCoupon.id,
+          stripe,
+          adminClient,
+          campaign.id,
         )
 
-        if (!codeGenResult.success) {
-          console.error("[v0] Failed to generate codes, rolling back campaign:", codeGenResult.error)
+        generatedCodesCount = generatedCodes.length
+
+        if (generatedCodesCount === 0) {
+          console.error("[v0] Failed to generate codes, rolling back campaign")
           await adminClient.from("promotional_campaigns").delete().eq("id", campaign.id)
-          throw new Error(`Failed to generate unique codes: ${codeGenResult.error}`)
+          throw new Error("Failed to generate unique codes")
         }
 
-        console.log("[v0] Generated unique tracking codes with Stripe promotion codes:", codeGenResult.generated)
+        console.log("[v0] Generated unique tracking codes with Stripe promotion codes:", generatedCodesCount)
       } else {
         console.log("[v0] Generic code mode - skipping unique code generation")
       }
@@ -142,13 +155,13 @@ export async function POST(request: NextRequest) {
       console.log("[v0] Promo campaign created successfully:", {
         campaign_id: campaign.id,
         stripe_coupon_id: stripeCoupon.id,
-        unique_codes_generated: codeGenResult.generated,
+        unique_codes_generated: generatedCodesCount,
         show_on_banner,
         generate_unique_codes,
       })
 
       const responseMessage = generate_unique_codes
-        ? `Promo campaign created successfully! ${codeGenResult.generated} unique Stripe promotion codes generated (5x your ${max_redemptions} max redemptions to ensure availability). Each code can only be used once.${show_on_banner ? " Campaign is now showing on the homepage banner." : ""}`
+        ? `Promo campaign created successfully! ${generatedCodesCount} unique Stripe promotion codes generated (5x your ${max_redemptions} max redemptions to ensure availability). Each code can only be used once.${show_on_banner ? " Campaign is now showing on the homepage banner." : ""}`
         : `Generic promo campaign created successfully! Universal code ${promo_code_template} is ready to use.${show_on_banner ? " Campaign is now showing on the homepage banner." : ""}`
 
       return NextResponse.json({
@@ -156,8 +169,8 @@ export async function POST(request: NextRequest) {
         stripeIntegration: generate_unique_codes
           ? {
               couponId: stripeCoupon.id,
-              promotionCodesCreated: codeGenResult.generated,
-              note: `${codeGenResult.generated} individual Stripe promotion codes created (5x multiplier). Users must enter the FULL code at checkout (e.g., ${promo_code_template}-ABC123).`,
+              promotionCodesCreated: generatedCodesCount,
+              note: `${generatedCodesCount} individual Stripe promotion codes created (5x multiplier). Users must enter the FULL code at checkout (e.g., ${promo_code_template}-ABC123).`,
             }
           : {
               couponId: stripeCoupon.id,
@@ -165,10 +178,10 @@ export async function POST(request: NextRequest) {
             },
         uniqueCodes: generate_unique_codes
           ? {
-              generated: codeGenResult.generated,
+              generated: generatedCodesCount,
               maxRedemptions: max_redemptions,
               multiplier: 5,
-              note: `Generated ${codeGenResult.generated} codes for ${max_redemptions} max redemptions. Extra codes ensure you don't run out if some users don't redeem.`,
+              note: `Generated ${generatedCodesCount} codes for ${max_redemptions} max redemptions. Extra codes ensure you don't run out if some users don't redeem.`,
             }
           : {
               generated: 0,

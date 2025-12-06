@@ -9,6 +9,8 @@ export async function POST(request: Request) {
     const campaignId = searchParams.get("campaign_id")
     const additionalCodes = Number.parseInt(searchParams.get("additional_codes") || "50")
 
+    console.log("[v0] Add codes request:", { campaignId, additionalCodes })
+
     if (!campaignId) {
       return NextResponse.json({ error: "Campaign ID is required" }, { status: 400 })
     }
@@ -22,11 +24,16 @@ export async function POST(request: Request) {
       .eq("id", campaignId)
       .single()
 
+    console.log("[v0] Campaign lookup result:", { campaign, campaignError })
+
     if (campaignError || !campaign) {
+      console.error("[v0] Campaign not found:", campaignError)
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 })
     }
 
-    if (!campaign.generate_unique_codes) {
+    const shouldGenerateUniqueCodes = campaign.generate_unique_codes !== false
+
+    if (!shouldGenerateUniqueCodes) {
       return NextResponse.json(
         { error: "This campaign uses generic codes, no additional codes needed" },
         { status: 400 },
@@ -40,6 +47,8 @@ export async function POST(request: Request) {
     }
     const stripe = new Stripe(stripeKey, { apiVersion: "2024-11-20.acacia" })
 
+    console.log("[v0] Generating", additionalCodes, "codes for campaign", campaign.name)
+
     // Generate additional unique codes
     const newCodes = await generateUniqueCodes(
       campaign.promo_code_template,
@@ -49,6 +58,8 @@ export async function POST(request: Request) {
       supabase,
       campaignId,
     )
+
+    console.log("[v0] Successfully generated", newCodes.length, "codes")
 
     return NextResponse.json({
       message: `Successfully generated ${newCodes.length} additional codes for campaign "${campaign.name}"`,

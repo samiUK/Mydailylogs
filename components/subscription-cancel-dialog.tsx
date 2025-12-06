@@ -160,7 +160,10 @@ export function SubscriptionCancelDialog({
                       <FileText className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                       <span className="text-sm">
                         <span className="font-semibold">{currentPlanFeatures.maxTemplates} custom templates</span> →
-                        Only your <span className="font-semibold text-emerald-600">first 3 templates will remain</span>{" "}
+                        Only your{" "}
+                        <span className="font-semibold" style={{ color: "var(--brand-primary)" }}>
+                          first 3 templates will remain
+                        </span>{" "}
                         (others will be archived)
                       </span>
                     </div>
@@ -170,7 +173,10 @@ export function SubscriptionCancelDialog({
                       <Users className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                       <span className="text-sm">
                         <span className="font-semibold">{currentPlanFeatures.maxTeamMembers} team members</span> → Only
-                        your <span className="font-semibold text-emerald-600">first 5 team members will remain</span>
+                        your{" "}
+                        <span className="font-semibold" style={{ color: "var(--brand-primary)" }}>
+                          first 5 team members will remain
+                        </span>
                         {isScalePlan && !isTrial && (
                           <span className="text-red-600 font-semibold">
                             {" "}
@@ -186,7 +192,10 @@ export function SubscriptionCancelDialog({
                       <UserCog className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                       <span className="text-sm">
                         <span className="font-semibold">{currentPlanFeatures.maxAdmins} managers</span> with admin-level
-                        access → Only <span className="font-semibold text-emerald-600">1 admin will remain</span>
+                        access → Only{" "}
+                        <span className="font-semibold" style={{ color: "var(--brand-primary)" }}>
+                          1 admin will remain
+                        </span>
                         {isScalePlan && !isTrial && (
                           <span className="text-red-600 font-semibold">
                             {" "}
@@ -203,7 +212,9 @@ export function SubscriptionCancelDialog({
                       <span className="text-sm">
                         <span className="font-semibold">Unlimited report submissions</span> → Limited to{" "}
                         <span className="font-semibold text-orange-600">50 reports per month</span>, and only your{" "}
-                        <span className="font-semibold text-emerald-600">last 50 reports will remain</span>
+                        <span className="font-semibold" style={{ color: "var(--brand-primary)" }}>
+                          last 50 reports will remain
+                        </span>
                       </span>
                     </div>
 

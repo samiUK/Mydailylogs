@@ -1029,7 +1029,9 @@ export default function OrganizationSettingsPage() {
                 disabled={!canEditOrganizationName}
               />
               {selectedHolidayDate && (
-                <p className="text-xs text-emerald-600">Selected: {format(selectedHolidayDate, "MMMM d, yyyy")}</p>
+                <p className="text-xs" style={{ color: "var(--brand-primary)" }}>
+                  Selected: {format(selectedHolidayDate, "MMMM d, yyyy")}
+                </p>
               )}
             </div>
 

@@ -49,7 +49,9 @@ export function SubscriptionBrandingNotice({ organizationId }: SubscriptionBrand
               <Palette className="w-5 h-5" />
               Custom Branding Active
             </CardTitle>
-            <Badge className="bg-green-600">{subscriptionLimits.planName}</Badge>
+            <Badge style={{ backgroundColor: "var(--brand-primary)", color: "white" }}>
+              {subscriptionLimits.planName}
+            </Badge>
           </div>
           <CardDescription className="text-green-700">
             Your reports display your organization's custom branding and logo.
@@ -67,7 +69,9 @@ export function SubscriptionBrandingNotice({ organizationId }: SubscriptionBrand
             <Crown className="w-5 h-5" />
             Custom Branding Available
           </CardTitle>
-          <Badge variant="secondary">{subscriptionLimits.planName}</Badge>
+          <Badge variant="secondary" style={{ backgroundColor: "var(--brand-primary)", color: "white" }}>
+            {subscriptionLimits.planName}
+          </Badge>
         </div>
         <CardDescription className="text-amber-700">
           Reports currently show default branding. Upgrade to display your organization's logo and name.

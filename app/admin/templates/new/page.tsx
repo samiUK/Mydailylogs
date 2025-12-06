@@ -844,7 +844,19 @@ export default function NewTemplatePage() {
                   <Button
                     type="submit"
                     disabled={isLoading || !canCreateTemplate}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-3 text-base shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={
+                      {
+                        backgroundColor: "var(--brand-primary)",
+                        color: "white",
+                      } as React.CSSProperties
+                    }
+                    onMouseEnter={(e) => {
+                      if (!isLoading && canCreateTemplate) e.currentTarget.style.opacity = "0.9"
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.opacity = "1"
+                    }}
+                    className="font-semibold px-6 py-3 text-base shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isLoading ? "Creating..." : "Create Report Template"}
                   </Button>

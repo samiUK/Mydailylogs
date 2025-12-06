@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -337,7 +339,18 @@ export default function BillingPage() {
                   <Button
                     variant="outline"
                     onClick={handleReactivateSubscription}
-                    className="text-emerald-600 hover:text-emerald-700 bg-transparent"
+                    style={
+                      {
+                        color: "var(--brand-primary)",
+                        borderColor: "var(--brand-primary)",
+                      } as React.CSSProperties
+                    }
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "var(--brand-accent-bg)"
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = ""
+                    }}
                   >
                     Reactivate Subscription
                   </Button>

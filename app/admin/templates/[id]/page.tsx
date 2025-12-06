@@ -414,7 +414,19 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
                   type="button"
                   onClick={addTask}
                   size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 h-10 min-h-[44px]"
+                  style={
+                    {
+                      backgroundColor: "var(--brand-primary)",
+                      color: "white",
+                    } as React.CSSProperties
+                  }
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.opacity = "0.9"
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.opacity = "1"
+                  }}
+                  className="font-semibold px-4 py-2 h-10 min-h-[44px]"
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Add New Task

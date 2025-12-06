@@ -43,7 +43,9 @@ export function AdminNavigation({ user, onSignOut }: AdminNavigationProps) {
                     }}
                   />
                 </div>
-                <span className="text-xl font-bold text-emerald-600">{organizationName}</span>
+                <span className="text-xl font-bold" style={{ color: "var(--brand-primary)" }}>
+                  {organizationName}
+                </span>
               </div>
             </Link>
             <div className="hidden md:ml-10 md:flex md:space-x-8">

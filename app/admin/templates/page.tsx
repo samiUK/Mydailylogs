@@ -1,5 +1,7 @@
 "use client"
 import { createClient } from "@/lib/supabase/client"
+import type React from "react"
+
 import { AlertDialogFooter } from "@/components/ui/alert-dialog"
 
 import { AlertDialogTrigger } from "@/components/ui/alert-dialog"
@@ -427,7 +429,18 @@ export default function AdminTemplatesPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="text-emerald-600 hover:text-emerald-700 border-emerald-200 hover:border-emerald-300 bg-transparent"
+                          style={
+                            {
+                              color: "var(--brand-primary)",
+                              borderColor: "var(--brand-primary)",
+                            } as React.CSSProperties
+                          }
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = "var(--brand-accent-bg)"
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = ""
+                          }}
                           title="Share form with external contractors"
                         >
                           <ExternalLink className="w-4 h-4 mr-1" />

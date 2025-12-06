@@ -4,6 +4,8 @@ import Stripe from "stripe"
 import { generateUniqueCodes } from "@/lib/unique-code-generator"
 
 export async function POST(request: Request) {
+  console.log("[v0] Add-codes POST handler called")
+
   try {
     const { searchParams } = new URL(request.url)
     const campaignId = searchParams.get("campaign_id")
@@ -12,10 +14,13 @@ export async function POST(request: Request) {
     console.log("[v0] Add codes request:", { campaignId, additionalCodes })
 
     if (!campaignId) {
+      console.log("[v0] No campaign ID provided")
       return NextResponse.json({ error: "Campaign ID is required" }, { status: 400 })
     }
 
     const supabase = createAdminServerClient()
+
+    console.log("[v0] Looking up campaign with ID:", campaignId)
 
     // Fetch the campaign
     const { data: campaign, error: campaignError } = await supabase
@@ -24,7 +29,11 @@ export async function POST(request: Request) {
       .eq("id", campaignId)
       .single()
 
-    console.log("[v0] Campaign lookup result:", { campaign, campaignError })
+    console.log("[v0] Campaign lookup result:", {
+      found: !!campaign,
+      campaignName: campaign?.name,
+      error: campaignError?.message,
+    })
 
     if (campaignError || !campaign) {
       console.error("[v0] Campaign not found:", campaignError)
@@ -32,6 +41,8 @@ export async function POST(request: Request) {
     }
 
     const shouldGenerateUniqueCodes = campaign.generate_unique_codes !== false
+
+    console.log("[v0] Should generate unique codes:", shouldGenerateUniqueCodes)
 
     if (!shouldGenerateUniqueCodes) {
       return NextResponse.json(
@@ -67,6 +78,12 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     console.error("[v0] Error generating additional codes:", error)
-    return NextResponse.json({ error: "Failed to generate additional codes" }, { status: 500 })
+    return NextResponse.json(
+      {
+        error: "Failed to generate additional codes",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 },
+    )
   }
 }

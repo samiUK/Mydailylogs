@@ -20,6 +20,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/text-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useToast } from "@/hooks/use-toast"
 
 interface Superuser {
   id: string
@@ -124,6 +125,8 @@ export function SuperuserToolsSection({
     banner_cta_text: "Give Feedback",
     generate_unique_codes: true,
   })
+
+  const { toast } = useToast()
 
   const fetchAuditLogs = async () => {
     setLoadingLogs(true)
@@ -266,28 +269,32 @@ export function SuperuserToolsSection({
   }
 
   const handleCreateCampaign = async () => {
-    const isEditing = !!editingCampaign
+    if (!newCampaign.name || !newCampaign.promo_code_template) {
+      toast({
+        title: "⚠️ Missing Information",
+        description: "Please provide both campaign name and promo code.",
+        variant: "destructive",
+      })
+      return
+    }
 
+    // Validation
+    if (!/^[A-Z0-9]+$/.test(newCampaign.promo_code_template)) {
+      toast({
+        title: "⚠️ Invalid Promo Code",
+        description: "Promo code must be uppercase alphanumeric (e.g., SOCIAL20).",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setCreatingCampaign(true) // Changed from setIsCreating to setCreatingCampaign
     try {
-      setCreatingCampaign(true)
-
-      // Validation
-      if (!newCampaign.name || !newCampaign.promo_code_template) {
-        alert("Please fill in campaign name and promo code")
-        return
-      }
-
-      // Regex for uppercase alphanumeric
-      if (!/^[A-Z0-9]+$/.test(newCampaign.promo_code_template)) {
-        alert("Promo code must be uppercase alphanumeric (e.g., SOCIAL20)")
-        return
-      }
-
-      const endpoint = isEditing ? "/api/master/promo-campaigns" : "/api/master/promo-campaigns"
-      const method = isEditing ? "PUT" : "POST"
+      const endpoint = editingCampaign ? "/api/master/promo-campaigns" : "/api/master/promo-campaigns"
+      const method = editingCampaign ? "PUT" : "POST"
 
       // Construct payload based on whether it's an edit or create operation
-      const payload = isEditing
+      const payload = editingCampaign
         ? {
             campaign_id: editingCampaign.id, // Use campaign_id for update endpoint
             name: newCampaign.name,
@@ -316,16 +323,29 @@ export function SuperuserToolsSection({
 
       if (res.ok) {
         const data = await res.json()
-        alert(data.message || (isEditing ? "Campaign updated successfully!" : "Campaign created successfully!"))
+        toast({
+          title: editingCampaign ? "✅ Campaign Updated" : "🎉 Campaign Created Successfully!",
+          description: editingCampaign
+            ? `"${newCampaign.name}" has been updated.`
+            : `"${newCampaign.name}" is now live with ${data.codes_generated || newCampaign.max_redemptions} codes generated.`,
+        })
         handleCancelEdit() // This will reset form and exit edit mode
         await fetchCampaigns() // Refresh the list
       } else {
         const data = await res.json()
-        alert(`Failed to ${isEditing ? "update" : "create"} campaign: ${data.error}`)
+        toast({
+          title: "❌ Failed to Create Campaign",
+          description: data.error || "An unexpected error occurred.",
+          variant: "destructive",
+        })
       }
     } catch (error) {
-      console.error(`[v0] Error ${isEditing ? "updating" : "creating"} campaign:`, error)
-      alert(`Failed to ${isEditing ? "update" : "create"} campaign. Please try again.`)
+      console.error(`[v0] Error ${editingCampaign ? "updating" : "creating"} campaign:`, error)
+      toast({
+        title: "❌ Error",
+        description: `Failed to ${editingCampaign ? "update" : "create"} campaign. Please try again.`,
+        variant: "destructive",
+      })
     } finally {
       setCreatingCampaign(false)
     }
@@ -341,14 +361,28 @@ export function SuperuserToolsSection({
       })
 
       if (res.ok) {
+        toast({
+          title: isActive ? "⏸️ Campaign Deactivated" : "✅ Campaign Activated",
+          description: isActive
+            ? "Campaign is now inactive and won't appear on homepage."
+            : "Campaign is now live and accepting redemptions!",
+        })
         await fetchCampaigns()
       } else {
         const data = await res.json()
-        alert(`Failed to ${isActive ? "deactivate" : "activate"} campaign: ${data.error}`)
+        toast({
+          title: "❌ Failed to Toggle Campaign",
+          description: data.error || "Please try again.",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("[v0] Error toggling campaign:", error)
-      alert("Failed to toggle campaign status. Please try again.")
+      toast({
+        title: "❌ Error",
+        description: "Failed to toggle campaign status. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -371,22 +405,37 @@ export function SuperuserToolsSection({
 
       if (res.ok) {
         console.log("[v0] Campaign deleted successfully")
+        toast({
+          title: "🗑️ Campaign Deleted",
+          description: `"${campaignName}" has been permanently removed.`,
+        })
         await fetchCampaigns()
-        alert(`Campaign "${campaignName}" deleted successfully.`)
       } else {
         const data = await res.json()
         console.error("[v0] Delete failed:", data)
-        alert(`Failed to delete campaign: ${data.error}`)
+        toast({
+          title: "❌ Failed to Delete Campaign",
+          description: data.error || "Please try again.",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("[v0] Error deleting campaign:", error)
-      alert("Failed to delete campaign. Please try again.")
+      toast({
+        title: "❌ Error",
+        description: "Failed to delete campaign. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 
   const handleSyncWithStripe = async (campaignId: string, stripeCouponId: string | undefined, campaignName: string) => {
     if (!stripeCouponId) {
-      alert(`Campaign "${campaignName}" does not have a Stripe Coupon ID associated. Cannot sync.`)
+      toast({
+        title: "⚠️ No Stripe Coupon",
+        description: `Campaign "${campaignName}" doesn't have a Stripe coupon ID.`,
+        variant: "destructive",
+      })
       return
     }
     try {
@@ -400,22 +449,42 @@ export function SuperuserToolsSection({
       const data = await res.json()
 
       if (res.ok) {
-        alert(
-          `Stripe Sync Complete for "${campaignName}":\n\n${data.message}\n\nStripe Status: ${data.stripe_status}\nDatabase Status: ${data.db_status}`,
-        )
+        if (data.exists) {
+          toast({
+            title: "✅ Stripe Sync Successful",
+            description: `Campaign "${campaignName}" is in sync with Stripe.`,
+          })
+        } else {
+          toast({
+            title: "⚠️ Coupon Not Found in Stripe",
+            description: `The coupon "${stripeCouponId}" was deleted from Stripe. Campaign deactivated.`,
+            variant: "destructive",
+          })
+        }
         await fetchCampaigns()
       } else {
-        alert(`Failed to sync with Stripe: ${data.error}`)
+        toast({
+          title: "❌ Sync Failed",
+          description: data.error || "Please try again.",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("[v0] Error syncing with Stripe:", error)
-      alert("Failed to sync with Stripe. Please try again.")
+      toast({
+        title: "❌ Error",
+        description: "Failed to sync with Stripe. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 
   const handleGenerateMoreCodes = async (campaignId: string, campaignName: string, generateUniqueCodes: boolean) => {
     if (!generateUniqueCodes) {
-      alert(`Campaign "${campaignName}" uses generic codes. No additional codes needed.`)
+      toast({
+        title: "ℹ️ Generic Code Campaign",
+        description: `Campaign "${campaignName}" uses generic codes. No additional codes needed.`,
+      })
       return
     }
 
@@ -439,14 +508,25 @@ export function SuperuserToolsSection({
       const data = await res.json()
 
       if (res.ok) {
-        alert(`✅ ${data.message}\n\nCodes Generated: ${data.codes_generated}`)
+        toast({
+          title: "🎉 Codes Generated Successfully!",
+          description: `Added ${data.codes_generated} new codes to "${campaignName}". Total available codes increased.`,
+        })
         await fetchCampaigns()
       } else {
-        alert(`Failed to generate codes: ${data.error}`)
+        toast({
+          title: "❌ Failed to Generate Codes",
+          description: data.error || "Please try again.",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("[v0] Error generating codes:", error)
-      alert("Failed to generate additional codes. Please try again.")
+      toast({
+        title: "❌ Error",
+        description: "Failed to generate additional codes. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 

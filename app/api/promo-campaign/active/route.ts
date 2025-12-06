@@ -52,6 +52,7 @@ export async function GET() {
         max_redemptions: campaign.max_redemptions,
         current_redemptions: currentRedemptions,
         remaining_redemptions: campaign.max_redemptions - currentRedemptions,
+        requirement_type: campaign.requirement_type,
       },
     })
   } catch (error: any) {

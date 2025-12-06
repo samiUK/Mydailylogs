@@ -13,13 +13,13 @@ import {
   X,
   Upload,
   Trash2,
-  Share2,
   Facebook,
   Twitter,
   Linkedin,
   Copy,
   Sparkles,
   CheckCircle2,
+  Share2,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
@@ -51,6 +51,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
   const [hasShared, setHasShared] = useState(false)
   const [issuedPromoCode, setIssuedPromoCode] = useState<string | null>(null)
   const [isIssuingCode, setIsIssuingCode] = useState(false)
+  const [shareStage, setShareStage] = useState<"warning" | "sharing">("warning")
 
   const requiresSocialShare =
     activeCampaign?.requirement_type === "feedback_and_share" || activeCampaign?.requirement_type === "share_only"
@@ -76,6 +77,12 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
       fetchActiveCampaign()
     }
   }, [feedbackSubmitted])
+
+  useEffect(() => {
+    if (open) {
+      fetchActiveCampaign()
+    }
+  }, [open])
 
   const fetchActiveCampaign = async () => {
     try {
@@ -432,100 +439,275 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
               <p className="text-sm text-gray-700">Thank you for your feedback. We appreciate your input!</p>
             </div>
 
-            {activeCampaign && requiresSocialShare && !hasShared && (
-              <>
-                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-lg p-4">
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <span className="text-2xl">🎁</span>
-                    <h4 className="text-lg font-bold text-amber-700">One More Step!</h4>
-                    <span className="text-2xl">🎁</span>
+            {activeCampaign && requiresSocialShare && !hasShared && shareStage === "warning" && (
+              <div className="space-y-4 bg-gradient-to-br from-amber-50 via-orange-50 to-amber-50 border-2 border-amber-400 rounded-xl p-6 shadow-lg">
+                <div className="text-center space-y-2">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-3xl animate-bounce">🎁</span>
+                    <h3 className="text-2xl font-bold text-amber-800">Unlock Your Discount!</h3>
+                    <span className="text-3xl animate-bounce">🎁</span>
                   </div>
-                  <p className="text-sm text-gray-700 mb-3 text-center">
-                    Share MyDayLogs on social media to unlock your exclusive {activeCampaign.discount_value}% discount
-                    code!
+                  <p className="text-lg font-semibold text-amber-700">
+                    Get {activeCampaign.discount_value}% off by sharing MyDayLogs
                   </p>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="flex items-center justify-center gap-2">
-                    <Share2 className="w-5 h-5 text-accent" />
-                    <h4 className="text-lg font-semibold text-gray-700">Share to Unlock Your Code!</h4>
+                <div className="bg-white border-2 border-amber-500 rounded-lg p-4 shadow-md">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <svg className="w-6 h-6 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path
+                          fillRule="evenodd"
+                          d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <h5 className="text-base font-bold text-amber-800 mb-2">⚠️ Important: Share to Activate Code</h5>
+                      <ul className="text-sm text-amber-700 space-y-1.5 list-disc list-inside">
+                        <li className="font-semibold">
+                          Your discount code will ONLY work if you share on social media
+                        </li>
+                        <li>We'll provide a pre-written message for one-click sharing</li>
+                        <li>After sharing, your exclusive code will appear instantly</li>
+                      </ul>
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-600 text-center">
-                    Click any button below to share MyDayLogs and{" "}
-                    <span className="font-semibold text-emerald-600">
-                      unlock your {activeCampaign.discount_value}% discount code
-                    </span>
-                  </p>
+                </div>
 
-                  <div className="flex gap-4 justify-center">
+                <Button
+                  onClick={() => setShareStage("sharing")}
+                  size="lg"
+                  className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white text-lg py-6 shadow-lg hover:shadow-xl transition-all"
+                >
+                  <Share2 className="w-5 h-5 mr-2" />
+                  Continue to Share & Get Code
+                </Button>
+              </div>
+            )}
+
+            {activeCampaign && requiresSocialShare && !hasShared && shareStage === "sharing" && (
+              <div className="space-y-4 bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 border-2 border-blue-400 rounded-xl p-6 shadow-lg">
+                <div className="text-center space-y-2">
+                  <h3 className="text-2xl font-bold text-blue-800">Share to Unlock Your Code</h3>
+                  <p className="text-base text-blue-700">Click any button below - we've written the message for you!</p>
+                </div>
+
+                <div className="bg-white border-2 border-blue-300 rounded-lg p-4">
+                  <p className="text-xs text-gray-600 mb-2 font-semibold">📝 Your pre-written share message:</p>
+                  <p className="text-sm text-gray-800 italic leading-relaxed">
+                    "I'm using MyDayLogs to streamline my work! {activeCampaign.discount_value}% off for new users -
+                    submit feedback to get your code!"
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 gap-3">
                     <Button
                       onClick={() => trackSocialShare("facebook")}
                       disabled={isIssuingCode}
-                      className="bg-[#1877F2] hover:bg-[#1877F2]/90 text-white"
+                      size="lg"
+                      className="w-full bg-[#1877F2] hover:bg-[#1877F2]/90 text-white shadow-lg hover:shadow-xl transition-all py-6 text-base"
                     >
                       <Facebook className="w-5 h-5 mr-2" />
-                      Facebook
+                      Share on Facebook
                     </Button>
                     <Button
                       onClick={() => trackSocialShare("twitter")}
                       disabled={isIssuingCode}
-                      className="bg-[#1DA1F2] hover:bg-[#1DA1F2]/90 text-white"
+                      size="lg"
+                      className="w-full bg-[#1DA1F2] hover:bg-[#1DA1F2]/90 text-white shadow-lg hover:shadow-xl transition-all py-6 text-base"
                     >
                       <Twitter className="w-5 h-5 mr-2" />
-                      Twitter
+                      Share on Twitter
                     </Button>
                     <Button
                       onClick={() => trackSocialShare("linkedin")}
                       disabled={isIssuingCode}
-                      className="bg-[#0A66C2] hover:bg-[#0A66C2]/90 text-white"
+                      size="lg"
+                      className="w-full bg-[#0A66C2] hover:bg-[#0A66C2]/90 text-white shadow-lg hover:shadow-xl transition-all py-6 text-base"
                     >
                       <Linkedin className="w-5 h-5 mr-2" />
+                      Share on LinkedIn
+                    </Button>
+                  </div>
+
+                  {isIssuingCode && (
+                    <div className="flex items-center justify-center gap-2 text-blue-700 py-2">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-700"></div>
+                      <p className="text-sm font-medium">Generating your exclusive code...</p>
+                    </div>
+                  )}
+                </div>
+
+                <Button
+                  variant="outline"
+                  onClick={() => setShareStage("warning")}
+                  disabled={isIssuingCode}
+                  className="w-full"
+                >
+                  Back
+                </Button>
+              </div>
+            )}
+
+            {activeCampaign && !requiresSocialShare && feedbackSubmitted && issuedPromoCode && (
+              <div className="space-y-4">
+                <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-400 rounded-xl p-6 shadow-lg">
+                  <div className="text-center space-y-4">
+                    <div className="flex items-center justify-center gap-2">
+                      <Sparkles className="w-7 h-7 text-emerald-600 animate-pulse" />
+                      <h3 className="text-2xl font-bold text-emerald-700">Your Code is Ready!</h3>
+                      <Sparkles className="w-7 h-7 text-emerald-600 animate-pulse" />
+                    </div>
+
+                    <div className="bg-white border-3 border-emerald-500 rounded-lg p-6 shadow-xl">
+                      <p className="text-sm text-gray-600 mb-2 font-medium">Your Exclusive Discount Code:</p>
+                      <div className="flex items-center justify-center gap-3 mb-3">
+                        <code className="text-3xl font-mono font-bold text-emerald-600 tracking-wider bg-emerald-50 px-4 py-2 rounded border-2 border-emerald-300">
+                          {issuedPromoCode}
+                        </code>
+                        <Button
+                          onClick={() => {
+                            navigator.clipboard.writeText(issuedPromoCode)
+                            alert("✅ Promo code copied to clipboard!")
+                          }}
+                          size="lg"
+                          variant="outline"
+                          className="border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+                        >
+                          <Copy className="w-5 h-5 mr-2" />
+                          Copy Code
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="bg-white border border-emerald-300 rounded-lg p-4 space-y-2">
+                      <p className="text-base font-semibold text-emerald-800">
+                        💚 Save this code and use it at checkout!
+                      </p>
+                      <p className="text-sm text-gray-700">
+                        Get <strong className="text-emerald-700">{activeCampaign?.discount_value}% off</strong> your
+                        first month
+                      </p>
+                      <p className="text-xs text-gray-500 italic">
+                        This code is unique to you and can only be used once. Keep it safe!
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 border border-blue-300 rounded-xl p-5 shadow">
+                  <div className="text-center space-y-3">
+                    <h4 className="text-lg font-semibold text-blue-800">💙 Love MyDayLogs? Share the word!</h4>
+                    <p className="text-sm text-blue-700">Help others discover us (optional)</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-4">
+                    <Button
+                      onClick={() => {
+                        const shareMessage = `I'm using MyDayLogs to streamline my work! ${activeCampaign.discount_value}% off for new users - submit feedback to get your code!`
+                        const shareUrl =
+                          typeof window !== "undefined" ? window.location.origin : "https://mydaylogs.co.uk"
+                        const platformUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(shareMessage)}`
+                        window.open(platformUrl, "_blank", "noopener,noreferrer")
+                      }}
+                      size="sm"
+                      variant="outline"
+                      className="border-[#1877F2] text-[#1877F2] hover:bg-blue-50"
+                    >
+                      <Facebook className="w-4 h-4 mr-1" />
+                      Facebook
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        const shareMessage = `I'm using MyDayLogs to streamline my work! ${activeCampaign.discount_value}% off for new users - submit feedback to get your code!`
+                        const shareUrl =
+                          typeof window !== "undefined" ? window.location.origin : "https://mydaylogs.co.uk"
+                        const platformUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareMessage)}&url=${encodeURIComponent(shareUrl)}`
+                        window.open(platformUrl, "_blank", "noopener,noreferrer")
+                      }}
+                      size="sm"
+                      variant="outline"
+                      className="border-[#1DA1F2] text-[#1DA1F2] hover:bg-blue-50"
+                    >
+                      <Twitter className="w-4 h-4 mr-1" />
+                      Twitter
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        const shareMessage = `I'm using MyDayLogs to streamline my work! ${activeCampaign.discount_value}% off for new users - submit feedback to get your code!`
+                        const shareUrl =
+                          typeof window !== "undefined" ? window.location.origin : "https://mydaylogs.co.uk"
+                        const platformUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`
+                        window.open(platformUrl, "_blank", "noopener,noreferrer")
+                      }}
+                      size="sm"
+                      variant="outline"
+                      className="border-[#0A66C2] text-[#0A66C2] hover:bg-blue-50"
+                    >
+                      <Linkedin className="w-4 h-4 mr-1" />
                       LinkedIn
                     </Button>
                   </div>
                 </div>
-              </>
-            )}
-
-            {issuedPromoCode && hasShared && (
-              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-lg p-6">
-                <div className="flex items-center justify-center gap-2 mb-3">
-                  <Sparkles className="w-6 h-6 text-emerald-600" />
-                  <h4 className="text-xl font-bold text-emerald-700">Your Discount Code is Ready!</h4>
-                  <Sparkles className="w-6 h-6 text-emerald-600" />
-                </div>
-
-                <div className="bg-white border-2 border-emerald-400 rounded-lg p-4 mb-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <code className="text-2xl font-mono font-bold text-emerald-600">{issuedPromoCode}</code>
-                    <Button
-                      onClick={() => {
-                        navigator.clipboard.writeText(issuedPromoCode)
-                        alert("Promo code copied to clipboard!")
-                      }}
-                      size="sm"
-                      className="bg-emerald-600 hover:bg-emerald-700"
-                    >
-                      <Copy className="w-4 h-4 mr-1" />
-                      Copy
-                    </Button>
-                  </div>
-                </div>
-
-                <p className="text-sm text-gray-700 text-center mb-2">
-                  <strong className="text-emerald-700">Save this code!</strong> Use it at checkout to get{" "}
-                  {activeCampaign?.discount_value}% off your first month.
-                </p>
-                <p className="text-xs text-gray-500 text-center">
-                  This code is unique to you and can only be used once.
-                </p>
               </div>
             )}
 
-            {(hasShared || (!requiresSocialShare && feedbackSubmitted)) && (
-              <div className="flex justify-center">
-                <Button onClick={onClose} className="bg-accent hover:bg-accent/90">
+            {issuedPromoCode && hasShared && requiresSocialShare && (
+              <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-400 rounded-xl p-6 shadow-lg">
+                <div className="text-center space-y-4">
+                  <div className="flex items-center justify-center gap-2">
+                    <Sparkles className="w-7 h-7 text-emerald-600 animate-pulse" />
+                    <h3 className="text-2xl font-bold text-emerald-700">Success! Your Code is Ready</h3>
+                    <Sparkles className="w-7 h-7 text-emerald-600 animate-pulse" />
+                  </div>
+
+                  <div className="bg-white border-3 border-emerald-500 rounded-lg p-6 shadow-xl">
+                    <p className="text-sm text-gray-600 mb-2 font-medium">Your Exclusive Discount Code:</p>
+                    <div className="flex items-center justify-center gap-3 mb-3">
+                      <code className="text-3xl font-mono font-bold text-emerald-600 tracking-wider bg-emerald-50 px-4 py-2 rounded border-2 border-emerald-300">
+                        {issuedPromoCode}
+                      </code>
+                      <Button
+                        onClick={() => {
+                          navigator.clipboard.writeText(issuedPromoCode)
+                          alert("✅ Promo code copied to clipboard!")
+                        }}
+                        size="lg"
+                        variant="outline"
+                        className="border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+                      >
+                        <Copy className="w-5 h-5 mr-2" />
+                        Copy Code
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-emerald-300 rounded-lg p-4 space-y-2">
+                    <p className="text-base font-semibold text-emerald-800">
+                      💚 Save this code and use it at checkout!
+                    </p>
+                    <p className="text-sm text-gray-700">
+                      Get <strong className="text-emerald-700">{activeCampaign?.discount_value}% off</strong> your first
+                      month
+                    </p>
+                    <p className="text-xs text-gray-500 italic">
+                      This code is unique to you and can only be used once. Keep it safe!
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {((feedbackSubmitted && issuedPromoCode) || !activeCampaign) && (
+              <div className="flex justify-center pt-2">
+                <Button
+                  onClick={() => handleOpenChange(false)}
+                  size="lg"
+                  className="bg-accent hover:bg-accent/90 min-w-[200px]"
+                >
                   Close
                 </Button>
               </div>

@@ -14,7 +14,7 @@ export async function GET() {
       .eq("is_active", true)
       .order("created_at", { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
 
     console.log("[v0] Active campaign query result:", { activeCampaign, activeError })
 
@@ -26,11 +26,11 @@ export async function GET() {
 
     console.log("[v0] Active campaign found:", activeCampaign.name)
 
-    // Count current redemptions
     const { count: redemptionCount, error: countError } = await supabase
-      .from("promo_code_redemptions")
+      .from("unique_promo_codes")
       .select("*", { count: "exact", head: true })
-      .eq("promo_code", activeCampaign.promo_code_template)
+      .eq("campaign_id", activeCampaign.id)
+      .eq("is_used", true)
 
     if (countError) {
       console.error("[v0] Error counting redemptions:", countError)
@@ -39,9 +39,9 @@ export async function GET() {
     const currentRedemptions = redemptionCount || 0
     const isAvailable = currentRedemptions < activeCampaign.max_redemptions
 
-    // Return classic if redemptions are maxed out
     if (!isAvailable) {
-      console.log("[v0] Campaign maxed out, reverting to classic banner")
+      console.log("[v0] Campaign maxed out, auto-disabling and reverting to classic banner")
+      await supabase.from("promotional_campaigns").update({ is_active: false }).eq("id", activeCampaign.id)
       return NextResponse.json({ campaign: null, bannerType: "classic" })
     }
 

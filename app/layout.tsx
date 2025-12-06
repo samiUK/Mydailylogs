@@ -20,13 +20,14 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.mydaylogs.co.uk"),
   title: {
-    default: "MyDayLogs - Task Management for Growing Teams | Beta 2.0",
+    default: "MyDayLogs - Simple Task Management & Compliance Reporting for Growing Businesses",
     template: "%s | MyDayLogs",
   },
   description:
-    "Streamline team operations with automated task management and digital reporting. Support 1-7 managers coordinating field teams worldwide. Complete checklists, capture photos, and generate reports from any device. Free forever plan available.",
+    "Professional task management and compliance reporting built for teams working on-site, in the office, or on the go. Complete checklists, capture evidence, and generate professional reports - perfect for construction, hospitality, healthcare, retail, logistics, facilities management, and service industries worldwide.",
   keywords: [
     "task management software",
+    "compliance reporting",
     "team coordination",
     "digital reporting",
     "manager tools",
@@ -38,6 +39,11 @@ export const metadata: Metadata = {
     "small business software",
     "compliance tracking",
     "report automation",
+    "construction management",
+    "hospitality operations",
+    "healthcare coordination",
+    "retail management",
+    "logistics tracking",
   ],
   authors: [{ name: "MyDayLogs" }],
   creator: "MyDayLogs",
@@ -52,23 +58,23 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: "https://www.mydaylogs.co.uk",
     siteName: "MyDayLogs",
-    title: "MyDayLogs - Task Management for Growing Teams",
+    title: "MyDayLogs - Simple Task Management & Compliance Reporting for Growing Businesses",
     description:
-      "Automate recurring tasks and coordinate 1-7 managers with mobile checklists, photo capture, and instant reporting. Free plan available.",
+      "Professional task management and compliance reporting for teams working on-site, in the office, or on the go. Complete checklists, capture evidence, and generate professional reports instantly.",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "MyDayLogs - Task Management & Digital Reporting Platform",
+        alt: "MyDayLogs - Task Management & Compliance Reporting Platform",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "MyDayLogs - Task Management for Growing Teams",
+    title: "MyDayLogs - Simple Task Management & Compliance Reporting",
     description:
-      "Automate recurring tasks and coordinate teams with mobile checklists, photo capture, and instant reporting. Free forever plan.",
+      "Professional task management built for teams working on-site, in the office, or on the go. Complete checklists, capture evidence, and generate reports instantly.",
     images: ["/og-image.png"],
   },
   robots: {

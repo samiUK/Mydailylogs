@@ -126,7 +126,8 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
                 <div className="flex flex-col space-y-2 mt-6">
                   <Link
                     href="/staff"
-                    className="text-foreground hover:text-indigo-600 px-4 py-4 rounded-md text-base font-medium border-b min-h-12 flex items-center"
+                    className="text-foreground px-4 py-4 rounded-md text-base font-medium border-b min-h-12 flex items-center transition-all"
+                    style={{ color: "var(--brand-primary)" } as React.CSSProperties}
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Staff Dashboard
@@ -134,7 +135,13 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
                   {hasPaidSubscription && (
                     <Link
                       href="/staff/new"
-                      className="text-muted-foreground hover:text-indigo-600 px-4 py-4 rounded-md text-base font-medium border-b min-h-12 flex items-center"
+                      className="text-muted-foreground px-4 py-4 rounded-md text-base font-medium border-b min-h-12 flex items-center transition-all"
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = "var(--brand-primary)"
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = ""
+                      }}
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       New Log
@@ -142,14 +149,26 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
                   )}
                   <Link
                     href="/staff/reports"
-                    className="text-muted-foreground hover:text-indigo-600 px-4 py-4 rounded-md text-base font-medium border-b min-h-12 flex items-center"
+                    className="text-muted-foreground px-4 py-4 rounded-md text-base font-medium border-b min-h-12 flex items-center transition-all"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = "var(--brand-primary)"
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = ""
+                    }}
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Reports & Analytics
                   </Link>
                   <Link
                     href="/staff/team"
-                    className="text-muted-foreground hover:text-indigo-600 px-4 py-4 rounded-md text-base font-medium border-b min-h-12 flex items-center"
+                    className="text-muted-foreground px-4 py-4 rounded-md text-base font-medium border-b min-h-12 flex items-center transition-all"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = "var(--brand-primary)"
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = ""
+                    }}
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Team
@@ -186,24 +205,29 @@ export function StaffNavigation({ user, onSignOut, subscriptionStatus }: StaffNa
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  asChild
+                  className="py-3 transition-colors"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--brand-primary)"
+                    e.currentTarget.style.color = "white"
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = ""
+                    e.currentTarget.style.color = ""
+                  }}
+                >
+                  <Link href="/staff/profile" className="flex items-center">
+                    <UserIcon className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <FeedbackModal
                   trigger={
                     <DropdownMenuItem
                       onSelect={(e) => e.preventDefault()}
-                      className="py-3 transition-colors"
-                      style={
-                        {
-                          backgroundColor: "var(--brand-primary)",
-                          color: "white",
-                        } as React.CSSProperties
-                      }
-                      onMouseEnter={(e) => {
-                        const rgb = getComputedStyle(document.documentElement).getPropertyValue("--brand-primary-rgb")
-                        e.currentTarget.style.backgroundColor = `rgba(${rgb}, 0.9)`
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = "var(--brand-primary)"
-                      }}
+                      className="!bg-orange-500 hover:!bg-orange-600 py-3 transition-colors text-white"
                     >
                       <MessageSquare className="mr-2 h-4 w-4" />
                       <span>Give Feedback</span>

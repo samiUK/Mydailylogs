@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -74,9 +76,22 @@ function ProfileCard({
       <CardContent className="pt-0">
         <div className="space-y-3 text-center">
           <div>
-            <Badge variant={member.role === "admin" ? "default" : "secondary"} className="mb-2">
+            <Badge
+              variant={member.role === "admin" ? "default" : "secondary"}
+              className="mb-2"
+              style={
+                member.role === "admin"
+                  ? ({
+                      backgroundColor: "var(--brand-primary)",
+                      color: "white",
+                      borderColor: "var(--brand-primary)",
+                    } as React.CSSProperties)
+                  : undefined
+              }
+            >
               {member.role}
             </Badge>
+            {/* */}
           </div>
           {member.position && (
             <div>

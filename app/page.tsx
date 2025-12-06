@@ -2,15 +2,15 @@ import type { Metadata } from "next"
 import HomePageClient from "./page-client"
 
 export const metadata: Metadata = {
-  title: "MyDayLogs - Task Management & Digital Reporting for Growing Teams Worldwide",
+  title: "MyDayLogs - Simple Task Management & Compliance Reporting for Growing Businesses",
   description:
-    "Streamline your team operations with digital task management and professional reporting. Perfect for businesses worldwide with 1-7 managers coordinating field teams. Automated recurring tasks, mobile checklists, and instant reports. Free forever plan available.",
+    "Professional task management and compliance reporting built for teams working on-site, in the office, or on the go. Complete checklists, capture evidence, and generate professional reports - perfect for construction, hospitality, healthcare, retail, logistics, facilities management, and service industries.",
   keywords:
-    "task management software, team coordination, digital reporting, field operations, mobile checklists, recurring tasks, business automation, manager tools, team management app, compliance tracking, construction management, hospitality operations, healthcare coordination, retail management, logistics tracking, SME software, small business tools",
+    "task management software, compliance reporting, team coordination, digital reporting, field operations, mobile checklists, recurring tasks, business automation, manager tools, team management app, compliance tracking, construction management, hospitality operations, healthcare coordination, retail management, logistics tracking, facilities management, service industries",
   openGraph: {
-    title: "MyDayLogs - Task Management for Growing Teams Worldwide",
+    title: "MyDayLogs - Simple Task Management & Compliance Reporting",
     description:
-      "Professional task management and digital reporting for businesses worldwide. Support 1-7 managers with automated tasks, mobile checklists, and instant reports. Free plan available.",
+      "Professional task management and compliance reporting for teams working on-site, in the office, or on the go. Complete checklists, capture evidence, and generate professional reports instantly.",
     images: ["/og-image.png"],
   },
 }
@@ -59,7 +59,7 @@ const structuredData = {
     ratingCount: "127",
   },
   description:
-    "Task management and digital reporting platform for growing teams worldwide. Automate recurring tasks, coordinate 1-7 managers, complete mobile checklists, and generate professional reports instantly. Perfect for construction, hospitality, healthcare, retail, and logistics operations.",
+    "Professional task management and compliance reporting built for teams working on-site, in the office, or on the go. Complete checklists, capture evidence, and generate professional reports - perfect for construction, hospitality, healthcare, retail, logistics, facilities management, and service industries worldwide.",
   featureList: [
     "Automated Recurring Tasks",
     "Multi-Manager Coordination",
@@ -74,7 +74,7 @@ const structuredData = {
   ],
   screenshot: "https://www.mydaylogs.co.uk/og-image.png",
   softwareVersion: "2.0",
-  releaseNotes: "Beta 2.0 - Manager roles and global operations support",
+  releaseNotes: "Beta 2.0 - Manager roles and enhanced team coordination",
 }
 
 export default function HomePage() {

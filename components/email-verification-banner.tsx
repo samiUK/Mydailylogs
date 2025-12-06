@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { X, Mail, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -14,52 +14,14 @@ export function EmailVerificationBanner({ userEmail, isVerified }: EmailVerifica
   const [dismissed, setDismissed] = useState(false)
   const [resending, setResending] = useState(false)
   const [message, setMessage] = useState("")
-  const [currentVerificationStatus, setCurrentVerificationStatus] = useState(isVerified)
 
-  useEffect(() => {
-    console.log("[v0] Email Verification Banner - Email:", userEmail)
-    console.log("[v0] Email Verification Banner - Is Verified:", currentVerificationStatus)
-    console.log("[v0] Email Verification Banner - Should Show Banner:", !currentVerificationStatus && !dismissed)
-
-    setCurrentVerificationStatus(isVerified)
-  }, [userEmail, isVerified, dismissed, currentVerificationStatus])
-
-  useEffect(() => {
-    const checkVerificationStatus = async () => {
-      try {
-        const response = await fetch("/api/auth/check-verification", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: userEmail }),
-        })
-        const data = await response.json()
-        if (data.verified && !currentVerificationStatus) {
-          setCurrentVerificationStatus(true)
-          setMessage("Email verified successfully!")
-          setTimeout(() => {
-            window.location.reload()
-          }, 1500)
-        }
-      } catch (error) {
-        console.error("[v0] Error checking verification:", error)
-      }
-    }
-
-    if (!currentVerificationStatus && !dismissed) {
-      const interval = setInterval(checkVerificationStatus, 5000)
-      return () => clearInterval(interval)
-    }
-  }, [userEmail, currentVerificationStatus, dismissed])
-
-  if (currentVerificationStatus || dismissed) {
+  if (isVerified || dismissed) {
     return null
   }
 
   const handleResendVerification = async () => {
     setResending(true)
     setMessage("")
-
-    console.log("[v0] Resending verification email to:", userEmail)
 
     try {
       const response = await fetch("/api/auth/resend-verification", {
@@ -69,12 +31,10 @@ export function EmailVerificationBanner({ userEmail, isVerified }: EmailVerifica
       })
 
       const data = await response.json()
-      console.log("[v0] Resend verification response:", data)
 
       if (data.success) {
         setMessage("✓ Verification email sent! Check your inbox and spam folder.")
       } else {
-        console.error("[v0] Resend failed:", data.error)
         setMessage(`Failed: ${data.error || "Please try again or contact support."}`)
       }
     } catch (error) {
@@ -82,7 +42,7 @@ export function EmailVerificationBanner({ userEmail, isVerified }: EmailVerifica
       setMessage("Network error. Please try again later.")
     } finally {
       setResending(false)
-      setTimeout(() => setMessage(""), 8000)
+      setTimeout(() => setMessage(""), 10000)
     }
   }
 

@@ -9,6 +9,12 @@ import { createBrowserClient } from "@supabase/ssr"
 export function FeedbackBanner() {
   const [isVisible, setIsVisible] = useState(true)
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
+  const [activeCampaign, setActiveCampaign] = useState<{
+    promo_code: string
+    discount_value: number
+    current_redemptions?: number
+    max_redemptions: number
+  } | null>(null)
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -18,7 +24,6 @@ export function FeedbackBanner() {
           process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         )
 
-        // Get current user with error handling
         const {
           data: { user },
           error,
@@ -35,7 +40,18 @@ export function FeedbackBanner() {
 
     initializeAuth()
 
-    // Check if banner was previously closed
+    const fetchActiveCampaign = async () => {
+      try {
+        const response = await fetch("/api/promo-campaign/active")
+        const data = await response.json()
+        setActiveCampaign(data.campaign)
+      } catch (error) {
+        console.log("[v0] Failed to fetch active campaign:", error)
+      }
+    }
+
+    fetchActiveCampaign()
+
     const bannerClosed = localStorage.getItem("feedback-banner-closed")
     if (bannerClosed === "true") {
       setIsVisible(false)
@@ -54,14 +70,21 @@ export function FeedbackBanner() {
 
   if (!showBanner || !isVisible) return null
 
+  const isCompleted =
+    activeCampaign &&
+    activeCampaign.current_redemptions &&
+    activeCampaign.current_redemptions >= activeCampaign.max_redemptions
+  const message = isCompleted
+    ? "We've just launched and you might find system bugs. Share them via feedback to help us improve!"
+    : activeCampaign
+      ? `We've just launched and you might find system bugs. Share them via feedback and tell others about us to get a ${activeCampaign.discount_value}% discount code!`
+      : "We've just launched and you might find system bugs. Share them via feedback to help us improve!"
+
   return (
     <div className="bg-accent text-accent-foreground py-2 px-4">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm">
-          <span>
-            We've just launched and you might find system bugs. Share them via feedback and tell others about us to get
-            a 20% discount code!
-          </span>
+          <span>{message}</span>
         </div>
         <div className="flex items-center gap-2">
           <FeedbackModal

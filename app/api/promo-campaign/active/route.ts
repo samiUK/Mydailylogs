@@ -6,9 +6,8 @@ export async function GET() {
   try {
     const supabase = await createClient()
 
-    // Fetch active campaign
     const { data: campaign, error } = await supabase
-      .from("promo_campaigns")
+      .from("promotional_campaigns")
       .select("*")
       .eq("is_active", true)
       .order("created_at", { ascending: false })
@@ -44,11 +43,14 @@ export async function GET() {
 
     return NextResponse.json({
       campaign: {
+        id: campaign.id,
         name: campaign.name,
         description: campaign.description,
         promo_code: campaign.promo_code_template,
         discount_type: campaign.discount_type,
         discount_value: campaign.discount_value,
+        max_redemptions: campaign.max_redemptions,
+        current_redemptions: currentRedemptions,
         remaining_redemptions: campaign.max_redemptions - currentRedemptions,
       },
     })

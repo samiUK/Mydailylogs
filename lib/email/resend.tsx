@@ -20,9 +20,7 @@ const getEmailLayout = (content: string, preheader?: string) => {
           body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
           .email-container { max-width: 600px; margin: 0 auto; background: #ffffff; }
           .header { background: #059669; padding: 32px; text-align: center; }
-          .logo-container { display: flex; align-items: center; justify-content: center; gap: 12px; }
-          .logo { width: 48px; height: 48px; background: #ffffff; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
-          .logo-text { color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+          .logo-text { color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
           .content { padding: 40px 32px; color: #1f2937; line-height: 1.6; }
           .button { display: inline-block; background: #059669; color: #ffffff !important; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; margin: 24px 0; }
           .button:hover { background: #047857; }
@@ -36,12 +34,7 @@ const getEmailLayout = (content: string, preheader?: string) => {
         ${preheader ? `<div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">${preheader}</div>` : ""}
         <div class="email-container">
           <div class="header">
-            <div class="logo-container">
-              <div class="logo">
-                <img src="${getBaseUrl()}/mydaylogs-logo.png" alt="MyDayLogs" width="48" height="48" style="display: block; border-radius: 8px;" />
-              </div>
-              <span class="logo-text">MyDayLogs</span>
-            </div>
+            <span class="logo-text">MyDayLogs</span>
           </div>
           <div class="content">
             ${content}

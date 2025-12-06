@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
       })
 
       const responseMessage = generate_unique_codes
-        ? `Promo campaign created successfully! ${codeGenResult.generated} unique Stripe promotion codes generated. Each code can only be used once and validates the full code including suffix.${show_on_banner ? " Campaign is now showing on the homepage banner." : ""}`
+        ? `Promo campaign created successfully! ${codeGenResult.generated} unique Stripe promotion codes generated (5x your ${max_redemptions} max redemptions to ensure availability). Each code can only be used once.${show_on_banner ? " Campaign is now showing on the homepage banner." : ""}`
         : `Generic promo campaign created successfully! Universal code ${promo_code_template} is ready to use.${show_on_banner ? " Campaign is now showing on the homepage banner." : ""}`
 
       return NextResponse.json({
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
           ? {
               couponId: stripeCoupon.id,
               promotionCodesCreated: codeGenResult.generated,
-              note: `${codeGenResult.generated} individual Stripe promotion codes created (e.g., ${promo_code_template}-ABC123). Users must enter the FULL code at checkout.`,
+              note: `${codeGenResult.generated} individual Stripe promotion codes created (5x multiplier). Users must enter the FULL code at checkout (e.g., ${promo_code_template}-ABC123).`,
             }
           : {
               couponId: stripeCoupon.id,
@@ -166,8 +166,9 @@ export async function POST(request: NextRequest) {
         uniqueCodes: generate_unique_codes
           ? {
               generated: codeGenResult.generated,
-              total: max_redemptions,
-              note: "Each code is a valid Stripe promotion code. Users must use the full code including suffix.",
+              maxRedemptions: max_redemptions,
+              multiplier: 5,
+              note: `Generated ${codeGenResult.generated} codes for ${max_redemptions} max redemptions. Extra codes ensure you don't run out if some users don't redeem.`,
             }
           : {
               generated: 0,

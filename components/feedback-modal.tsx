@@ -217,16 +217,25 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
 
       const shareUrl = typeof window !== "undefined" ? window.location.origin : "https://mydaylogs.co.uk"
 
+      try {
+        await navigator.clipboard.writeText(shareMessage)
+        console.log("[v0] Message copied to clipboard")
+      } catch (err) {
+        console.error("[v0] Failed to copy to clipboard:", err)
+      }
+
       let platformUrl = ""
 
       switch (platform) {
         case "facebook":
-          platformUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(shareMessage)}`
+          // Facebook doesn't support pre-filled text, so we just share the URL
+          platformUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`
           break
         case "twitter":
           platformUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareMessage)}&url=${encodeURIComponent(shareUrl)}`
           break
         case "linkedin":
+          // LinkedIn doesn't support pre-filled text either
           platformUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`
           break
       }
@@ -491,7 +500,13 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
               <div className="space-y-4 bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 border-2 border-blue-400 rounded-xl p-6 shadow-lg">
                 <div className="text-center space-y-2">
                   <h3 className="text-2xl font-bold text-blue-800">Share to Unlock Your Code</h3>
-                  <p className="text-base text-blue-700">Click any button below - we've written the message for you!</p>
+                  <p className="text-base text-blue-700">Your message is ready - just paste and share!</p>
+                </div>
+
+                <div className="bg-amber-50 border-2 border-amber-400 rounded-lg p-3">
+                  <p className="text-sm text-amber-900 font-semibold text-center">
+                    📋 Click a button below - we'll copy the message to your clipboard automatically!
+                  </p>
                 </div>
 
                 <div className="bg-white border-2 border-blue-300 rounded-lg p-4">
@@ -511,7 +526,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                       className="w-full bg-[#1877F2] hover:bg-[#1877F2]/90 text-white shadow-lg hover:shadow-xl transition-all py-6 text-base"
                     >
                       <Facebook className="w-5 h-5 mr-2" />
-                      Share on Facebook
+                      Copy & Share on Facebook
                     </Button>
                     <Button
                       onClick={() => trackSocialShare("twitter")}
@@ -520,7 +535,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                       className="w-full bg-[#1DA1F2] hover:bg-[#1DA1F2]/90 text-white shadow-lg hover:shadow-xl transition-all py-6 text-base"
                     >
                       <Twitter className="w-5 h-5 mr-2" />
-                      Share on Twitter
+                      Share on Twitter (Auto-filled)
                     </Button>
                     <Button
                       onClick={() => trackSocialShare("linkedin")}
@@ -529,7 +544,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                       className="w-full bg-[#0A66C2] hover:bg-[#0A66C2]/90 text-white shadow-lg hover:shadow-xl transition-all py-6 text-base"
                     >
                       <Linkedin className="w-5 h-5 mr-2" />
-                      Share on LinkedIn
+                      Copy & Share on LinkedIn
                     </Button>
                   </div>
 
@@ -606,11 +621,16 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-4">
                     <Button
-                      onClick={() => {
+                      onClick={async () => {
                         const shareMessage = `I'm using MyDayLogs to streamline my work! ${activeCampaign.discount_value}% off for new users - submit feedback to get your code!`
                         const shareUrl =
                           typeof window !== "undefined" ? window.location.origin : "https://mydaylogs.co.uk"
-                        const platformUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(shareMessage)}`
+                        try {
+                          await navigator.clipboard.writeText(shareMessage)
+                        } catch (err) {
+                          console.error("Failed to copy:", err)
+                        }
+                        const platformUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`
                         window.open(platformUrl, "_blank", "noopener,noreferrer")
                       }}
                       size="sm"
@@ -636,10 +656,15 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                       Twitter
                     </Button>
                     <Button
-                      onClick={() => {
+                      onClick={async () => {
                         const shareMessage = `I'm using MyDayLogs to streamline my work! ${activeCampaign.discount_value}% off for new users - submit feedback to get your code!`
                         const shareUrl =
                           typeof window !== "undefined" ? window.location.origin : "https://mydaylogs.co.uk"
+                        try {
+                          await navigator.clipboard.writeText(shareMessage)
+                        } catch (err) {
+                          console.error("Failed to copy:", err)
+                        }
                         const platformUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`
                         window.open(platformUrl, "_blank", "noopener,noreferrer")
                       }}
@@ -650,52 +675,6 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                       <Linkedin className="w-4 h-4 mr-1" />
                       LinkedIn
                     </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {issuedPromoCode && hasShared && requiresSocialShare && (
-              <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-400 rounded-xl p-6 shadow-lg">
-                <div className="text-center space-y-4">
-                  <div className="flex items-center justify-center gap-2">
-                    <Sparkles className="w-7 h-7 text-emerald-600 animate-pulse" />
-                    <h3 className="text-2xl font-bold text-emerald-700">Success! Your Code is Ready</h3>
-                    <Sparkles className="w-7 h-7 text-emerald-600 animate-pulse" />
-                  </div>
-
-                  <div className="bg-white border-3 border-emerald-500 rounded-lg p-6 shadow-xl">
-                    <p className="text-sm text-gray-600 mb-2 font-medium">Your Exclusive Discount Code:</p>
-                    <div className="flex items-center justify-center gap-3 mb-3">
-                      <code className="text-3xl font-mono font-bold text-emerald-600 tracking-wider bg-emerald-50 px-4 py-2 rounded border-2 border-emerald-300">
-                        {issuedPromoCode}
-                      </code>
-                      <Button
-                        onClick={() => {
-                          navigator.clipboard.writeText(issuedPromoCode)
-                          alert("✅ Promo code copied to clipboard!")
-                        }}
-                        size="lg"
-                        variant="outline"
-                        className="border-emerald-500 text-emerald-700 hover:bg-emerald-50"
-                      >
-                        <Copy className="w-5 h-5 mr-2" />
-                        Copy Code
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="bg-white border border-emerald-300 rounded-lg p-4 space-y-2">
-                    <p className="text-base font-semibold text-emerald-800">
-                      💚 Save this code and use it at checkout!
-                    </p>
-                    <p className="text-sm text-gray-700">
-                      Get <strong className="text-emerald-700">{activeCampaign?.discount_value}% off</strong> your first
-                      month
-                    </p>
-                    <p className="text-xs text-gray-500 italic">
-                      This code is unique to you and can only be used once. Keep it safe!
-                    </p>
                   </div>
                 </div>
               </div>

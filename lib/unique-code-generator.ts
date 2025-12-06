@@ -20,16 +20,19 @@ export async function generateUniqueCodes(
   const supabase = createAdminClient()
 
   try {
+    const codesToGenerate = count * 5
+    console.log(`[v0] Generating ${codesToGenerate} codes (5x multiplier) for ${count} max redemptions`)
+
     const codes: { campaign_id: string; promo_code: string; stripe_promotion_code_id?: string }[] = []
     const uniqueCodes = new Set<string>()
 
     // Generate unique codes
-    while (uniqueCodes.size < count) {
+    while (uniqueCodes.size < codesToGenerate) {
       const code = generateRandomCode(prefix)
       uniqueCodes.add(code)
     }
 
-    console.log(`[v0] Creating ${count} Stripe promotion codes...`)
+    console.log(`[v0] Creating ${codesToGenerate} Stripe promotion codes...`)
 
     for (const code of uniqueCodes) {
       try {

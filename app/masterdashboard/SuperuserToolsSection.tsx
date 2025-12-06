@@ -54,6 +54,8 @@ interface Campaign {
   banner_cta_text: string
   generate_unique_codes: boolean
   created_at: string
+  total_submissions?: number // Added for display
+  total_redeemed?: number // Added for display
 }
 
 interface Submission {
@@ -147,6 +149,8 @@ export function SuperuserToolsSection({
         const mappedCampaigns = (data.campaigns || []).map((campaign: any) => ({
           ...campaign,
           campaign_id: campaign.id, // Add campaign_id alias
+          total_submissions: campaign.total_submissions, // Ensure these are mapped
+          total_redeemed: campaign.total_redeemed, // Ensure these are mapped
         }))
         setCampaigns(mappedCampaigns)
         console.log("[v0] Campaigns fetched and mapped:", mappedCampaigns)
@@ -406,6 +410,43 @@ export function SuperuserToolsSection({
     } catch (error) {
       console.error("[v0] Error syncing with Stripe:", error)
       alert("Failed to sync with Stripe. Please try again.")
+    }
+  }
+
+  const handleGenerateMoreCodes = async (campaignId: string, campaignName: string, generateUniqueCodes: boolean) => {
+    if (!generateUniqueCodes) {
+      alert(`Campaign "${campaignName}" uses generic codes. No additional codes needed.`)
+      return
+    }
+
+    const additionalCodes = prompt(
+      `How many additional codes do you want to generate for "${campaignName}"?\n\nRecommended: 50-150 codes`,
+      "50",
+    )
+
+    if (!additionalCodes || isNaN(Number.parseInt(additionalCodes))) {
+      return
+    }
+
+    try {
+      const res = await fetch(
+        `/api/master/promo-campaigns/add-codes?campaign_id=${campaignId}&additional_codes=${additionalCodes}`,
+        {
+          method: "POST",
+        },
+      )
+
+      const data = await res.json()
+
+      if (res.ok) {
+        alert(`✅ ${data.message}\n\nCodes Generated: ${data.codes_generated}`)
+        await fetchCampaigns()
+      } else {
+        alert(`Failed to generate codes: ${data.error}`)
+      }
+    } catch (error) {
+      console.error("[v0] Error generating codes:", error)
+      alert("Failed to generate additional codes. Please try again.")
     }
   }
 
@@ -785,6 +826,18 @@ export function SuperuserToolsSection({
                           <p className="text-sm text-gray-600">{campaign.description}</p>
                         </div>
                         <div className="flex gap-2">
+                          {campaign.generate_unique_codes && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                handleGenerateMoreCodes(campaign.id, campaign.name, campaign.generate_unique_codes)
+                              }
+                              title="Generate additional tracking codes for this campaign"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </Button>
+                          )}
                           {/* Added Sync button */}
                           <Button
                             variant="outline"
